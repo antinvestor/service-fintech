@@ -14,8 +14,8 @@ import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
 import '../../common/v1/common.pbjson.dart' as $8;
+import '../../common/v1/money.pbjson.dart' as $7;
 import '../../google/protobuf/struct.pbjson.dart' as $6;
-import '../../google/type/money.pbjson.dart' as $7;
 
 @$core.Deprecated('Use loanStatusDescriptor instead')
 const LoanStatus$json = {
@@ -273,8 +273,8 @@ const LoanProductObject$json = {
     {'1': 'currency_code', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'currencyCode'},
     {'1': 'interest_method', '3': 8, '4': 1, '5': 14, '6': '.loans.v1.InterestMethod', '10': 'interestMethod'},
     {'1': 'repayment_frequency', '3': 9, '4': 1, '5': 14, '6': '.loans.v1.RepaymentFrequency', '10': 'repaymentFrequency'},
-    {'1': 'min_amount', '3': 10, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'minAmount'},
-    {'1': 'max_amount', '3': 11, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'maxAmount'},
+    {'1': 'min_amount', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'minAmount'},
+    {'1': 'max_amount', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'maxAmount'},
     {'1': 'min_term_days', '3': 12, '4': 1, '5': 5, '10': 'minTermDays'},
     {'1': 'max_term_days', '3': 13, '4': 1, '5': 5, '10': 'maxTermDays'},
     {'1': 'annual_interest_rate', '3': 14, '4': 1, '5': 9, '10': 'annualInterestRate'},
@@ -300,20 +300,20 @@ final $typed_data.Uint8List loanProductObjectDescriptor = $convert.base64Decode(
     'N1cnJlbmN5X2NvZGUYByABKAlCCLpIBXIDmAEDUgxjdXJyZW5jeUNvZGUSQQoPaW50ZXJlc3Rf'
     'bWV0aG9kGAggASgOMhgubG9hbnMudjEuSW50ZXJlc3RNZXRob2RSDmludGVyZXN0TWV0aG9kEk'
     '0KE3JlcGF5bWVudF9mcmVxdWVuY3kYCSABKA4yHC5sb2Fucy52MS5SZXBheW1lbnRGcmVxdWVu'
-    'Y3lSEnJlcGF5bWVudEZyZXF1ZW5jeRIxCgptaW5fYW1vdW50GAogASgLMhIuZ29vZ2xlLnR5cG'
-    'UuTW9uZXlSCW1pbkFtb3VudBIxCgptYXhfYW1vdW50GAsgASgLMhIuZ29vZ2xlLnR5cGUuTW9u'
-    'ZXlSCW1heEFtb3VudBIiCg1taW5fdGVybV9kYXlzGAwgASgFUgttaW5UZXJtRGF5cxIiCg1tYX'
-    'hfdGVybV9kYXlzGA0gASgFUgttYXhUZXJtRGF5cxIwChRhbm51YWxfaW50ZXJlc3RfcmF0ZRgO'
-    'IAEoCVISYW5udWFsSW50ZXJlc3RSYXRlEjQKFnByb2Nlc3NpbmdfZmVlX3BlcmNlbnQYDyABKA'
-    'lSFHByb2Nlc3NpbmdGZWVQZXJjZW50EjIKFWluc3VyYW5jZV9mZWVfcGVyY2VudBgQIAEoCVIT'
-    'aW5zdXJhbmNlRmVlUGVyY2VudBIqChFsYXRlX3BlbmFsdHlfcmF0ZRgRIAEoCVIPbGF0ZVBlbm'
-    'FsdHlSYXRlEioKEWdyYWNlX3BlcmlvZF9kYXlzGBIgASgFUg9ncmFjZVBlcmlvZERheXMSPAoN'
-    'ZmVlX3N0cnVjdHVyZRgTIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSDGZlZVN0cnVjdH'
-    'VyZRJKChRlbGlnaWJpbGl0eV9jcml0ZXJpYRgUIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1'
-    'Y3RSE2VsaWdpYmlsaXR5Q3JpdGVyaWESJgoFc3RhdGUYFSABKA4yEC5jb21tb24udjEuU1RBVE'
-    'VSBXN0YXRlEjcKCnByb3BlcnRpZXMYFiABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ugpw'
-    'cm9wZXJ0aWVzEkcKDnJlcXVpcmVkX2Zvcm1zGBcgAygLMiAubG9hbnMudjEuUHJvZHVjdEZvcm'
-    '1SZXF1aXJlbWVudFINcmVxdWlyZWRGb3Jtcw==');
+    'Y3lSEnJlcGF5bWVudEZyZXF1ZW5jeRIvCgptaW5fYW1vdW50GAogASgLMhAuY29tbW9uLnYxLk'
+    '1vbmV5UgltaW5BbW91bnQSLwoKbWF4X2Ftb3VudBgLIAEoCzIQLmNvbW1vbi52MS5Nb25leVIJ'
+    'bWF4QW1vdW50EiIKDW1pbl90ZXJtX2RheXMYDCABKAVSC21pblRlcm1EYXlzEiIKDW1heF90ZX'
+    'JtX2RheXMYDSABKAVSC21heFRlcm1EYXlzEjAKFGFubnVhbF9pbnRlcmVzdF9yYXRlGA4gASgJ'
+    'UhJhbm51YWxJbnRlcmVzdFJhdGUSNAoWcHJvY2Vzc2luZ19mZWVfcGVyY2VudBgPIAEoCVIUcH'
+    'JvY2Vzc2luZ0ZlZVBlcmNlbnQSMgoVaW5zdXJhbmNlX2ZlZV9wZXJjZW50GBAgASgJUhNpbnN1'
+    'cmFuY2VGZWVQZXJjZW50EioKEWxhdGVfcGVuYWx0eV9yYXRlGBEgASgJUg9sYXRlUGVuYWx0eV'
+    'JhdGUSKgoRZ3JhY2VfcGVyaW9kX2RheXMYEiABKAVSD2dyYWNlUGVyaW9kRGF5cxI8Cg1mZWVf'
+    'c3RydWN0dXJlGBMgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIMZmVlU3RydWN0dXJlEk'
+    'oKFGVsaWdpYmlsaXR5X2NyaXRlcmlhGBQgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIT'
+    'ZWxpZ2liaWxpdHlDcml0ZXJpYRImCgVzdGF0ZRgVIAEoDjIQLmNvbW1vbi52MS5TVEFURVIFc3'
+    'RhdGUSNwoKcHJvcGVydGllcxgWIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCnByb3Bl'
+    'cnRpZXMSRwoOcmVxdWlyZWRfZm9ybXMYFyADKAsyIC5sb2Fucy52MS5Qcm9kdWN0Rm9ybVJlcX'
+    'VpcmVtZW50Ug1yZXF1aXJlZEZvcm1z');
 
 @$core.Deprecated('Use loanRequestObjectDescriptor instead')
 const LoanRequestObject$json = {
@@ -326,8 +326,8 @@ const LoanRequestObject$json = {
     {'1': 'branch_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
     {'1': 'organization_id', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
     {'1': 'status', '3': 7, '4': 1, '5': 14, '6': '.loans.v1.LoanRequestStatus', '10': 'status'},
-    {'1': 'requested_amount', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'requestedAmount'},
-    {'1': 'approved_amount', '3': 9, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'approvedAmount'},
+    {'1': 'requested_amount', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'requestedAmount'},
+    {'1': 'approved_amount', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'approvedAmount'},
     {'1': 'requested_term_days', '3': 10, '4': 1, '5': 5, '10': 'requestedTermDays'},
     {'1': 'approved_term_days', '3': 11, '4': 1, '5': 5, '10': 'approvedTermDays'},
     {'1': 'interest_rate', '3': 12, '4': 1, '5': 9, '10': 'interestRate'},
@@ -353,19 +353,19 @@ final $typed_data.Uint8List loanRequestObjectDescriptor = $convert.base64Decode(
     'lCCrpIB9gBAXICGChSB2FnZW50SWQSJwoJYnJhbmNoX2lkGAUgASgJQgq6SAfYAQFyAhgoUghi'
     'cmFuY2hJZBIyCg9vcmdhbml6YXRpb25faWQYBiABKAlCCbpIBnIEEAMYKFIOb3JnYW5pemF0aW'
     '9uSWQSMwoGc3RhdHVzGAcgASgOMhsubG9hbnMudjEuTG9hblJlcXVlc3RTdGF0dXNSBnN0YXR1'
-    'cxI9ChByZXF1ZXN0ZWRfYW1vdW50GAggASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSD3JlcXVlc3'
-    'RlZEFtb3VudBI7Cg9hcHByb3ZlZF9hbW91bnQYCSABKAsyEi5nb29nbGUudHlwZS5Nb25leVIO'
-    'YXBwcm92ZWRBbW91bnQSLgoTcmVxdWVzdGVkX3Rlcm1fZGF5cxgKIAEoBVIRcmVxdWVzdGVkVG'
-    'VybURheXMSLAoSYXBwcm92ZWRfdGVybV9kYXlzGAsgASgFUhBhcHByb3ZlZFRlcm1EYXlzEiMK'
-    'DWludGVyZXN0X3JhdGUYDCABKAlSDGludGVyZXN0UmF0ZRIjCg1jdXJyZW5jeV9jb2RlGA0gAS'
-    'gJUgxjdXJyZW5jeUNvZGUSGAoHcHVycG9zZRgOIAEoCVIHcHVycG9zZRIpChByZWplY3Rpb25f'
-    'cmVhc29uGA8gASgJUg9yZWplY3Rpb25SZWFzb24SKAoQb2ZmZXJfZXhwaXJlc19hdBgQIAEoCV'
-    'IOb2ZmZXJFeHBpcmVzQXQSIQoMc3VibWl0dGVkX2F0GBEgASgJUgtzdWJtaXR0ZWRBdBIdCgpk'
-    'ZWNpZGVkX2F0GBIgASgJUglkZWNpZGVkQXQSJgoPbG9hbl9hY2NvdW50X2lkGBMgASgJUg1sb2'
-    'FuQWNjb3VudElkEiUKDnNvdXJjZV9zZXJ2aWNlGBQgASgJUg1zb3VyY2VTZXJ2aWNlEioKEXNv'
-    'dXJjZV9yZXF1ZXN0X2lkGBUgASgJUg9zb3VyY2VSZXF1ZXN0SWQSJwoPaWRlbXBvdGVuY3lfa2'
-    'V5GBYgASgJUg5pZGVtcG90ZW5jeUtleRI3Cgpwcm9wZXJ0aWVzGBcgASgLMhcuZ29vZ2xlLnBy'
-    'b3RvYnVmLlN0cnVjdFIKcHJvcGVydGllcw==');
+    'cxI7ChByZXF1ZXN0ZWRfYW1vdW50GAggASgLMhAuY29tbW9uLnYxLk1vbmV5Ug9yZXF1ZXN0ZW'
+    'RBbW91bnQSOQoPYXBwcm92ZWRfYW1vdW50GAkgASgLMhAuY29tbW9uLnYxLk1vbmV5Ug5hcHBy'
+    'b3ZlZEFtb3VudBIuChNyZXF1ZXN0ZWRfdGVybV9kYXlzGAogASgFUhFyZXF1ZXN0ZWRUZXJtRG'
+    'F5cxIsChJhcHByb3ZlZF90ZXJtX2RheXMYCyABKAVSEGFwcHJvdmVkVGVybURheXMSIwoNaW50'
+    'ZXJlc3RfcmF0ZRgMIAEoCVIMaW50ZXJlc3RSYXRlEiMKDWN1cnJlbmN5X2NvZGUYDSABKAlSDG'
+    'N1cnJlbmN5Q29kZRIYCgdwdXJwb3NlGA4gASgJUgdwdXJwb3NlEikKEHJlamVjdGlvbl9yZWFz'
+    'b24YDyABKAlSD3JlamVjdGlvblJlYXNvbhIoChBvZmZlcl9leHBpcmVzX2F0GBAgASgJUg5vZm'
+    'ZlckV4cGlyZXNBdBIhCgxzdWJtaXR0ZWRfYXQYESABKAlSC3N1Ym1pdHRlZEF0Eh0KCmRlY2lk'
+    'ZWRfYXQYEiABKAlSCWRlY2lkZWRBdBImCg9sb2FuX2FjY291bnRfaWQYEyABKAlSDWxvYW5BY2'
+    'NvdW50SWQSJQoOc291cmNlX3NlcnZpY2UYFCABKAlSDXNvdXJjZVNlcnZpY2USKgoRc291cmNl'
+    'X3JlcXVlc3RfaWQYFSABKAlSD3NvdXJjZVJlcXVlc3RJZBInCg9pZGVtcG90ZW5jeV9rZXkYFi'
+    'ABKAlSDmlkZW1wb3RlbmN5S2V5EjcKCnByb3BlcnRpZXMYFyABKAsyFy5nb29nbGUucHJvdG9i'
+    'dWYuU3RydWN0Ugpwcm9wZXJ0aWVz');
 
 @$core.Deprecated('Use clientProductAccessObjectDescriptor instead')
 const ClientProductAccessObject$json = {
@@ -399,7 +399,7 @@ const LoanAccountObject$json = {
     {'1': 'branch_id', '3': 6, '4': 1, '5': 9, '10': 'branchId'},
     {'1': 'organization_id', '3': 7, '4': 1, '5': 9, '10': 'organizationId'},
     {'1': 'status', '3': 8, '4': 1, '5': 14, '6': '.loans.v1.LoanStatus', '10': 'status'},
-    {'1': 'principal_amount', '3': 10, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'principalAmount'},
+    {'1': 'principal_amount', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalAmount'},
     {'1': 'interest_rate', '3': 11, '4': 1, '5': 9, '10': 'interestRate'},
     {'1': 'term_days', '3': 12, '4': 1, '5': 5, '10': 'termDays'},
     {'1': 'interest_method', '3': 13, '4': 1, '5': 14, '6': '.loans.v1.InterestMethod', '10': 'interestMethod'},
@@ -425,23 +425,23 @@ final $typed_data.Uint8List loanAccountObjectDescriptor = $convert.base64Decode(
     'cXVlc3RJZBIdCgpwcm9kdWN0X2lkGAMgASgJUglwcm9kdWN0SWQSGwoJY2xpZW50X2lkGAQgAS'
     'gJUghjbGllbnRJZBIZCghhZ2VudF9pZBgFIAEoCVIHYWdlbnRJZBIbCglicmFuY2hfaWQYBiAB'
     'KAlSCGJyYW5jaElkEicKD29yZ2FuaXphdGlvbl9pZBgHIAEoCVIOb3JnYW5pemF0aW9uSWQSLA'
-    'oGc3RhdHVzGAggASgOMhQubG9hbnMudjEuTG9hblN0YXR1c1IGc3RhdHVzEj0KEHByaW5jaXBh'
-    'bF9hbW91bnQYCiABKAsyEi5nb29nbGUudHlwZS5Nb25leVIPcHJpbmNpcGFsQW1vdW50EiMKDW'
-    'ludGVyZXN0X3JhdGUYCyABKAlSDGludGVyZXN0UmF0ZRIbCgl0ZXJtX2RheXMYDCABKAVSCHRl'
-    'cm1EYXlzEkEKD2ludGVyZXN0X21ldGhvZBgNIAEoDjIYLmxvYW5zLnYxLkludGVyZXN0TWV0aG'
-    '9kUg5pbnRlcmVzdE1ldGhvZBJNChNyZXBheW1lbnRfZnJlcXVlbmN5GA4gASgOMhwubG9hbnMu'
-    'djEuUmVwYXltZW50RnJlcXVlbmN5UhJyZXBheW1lbnRGcmVxdWVuY3kSIQoMZGlzYnVyc2VkX2'
-    'F0GA8gASgJUgtkaXNidXJzZWRBdBIjCg1tYXR1cml0eV9kYXRlGBAgASgJUgxtYXR1cml0eURh'
-    'dGUSMAoUZmlyc3RfcmVwYXltZW50X2RhdGUYESABKAlSEmZpcnN0UmVwYXltZW50RGF0ZRIuCh'
-    'NsYXN0X3JlcGF5bWVudF9kYXRlGBIgASgJUhFsYXN0UmVwYXltZW50RGF0ZRIiCg1kYXlzX3Bh'
-    'c3RfZHVlGBMgASgFUgtkYXlzUGFzdER1ZRI1ChdsZWRnZXJfYXNzZXRfYWNjb3VudF9pZBgUIA'
-    'EoCVIUbGVkZ2VyQXNzZXRBY2NvdW50SWQSSAohbGVkZ2VyX2ludGVyZXN0X2luY29tZV9hY2Nv'
-    'dW50X2lkGBUgASgJUh1sZWRnZXJJbnRlcmVzdEluY29tZUFjY291bnRJZBI+ChxsZWRnZXJfZm'
-    'VlX2luY29tZV9hY2NvdW50X2lkGBYgASgJUhhsZWRnZXJGZWVJbmNvbWVBY2NvdW50SWQSRgog'
-    'bGVkZ2VyX3BlbmFsdHlfaW5jb21lX2FjY291bnRfaWQYFyABKAlSHGxlZGdlclBlbmFsdHlJbm'
-    'NvbWVBY2NvdW50SWQSLgoTcGF5bWVudF9hY2NvdW50X3JlZhgYIAEoCVIRcGF5bWVudEFjY291'
-    'bnRSZWYSNwoKcHJvcGVydGllcxgZIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCnByb3'
-    'BlcnRpZXM=');
+    'oGc3RhdHVzGAggASgOMhQubG9hbnMudjEuTG9hblN0YXR1c1IGc3RhdHVzEjsKEHByaW5jaXBh'
+    'bF9hbW91bnQYCiABKAsyEC5jb21tb24udjEuTW9uZXlSD3ByaW5jaXBhbEFtb3VudBIjCg1pbn'
+    'RlcmVzdF9yYXRlGAsgASgJUgxpbnRlcmVzdFJhdGUSGwoJdGVybV9kYXlzGAwgASgFUgh0ZXJt'
+    'RGF5cxJBCg9pbnRlcmVzdF9tZXRob2QYDSABKA4yGC5sb2Fucy52MS5JbnRlcmVzdE1ldGhvZF'
+    'IOaW50ZXJlc3RNZXRob2QSTQoTcmVwYXltZW50X2ZyZXF1ZW5jeRgOIAEoDjIcLmxvYW5zLnYx'
+    'LlJlcGF5bWVudEZyZXF1ZW5jeVIScmVwYXltZW50RnJlcXVlbmN5EiEKDGRpc2J1cnNlZF9hdB'
+    'gPIAEoCVILZGlzYnVyc2VkQXQSIwoNbWF0dXJpdHlfZGF0ZRgQIAEoCVIMbWF0dXJpdHlEYXRl'
+    'EjAKFGZpcnN0X3JlcGF5bWVudF9kYXRlGBEgASgJUhJmaXJzdFJlcGF5bWVudERhdGUSLgoTbG'
+    'FzdF9yZXBheW1lbnRfZGF0ZRgSIAEoCVIRbGFzdFJlcGF5bWVudERhdGUSIgoNZGF5c19wYXN0'
+    'X2R1ZRgTIAEoBVILZGF5c1Bhc3REdWUSNQoXbGVkZ2VyX2Fzc2V0X2FjY291bnRfaWQYFCABKA'
+    'lSFGxlZGdlckFzc2V0QWNjb3VudElkEkgKIWxlZGdlcl9pbnRlcmVzdF9pbmNvbWVfYWNjb3Vu'
+    'dF9pZBgVIAEoCVIdbGVkZ2VySW50ZXJlc3RJbmNvbWVBY2NvdW50SWQSPgocbGVkZ2VyX2ZlZV'
+    '9pbmNvbWVfYWNjb3VudF9pZBgWIAEoCVIYbGVkZ2VyRmVlSW5jb21lQWNjb3VudElkEkYKIGxl'
+    'ZGdlcl9wZW5hbHR5X2luY29tZV9hY2NvdW50X2lkGBcgASgJUhxsZWRnZXJQZW5hbHR5SW5jb2'
+    '1lQWNjb3VudElkEi4KE3BheW1lbnRfYWNjb3VudF9yZWYYGCABKAlSEXBheW1lbnRBY2NvdW50'
+    'UmVmEjcKCnByb3BlcnRpZXMYGSABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ugpwcm9wZX'
+    'J0aWVz');
 
 @$core.Deprecated('Use repaymentScheduleObjectDescriptor instead')
 const RepaymentScheduleObject$json = {
@@ -474,15 +474,15 @@ const ScheduleEntryObject$json = {
     {'1': 'schedule_id', '3': 2, '4': 1, '5': 9, '10': 'scheduleId'},
     {'1': 'installment_number', '3': 3, '4': 1, '5': 5, '10': 'installmentNumber'},
     {'1': 'due_date', '3': 4, '4': 1, '5': 9, '10': 'dueDate'},
-    {'1': 'principal_due', '3': 5, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'principalDue'},
-    {'1': 'interest_due', '3': 6, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'interestDue'},
-    {'1': 'fees_due', '3': 7, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'feesDue'},
-    {'1': 'total_due', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalDue'},
-    {'1': 'principal_paid', '3': 9, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'principalPaid'},
-    {'1': 'interest_paid', '3': 10, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'interestPaid'},
-    {'1': 'fees_paid', '3': 11, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'feesPaid'},
-    {'1': 'total_paid', '3': 12, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalPaid'},
-    {'1': 'outstanding', '3': 13, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'outstanding'},
+    {'1': 'principal_due', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalDue'},
+    {'1': 'interest_due', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestDue'},
+    {'1': 'fees_due', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesDue'},
+    {'1': 'total_due', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDue'},
+    {'1': 'principal_paid', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalPaid'},
+    {'1': 'interest_paid', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestPaid'},
+    {'1': 'fees_paid', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesPaid'},
+    {'1': 'total_paid', '3': 12, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalPaid'},
+    {'1': 'outstanding', '3': 13, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'outstanding'},
     {'1': 'status', '3': 14, '4': 1, '5': 14, '6': '.loans.v1.ScheduleEntryStatus', '10': 'status'},
     {'1': 'paid_date', '3': 15, '4': 1, '5': 9, '10': 'paidDate'},
     {'1': 'properties', '3': 16, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
@@ -493,31 +493,31 @@ const ScheduleEntryObject$json = {
 final $typed_data.Uint8List scheduleEntryObjectDescriptor = $convert.base64Decode(
     'ChNTY2hlZHVsZUVudHJ5T2JqZWN0Eg4KAmlkGAEgASgJUgJpZBIfCgtzY2hlZHVsZV9pZBgCIA'
     'EoCVIKc2NoZWR1bGVJZBItChJpbnN0YWxsbWVudF9udW1iZXIYAyABKAVSEWluc3RhbGxtZW50'
-    'TnVtYmVyEhkKCGR1ZV9kYXRlGAQgASgJUgdkdWVEYXRlEjcKDXByaW5jaXBhbF9kdWUYBSABKA'
-    'syEi5nb29nbGUudHlwZS5Nb25leVIMcHJpbmNpcGFsRHVlEjUKDGludGVyZXN0X2R1ZRgGIAEo'
-    'CzISLmdvb2dsZS50eXBlLk1vbmV5UgtpbnRlcmVzdER1ZRItCghmZWVzX2R1ZRgHIAEoCzISLm'
-    'dvb2dsZS50eXBlLk1vbmV5UgdmZWVzRHVlEi8KCXRvdGFsX2R1ZRgIIAEoCzISLmdvb2dsZS50'
-    'eXBlLk1vbmV5Ugh0b3RhbER1ZRI5Cg5wcmluY2lwYWxfcGFpZBgJIAEoCzISLmdvb2dsZS50eX'
-    'BlLk1vbmV5Ug1wcmluY2lwYWxQYWlkEjcKDWludGVyZXN0X3BhaWQYCiABKAsyEi5nb29nbGUu'
-    'dHlwZS5Nb25leVIMaW50ZXJlc3RQYWlkEi8KCWZlZXNfcGFpZBgLIAEoCzISLmdvb2dsZS50eX'
-    'BlLk1vbmV5UghmZWVzUGFpZBIxCgp0b3RhbF9wYWlkGAwgASgLMhIuZ29vZ2xlLnR5cGUuTW9u'
-    'ZXlSCXRvdGFsUGFpZBI0CgtvdXRzdGFuZGluZxgNIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5Ug'
-    'tvdXRzdGFuZGluZxI1CgZzdGF0dXMYDiABKA4yHS5sb2Fucy52MS5TY2hlZHVsZUVudHJ5U3Rh'
-    'dHVzUgZzdGF0dXMSGwoJcGFpZF9kYXRlGA8gASgJUghwYWlkRGF0ZRI3Cgpwcm9wZXJ0aWVzGB'
-    'AgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVydGllcw==');
+    'TnVtYmVyEhkKCGR1ZV9kYXRlGAQgASgJUgdkdWVEYXRlEjUKDXByaW5jaXBhbF9kdWUYBSABKA'
+    'syEC5jb21tb24udjEuTW9uZXlSDHByaW5jaXBhbER1ZRIzCgxpbnRlcmVzdF9kdWUYBiABKAsy'
+    'EC5jb21tb24udjEuTW9uZXlSC2ludGVyZXN0RHVlEisKCGZlZXNfZHVlGAcgASgLMhAuY29tbW'
+    '9uLnYxLk1vbmV5UgdmZWVzRHVlEi0KCXRvdGFsX2R1ZRgIIAEoCzIQLmNvbW1vbi52MS5Nb25l'
+    'eVIIdG90YWxEdWUSNwoOcHJpbmNpcGFsX3BhaWQYCSABKAsyEC5jb21tb24udjEuTW9uZXlSDX'
+    'ByaW5jaXBhbFBhaWQSNQoNaW50ZXJlc3RfcGFpZBgKIAEoCzIQLmNvbW1vbi52MS5Nb25leVIM'
+    'aW50ZXJlc3RQYWlkEi0KCWZlZXNfcGFpZBgLIAEoCzIQLmNvbW1vbi52MS5Nb25leVIIZmVlc1'
+    'BhaWQSLwoKdG90YWxfcGFpZBgMIAEoCzIQLmNvbW1vbi52MS5Nb25leVIJdG90YWxQYWlkEjIK'
+    'C291dHN0YW5kaW5nGA0gASgLMhAuY29tbW9uLnYxLk1vbmV5UgtvdXRzdGFuZGluZxI1CgZzdG'
+    'F0dXMYDiABKA4yHS5sb2Fucy52MS5TY2hlZHVsZUVudHJ5U3RhdHVzUgZzdGF0dXMSGwoJcGFp'
+    'ZF9kYXRlGA8gASgJUghwYWlkRGF0ZRI3Cgpwcm9wZXJ0aWVzGBAgASgLMhcuZ29vZ2xlLnByb3'
+    'RvYnVmLlN0cnVjdFIKcHJvcGVydGllcw==');
 
 @$core.Deprecated('Use loanBalanceObjectDescriptor instead')
 const LoanBalanceObject$json = {
   '1': 'LoanBalanceObject',
   '2': [
     {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '10': 'loanAccountId'},
-    {'1': 'principal_outstanding', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'principalOutstanding'},
-    {'1': 'interest_accrued', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'interestAccrued'},
-    {'1': 'fees_outstanding', '3': 4, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'feesOutstanding'},
-    {'1': 'penalties_outstanding', '3': 5, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'penaltiesOutstanding'},
-    {'1': 'total_outstanding', '3': 6, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalOutstanding'},
-    {'1': 'total_paid', '3': 7, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalPaid'},
-    {'1': 'total_disbursed', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalDisbursed'},
+    {'1': 'principal_outstanding', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalOutstanding'},
+    {'1': 'interest_accrued', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestAccrued'},
+    {'1': 'fees_outstanding', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesOutstanding'},
+    {'1': 'penalties_outstanding', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'penaltiesOutstanding'},
+    {'1': 'total_outstanding', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalOutstanding'},
+    {'1': 'total_paid', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalPaid'},
+    {'1': 'total_disbursed', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDisbursed'},
     {'1': 'last_calculated_at', '3': 9, '4': 1, '5': 9, '10': 'lastCalculatedAt'},
   ],
 };
@@ -525,15 +525,15 @@ const LoanBalanceObject$json = {
 /// Descriptor for `LoanBalanceObject`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List loanBalanceObjectDescriptor = $convert.base64Decode(
     'ChFMb2FuQmFsYW5jZU9iamVjdBImCg9sb2FuX2FjY291bnRfaWQYASABKAlSDWxvYW5BY2NvdW'
-    '50SWQSRwoVcHJpbmNpcGFsX291dHN0YW5kaW5nGAIgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlS'
-    'FHByaW5jaXBhbE91dHN0YW5kaW5nEj0KEGludGVyZXN0X2FjY3J1ZWQYAyABKAsyEi5nb29nbG'
-    'UudHlwZS5Nb25leVIPaW50ZXJlc3RBY2NydWVkEj0KEGZlZXNfb3V0c3RhbmRpbmcYBCABKAsy'
-    'Ei5nb29nbGUudHlwZS5Nb25leVIPZmVlc091dHN0YW5kaW5nEkcKFXBlbmFsdGllc19vdXRzdG'
-    'FuZGluZxgFIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UhRwZW5hbHRpZXNPdXRzdGFuZGluZxI/'
-    'ChF0b3RhbF9vdXRzdGFuZGluZxgGIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UhB0b3RhbE91dH'
-    'N0YW5kaW5nEjEKCnRvdGFsX3BhaWQYByABKAsyEi5nb29nbGUudHlwZS5Nb25leVIJdG90YWxQ'
-    'YWlkEjsKD3RvdGFsX2Rpc2J1cnNlZBgIIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5Ug50b3RhbE'
-    'Rpc2J1cnNlZBIsChJsYXN0X2NhbGN1bGF0ZWRfYXQYCSABKAlSEGxhc3RDYWxjdWxhdGVkQXQ=');
+    '50SWQSRQoVcHJpbmNpcGFsX291dHN0YW5kaW5nGAIgASgLMhAuY29tbW9uLnYxLk1vbmV5UhRw'
+    'cmluY2lwYWxPdXRzdGFuZGluZxI7ChBpbnRlcmVzdF9hY2NydWVkGAMgASgLMhAuY29tbW9uLn'
+    'YxLk1vbmV5Ug9pbnRlcmVzdEFjY3J1ZWQSOwoQZmVlc19vdXRzdGFuZGluZxgEIAEoCzIQLmNv'
+    'bW1vbi52MS5Nb25leVIPZmVlc091dHN0YW5kaW5nEkUKFXBlbmFsdGllc19vdXRzdGFuZGluZx'
+    'gFIAEoCzIQLmNvbW1vbi52MS5Nb25leVIUcGVuYWx0aWVzT3V0c3RhbmRpbmcSPQoRdG90YWxf'
+    'b3V0c3RhbmRpbmcYBiABKAsyEC5jb21tb24udjEuTW9uZXlSEHRvdGFsT3V0c3RhbmRpbmcSLw'
+    'oKdG90YWxfcGFpZBgHIAEoCzIQLmNvbW1vbi52MS5Nb25leVIJdG90YWxQYWlkEjkKD3RvdGFs'
+    'X2Rpc2J1cnNlZBgIIAEoCzIQLmNvbW1vbi52MS5Nb25leVIOdG90YWxEaXNidXJzZWQSLAoSbG'
+    'FzdF9jYWxjdWxhdGVkX2F0GAkgASgJUhBsYXN0Q2FsY3VsYXRlZEF0');
 
 @$core.Deprecated('Use disbursementObjectDescriptor instead')
 const DisbursementObject$json = {
@@ -541,7 +541,7 @@ const DisbursementObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'status', '3': 5, '4': 1, '5': 14, '6': '.loans.v1.DisbursementStatus', '10': 'status'},
     {'1': 'payment_reference', '3': 6, '4': 1, '5': 9, '10': 'paymentReference'},
     {'1': 'ledger_transaction_id', '3': 7, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
@@ -558,15 +558,15 @@ const DisbursementObject$json = {
 final $typed_data.Uint8List disbursementObjectDescriptor = $convert.base64Decode(
     'ChJEaXNidXJzZW1lbnRPYmplY3QSLgoCaWQYASABKAlCHrpIG9gBAXIWEAMYKDIQWzAtOWEtel'
     '8tXXszLDQwfVICaWQSMQoPbG9hbl9hY2NvdW50X2lkGAIgASgJQgm6SAZyBBADGChSDWxvYW5B'
-    'Y2NvdW50SWQSKgoGYW1vdW50GAMgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSBmFtb3VudBI0Cg'
-    'ZzdGF0dXMYBSABKA4yHC5sb2Fucy52MS5EaXNidXJzZW1lbnRTdGF0dXNSBnN0YXR1cxIrChFw'
-    'YXltZW50X3JlZmVyZW5jZRgGIAEoCVIQcGF5bWVudFJlZmVyZW5jZRIyChVsZWRnZXJfdHJhbn'
-    'NhY3Rpb25faWQYByABKAlSE2xlZGdlclRyYW5zYWN0aW9uSWQSIQoMZGlzYnVyc2VkX2F0GAgg'
-    'ASgJUgtkaXNidXJzZWRBdBIYCgdjaGFubmVsGAkgASgJUgdjaGFubmVsEi8KE3JlY2lwaWVudF'
-    '9yZWZlcmVuY2UYCiABKAlSEnJlY2lwaWVudFJlZmVyZW5jZRIlCg5mYWlsdXJlX3JlYXNvbhgL'
-    'IAEoCVINZmFpbHVyZVJlYXNvbhInCg9pZGVtcG90ZW5jeV9rZXkYDCABKAlSDmlkZW1wb3Rlbm'
-    'N5S2V5EjcKCnByb3BlcnRpZXMYDSABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ugpwcm9w'
-    'ZXJ0aWVz');
+    'Y2NvdW50SWQSKAoGYW1vdW50GAMgASgLMhAuY29tbW9uLnYxLk1vbmV5UgZhbW91bnQSNAoGc3'
+    'RhdHVzGAUgASgOMhwubG9hbnMudjEuRGlzYnVyc2VtZW50U3RhdHVzUgZzdGF0dXMSKwoRcGF5'
+    'bWVudF9yZWZlcmVuY2UYBiABKAlSEHBheW1lbnRSZWZlcmVuY2USMgoVbGVkZ2VyX3RyYW5zYW'
+    'N0aW9uX2lkGAcgASgJUhNsZWRnZXJUcmFuc2FjdGlvbklkEiEKDGRpc2J1cnNlZF9hdBgIIAEo'
+    'CVILZGlzYnVyc2VkQXQSGAoHY2hhbm5lbBgJIAEoCVIHY2hhbm5lbBIvChNyZWNpcGllbnRfcm'
+    'VmZXJlbmNlGAogASgJUhJyZWNpcGllbnRSZWZlcmVuY2USJQoOZmFpbHVyZV9yZWFzb24YCyAB'
+    'KAlSDWZhaWx1cmVSZWFzb24SJwoPaWRlbXBvdGVuY3lfa2V5GAwgASgJUg5pZGVtcG90ZW5jeU'
+    'tleRI3Cgpwcm9wZXJ0aWVzGA0gASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVy'
+    'dGllcw==');
 
 @$core.Deprecated('Use repaymentObjectDescriptor instead')
 const RepaymentObject$json = {
@@ -574,18 +574,18 @@ const RepaymentObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'status', '3': 5, '4': 1, '5': 14, '6': '.loans.v1.RepaymentStatus', '10': 'status'},
     {'1': 'payment_reference', '3': 6, '4': 1, '5': 9, '10': 'paymentReference'},
     {'1': 'ledger_transaction_id', '3': 7, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
     {'1': 'received_at', '3': 8, '4': 1, '5': 9, '10': 'receivedAt'},
     {'1': 'channel', '3': 9, '4': 1, '5': 9, '10': 'channel'},
     {'1': 'payer_reference', '3': 10, '4': 1, '5': 9, '10': 'payerReference'},
-    {'1': 'principal_applied', '3': 11, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'principalApplied'},
-    {'1': 'interest_applied', '3': 12, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'interestApplied'},
-    {'1': 'fees_applied', '3': 13, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'feesApplied'},
-    {'1': 'penalties_applied', '3': 14, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'penaltiesApplied'},
-    {'1': 'excess_amount', '3': 15, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'excessAmount'},
+    {'1': 'principal_applied', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalApplied'},
+    {'1': 'interest_applied', '3': 12, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestApplied'},
+    {'1': 'fees_applied', '3': 13, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesApplied'},
+    {'1': 'penalties_applied', '3': 14, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'penaltiesApplied'},
+    {'1': 'excess_amount', '3': 15, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'excessAmount'},
     {'1': 'idempotency_key', '3': 16, '4': 1, '5': 9, '10': 'idempotencyKey'},
     {'1': 'properties', '3': 17, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
   ],
@@ -595,19 +595,19 @@ const RepaymentObject$json = {
 final $typed_data.Uint8List repaymentObjectDescriptor = $convert.base64Decode(
     'Cg9SZXBheW1lbnRPYmplY3QSLgoCaWQYASABKAlCHrpIG9gBAXIWEAMYKDIQWzAtOWEtel8tXX'
     'szLDQwfVICaWQSMQoPbG9hbl9hY2NvdW50X2lkGAIgASgJQgm6SAZyBBADGChSDWxvYW5BY2Nv'
-    'dW50SWQSKgoGYW1vdW50GAMgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSBmFtb3VudBIxCgZzdG'
-    'F0dXMYBSABKA4yGS5sb2Fucy52MS5SZXBheW1lbnRTdGF0dXNSBnN0YXR1cxIrChFwYXltZW50'
-    'X3JlZmVyZW5jZRgGIAEoCVIQcGF5bWVudFJlZmVyZW5jZRIyChVsZWRnZXJfdHJhbnNhY3Rpb2'
-    '5faWQYByABKAlSE2xlZGdlclRyYW5zYWN0aW9uSWQSHwoLcmVjZWl2ZWRfYXQYCCABKAlSCnJl'
-    'Y2VpdmVkQXQSGAoHY2hhbm5lbBgJIAEoCVIHY2hhbm5lbBInCg9wYXllcl9yZWZlcmVuY2UYCi'
-    'ABKAlSDnBheWVyUmVmZXJlbmNlEj8KEXByaW5jaXBhbF9hcHBsaWVkGAsgASgLMhIuZ29vZ2xl'
-    'LnR5cGUuTW9uZXlSEHByaW5jaXBhbEFwcGxpZWQSPQoQaW50ZXJlc3RfYXBwbGllZBgMIAEoCz'
-    'ISLmdvb2dsZS50eXBlLk1vbmV5Ug9pbnRlcmVzdEFwcGxpZWQSNQoMZmVlc19hcHBsaWVkGA0g'
-    'ASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSC2ZlZXNBcHBsaWVkEj8KEXBlbmFsdGllc19hcHBsaW'
-    'VkGA4gASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSEHBlbmFsdGllc0FwcGxpZWQSNwoNZXhjZXNz'
-    'X2Ftb3VudBgPIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgxleGNlc3NBbW91bnQSJwoPaWRlbX'
-    'BvdGVuY3lfa2V5GBAgASgJUg5pZGVtcG90ZW5jeUtleRI3Cgpwcm9wZXJ0aWVzGBEgASgLMhcu'
-    'Z29vZ2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVydGllcw==');
+    'dW50SWQSKAoGYW1vdW50GAMgASgLMhAuY29tbW9uLnYxLk1vbmV5UgZhbW91bnQSMQoGc3RhdH'
+    'VzGAUgASgOMhkubG9hbnMudjEuUmVwYXltZW50U3RhdHVzUgZzdGF0dXMSKwoRcGF5bWVudF9y'
+    'ZWZlcmVuY2UYBiABKAlSEHBheW1lbnRSZWZlcmVuY2USMgoVbGVkZ2VyX3RyYW5zYWN0aW9uX2'
+    'lkGAcgASgJUhNsZWRnZXJUcmFuc2FjdGlvbklkEh8KC3JlY2VpdmVkX2F0GAggASgJUgpyZWNl'
+    'aXZlZEF0EhgKB2NoYW5uZWwYCSABKAlSB2NoYW5uZWwSJwoPcGF5ZXJfcmVmZXJlbmNlGAogAS'
+    'gJUg5wYXllclJlZmVyZW5jZRI9ChFwcmluY2lwYWxfYXBwbGllZBgLIAEoCzIQLmNvbW1vbi52'
+    'MS5Nb25leVIQcHJpbmNpcGFsQXBwbGllZBI7ChBpbnRlcmVzdF9hcHBsaWVkGAwgASgLMhAuY2'
+    '9tbW9uLnYxLk1vbmV5Ug9pbnRlcmVzdEFwcGxpZWQSMwoMZmVlc19hcHBsaWVkGA0gASgLMhAu'
+    'Y29tbW9uLnYxLk1vbmV5UgtmZWVzQXBwbGllZBI9ChFwZW5hbHRpZXNfYXBwbGllZBgOIAEoCz'
+    'IQLmNvbW1vbi52MS5Nb25leVIQcGVuYWx0aWVzQXBwbGllZBI1Cg1leGNlc3NfYW1vdW50GA8g'
+    'ASgLMhAuY29tbW9uLnYxLk1vbmV5UgxleGNlc3NBbW91bnQSJwoPaWRlbXBvdGVuY3lfa2V5GB'
+    'AgASgJUg5pZGVtcG90ZW5jeUtleRI3Cgpwcm9wZXJ0aWVzGBEgASgLMhcuZ29vZ2xlLnByb3Rv'
+    'YnVmLlN0cnVjdFIKcHJvcGVydGllcw==');
 
 @$core.Deprecated('Use penaltyObjectDescriptor instead')
 const PenaltyObject$json = {
@@ -616,7 +616,7 @@ const PenaltyObject$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
     {'1': 'penalty_type', '3': 3, '4': 1, '5': 14, '6': '.loans.v1.PenaltyType', '10': 'penaltyType'},
-    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'reason', '3': 5, '4': 1, '5': 9, '10': 'reason'},
     {'1': 'is_waived', '3': 6, '4': 1, '5': 8, '10': 'isWaived'},
     {'1': 'waived_by', '3': 7, '4': 1, '5': 9, '10': 'waivedBy'},
@@ -633,13 +633,13 @@ final $typed_data.Uint8List penaltyObjectDescriptor = $convert.base64Decode(
     'Cg1QZW5hbHR5T2JqZWN0Ei4KAmlkGAEgASgJQh66SBvYAQFyFhADGCgyEFswLTlhLXpfLV17My'
     'w0MH1SAmlkEjEKD2xvYW5fYWNjb3VudF9pZBgCIAEoCUIJukgGcgQQAxgoUg1sb2FuQWNjb3Vu'
     'dElkEjgKDHBlbmFsdHlfdHlwZRgDIAEoDjIVLmxvYW5zLnYxLlBlbmFsdHlUeXBlUgtwZW5hbH'
-    'R5VHlwZRIqCgZhbW91bnQYBCABKAsyEi5nb29nbGUudHlwZS5Nb25leVIGYW1vdW50EhYKBnJl'
-    'YXNvbhgFIAEoCVIGcmVhc29uEhsKCWlzX3dhaXZlZBgGIAEoCFIIaXNXYWl2ZWQSGwoJd2Fpdm'
-    'VkX2J5GAcgASgJUgh3YWl2ZWRCeRIjCg13YWl2ZWRfcmVhc29uGAggASgJUgx3YWl2ZWRSZWFz'
-    'b24SMgoVbGVkZ2VyX3RyYW5zYWN0aW9uX2lkGAkgASgJUhNsZWRnZXJUcmFuc2FjdGlvbklkEh'
-    '0KCmFwcGxpZWRfYXQYCiABKAlSCWFwcGxpZWRBdBIqChFzY2hlZHVsZV9lbnRyeV9pZBgLIAEo'
-    'CVIPc2NoZWR1bGVFbnRyeUlkEjcKCnByb3BlcnRpZXMYDCABKAsyFy5nb29nbGUucHJvdG9idW'
-    'YuU3RydWN0Ugpwcm9wZXJ0aWVz');
+    'R5VHlwZRIoCgZhbW91bnQYBCABKAsyEC5jb21tb24udjEuTW9uZXlSBmFtb3VudBIWCgZyZWFz'
+    'b24YBSABKAlSBnJlYXNvbhIbCglpc193YWl2ZWQYBiABKAhSCGlzV2FpdmVkEhsKCXdhaXZlZF'
+    '9ieRgHIAEoCVIId2FpdmVkQnkSIwoNd2FpdmVkX3JlYXNvbhgIIAEoCVIMd2FpdmVkUmVhc29u'
+    'EjIKFWxlZGdlcl90cmFuc2FjdGlvbl9pZBgJIAEoCVITbGVkZ2VyVHJhbnNhY3Rpb25JZBIdCg'
+    'phcHBsaWVkX2F0GAogASgJUglhcHBsaWVkQXQSKgoRc2NoZWR1bGVfZW50cnlfaWQYCyABKAlS'
+    'D3NjaGVkdWxlRW50cnlJZBI3Cgpwcm9wZXJ0aWVzGAwgASgLMhcuZ29vZ2xlLnByb3RvYnVmLl'
+    'N0cnVjdFIKcHJvcGVydGllcw==');
 
 @$core.Deprecated('Use loanRestructureObjectDescriptor instead')
 const LoanRestructureObject$json = {
@@ -655,7 +655,7 @@ const LoanRestructureObject$json = {
     {'1': 'new_interest_rate', '3': 8, '4': 1, '5': 9, '10': 'newInterestRate'},
     {'1': 'old_term_days', '3': 9, '4': 1, '5': 5, '10': 'oldTermDays'},
     {'1': 'new_term_days', '3': 10, '4': 1, '5': 5, '10': 'newTermDays'},
-    {'1': 'waived_amount', '3': 11, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'waivedAmount'},
+    {'1': 'waived_amount', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'waivedAmount'},
     {'1': 'old_schedule_id', '3': 12, '4': 1, '5': 9, '10': 'oldScheduleId'},
     {'1': 'new_schedule_id', '3': 13, '4': 1, '5': 9, '10': 'newScheduleId'},
     {'1': 'state', '3': 14, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
@@ -673,11 +673,11 @@ final $typed_data.Uint8List loanRestructureObjectDescriptor = $convert.base64Dec
     'ZyZWFzb24SKgoRb2xkX2ludGVyZXN0X3JhdGUYByABKAlSD29sZEludGVyZXN0UmF0ZRIqChFu'
     'ZXdfaW50ZXJlc3RfcmF0ZRgIIAEoCVIPbmV3SW50ZXJlc3RSYXRlEiIKDW9sZF90ZXJtX2RheX'
     'MYCSABKAVSC29sZFRlcm1EYXlzEiIKDW5ld190ZXJtX2RheXMYCiABKAVSC25ld1Rlcm1EYXlz'
-    'EjcKDXdhaXZlZF9hbW91bnQYCyABKAsyEi5nb29nbGUudHlwZS5Nb25leVIMd2FpdmVkQW1vdW'
-    '50EiYKD29sZF9zY2hlZHVsZV9pZBgMIAEoCVINb2xkU2NoZWR1bGVJZBImCg9uZXdfc2NoZWR1'
-    'bGVfaWQYDSABKAlSDW5ld1NjaGVkdWxlSWQSJgoFc3RhdGUYDiABKA4yEC5jb21tb24udjEuU1'
-    'RBVEVSBXN0YXRlEjcKCnByb3BlcnRpZXMYDyABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0'
-    'Ugpwcm9wZXJ0aWVz');
+    'EjUKDXdhaXZlZF9hbW91bnQYCyABKAsyEC5jb21tb24udjEuTW9uZXlSDHdhaXZlZEFtb3VudB'
+    'ImCg9vbGRfc2NoZWR1bGVfaWQYDCABKAlSDW9sZFNjaGVkdWxlSWQSJgoPbmV3X3NjaGVkdWxl'
+    'X2lkGA0gASgJUg1uZXdTY2hlZHVsZUlkEiYKBXN0YXRlGA4gASgOMhAuY29tbW9uLnYxLlNUQV'
+    'RFUgVzdGF0ZRI3Cgpwcm9wZXJ0aWVzGA8gASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIK'
+    'cHJvcGVydGllcw==');
 
 @$core.Deprecated('Use loanStatusChangeObjectDescriptor instead')
 const LoanStatusChangeObject$json = {
@@ -709,7 +709,7 @@ const ReconciliationObject$json = {
     {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
     {'1': 'payment_reference', '3': 3, '4': 1, '5': 9, '10': 'paymentReference'},
     {'1': 'external_reference', '3': 4, '4': 1, '5': 9, '10': 'externalReference'},
-    {'1': 'amount', '3': 5, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'status', '3': 7, '4': 1, '5': 14, '6': '.loans.v1.ReconciliationStatus', '10': 'status'},
     {'1': 'matched_repayment_id', '3': 8, '4': 1, '5': 9, '10': 'matchedRepaymentId'},
     {'1': 'notes', '3': 9, '4': 1, '5': 9, '10': 'notes'},
@@ -724,13 +724,13 @@ final $typed_data.Uint8List reconciliationObjectDescriptor = $convert.base64Deco
     'ChRSZWNvbmNpbGlhdGlvbk9iamVjdBIuCgJpZBgBIAEoCUIeukgb2AEBchYQAxgoMhBbMC05YS'
     '16Xy1dezMsNDB9UgJpZBIxCg9sb2FuX2FjY291bnRfaWQYAiABKAlCCbpIBnIEEAMYKFINbG9h'
     'bkFjY291bnRJZBIrChFwYXltZW50X3JlZmVyZW5jZRgDIAEoCVIQcGF5bWVudFJlZmVyZW5jZR'
-    'ItChJleHRlcm5hbF9yZWZlcmVuY2UYBCABKAlSEWV4dGVybmFsUmVmZXJlbmNlEioKBmFtb3Vu'
-    'dBgFIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgZhbW91bnQSNgoGc3RhdHVzGAcgASgOMh4ubG'
-    '9hbnMudjEuUmVjb25jaWxpYXRpb25TdGF0dXNSBnN0YXR1cxIwChRtYXRjaGVkX3JlcGF5bWVu'
-    'dF9pZBgIIAEoCVISbWF0Y2hlZFJlcGF5bWVudElkEhQKBW5vdGVzGAkgASgJUgVub3RlcxIjCg'
-    '1yZWNvbmNpbGVkX2F0GAogASgJUgxyZWNvbmNpbGVkQXQSIwoNcmVjb25jaWxlZF9ieRgLIAEo'
-    'CVIMcmVjb25jaWxlZEJ5EjcKCnByb3BlcnRpZXMYDCABKAsyFy5nb29nbGUucHJvdG9idWYuU3'
-    'RydWN0Ugpwcm9wZXJ0aWVz');
+    'ItChJleHRlcm5hbF9yZWZlcmVuY2UYBCABKAlSEWV4dGVybmFsUmVmZXJlbmNlEigKBmFtb3Vu'
+    'dBgFIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGYW1vdW50EjYKBnN0YXR1cxgHIAEoDjIeLmxvYW'
+    '5zLnYxLlJlY29uY2lsaWF0aW9uU3RhdHVzUgZzdGF0dXMSMAoUbWF0Y2hlZF9yZXBheW1lbnRf'
+    'aWQYCCABKAlSEm1hdGNoZWRSZXBheW1lbnRJZBIUCgVub3RlcxgJIAEoCVIFbm90ZXMSIwoNcm'
+    'Vjb25jaWxlZF9hdBgKIAEoCVIMcmVjb25jaWxlZEF0EiMKDXJlY29uY2lsZWRfYnkYCyABKAlS'
+    'DHJlY29uY2lsZWRCeRI3Cgpwcm9wZXJ0aWVzGAwgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cn'
+    'VjdFIKcHJvcGVydGllcw==');
 
 @$core.Deprecated('Use loanStatementEntryDescriptor instead')
 const LoanStatementEntry$json = {
@@ -738,9 +738,9 @@ const LoanStatementEntry$json = {
   '2': [
     {'1': 'date', '3': 1, '4': 1, '5': 9, '10': 'date'},
     {'1': 'description', '3': 2, '4': 1, '5': 9, '10': 'description'},
-    {'1': 'debit', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'debit'},
-    {'1': 'credit', '3': 4, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'credit'},
-    {'1': 'balance', '3': 5, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'balance'},
+    {'1': 'debit', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'debit'},
+    {'1': 'credit', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'credit'},
+    {'1': 'balance', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'balance'},
     {'1': 'reference', '3': 6, '4': 1, '5': 9, '10': 'reference'},
   ],
 };
@@ -748,10 +748,10 @@ const LoanStatementEntry$json = {
 /// Descriptor for `LoanStatementEntry`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List loanStatementEntryDescriptor = $convert.base64Decode(
     'ChJMb2FuU3RhdGVtZW50RW50cnkSEgoEZGF0ZRgBIAEoCVIEZGF0ZRIgCgtkZXNjcmlwdGlvbh'
-    'gCIAEoCVILZGVzY3JpcHRpb24SKAoFZGViaXQYAyABKAsyEi5nb29nbGUudHlwZS5Nb25leVIF'
-    'ZGViaXQSKgoGY3JlZGl0GAQgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSBmNyZWRpdBIsCgdiYW'
-    'xhbmNlGAUgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSB2JhbGFuY2USHAoJcmVmZXJlbmNlGAYg'
-    'ASgJUglyZWZlcmVuY2U=');
+    'gCIAEoCVILZGVzY3JpcHRpb24SJgoFZGViaXQYAyABKAsyEC5jb21tb24udjEuTW9uZXlSBWRl'
+    'Yml0EigKBmNyZWRpdBgEIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGY3JlZGl0EioKB2JhbGFuY2'
+    'UYBSABKAsyEC5jb21tb24udjEuTW9uZXlSB2JhbGFuY2USHAoJcmVmZXJlbmNlGAYgASgJUgly'
+    'ZWZlcmVuY2U=');
 
 @$core.Deprecated('Use loanAccountCreateRequestDescriptor instead')
 const LoanAccountCreateRequest$json = {
@@ -959,7 +959,7 @@ const RepaymentRecordRequest$json = {
   '1': 'RepaymentRecordRequest',
   '2': [
     {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'payment_reference', '3': 3, '4': 1, '5': 9, '10': 'paymentReference'},
     {'1': 'channel', '3': 4, '4': 1, '5': 9, '10': 'channel'},
     {'1': 'payer_reference', '3': 5, '4': 1, '5': 9, '10': 'payerReference'},
@@ -971,11 +971,11 @@ const RepaymentRecordRequest$json = {
 /// Descriptor for `RepaymentRecordRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List repaymentRecordRequestDescriptor = $convert.base64Decode(
     'ChZSZXBheW1lbnRSZWNvcmRSZXF1ZXN0EjEKD2xvYW5fYWNjb3VudF9pZBgBIAEoCUIJukgGcg'
-    'QQAxgoUg1sb2FuQWNjb3VudElkEioKBmFtb3VudBgCIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5'
-    'UgZhbW91bnQSKwoRcGF5bWVudF9yZWZlcmVuY2UYAyABKAlSEHBheW1lbnRSZWZlcmVuY2USGA'
-    'oHY2hhbm5lbBgEIAEoCVIHY2hhbm5lbBInCg9wYXllcl9yZWZlcmVuY2UYBSABKAlSDnBheWVy'
-    'UmVmZXJlbmNlEh8KC3JlY2VpdmVkX2F0GAYgASgJUgpyZWNlaXZlZEF0EicKD2lkZW1wb3Rlbm'
-    'N5X2tleRgHIAEoCVIOaWRlbXBvdGVuY3lLZXk=');
+    'QQAxgoUg1sb2FuQWNjb3VudElkEigKBmFtb3VudBgCIAEoCzIQLmNvbW1vbi52MS5Nb25leVIG'
+    'YW1vdW50EisKEXBheW1lbnRfcmVmZXJlbmNlGAMgASgJUhBwYXltZW50UmVmZXJlbmNlEhgKB2'
+    'NoYW5uZWwYBCABKAlSB2NoYW5uZWwSJwoPcGF5ZXJfcmVmZXJlbmNlGAUgASgJUg5wYXllclJl'
+    'ZmVyZW5jZRIfCgtyZWNlaXZlZF9hdBgGIAEoCVIKcmVjZWl2ZWRBdBInCg9pZGVtcG90ZW5jeV'
+    '9rZXkYByABKAlSDmlkZW1wb3RlbmN5S2V5');
 
 @$core.Deprecated('Use repaymentRecordResponseDescriptor instead')
 const RepaymentRecordResponse$json = {
@@ -1755,13 +1755,13 @@ const PortfolioSummary$json = {
     {'1': 'default_loans', '3': 4, '4': 1, '5': 5, '10': 'defaultLoans'},
     {'1': 'paid_off_loans', '3': 5, '4': 1, '5': 5, '10': 'paidOffLoans'},
     {'1': 'written_off_loans', '3': 6, '4': 1, '5': 5, '10': 'writtenOffLoans'},
-    {'1': 'total_disbursed', '3': 7, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalDisbursed'},
-    {'1': 'total_outstanding', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalOutstanding'},
-    {'1': 'total_collected', '3': 9, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalCollected'},
-    {'1': 'principal_outstanding', '3': 10, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'principalOutstanding'},
-    {'1': 'interest_outstanding', '3': 11, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'interestOutstanding'},
-    {'1': 'fees_outstanding', '3': 12, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'feesOutstanding'},
-    {'1': 'penalties_outstanding', '3': 13, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'penaltiesOutstanding'},
+    {'1': 'total_disbursed', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDisbursed'},
+    {'1': 'total_outstanding', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalOutstanding'},
+    {'1': 'total_collected', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalCollected'},
+    {'1': 'principal_outstanding', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalOutstanding'},
+    {'1': 'interest_outstanding', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestOutstanding'},
+    {'1': 'fees_outstanding', '3': 12, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesOutstanding'},
+    {'1': 'penalties_outstanding', '3': 13, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'penaltiesOutstanding'},
     {'1': 'currency_code', '3': 14, '4': 1, '5': 9, '10': 'currencyCode'},
     {'1': 'collection_rate', '3': 15, '4': 1, '5': 9, '10': 'collectionRate'},
     {'1': 'par_30', '3': 16, '4': 1, '5': 9, '10': 'par30'},
@@ -1774,17 +1774,17 @@ final $typed_data.Uint8List portfolioSummaryDescriptor = $convert.base64Decode(
     'FjdGl2ZV9sb2FucxgCIAEoBVILYWN0aXZlTG9hbnMSKQoQZGVsaW5xdWVudF9sb2FucxgDIAEo'
     'BVIPZGVsaW5xdWVudExvYW5zEiMKDWRlZmF1bHRfbG9hbnMYBCABKAVSDGRlZmF1bHRMb2Fucx'
     'IkCg5wYWlkX29mZl9sb2FucxgFIAEoBVIMcGFpZE9mZkxvYW5zEioKEXdyaXR0ZW5fb2ZmX2xv'
-    'YW5zGAYgASgFUg93cml0dGVuT2ZmTG9hbnMSOwoPdG90YWxfZGlzYnVyc2VkGAcgASgLMhIuZ2'
-    '9vZ2xlLnR5cGUuTW9uZXlSDnRvdGFsRGlzYnVyc2VkEj8KEXRvdGFsX291dHN0YW5kaW5nGAgg'
-    'ASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSEHRvdGFsT3V0c3RhbmRpbmcSOwoPdG90YWxfY29sbG'
-    'VjdGVkGAkgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSDnRvdGFsQ29sbGVjdGVkEkcKFXByaW5j'
-    'aXBhbF9vdXRzdGFuZGluZxgKIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UhRwcmluY2lwYWxPdX'
-    'RzdGFuZGluZxJFChRpbnRlcmVzdF9vdXRzdGFuZGluZxgLIAEoCzISLmdvb2dsZS50eXBlLk1v'
-    'bmV5UhNpbnRlcmVzdE91dHN0YW5kaW5nEj0KEGZlZXNfb3V0c3RhbmRpbmcYDCABKAsyEi5nb2'
-    '9nbGUudHlwZS5Nb25leVIPZmVlc091dHN0YW5kaW5nEkcKFXBlbmFsdGllc19vdXRzdGFuZGlu'
-    'ZxgNIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UhRwZW5hbHRpZXNPdXRzdGFuZGluZxIjCg1jdX'
-    'JyZW5jeV9jb2RlGA4gASgJUgxjdXJyZW5jeUNvZGUSJwoPY29sbGVjdGlvbl9yYXRlGA8gASgJ'
-    'Ug5jb2xsZWN0aW9uUmF0ZRIVCgZwYXJfMzAYECABKAlSBXBhcjMw');
+    'YW5zGAYgASgFUg93cml0dGVuT2ZmTG9hbnMSOQoPdG90YWxfZGlzYnVyc2VkGAcgASgLMhAuY2'
+    '9tbW9uLnYxLk1vbmV5Ug50b3RhbERpc2J1cnNlZBI9ChF0b3RhbF9vdXRzdGFuZGluZxgIIAEo'
+    'CzIQLmNvbW1vbi52MS5Nb25leVIQdG90YWxPdXRzdGFuZGluZxI5Cg90b3RhbF9jb2xsZWN0ZW'
+    'QYCSABKAsyEC5jb21tb24udjEuTW9uZXlSDnRvdGFsQ29sbGVjdGVkEkUKFXByaW5jaXBhbF9v'
+    'dXRzdGFuZGluZxgKIAEoCzIQLmNvbW1vbi52MS5Nb25leVIUcHJpbmNpcGFsT3V0c3RhbmRpbm'
+    'cSQwoUaW50ZXJlc3Rfb3V0c3RhbmRpbmcYCyABKAsyEC5jb21tb24udjEuTW9uZXlSE2ludGVy'
+    'ZXN0T3V0c3RhbmRpbmcSOwoQZmVlc19vdXRzdGFuZGluZxgMIAEoCzIQLmNvbW1vbi52MS5Nb2'
+    '5leVIPZmVlc091dHN0YW5kaW5nEkUKFXBlbmFsdGllc19vdXRzdGFuZGluZxgNIAEoCzIQLmNv'
+    'bW1vbi52MS5Nb25leVIUcGVuYWx0aWVzT3V0c3RhbmRpbmcSIwoNY3VycmVuY3lfY29kZRgOIA'
+    'EoCVIMY3VycmVuY3lDb2RlEicKD2NvbGxlY3Rpb25fcmF0ZRgPIAEoCVIOY29sbGVjdGlvblJh'
+    'dGUSFQoGcGFyXzMwGBAgASgJUgVwYXIzMA==');
 
 @$core.Deprecated('Use portfolioSummaryRequestDescriptor instead')
 const PortfolioSummaryRequest$json = {
@@ -2019,7 +2019,7 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
 const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LoanManagementServiceBase$messageJson = {
   '.loans.v1.LoanProductSaveRequest': LoanProductSaveRequest$json,
   '.loans.v1.LoanProductObject': LoanProductObject$json,
-  '.google.type.Money': $7.Money$json,
+  '.common.v1.Money': $7.Money$json,
   '.google.protobuf.Struct': $6.Struct$json,
   '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
   '.google.protobuf.Value': $6.Value$json,

@@ -32,8 +32,7 @@ import (
 	fevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
-	utilmoney "github.com/pitabwire/util/money"
-	"google.golang.org/genproto/googleapis/type/money"
+	utilmoney "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/events"
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
@@ -468,7 +467,7 @@ func (b *transferOrderBusiness) logCBSSyncRecord(
 
 // minorToMoney converts a minor-unit int64 amount and currency code to a
 // google.type.Money protobuf value. Assumes 2-decimal-place currencies.
-func minorToMoney(currency string, amount int64) *money.Money {
+func minorToMoney(currency string, amount int64) *commonv1.Money {
 	return utilmoney.FromInt64(currency, amount, decimalPrecisionTO)
 }
 

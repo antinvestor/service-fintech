@@ -33,7 +33,7 @@ import (
 	fevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/frame/security"
 	"github.com/pitabwire/util"
-	moneyx "github.com/pitabwire/util/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/events"

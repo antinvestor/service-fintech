@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
+	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	moneypb "google.golang.org/genproto/googleapis/type/money"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 

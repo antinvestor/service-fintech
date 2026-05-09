@@ -24,7 +24,7 @@ import (
 	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
 	"github.com/pitabwire/frame/data"
-	moneyx "github.com/pitabwire/util/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/business"
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"

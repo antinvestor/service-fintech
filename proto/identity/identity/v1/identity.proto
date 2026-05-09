@@ -27,10 +27,10 @@ package identity.v1;
 
 import "buf/validate/validate.proto";
 import "common/v1/common.proto";
+import "common/v1/money.proto";
 import "common/v1/permissions.proto";
 import "gnostic/openapi/v3/annotations.proto";
 import "google/protobuf/struct.proto";
-import "google/type/money.proto";
 
 option go_package = "github.com/antinvestor/apis/go/identity/v1;identityv1";
 option java_multiple_files = true;
@@ -999,11 +999,11 @@ message InvestorAccountObject {
   ];
   string account_name = 3;
   reserved 4;
-  google.type.Money available_balance = 5;
-  google.type.Money reserved_balance = 6;
-  google.type.Money total_deployed = 7;
-  google.type.Money total_returned = 8;
-  google.type.Money max_exposure = 9;
+  common.v1.Money available_balance = 5;
+  common.v1.Money reserved_balance = 6;
+  common.v1.Money total_deployed = 7;
+  common.v1.Money total_returned = 8;
+  common.v1.Money max_exposure = 9;
   string min_interest_rate = 10;
   google.protobuf.Struct allowed_products = 11;
   google.protobuf.Struct allowed_regions = 12;
@@ -1046,7 +1046,7 @@ message InvestorDepositRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 2 [(buf.validate.field).required = true];
+  common.v1.Money amount = 2 [(buf.validate.field).required = true];
   reserved 3;
 }
 message InvestorDepositResponse {
@@ -1058,7 +1058,7 @@ message InvestorWithdrawRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 2 [(buf.validate.field).required = true];
+  common.v1.Money amount = 2 [(buf.validate.field).required = true];
 }
 message InvestorWithdrawResponse {
   InvestorAccountObject data = 1;

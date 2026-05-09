@@ -14,10 +14,10 @@ import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
 import '../../common/v1/common.pbjson.dart' as $8;
+import '../../common/v1/money.pbjson.dart' as $7;
 import '../../google/protobuf/duration.pbjson.dart' as $0;
 import '../../google/protobuf/struct.pbjson.dart' as $6;
 import '../../google/protobuf/timestamp.pbjson.dart' as $2;
-import '../../google/type/money.pbjson.dart' as $7;
 
 @$core.Deprecated('Use limitActionDescriptor instead')
 const LimitAction$json = {
@@ -206,7 +206,7 @@ const PolicyObject$json = {
     {'1': 'currency_code', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'currencyCode'},
     {'1': 'limit_kind', '3': 8, '4': 1, '5': 14, '6': '.limits.v1.LimitKind', '8': {}, '10': 'limitKind'},
     {'1': 'window', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '10': 'window'},
-    {'1': 'cap_amount', '3': 10, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'capAmount'},
+    {'1': 'cap_amount', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'capAmount'},
     {'1': 'cap_count', '3': 11, '4': 1, '5': 3, '10': 'capCount'},
     {'1': 'mode', '3': 12, '4': 1, '5': 14, '6': '.limits.v1.PolicyMode', '8': {}, '10': 'mode'},
     {'1': 'attribute_filter', '3': 13, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'attributeFilter'},
@@ -231,18 +231,18 @@ final $typed_data.Uint8List policyObjectDescriptor = $convert.base64Decode(
     'FSC3N1YmplY3RUeXBlEiwKDWN1cnJlbmN5X2NvZGUYByABKAlCB7pIBHICGANSDGN1cnJlbmN5'
     'Q29kZRI9CgpsaW1pdF9raW5kGAggASgOMhQubGltaXRzLnYxLkxpbWl0S2luZEIIukgFggECEA'
     'FSCWxpbWl0S2luZBIxCgZ3aW5kb3cYCSABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25S'
-    'BndpbmRvdxIxCgpjYXBfYW1vdW50GAogASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSCWNhcEFtb3'
-    'VudBIbCgljYXBfY291bnQYCyABKANSCGNhcENvdW50EjMKBG1vZGUYDCABKA4yFS5saW1pdHMu'
-    'djEuUG9saWN5TW9kZUIIukgFggECEAFSBG1vZGUSQgoQYXR0cmlidXRlX2ZpbHRlchgNIAEoCz'
-    'IXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSD2F0dHJpYnV0ZUZpbHRlchI+Cg5hcHByb3Zlcl90'
-    'aWVycxgOIAMoCzIXLmxpbWl0cy52MS5BcHByb3ZlclRpZXJSDWFwcHJvdmVyVGllcnMSPAoMYX'
-    'Bwcm92YWxfdHRsGA8gASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uUgthcHByb3ZhbFR0'
-    'bBJBCg5lZmZlY3RpdmVfZnJvbRgQIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSDW'
-    'VmZmVjdGl2ZUZyb20SPQoMZWZmZWN0aXZlX3RvGBEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRp'
-    'bWVzdGFtcFILZWZmZWN0aXZlVG8SFAoFbm90ZXMYEiABKAlSBW5vdGVzEhgKB3ZlcnNpb24YEy'
-    'ABKAVSB3ZlcnNpb24SOQoKY3JlYXRlZF9hdBgUIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1l'
-    'c3RhbXBSCWNyZWF0ZWRBdBI7Cgttb2RpZmllZF9hdBgVIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi'
-    '5UaW1lc3RhbXBSCm1vZGlmaWVkQXQ=');
+    'BndpbmRvdxIvCgpjYXBfYW1vdW50GAogASgLMhAuY29tbW9uLnYxLk1vbmV5UgljYXBBbW91bn'
+    'QSGwoJY2FwX2NvdW50GAsgASgDUghjYXBDb3VudBIzCgRtb2RlGAwgASgOMhUubGltaXRzLnYx'
+    'LlBvbGljeU1vZGVCCLpIBYIBAhABUgRtb2RlEkIKEGF0dHJpYnV0ZV9maWx0ZXIYDSABKAsyFy'
+    '5nb29nbGUucHJvdG9idWYuU3RydWN0Ug9hdHRyaWJ1dGVGaWx0ZXISPgoOYXBwcm92ZXJfdGll'
+    'cnMYDiADKAsyFy5saW1pdHMudjEuQXBwcm92ZXJUaWVyUg1hcHByb3ZlclRpZXJzEjwKDGFwcH'
+    'JvdmFsX3R0bBgPIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvblILYXBwcm92YWxUdGwS'
+    'QQoOZWZmZWN0aXZlX2Zyb20YECABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUg1lZm'
+    'ZlY3RpdmVGcm9tEj0KDGVmZmVjdGl2ZV90bxgRIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1l'
+    'c3RhbXBSC2VmZmVjdGl2ZVRvEhQKBW5vdGVzGBIgASgJUgVub3RlcxIYCgd2ZXJzaW9uGBMgAS'
+    'gFUgd2ZXJzaW9uEjkKCmNyZWF0ZWRfYXQYFCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0'
+    'YW1wUgljcmVhdGVkQXQSOwoLbW9kaWZpZWRfYXQYFSABKAsyGi5nb29nbGUucHJvdG9idWYuVG'
+    'ltZXN0YW1wUgptb2RpZmllZEF0');
 
 @$core.Deprecated('Use limitIntentDescriptor instead')
 const LimitIntent$json = {
@@ -251,7 +251,7 @@ const LimitIntent$json = {
     {'1': 'action', '3': 1, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '8': {}, '10': 'action'},
     {'1': 'tenant_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'tenantId'},
     {'1': 'org_unit_id', '3': 3, '4': 1, '5': 9, '10': 'orgUnitId'},
-    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.google.type.Money', '8': {}, '10': 'amount'},
+    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '8': {}, '10': 'amount'},
     {'1': 'subjects', '3': 5, '4': 3, '5': 11, '6': '.limits.v1.SubjectRef', '8': {}, '10': 'subjects'},
     {'1': 'maker_id', '3': 6, '4': 1, '5': 9, '10': 'makerId'},
   ],
@@ -261,10 +261,10 @@ const LimitIntent$json = {
 final $typed_data.Uint8List limitIntentDescriptor = $convert.base64Decode(
     'CgtMaW1pdEludGVudBI4CgZhY3Rpb24YASABKA4yFi5saW1pdHMudjEuTGltaXRBY3Rpb25CCL'
     'pIBYIBAhABUgZhY3Rpb24SJAoJdGVuYW50X2lkGAIgASgJQge6SARyAhADUgh0ZW5hbnRJZBIe'
-    'CgtvcmdfdW5pdF9pZBgDIAEoCVIJb3JnVW5pdElkEjIKBmFtb3VudBgEIAEoCzISLmdvb2dsZS'
-    '50eXBlLk1vbmV5Qga6SAPIAQFSBmFtb3VudBI7CghzdWJqZWN0cxgFIAMoCzIVLmxpbWl0cy52'
-    'MS5TdWJqZWN0UmVmQgi6SAWSAQIIAVIIc3ViamVjdHMSGQoIbWFrZXJfaWQYBiABKAlSB21ha2'
-    'VySWQ=');
+    'CgtvcmdfdW5pdF9pZBgDIAEoCVIJb3JnVW5pdElkEjAKBmFtb3VudBgEIAEoCzIQLmNvbW1vbi'
+    '52MS5Nb25leUIGukgDyAEBUgZhbW91bnQSOwoIc3ViamVjdHMYBSADKAsyFS5saW1pdHMudjEu'
+    'U3ViamVjdFJlZkIIukgFkgECCAFSCHN1YmplY3RzEhkKCG1ha2VyX2lkGAYgASgJUgdtYWtlck'
+    'lk');
 
 @$core.Deprecated('Use policyVerdictDescriptor instead')
 const PolicyVerdict$json = {
@@ -277,8 +277,8 @@ const PolicyVerdict$json = {
     {'1': 'would_require_approval', '3': 5, '4': 1, '5': 8, '10': 'wouldRequireApproval'},
     {'1': 'mode', '3': 6, '4': 1, '5': 14, '6': '.limits.v1.PolicyMode', '10': 'mode'},
     {'1': 'reason', '3': 7, '4': 1, '5': 9, '10': 'reason'},
-    {'1': 'current_usage', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'currentUsage'},
-    {'1': 'cap_amount', '3': 9, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'capAmount'},
+    {'1': 'current_usage', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'currentUsage'},
+    {'1': 'cap_amount', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'capAmount'},
     {'1': 'current_count', '3': 10, '4': 1, '5': 3, '10': 'currentCount'},
     {'1': 'cap_count', '3': 11, '4': 1, '5': 3, '10': 'capCount'},
   ],
@@ -290,10 +290,10 @@ final $typed_data.Uint8List policyVerdictDescriptor = $convert.base64Decode(
     'ZlcnNpb24YAiABKAVSDXBvbGljeVZlcnNpb24SGAoHbWF0Y2hlZBgDIAEoCFIHbWF0Y2hlZBIa'
     'CghicmVhY2hlZBgEIAEoCFIIYnJlYWNoZWQSNAoWd291bGRfcmVxdWlyZV9hcHByb3ZhbBgFIA'
     'EoCFIUd291bGRSZXF1aXJlQXBwcm92YWwSKQoEbW9kZRgGIAEoDjIVLmxpbWl0cy52MS5Qb2xp'
-    'Y3lNb2RlUgRtb2RlEhYKBnJlYXNvbhgHIAEoCVIGcmVhc29uEjcKDWN1cnJlbnRfdXNhZ2UYCC'
-    'ABKAsyEi5nb29nbGUudHlwZS5Nb25leVIMY3VycmVudFVzYWdlEjEKCmNhcF9hbW91bnQYCSAB'
-    'KAsyEi5nb29nbGUudHlwZS5Nb25leVIJY2FwQW1vdW50EiMKDWN1cnJlbnRfY291bnQYCiABKA'
-    'NSDGN1cnJlbnRDb3VudBIbCgljYXBfY291bnQYCyABKANSCGNhcENvdW50');
+    'Y3lNb2RlUgRtb2RlEhYKBnJlYXNvbhgHIAEoCVIGcmVhc29uEjUKDWN1cnJlbnRfdXNhZ2UYCC'
+    'ABKAsyEC5jb21tb24udjEuTW9uZXlSDGN1cnJlbnRVc2FnZRIvCgpjYXBfYW1vdW50GAkgASgL'
+    'MhAuY29tbW9uLnYxLk1vbmV5UgljYXBBbW91bnQSIwoNY3VycmVudF9jb3VudBgKIAEoA1IMY3'
+    'VycmVudENvdW50EhsKCWNhcF9jb3VudBgLIAEoA1IIY2FwQ291bnQ=');
 
 @$core.Deprecated('Use policySaveRequestDescriptor instead')
 const PolicySaveRequest$json = {
@@ -431,7 +431,7 @@ const ApprovalRequestObject$json = {
     {'1': 'triggering_policy_id', '3': 5, '4': 1, '5': 9, '10': 'triggeringPolicyId'},
     {'1': 'policy_version', '3': 6, '4': 1, '5': 5, '10': 'policyVersion'},
     {'1': 'action', '3': 7, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
-    {'1': 'amount', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'required_role', '3': 9, '4': 1, '5': 9, '10': 'requiredRole'},
     {'1': 'required_count', '3': 10, '4': 1, '5': 5, '10': 'requiredCount'},
     {'1': 'maker_id', '3': 11, '4': 1, '5': 9, '10': 'makerId'},
@@ -450,14 +450,14 @@ final $typed_data.Uint8List approvalRequestObjectDescriptor = $convert.base64Dec
     'b3JnX3VuaXRfaWQYBCABKAlSCW9yZ1VuaXRJZBIwChR0cmlnZ2VyaW5nX3BvbGljeV9pZBgFIA'
     'EoCVISdHJpZ2dlcmluZ1BvbGljeUlkEiUKDnBvbGljeV92ZXJzaW9uGAYgASgFUg1wb2xpY3lW'
     'ZXJzaW9uEi4KBmFjdGlvbhgHIAEoDjIWLmxpbWl0cy52MS5MaW1pdEFjdGlvblIGYWN0aW9uEi'
-    'oKBmFtb3VudBgIIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgZhbW91bnQSIwoNcmVxdWlyZWRf'
-    'cm9sZRgJIAEoCVIMcmVxdWlyZWRSb2xlEiUKDnJlcXVpcmVkX2NvdW50GAogASgFUg1yZXF1aX'
-    'JlZENvdW50EhkKCG1ha2VyX2lkGAsgASgJUgdtYWtlcklkEjEKBnN0YXR1cxgMIAEoDjIZLmxp'
-    'bWl0cy52MS5BcHByb3ZhbFN0YXR1c1IGc3RhdHVzEj0KDHN1Ym1pdHRlZF9hdBgNIAEoCzIaLm'
-    'dvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSC3N1Ym1pdHRlZEF0EjkKCmV4cGlyZXNfYXQYDiAB'
-    'KAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglleHBpcmVzQXQSOQoKZGVjaWRlZF9hdB'
-    'gPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCWRlY2lkZWRBdBI/CglkZWNpc2lv'
-    'bnMYECADKAsyIS5saW1pdHMudjEuQXBwcm92YWxEZWNpc2lvbk9iamVjdFIJZGVjaXNpb25z');
+    'gKBmFtb3VudBgIIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGYW1vdW50EiMKDXJlcXVpcmVkX3Jv'
+    'bGUYCSABKAlSDHJlcXVpcmVkUm9sZRIlCg5yZXF1aXJlZF9jb3VudBgKIAEoBVINcmVxdWlyZW'
+    'RDb3VudBIZCghtYWtlcl9pZBgLIAEoCVIHbWFrZXJJZBIxCgZzdGF0dXMYDCABKA4yGS5saW1p'
+    'dHMudjEuQXBwcm92YWxTdGF0dXNSBnN0YXR1cxI9CgxzdWJtaXR0ZWRfYXQYDSABKAsyGi5nb2'
+    '9nbGUucHJvdG9idWYuVGltZXN0YW1wUgtzdWJtaXR0ZWRBdBI5CgpleHBpcmVzX2F0GA4gASgL'
+    'MhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFIJZXhwaXJlc0F0EjkKCmRlY2lkZWRfYXQYDy'
+    'ABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglkZWNpZGVkQXQSPwoJZGVjaXNpb25z'
+    'GBAgAygLMiEubGltaXRzLnYxLkFwcHJvdmFsRGVjaXNpb25PYmplY3RSCWRlY2lzaW9ucw==');
 
 @$core.Deprecated('Use approvalRequestListRequestDescriptor instead')
 const ApprovalRequestListRequest$json = {
@@ -555,7 +555,7 @@ const LedgerEntryObject$json = {
     {'1': 'action', '3': 5, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
     {'1': 'subject_type', '3': 6, '4': 1, '5': 14, '6': '.limits.v1.SubjectType', '10': 'subjectType'},
     {'1': 'subject_id', '3': 7, '4': 1, '5': 9, '10': 'subjectId'},
-    {'1': 'amount', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'committed_at', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'committedAt'},
     {'1': 'reversed_at', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'reversedAt'},
   ],
@@ -567,10 +567,10 @@ final $typed_data.Uint8List ledgerEntryObjectDescriptor = $convert.base64Decode(
     'ABKAlSDXJlc2VydmF0aW9uSWQSGwoJdGVuYW50X2lkGAMgASgJUgh0ZW5hbnRJZBIeCgtvcmdf'
     'dW5pdF9pZBgEIAEoCVIJb3JnVW5pdElkEi4KBmFjdGlvbhgFIAEoDjIWLmxpbWl0cy52MS5MaW'
     '1pdEFjdGlvblIGYWN0aW9uEjkKDHN1YmplY3RfdHlwZRgGIAEoDjIWLmxpbWl0cy52MS5TdWJq'
-    'ZWN0VHlwZVILc3ViamVjdFR5cGUSHQoKc3ViamVjdF9pZBgHIAEoCVIJc3ViamVjdElkEioKBm'
-    'Ftb3VudBgIIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgZhbW91bnQSPQoMY29tbWl0dGVkX2F0'
-    'GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFILY29tbWl0dGVkQXQSOwoLcmV2ZX'
-    'JzZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUgpyZXZlcnNlZEF0');
+    'ZWN0VHlwZVILc3ViamVjdFR5cGUSHQoKc3ViamVjdF9pZBgHIAEoCVIJc3ViamVjdElkEigKBm'
+    'Ftb3VudBgIIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGYW1vdW50Ej0KDGNvbW1pdHRlZF9hdBgJ'
+    'IAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSC2NvbW1pdHRlZEF0EjsKC3JldmVyc2'
+    'VkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFIKcmV2ZXJzZWRBdA==');
 
 @$core.Deprecated('Use ledgerSearchRequestDescriptor instead')
 const LedgerSearchRequest$json = {
@@ -714,7 +714,7 @@ const ReservationObject$json = {
     {'1': 'idempotency_key', '3': 3, '4': 1, '5': 9, '10': 'idempotencyKey'},
     {'1': 'org_unit_id', '3': 4, '4': 1, '5': 9, '10': 'orgUnitId'},
     {'1': 'action', '3': 5, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
-    {'1': 'amount', '3': 6, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'subjects', '3': 7, '4': 3, '5': 11, '6': '.limits.v1.SubjectRef', '10': 'subjects'},
     {'1': 'maker_id', '3': 8, '4': 1, '5': 9, '10': 'makerId'},
     {'1': 'status', '3': 9, '4': 1, '5': 14, '6': '.limits.v1.ReservationStatus', '10': 'status'},
@@ -731,15 +731,15 @@ final $typed_data.Uint8List reservationObjectDescriptor = $convert.base64Decode(
     'ChFSZXNlcnZhdGlvbk9iamVjdBIOCgJpZBgBIAEoCVICaWQSGwoJdGVuYW50X2lkGAIgASgJUg'
     'h0ZW5hbnRJZBInCg9pZGVtcG90ZW5jeV9rZXkYAyABKAlSDmlkZW1wb3RlbmN5S2V5Eh4KC29y'
     'Z191bml0X2lkGAQgASgJUglvcmdVbml0SWQSLgoGYWN0aW9uGAUgASgOMhYubGltaXRzLnYxLk'
-    'xpbWl0QWN0aW9uUgZhY3Rpb24SKgoGYW1vdW50GAYgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlS'
-    'BmFtb3VudBIxCghzdWJqZWN0cxgHIAMoCzIVLmxpbWl0cy52MS5TdWJqZWN0UmVmUghzdWJqZW'
-    'N0cxIZCghtYWtlcl9pZBgIIAEoCVIHbWFrZXJJZBI0CgZzdGF0dXMYCSABKA4yHC5saW1pdHMu'
-    'djEuUmVzZXJ2YXRpb25TdGF0dXNSBnN0YXR1cxIbCglpc19zaGFkb3cYCiABKAhSCGlzU2hhZG'
-    '93EjsKC3Jlc2VydmVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFIKcmVz'
-    'ZXJ2ZWRBdBIxCgZ0dGxfYXQYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUgV0dG'
-    'xBdBI9Cgxjb21taXR0ZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUgtj'
-    'b21taXR0ZWRBdBI7CgtyZWxlYXNlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3'
-    'RhbXBSCnJlbGVhc2VkQXQ=');
+    'xpbWl0QWN0aW9uUgZhY3Rpb24SKAoGYW1vdW50GAYgASgLMhAuY29tbW9uLnYxLk1vbmV5UgZh'
+    'bW91bnQSMQoIc3ViamVjdHMYByADKAsyFS5saW1pdHMudjEuU3ViamVjdFJlZlIIc3ViamVjdH'
+    'MSGQoIbWFrZXJfaWQYCCABKAlSB21ha2VySWQSNAoGc3RhdHVzGAkgASgOMhwubGltaXRzLnYx'
+    'LlJlc2VydmF0aW9uU3RhdHVzUgZzdGF0dXMSGwoJaXNfc2hhZG93GAogASgIUghpc1NoYWRvdx'
+    'I7CgtyZXNlcnZlZF9hdBgLIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCnJlc2Vy'
+    'dmVkQXQSMQoGdHRsX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFIFdHRsQX'
+    'QSPQoMY29tbWl0dGVkX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFILY29t'
+    'bWl0dGVkQXQSOwoLcmVsZWFzZWRfYXQYDiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW'
+    '1wUgpyZWxlYXNlZEF0');
 
 @$core.Deprecated('Use reserveRequestDescriptor instead')
 const ReserveRequest$json = {
@@ -873,7 +873,7 @@ const $core.Map<$core.String, $core.dynamic> LimitsServiceBase$json = {
 const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LimitsServiceBase$messageJson = {
   '.limits.v1.CheckRequest': CheckRequest$json,
   '.limits.v1.LimitIntent': LimitIntent$json,
-  '.google.type.Money': $7.Money$json,
+  '.common.v1.Money': $7.Money$json,
   '.limits.v1.SubjectRef': SubjectRef$json,
   '.limits.v1.CheckResponse': CheckResponse$json,
   '.limits.v1.PolicyVerdict': PolicyVerdict$json,
@@ -922,7 +922,7 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LimitsAdmi
   '.limits.v1.PolicySaveRequest': PolicySaveRequest$json,
   '.limits.v1.PolicyObject': PolicyObject$json,
   '.google.protobuf.Duration': $0.Duration$json,
-  '.google.type.Money': $7.Money$json,
+  '.common.v1.Money': $7.Money$json,
   '.google.protobuf.Struct': $6.Struct$json,
   '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
   '.google.protobuf.Value': $6.Value$json,

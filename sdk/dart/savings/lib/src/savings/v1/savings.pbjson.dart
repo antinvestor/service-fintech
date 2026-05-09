@@ -14,8 +14,8 @@ import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
 import '../../common/v1/common.pbjson.dart' as $8;
+import '../../common/v1/money.pbjson.dart' as $7;
 import '../../google/protobuf/struct.pbjson.dart' as $6;
-import '../../google/type/money.pbjson.dart' as $7;
 
 @$core.Deprecated('Use savingsPeriodTypeDescriptor instead')
 const SavingsPeriodType$json = {
@@ -142,8 +142,8 @@ const SavingsProductObject$json = {
     {'1': 'interest_rate', '3': 7, '4': 1, '5': 9, '10': 'interestRate'},
     {'1': 'compounding_frequency', '3': 8, '4': 1, '5': 14, '6': '.savings.v1.CompoundingFrequency', '10': 'compoundingFrequency'},
     {'1': 'period_type', '3': 9, '4': 1, '5': 14, '6': '.savings.v1.SavingsPeriodType', '10': 'periodType'},
-    {'1': 'min_deposit', '3': 10, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'minDeposit'},
-    {'1': 'max_deposit', '3': 11, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'maxDeposit'},
+    {'1': 'min_deposit', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'minDeposit'},
+    {'1': 'max_deposit', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'maxDeposit'},
     {'1': 'withdrawal_rules', '3': 12, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'withdrawalRules'},
     {'1': 'state', '3': 13, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
     {'1': 'properties', '3': 14, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
@@ -160,11 +160,11 @@ final $typed_data.Uint8List savingsProductObjectDescriptor = $convert.base64Deco
     'UYByABKAlSDGludGVyZXN0UmF0ZRJVChVjb21wb3VuZGluZ19mcmVxdWVuY3kYCCABKA4yIC5z'
     'YXZpbmdzLnYxLkNvbXBvdW5kaW5nRnJlcXVlbmN5UhRjb21wb3VuZGluZ0ZyZXF1ZW5jeRI+Cg'
     'twZXJpb2RfdHlwZRgJIAEoDjIdLnNhdmluZ3MudjEuU2F2aW5nc1BlcmlvZFR5cGVSCnBlcmlv'
-    'ZFR5cGUSMwoLbWluX2RlcG9zaXQYCiABKAsyEi5nb29nbGUudHlwZS5Nb25leVIKbWluRGVwb3'
-    'NpdBIzCgttYXhfZGVwb3NpdBgLIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgptYXhEZXBvc2l0'
-    'EkIKEHdpdGhkcmF3YWxfcnVsZXMYDCABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ug93aX'
-    'RoZHJhd2FsUnVsZXMSJgoFc3RhdGUYDSABKA4yEC5jb21tb24udjEuU1RBVEVSBXN0YXRlEjcK'
-    'CnByb3BlcnRpZXMYDiABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ugpwcm9wZXJ0aWVz');
+    'ZFR5cGUSMQoLbWluX2RlcG9zaXQYCiABKAsyEC5jb21tb24udjEuTW9uZXlSCm1pbkRlcG9zaX'
+    'QSMQoLbWF4X2RlcG9zaXQYCyABKAsyEC5jb21tb24udjEuTW9uZXlSCm1heERlcG9zaXQSQgoQ'
+    'd2l0aGRyYXdhbF9ydWxlcxgMIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSD3dpdGhkcm'
+    'F3YWxSdWxlcxImCgVzdGF0ZRgNIAEoDjIQLmNvbW1vbi52MS5TVEFURVIFc3RhdGUSNwoKcHJv'
+    'cGVydGllcxgOIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCnByb3BlcnRpZXM=');
 
 @$core.Deprecated('Use savingsAccountObjectDescriptor instead')
 const SavingsAccountObject$json = {
@@ -205,7 +205,7 @@ const DepositObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'savings_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'savingsAccountId'},
-    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'status', '3': 5, '4': 1, '5': 14, '6': '.savings.v1.DepositStatus', '10': 'status'},
     {'1': 'payment_reference', '3': 6, '4': 1, '5': 9, '10': 'paymentReference'},
     {'1': 'ledger_transaction_id', '3': 7, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
@@ -223,13 +223,13 @@ const DepositObject$json = {
 final $typed_data.Uint8List depositObjectDescriptor = $convert.base64Decode(
     'Cg1EZXBvc2l0T2JqZWN0Ei4KAmlkGAEgASgJQh66SBvYAQFyFhADGCgyEFswLTlhLXpfLV17My'
     'w0MH1SAmlkEjcKEnNhdmluZ3NfYWNjb3VudF9pZBgCIAEoCUIJukgGcgQQAxgoUhBzYXZpbmdz'
-    'QWNjb3VudElkEioKBmFtb3VudBgDIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgZhbW91bnQSMQ'
-    'oGc3RhdHVzGAUgASgOMhkuc2F2aW5ncy52MS5EZXBvc2l0U3RhdHVzUgZzdGF0dXMSKwoRcGF5'
-    'bWVudF9yZWZlcmVuY2UYBiABKAlSEHBheW1lbnRSZWZlcmVuY2USMgoVbGVkZ2VyX3RyYW5zYW'
-    'N0aW9uX2lkGAcgASgJUhNsZWRnZXJUcmFuc2FjdGlvbklkEhgKB2NoYW5uZWwYCCABKAlSB2No'
-    'YW5uZWwSJwoPcGF5ZXJfcmVmZXJlbmNlGAkgASgJUg5wYXllclJlZmVyZW5jZRInCg9pZGVtcG'
-    '90ZW5jeV9rZXkYCiABKAlSDmlkZW1wb3RlbmN5S2V5EjcKCnByb3BlcnRpZXMYCyABKAsyFy5n'
-    'b29nbGUucHJvdG9idWYuU3RydWN0Ugpwcm9wZXJ0aWVzSgQIBBAF');
+    'QWNjb3VudElkEigKBmFtb3VudBgDIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGYW1vdW50EjEKBn'
+    'N0YXR1cxgFIAEoDjIZLnNhdmluZ3MudjEuRGVwb3NpdFN0YXR1c1IGc3RhdHVzEisKEXBheW1l'
+    'bnRfcmVmZXJlbmNlGAYgASgJUhBwYXltZW50UmVmZXJlbmNlEjIKFWxlZGdlcl90cmFuc2FjdG'
+    'lvbl9pZBgHIAEoCVITbGVkZ2VyVHJhbnNhY3Rpb25JZBIYCgdjaGFubmVsGAggASgJUgdjaGFu'
+    'bmVsEicKD3BheWVyX3JlZmVyZW5jZRgJIAEoCVIOcGF5ZXJSZWZlcmVuY2USJwoPaWRlbXBvdG'
+    'VuY3lfa2V5GAogASgJUg5pZGVtcG90ZW5jeUtleRI3Cgpwcm9wZXJ0aWVzGAsgASgLMhcuZ29v'
+    'Z2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVydGllc0oECAQQBQ==');
 
 @$core.Deprecated('Use withdrawalObjectDescriptor instead')
 const WithdrawalObject$json = {
@@ -237,7 +237,7 @@ const WithdrawalObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'savings_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'savingsAccountId'},
-    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'status', '3': 5, '4': 1, '5': 14, '6': '.savings.v1.WithdrawalStatus', '10': 'status'},
     {'1': 'payment_reference', '3': 6, '4': 1, '5': 9, '10': 'paymentReference'},
     {'1': 'ledger_transaction_id', '3': 7, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
@@ -256,14 +256,14 @@ const WithdrawalObject$json = {
 final $typed_data.Uint8List withdrawalObjectDescriptor = $convert.base64Decode(
     'ChBXaXRoZHJhd2FsT2JqZWN0Ei4KAmlkGAEgASgJQh66SBvYAQFyFhADGCgyEFswLTlhLXpfLV'
     '17Myw0MH1SAmlkEjcKEnNhdmluZ3NfYWNjb3VudF9pZBgCIAEoCUIJukgGcgQQAxgoUhBzYXZp'
-    'bmdzQWNjb3VudElkEioKBmFtb3VudBgDIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgZhbW91bn'
-    'QSNAoGc3RhdHVzGAUgASgOMhwuc2F2aW5ncy52MS5XaXRoZHJhd2FsU3RhdHVzUgZzdGF0dXMS'
-    'KwoRcGF5bWVudF9yZWZlcmVuY2UYBiABKAlSEHBheW1lbnRSZWZlcmVuY2USMgoVbGVkZ2VyX3'
-    'RyYW5zYWN0aW9uX2lkGAcgASgJUhNsZWRnZXJUcmFuc2FjdGlvbklkEhgKB2NoYW5uZWwYCCAB'
-    'KAlSB2NoYW5uZWwSLwoTcmVjaXBpZW50X3JlZmVyZW5jZRgJIAEoCVIScmVjaXBpZW50UmVmZX'
-    'JlbmNlEhYKBnJlYXNvbhgKIAEoCVIGcmVhc29uEicKD2lkZW1wb3RlbmN5X2tleRgLIAEoCVIO'
-    'aWRlbXBvdGVuY3lLZXkSNwoKcHJvcGVydGllcxgMIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdH'
-    'J1Y3RSCnByb3BlcnRpZXNKBAgEEAU=');
+    'bmdzQWNjb3VudElkEigKBmFtb3VudBgDIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGYW1vdW50Ej'
+    'QKBnN0YXR1cxgFIAEoDjIcLnNhdmluZ3MudjEuV2l0aGRyYXdhbFN0YXR1c1IGc3RhdHVzEisK'
+    'EXBheW1lbnRfcmVmZXJlbmNlGAYgASgJUhBwYXltZW50UmVmZXJlbmNlEjIKFWxlZGdlcl90cm'
+    'Fuc2FjdGlvbl9pZBgHIAEoCVITbGVkZ2VyVHJhbnNhY3Rpb25JZBIYCgdjaGFubmVsGAggASgJ'
+    'UgdjaGFubmVsEi8KE3JlY2lwaWVudF9yZWZlcmVuY2UYCSABKAlSEnJlY2lwaWVudFJlZmVyZW'
+    '5jZRIWCgZyZWFzb24YCiABKAlSBnJlYXNvbhInCg9pZGVtcG90ZW5jeV9rZXkYCyABKAlSDmlk'
+    'ZW1wb3RlbmN5S2V5EjcKCnByb3BlcnRpZXMYDCABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydW'
+    'N0Ugpwcm9wZXJ0aWVzSgQIBBAF');
 
 @$core.Deprecated('Use interestAccrualObjectDescriptor instead')
 const InterestAccrualObject$json = {
@@ -271,11 +271,11 @@ const InterestAccrualObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'savings_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'savingsAccountId'},
-    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'period_start', '3': 4, '4': 1, '5': 9, '10': 'periodStart'},
     {'1': 'period_end', '3': 5, '4': 1, '5': 9, '10': 'periodEnd'},
     {'1': 'rate_applied', '3': 6, '4': 1, '5': 9, '10': 'rateApplied'},
-    {'1': 'balance_used', '3': 7, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'balanceUsed'},
+    {'1': 'balance_used', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'balanceUsed'},
     {'1': 'ledger_transaction_id', '3': 8, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
     {'1': 'properties', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
   ],
@@ -285,22 +285,22 @@ const InterestAccrualObject$json = {
 final $typed_data.Uint8List interestAccrualObjectDescriptor = $convert.base64Decode(
     'ChVJbnRlcmVzdEFjY3J1YWxPYmplY3QSLgoCaWQYASABKAlCHrpIG9gBAXIWEAMYKDIQWzAtOW'
     'Etel8tXXszLDQwfVICaWQSNwoSc2F2aW5nc19hY2NvdW50X2lkGAIgASgJQgm6SAZyBBADGChS'
-    'EHNhdmluZ3NBY2NvdW50SWQSKgoGYW1vdW50GAMgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSBm'
-    'Ftb3VudBIhCgxwZXJpb2Rfc3RhcnQYBCABKAlSC3BlcmlvZFN0YXJ0Eh0KCnBlcmlvZF9lbmQY'
-    'BSABKAlSCXBlcmlvZEVuZBIhCgxyYXRlX2FwcGxpZWQYBiABKAlSC3JhdGVBcHBsaWVkEjUKDG'
-    'JhbGFuY2VfdXNlZBgHIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgtiYWxhbmNlVXNlZBIyChVs'
-    'ZWRnZXJfdHJhbnNhY3Rpb25faWQYCCABKAlSE2xlZGdlclRyYW5zYWN0aW9uSWQSNwoKcHJvcG'
-    'VydGllcxgJIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCnByb3BlcnRpZXM=');
+    'EHNhdmluZ3NBY2NvdW50SWQSKAoGYW1vdW50GAMgASgLMhAuY29tbW9uLnYxLk1vbmV5UgZhbW'
+    '91bnQSIQoMcGVyaW9kX3N0YXJ0GAQgASgJUgtwZXJpb2RTdGFydBIdCgpwZXJpb2RfZW5kGAUg'
+    'ASgJUglwZXJpb2RFbmQSIQoMcmF0ZV9hcHBsaWVkGAYgASgJUgtyYXRlQXBwbGllZBIzCgxiYW'
+    'xhbmNlX3VzZWQYByABKAsyEC5jb21tb24udjEuTW9uZXlSC2JhbGFuY2VVc2VkEjIKFWxlZGdl'
+    'cl90cmFuc2FjdGlvbl9pZBgIIAEoCVITbGVkZ2VyVHJhbnNhY3Rpb25JZBI3Cgpwcm9wZXJ0aW'
+    'VzGAkgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVydGllcw==');
 
 @$core.Deprecated('Use savingsBalanceObjectDescriptor instead')
 const SavingsBalanceObject$json = {
   '1': 'SavingsBalanceObject',
   '2': [
     {'1': 'savings_account_id', '3': 1, '4': 1, '5': 9, '10': 'savingsAccountId'},
-    {'1': 'available_balance', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'availableBalance'},
-    {'1': 'total_deposits', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalDeposits'},
-    {'1': 'total_withdrawals', '3': 4, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalWithdrawals'},
-    {'1': 'total_interest', '3': 5, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalInterest'},
+    {'1': 'available_balance', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'availableBalance'},
+    {'1': 'total_deposits', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDeposits'},
+    {'1': 'total_withdrawals', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalWithdrawals'},
+    {'1': 'total_interest', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalInterest'},
     {'1': 'last_calculated_at', '3': 6, '4': 1, '5': 9, '10': 'lastCalculatedAt'},
   ],
 };
@@ -308,12 +308,12 @@ const SavingsBalanceObject$json = {
 /// Descriptor for `SavingsBalanceObject`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List savingsBalanceObjectDescriptor = $convert.base64Decode(
     'ChRTYXZpbmdzQmFsYW5jZU9iamVjdBIsChJzYXZpbmdzX2FjY291bnRfaWQYASABKAlSEHNhdm'
-    'luZ3NBY2NvdW50SWQSPwoRYXZhaWxhYmxlX2JhbGFuY2UYAiABKAsyEi5nb29nbGUudHlwZS5N'
-    'b25leVIQYXZhaWxhYmxlQmFsYW5jZRI5Cg50b3RhbF9kZXBvc2l0cxgDIAEoCzISLmdvb2dsZS'
-    '50eXBlLk1vbmV5Ug10b3RhbERlcG9zaXRzEj8KEXRvdGFsX3dpdGhkcmF3YWxzGAQgASgLMhIu'
-    'Z29vZ2xlLnR5cGUuTW9uZXlSEHRvdGFsV2l0aGRyYXdhbHMSOQoOdG90YWxfaW50ZXJlc3QYBS'
-    'ABKAsyEi5nb29nbGUudHlwZS5Nb25leVINdG90YWxJbnRlcmVzdBIsChJsYXN0X2NhbGN1bGF0'
-    'ZWRfYXQYBiABKAlSEGxhc3RDYWxjdWxhdGVkQXQ=');
+    'luZ3NBY2NvdW50SWQSPQoRYXZhaWxhYmxlX2JhbGFuY2UYAiABKAsyEC5jb21tb24udjEuTW9u'
+    'ZXlSEGF2YWlsYWJsZUJhbGFuY2USNwoOdG90YWxfZGVwb3NpdHMYAyABKAsyEC5jb21tb24udj'
+    'EuTW9uZXlSDXRvdGFsRGVwb3NpdHMSPQoRdG90YWxfd2l0aGRyYXdhbHMYBCABKAsyEC5jb21t'
+    'b24udjEuTW9uZXlSEHRvdGFsV2l0aGRyYXdhbHMSNwoOdG90YWxfaW50ZXJlc3QYBSABKAsyEC'
+    '5jb21tb24udjEuTW9uZXlSDXRvdGFsSW50ZXJlc3QSLAoSbGFzdF9jYWxjdWxhdGVkX2F0GAYg'
+    'ASgJUhBsYXN0Q2FsY3VsYXRlZEF0');
 
 @$core.Deprecated('Use savingsStatementEntryDescriptor instead')
 const SavingsStatementEntry$json = {
@@ -321,9 +321,9 @@ const SavingsStatementEntry$json = {
   '2': [
     {'1': 'date', '3': 1, '4': 1, '5': 9, '10': 'date'},
     {'1': 'description', '3': 2, '4': 1, '5': 9, '10': 'description'},
-    {'1': 'debit', '3': 3, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'debit'},
-    {'1': 'credit', '3': 4, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'credit'},
-    {'1': 'balance', '3': 5, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'balance'},
+    {'1': 'debit', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'debit'},
+    {'1': 'credit', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'credit'},
+    {'1': 'balance', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'balance'},
     {'1': 'reference', '3': 6, '4': 1, '5': 9, '10': 'reference'},
   ],
 };
@@ -331,10 +331,10 @@ const SavingsStatementEntry$json = {
 /// Descriptor for `SavingsStatementEntry`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List savingsStatementEntryDescriptor = $convert.base64Decode(
     'ChVTYXZpbmdzU3RhdGVtZW50RW50cnkSEgoEZGF0ZRgBIAEoCVIEZGF0ZRIgCgtkZXNjcmlwdG'
-    'lvbhgCIAEoCVILZGVzY3JpcHRpb24SKAoFZGViaXQYAyABKAsyEi5nb29nbGUudHlwZS5Nb25l'
-    'eVIFZGViaXQSKgoGY3JlZGl0GAQgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSBmNyZWRpdBIsCg'
-    'diYWxhbmNlGAUgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSB2JhbGFuY2USHAoJcmVmZXJlbmNl'
-    'GAYgASgJUglyZWZlcmVuY2U=');
+    'lvbhgCIAEoCVILZGVzY3JpcHRpb24SJgoFZGViaXQYAyABKAsyEC5jb21tb24udjEuTW9uZXlS'
+    'BWRlYml0EigKBmNyZWRpdBgEIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGY3JlZGl0EioKB2JhbG'
+    'FuY2UYBSABKAsyEC5jb21tb24udjEuTW9uZXlSB2JhbGFuY2USHAoJcmVmZXJlbmNlGAYgASgJ'
+    'UglyZWZlcmVuY2U=');
 
 @$core.Deprecated('Use savingsProductSaveRequestDescriptor instead')
 const SavingsProductSaveRequest$json = {
@@ -563,7 +563,7 @@ const DepositRecordRequest$json = {
   '1': 'DepositRecordRequest',
   '2': [
     {'1': 'savings_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'savingsAccountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'payment_reference', '3': 3, '4': 1, '5': 9, '10': 'paymentReference'},
     {'1': 'channel', '3': 4, '4': 1, '5': 9, '10': 'channel'},
     {'1': 'payer_reference', '3': 5, '4': 1, '5': 9, '10': 'payerReference'},
@@ -574,10 +574,10 @@ const DepositRecordRequest$json = {
 /// Descriptor for `DepositRecordRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List depositRecordRequestDescriptor = $convert.base64Decode(
     'ChREZXBvc2l0UmVjb3JkUmVxdWVzdBI3ChJzYXZpbmdzX2FjY291bnRfaWQYASABKAlCCbpIBn'
-    'IEEAMYKFIQc2F2aW5nc0FjY291bnRJZBIqCgZhbW91bnQYAiABKAsyEi5nb29nbGUudHlwZS5N'
-    'b25leVIGYW1vdW50EisKEXBheW1lbnRfcmVmZXJlbmNlGAMgASgJUhBwYXltZW50UmVmZXJlbm'
-    'NlEhgKB2NoYW5uZWwYBCABKAlSB2NoYW5uZWwSJwoPcGF5ZXJfcmVmZXJlbmNlGAUgASgJUg5w'
-    'YXllclJlZmVyZW5jZRInCg9pZGVtcG90ZW5jeV9rZXkYBiABKAlSDmlkZW1wb3RlbmN5S2V5');
+    'IEEAMYKFIQc2F2aW5nc0FjY291bnRJZBIoCgZhbW91bnQYAiABKAsyEC5jb21tb24udjEuTW9u'
+    'ZXlSBmFtb3VudBIrChFwYXltZW50X3JlZmVyZW5jZRgDIAEoCVIQcGF5bWVudFJlZmVyZW5jZR'
+    'IYCgdjaGFubmVsGAQgASgJUgdjaGFubmVsEicKD3BheWVyX3JlZmVyZW5jZRgFIAEoCVIOcGF5'
+    'ZXJSZWZlcmVuY2USJwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJUg5pZGVtcG90ZW5jeUtleQ==');
 
 @$core.Deprecated('Use depositRecordResponseDescriptor instead')
 const DepositRecordResponse$json = {
@@ -653,7 +653,7 @@ const WithdrawalRequestRequest$json = {
   '1': 'WithdrawalRequestRequest',
   '2': [
     {'1': 'savings_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'savingsAccountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'channel', '3': 3, '4': 1, '5': 9, '10': 'channel'},
     {'1': 'recipient_reference', '3': 4, '4': 1, '5': 9, '10': 'recipientReference'},
     {'1': 'reason', '3': 5, '4': 1, '5': 9, '10': 'reason'},
@@ -664,10 +664,10 @@ const WithdrawalRequestRequest$json = {
 /// Descriptor for `WithdrawalRequestRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List withdrawalRequestRequestDescriptor = $convert.base64Decode(
     'ChhXaXRoZHJhd2FsUmVxdWVzdFJlcXVlc3QSNwoSc2F2aW5nc19hY2NvdW50X2lkGAEgASgJQg'
-    'm6SAZyBBADGChSEHNhdmluZ3NBY2NvdW50SWQSKgoGYW1vdW50GAIgASgLMhIuZ29vZ2xlLnR5'
-    'cGUuTW9uZXlSBmFtb3VudBIYCgdjaGFubmVsGAMgASgJUgdjaGFubmVsEi8KE3JlY2lwaWVudF'
-    '9yZWZlcmVuY2UYBCABKAlSEnJlY2lwaWVudFJlZmVyZW5jZRIWCgZyZWFzb24YBSABKAlSBnJl'
-    'YXNvbhInCg9pZGVtcG90ZW5jeV9rZXkYBiABKAlSDmlkZW1wb3RlbmN5S2V5');
+    'm6SAZyBBADGChSEHNhdmluZ3NBY2NvdW50SWQSKAoGYW1vdW50GAIgASgLMhAuY29tbW9uLnYx'
+    'Lk1vbmV5UgZhbW91bnQSGAoHY2hhbm5lbBgDIAEoCVIHY2hhbm5lbBIvChNyZWNpcGllbnRfcm'
+    'VmZXJlbmNlGAQgASgJUhJyZWNpcGllbnRSZWZlcmVuY2USFgoGcmVhc29uGAUgASgJUgZyZWFz'
+    'b24SJwoPaWRlbXBvdGVuY3lfa2V5GAYgASgJUg5pZGVtcG90ZW5jeUtleQ==');
 
 @$core.Deprecated('Use withdrawalRequestResponseDescriptor instead')
 const WithdrawalRequestResponse$json = {
@@ -1000,7 +1000,7 @@ const $core.Map<$core.String, $core.dynamic> SavingsServiceBase$json = {
 const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> SavingsServiceBase$messageJson = {
   '.savings.v1.SavingsProductSaveRequest': SavingsProductSaveRequest$json,
   '.savings.v1.SavingsProductObject': SavingsProductObject$json,
-  '.google.type.Money': $7.Money$json,
+  '.common.v1.Money': $7.Money$json,
   '.google.protobuf.Struct': $6.Struct$json,
   '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
   '.google.protobuf.Value': $6.Value$json,

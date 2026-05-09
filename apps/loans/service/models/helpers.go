@@ -17,9 +17,9 @@ package models
 import (
 	"time"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/util/decimalx"
-	moneyx "github.com/pitabwire/util/money"
-	money "google.golang.org/genproto/googleapis/type/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 )
 
 const timeLayout = time.RFC3339
@@ -84,15 +84,15 @@ func StringToTime(s string) *time.Time {
 }
 
 // MinorUnitsToMoney converts minor units (e.g. cents) and a currency code to a
-// *money.Money proto message. Precision follows ISO 4217 via moneyx.Decimals
+// *commonv1.Money proto message. Precision follows ISO 4217 via moneyx.Decimals
 // (JPY=0, KWD/BHD/OMR=3, else=2).
-func MinorUnitsToMoney(v int64, currencyCode string) *money.Money {
+func MinorUnitsToMoney(v int64, currencyCode string) *commonv1.Money {
 	return moneyx.FromMinorUnitsByCurrency(currencyCode, v)
 }
 
-// MoneyToMinorUnits converts a *money.Money to minor units (int64) and
+// MoneyToMinorUnits converts a *commonv1.Money to minor units (int64) and
 // currency code. Precision follows ISO 4217 via moneyx.Decimals.
-func MoneyToMinorUnits(m *money.Money) (int64, string) {
+func MoneyToMinorUnits(m *commonv1.Money) (int64, string) {
 	if m == nil {
 		return 0, ""
 	}

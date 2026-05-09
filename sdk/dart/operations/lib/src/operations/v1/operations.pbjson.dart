@@ -14,8 +14,8 @@ import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
 import '../../common/v1/common.pbjson.dart' as $8;
+import '../../common/v1/money.pbjson.dart' as $7;
 import '../../google/protobuf/struct.pbjson.dart' as $6;
-import '../../google/type/money.pbjson.dart' as $7;
 
 @$core.Deprecated('Use transferOrderObjectDescriptor instead')
 const TransferOrderObject$json = {
@@ -24,7 +24,7 @@ const TransferOrderObject$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
     {'1': 'debit_account_ref', '3': 2, '4': 1, '5': 9, '10': 'debitAccountRef'},
     {'1': 'credit_account_ref', '3': 3, '4': 1, '5': 9, '10': 'creditAccountRef'},
-    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'order_type', '3': 6, '4': 1, '5': 5, '10': 'orderType'},
     {'1': 'reference', '3': 7, '4': 1, '5': 9, '10': 'reference'},
     {'1': 'description', '3': 8, '4': 1, '5': 9, '10': 'description'},
@@ -40,11 +40,11 @@ const TransferOrderObject$json = {
 final $typed_data.Uint8List transferOrderObjectDescriptor = $convert.base64Decode(
     'ChNUcmFuc2Zlck9yZGVyT2JqZWN0Eg4KAmlkGAEgASgJUgJpZBIqChFkZWJpdF9hY2NvdW50X3'
     'JlZhgCIAEoCVIPZGViaXRBY2NvdW50UmVmEiwKEmNyZWRpdF9hY2NvdW50X3JlZhgDIAEoCVIQ'
-    'Y3JlZGl0QWNjb3VudFJlZhIqCgZhbW91bnQYBCABKAsyEi5nb29nbGUudHlwZS5Nb25leVIGYW'
-    '1vdW50Eh0KCm9yZGVyX3R5cGUYBiABKAVSCW9yZGVyVHlwZRIcCglyZWZlcmVuY2UYByABKAlS'
-    'CXJlZmVyZW5jZRIgCgtkZXNjcmlwdGlvbhgIIAEoCVILZGVzY3JpcHRpb24SNgoKZXh0cmFfZG'
-    'F0YRgJIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCWV4dHJhRGF0YRImCgVzdGF0ZRgK'
-    'IAEoDjIQLmNvbW1vbi52MS5TVEFURVIFc3RhdGVKBAgFEAY=');
+    'Y3JlZGl0QWNjb3VudFJlZhIoCgZhbW91bnQYBCABKAsyEC5jb21tb24udjEuTW9uZXlSBmFtb3'
+    'VudBIdCgpvcmRlcl90eXBlGAYgASgFUglvcmRlclR5cGUSHAoJcmVmZXJlbmNlGAcgASgJUgly'
+    'ZWZlcmVuY2USIAoLZGVzY3JpcHRpb24YCCABKAlSC2Rlc2NyaXB0aW9uEjYKCmV4dHJhX2RhdG'
+    'EYCSABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0UglleHRyYURhdGESJgoFc3RhdGUYCiAB'
+    'KA4yEC5jb21tb24udjEuU1RBVEVSBXN0YXRlSgQIBRAG');
 
 @$core.Deprecated('Use transferOrderExecuteRequestDescriptor instead')
 const TransferOrderExecuteRequest$json = {
@@ -106,7 +106,7 @@ const IncomingPaymentNotifyRequest$json = {
   '1': 'IncomingPaymentNotifyRequest',
   '2': [
     {'1': 'transaction_id', '3': 1, '4': 1, '5': 9, '10': 'transactionId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'amount'},
+    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
     {'1': 'payer_reference', '3': 3, '4': 1, '5': 9, '10': 'payerReference'},
     {'1': 'payer_name', '3': 4, '4': 1, '5': 9, '10': 'payerName'},
     {'1': 'product_id', '3': 5, '4': 1, '5': 9, '10': 'productId'},
@@ -118,11 +118,11 @@ const IncomingPaymentNotifyRequest$json = {
 /// Descriptor for `IncomingPaymentNotifyRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List incomingPaymentNotifyRequestDescriptor = $convert.base64Decode(
     'ChxJbmNvbWluZ1BheW1lbnROb3RpZnlSZXF1ZXN0EiUKDnRyYW5zYWN0aW9uX2lkGAEgASgJUg'
-    '10cmFuc2FjdGlvbklkEioKBmFtb3VudBgCIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgZhbW91'
-    'bnQSJwoPcGF5ZXJfcmVmZXJlbmNlGAMgASgJUg5wYXllclJlZmVyZW5jZRIdCgpwYXllcl9uYW'
-    '1lGAQgASgJUglwYXllck5hbWUSHQoKcHJvZHVjdF9pZBgFIAEoCVIJcHJvZHVjdElkEhkKCGdy'
-    'b3VwX2lkGAYgASgJUgdncm91cElkEjcKCnByb3BlcnRpZXMYByABKAsyFy5nb29nbGUucHJvdG'
-    '9idWYuU3RydWN0Ugpwcm9wZXJ0aWVz');
+    '10cmFuc2FjdGlvbklkEigKBmFtb3VudBgCIAEoCzIQLmNvbW1vbi52MS5Nb25leVIGYW1vdW50'
+    'EicKD3BheWVyX3JlZmVyZW5jZRgDIAEoCVIOcGF5ZXJSZWZlcmVuY2USHQoKcGF5ZXJfbmFtZR'
+    'gEIAEoCVIJcGF5ZXJOYW1lEh0KCnByb2R1Y3RfaWQYBSABKAlSCXByb2R1Y3RJZBIZCghncm91'
+    'cF9pZBgGIAEoCVIHZ3JvdXBJZBI3Cgpwcm9wZXJ0aWVzGAcgASgLMhcuZ29vZ2xlLnByb3RvYn'
+    'VmLlN0cnVjdFIKcHJvcGVydGllcw==');
 
 @$core.Deprecated('Use incomingPaymentNotifyResponseDescriptor instead')
 const IncomingPaymentNotifyResponse$json = {
@@ -181,7 +181,7 @@ const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
 const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> OperationsServiceBase$messageJson = {
   '.operations.v1.TransferOrderExecuteRequest': TransferOrderExecuteRequest$json,
   '.operations.v1.TransferOrderObject': TransferOrderObject$json,
-  '.google.type.Money': $7.Money$json,
+  '.common.v1.Money': $7.Money$json,
   '.google.protobuf.Struct': $6.Struct$json,
   '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
   '.google.protobuf.Value': $6.Value$json,

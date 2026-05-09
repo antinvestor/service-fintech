@@ -16,9 +16,9 @@ syntax = "proto3";
 package funding.v1;
 
 import "common/v1/common.proto";
+import "common/v1/money.proto";
 import "common/v1/permissions.proto";
 import "google/protobuf/struct.proto";
-import "google/type/money.proto";
 
 option go_package = "github.com/antinvestor/apis/go/funding/v1;fundingv1";
 option java_multiple_files = true;
@@ -30,11 +30,11 @@ message InvestorAccountObject {
   string investor_id = 2;
   string account_name = 3;
   reserved 4;
-  google.type.Money available_balance = 5;
-  google.type.Money reserved_balance = 6;
-  google.type.Money total_deployed = 7;
-  google.type.Money total_returned = 8;
-  google.type.Money max_exposure = 9;
+  common.v1.Money available_balance = 5;
+  common.v1.Money reserved_balance = 6;
+  common.v1.Money total_deployed = 7;
+  common.v1.Money total_returned = 8;
+  common.v1.Money max_exposure = 9;
   string min_interest_rate = 10;
   google.protobuf.Struct allowed_products = 11;
   google.protobuf.Struct allowed_regions = 12;
@@ -50,7 +50,7 @@ message FundingAllocationObject {
   string source_id = 3;
   string source_type = 4;
   int32 tranche_level = 5;
-  google.type.Money amount = 6;
+  common.v1.Money amount = 6;
   reserved 7;
   string proportion = 8;
   google.protobuf.Struct properties = 9;
@@ -79,7 +79,7 @@ message InvestorAccountSearchResponse {
 
 message InvestorDepositRequest {
   string account_id = 1;
-  google.type.Money amount = 2;
+  common.v1.Money amount = 2;
   reserved 3;
 }
 message InvestorDepositResponse {
@@ -88,7 +88,7 @@ message InvestorDepositResponse {
 
 message InvestorWithdrawRequest {
   string account_id = 1;
-  google.type.Money amount = 2;
+  common.v1.Money amount = 2;
 }
 message InvestorWithdrawResponse {
   InvestorAccountObject data = 1;
@@ -99,18 +99,18 @@ message FundLoanRequest {
 }
 message FundLoanResponse {
   repeated FundingAllocationObject allocations = 1;
-  google.type.Money total_allocated = 2;
-  google.type.Money deficit = 3;
+  common.v1.Money total_allocated = 2;
+  common.v1.Money deficit = 3;
   bool fully_funded = 4;
 }
 
 message AbsorbLossRequest {
   string loan_request_id = 1;
-  google.type.Money amount = 2;
+  common.v1.Money amount = 2;
 }
 message AbsorbLossResponse {
-  google.type.Money absorbed = 1;
-  google.type.Money unrecoverable = 2;
+  common.v1.Money absorbed = 1;
+  common.v1.Money unrecoverable = 2;
 }
 
 service FundingService {

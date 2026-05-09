@@ -14,8 +14,8 @@ import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
 import '../../common/v1/common.pbjson.dart' as $7;
+import '../../common/v1/money.pbjson.dart' as $8;
 import '../../google/protobuf/struct.pbjson.dart' as $6;
-import '../../google/type/money.pbjson.dart' as $8;
 
 @$core.Deprecated('Use organizationTypeDescriptor instead')
 const OrganizationType$json = {
@@ -1515,11 +1515,11 @@ const InvestorAccountObject$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'investor_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'investorId'},
     {'1': 'account_name', '3': 3, '4': 1, '5': 9, '10': 'accountName'},
-    {'1': 'available_balance', '3': 5, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'availableBalance'},
-    {'1': 'reserved_balance', '3': 6, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'reservedBalance'},
-    {'1': 'total_deployed', '3': 7, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalDeployed'},
-    {'1': 'total_returned', '3': 8, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'totalReturned'},
-    {'1': 'max_exposure', '3': 9, '4': 1, '5': 11, '6': '.google.type.Money', '10': 'maxExposure'},
+    {'1': 'available_balance', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'availableBalance'},
+    {'1': 'reserved_balance', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'reservedBalance'},
+    {'1': 'total_deployed', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDeployed'},
+    {'1': 'total_returned', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalReturned'},
+    {'1': 'max_exposure', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'maxExposure'},
     {'1': 'min_interest_rate', '3': 10, '4': 1, '5': 9, '10': 'minInterestRate'},
     {'1': 'allowed_products', '3': 11, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'allowedProducts'},
     {'1': 'allowed_regions', '3': 12, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'allowedRegions'},
@@ -1536,19 +1536,19 @@ const InvestorAccountObject$json = {
 final $typed_data.Uint8List investorAccountObjectDescriptor = $convert.base64Decode(
     'ChVJbnZlc3RvckFjY291bnRPYmplY3QSLgoCaWQYASABKAlCHrpIG9gBAXIWEAMYKDIQWzAtOW'
     'Etel8tXXszLDQwfVICaWQSKgoLaW52ZXN0b3JfaWQYAiABKAlCCbpIBnIEEAMYKFIKaW52ZXN0'
-    'b3JJZBIhCgxhY2NvdW50X25hbWUYAyABKAlSC2FjY291bnROYW1lEj8KEWF2YWlsYWJsZV9iYW'
-    'xhbmNlGAUgASgLMhIuZ29vZ2xlLnR5cGUuTW9uZXlSEGF2YWlsYWJsZUJhbGFuY2USPQoQcmVz'
-    'ZXJ2ZWRfYmFsYW5jZRgGIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5Ug9yZXNlcnZlZEJhbGFuY2'
-    'USOQoOdG90YWxfZGVwbG95ZWQYByABKAsyEi5nb29nbGUudHlwZS5Nb25leVINdG90YWxEZXBs'
-    'b3llZBI5Cg50b3RhbF9yZXR1cm5lZBgIIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5Ug10b3RhbF'
-    'JldHVybmVkEjUKDG1heF9leHBvc3VyZRgJIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5UgttYXhF'
-    'eHBvc3VyZRIqChFtaW5faW50ZXJlc3RfcmF0ZRgKIAEoCVIPbWluSW50ZXJlc3RSYXRlEkIKEG'
-    'FsbG93ZWRfcHJvZHVjdHMYCyABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ug9hbGxvd2Vk'
-    'UHJvZHVjdHMSQAoPYWxsb3dlZF9yZWdpb25zGAwgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cn'
-    'VjdFIOYWxsb3dlZFJlZ2lvbnMSRgoSZ3JvdXBfYWZmaWxpYXRpb25zGA0gASgLMhcuZ29vZ2xl'
-    'LnByb3RvYnVmLlN0cnVjdFIRZ3JvdXBBZmZpbGlhdGlvbnMSJgoFc3RhdGUYDiABKA4yEC5jb2'
-    '1tb24udjEuU1RBVEVSBXN0YXRlEjcKCnByb3BlcnRpZXMYDyABKAsyFy5nb29nbGUucHJvdG9i'
-    'dWYuU3RydWN0Ugpwcm9wZXJ0aWVzSgQIBBAF');
+    'b3JJZBIhCgxhY2NvdW50X25hbWUYAyABKAlSC2FjY291bnROYW1lEj0KEWF2YWlsYWJsZV9iYW'
+    'xhbmNlGAUgASgLMhAuY29tbW9uLnYxLk1vbmV5UhBhdmFpbGFibGVCYWxhbmNlEjsKEHJlc2Vy'
+    'dmVkX2JhbGFuY2UYBiABKAsyEC5jb21tb24udjEuTW9uZXlSD3Jlc2VydmVkQmFsYW5jZRI3Cg'
+    '50b3RhbF9kZXBsb3llZBgHIAEoCzIQLmNvbW1vbi52MS5Nb25leVINdG90YWxEZXBsb3llZBI3'
+    'Cg50b3RhbF9yZXR1cm5lZBgIIAEoCzIQLmNvbW1vbi52MS5Nb25leVINdG90YWxSZXR1cm5lZB'
+    'IzCgxtYXhfZXhwb3N1cmUYCSABKAsyEC5jb21tb24udjEuTW9uZXlSC21heEV4cG9zdXJlEioK'
+    'EW1pbl9pbnRlcmVzdF9yYXRlGAogASgJUg9taW5JbnRlcmVzdFJhdGUSQgoQYWxsb3dlZF9wcm'
+    '9kdWN0cxgLIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSD2FsbG93ZWRQcm9kdWN0cxJA'
+    'Cg9hbGxvd2VkX3JlZ2lvbnMYDCABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ug5hbGxvd2'
+    'VkUmVnaW9ucxJGChJncm91cF9hZmZpbGlhdGlvbnMYDSABKAsyFy5nb29nbGUucHJvdG9idWYu'
+    'U3RydWN0UhFncm91cEFmZmlsaWF0aW9ucxImCgVzdGF0ZRgOIAEoDjIQLmNvbW1vbi52MS5TVE'
+    'FURVIFc3RhdGUSNwoKcHJvcGVydGllcxgPIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RS'
+    'CnByb3BlcnRpZXNKBAgEEAU=');
 
 @$core.Deprecated('Use investorAccountSaveRequestDescriptor instead')
 const InvestorAccountSaveRequest$json = {
@@ -1636,7 +1636,7 @@ const InvestorDepositRequest$json = {
   '1': 'InvestorDepositRequest',
   '2': [
     {'1': 'account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'accountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '8': {}, '10': 'amount'},
+    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '8': {}, '10': 'amount'},
   ],
   '9': [
     {'1': 3, '2': 4},
@@ -1646,8 +1646,8 @@ const InvestorDepositRequest$json = {
 /// Descriptor for `InvestorDepositRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List investorDepositRequestDescriptor = $convert.base64Decode(
     'ChZJbnZlc3RvckRlcG9zaXRSZXF1ZXN0EigKCmFjY291bnRfaWQYASABKAlCCbpIBnIEEAMYKF'
-    'IJYWNjb3VudElkEjIKBmFtb3VudBgCIAEoCzISLmdvb2dsZS50eXBlLk1vbmV5Qga6SAPIAQFS'
-    'BmFtb3VudEoECAMQBA==');
+    'IJYWNjb3VudElkEjAKBmFtb3VudBgCIAEoCzIQLmNvbW1vbi52MS5Nb25leUIGukgDyAEBUgZh'
+    'bW91bnRKBAgDEAQ=');
 
 @$core.Deprecated('Use investorDepositResponseDescriptor instead')
 const InvestorDepositResponse$json = {
@@ -1667,15 +1667,15 @@ const InvestorWithdrawRequest$json = {
   '1': 'InvestorWithdrawRequest',
   '2': [
     {'1': 'account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'accountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.google.type.Money', '8': {}, '10': 'amount'},
+    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '8': {}, '10': 'amount'},
   ],
 };
 
 /// Descriptor for `InvestorWithdrawRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List investorWithdrawRequestDescriptor = $convert.base64Decode(
     'ChdJbnZlc3RvcldpdGhkcmF3UmVxdWVzdBIoCgphY2NvdW50X2lkGAEgASgJQgm6SAZyBBADGC'
-    'hSCWFjY291bnRJZBIyCgZhbW91bnQYAiABKAsyEi5nb29nbGUudHlwZS5Nb25leUIGukgDyAEB'
-    'UgZhbW91bnQ=');
+    'hSCWFjY291bnRJZBIwCgZhbW91bnQYAiABKAsyEC5jb21tb24udjEuTW9uZXlCBrpIA8gBAVIG'
+    'YW1vdW50');
 
 @$core.Deprecated('Use investorWithdrawResponseDescriptor instead')
 const InvestorWithdrawResponse$json = {
@@ -2576,7 +2576,7 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentitySe
   '.identity.v1.MembershipSearchResponse': MembershipSearchResponse$json,
   '.identity.v1.InvestorAccountSaveRequest': InvestorAccountSaveRequest$json,
   '.identity.v1.InvestorAccountObject': InvestorAccountObject$json,
-  '.google.type.Money': $8.Money$json,
+  '.common.v1.Money': $8.Money$json,
   '.identity.v1.InvestorAccountSaveResponse': InvestorAccountSaveResponse$json,
   '.identity.v1.InvestorAccountGetRequest': InvestorAccountGetRequest$json,
   '.identity.v1.InvestorAccountGetResponse': InvestorAccountGetResponse$json,

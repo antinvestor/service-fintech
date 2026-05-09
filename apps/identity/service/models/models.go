@@ -23,8 +23,7 @@ import (
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/util/decimalx"
-	moneyx "github.com/pitabwire/util/money"
-	money "google.golang.org/genproto/googleapis/type/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 )
 
 const (
@@ -52,15 +51,15 @@ func StringToMinorUnits(s string) int64 {
 	return d.ToMinorUnits(decimalPrecision)
 }
 
-// MinorUnitsToMoney converts minor units and a currency code to a *money.Money.
+// MinorUnitsToMoney converts minor units and a currency code to a *commonv1.Money.
 // Precision follows ISO 4217 via moneyx.Decimals (JPY=0, KWD/BHD/OMR=3, else=2).
-func MinorUnitsToMoney(v int64, currencyCode string) *money.Money {
+func MinorUnitsToMoney(v int64, currencyCode string) *commonv1.Money {
 	return moneyx.FromMinorUnitsByCurrency(currencyCode, v)
 }
 
-// MoneyToMinorUnits converts a *money.Money to minor units and currency code.
+// MoneyToMinorUnits converts a *commonv1.Money to minor units and currency code.
 // Precision follows ISO 4217 via moneyx.Decimals.
-func MoneyToMinorUnits(m *money.Money) (int64, string) {
+func MoneyToMinorUnits(m *commonv1.Money) (int64, string) {
 	if m == nil {
 		return 0, ""
 	}

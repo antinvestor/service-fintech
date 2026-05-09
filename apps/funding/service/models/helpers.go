@@ -17,13 +17,13 @@ package models
 import (
 	"strconv"
 
-	moneyx "github.com/pitabwire/util/money"
-	money "google.golang.org/genproto/googleapis/type/money"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	moneyx "github.com/pitabwire/util/moneyx"
 )
 
-// MoneyToMinorUnits converts a *money.Money to minor units (int64) and
+// MoneyToMinorUnits converts a *commonv1.Money to minor units (int64) and
 // currency code. Precision follows ISO 4217 via moneyx.Decimals.
-func MoneyToMinorUnits(m *money.Money) (int64, string) {
+func MoneyToMinorUnits(m *commonv1.Money) (int64, string) {
 	if m == nil {
 		return 0, ""
 	}

@@ -20,7 +20,7 @@ import (
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"github.com/pitabwire/frame/data"
-	moneyx "github.com/pitabwire/util/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/datatypes"
 )

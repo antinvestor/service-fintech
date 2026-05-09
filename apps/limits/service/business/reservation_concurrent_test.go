@@ -19,9 +19,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"github.com/pitabwire/util"
-	moneypb "google.golang.org/genproto/googleapis/type/money"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

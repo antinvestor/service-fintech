@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"connectrpc.com/connect"
 	"github.com/pitabwire/frame"
@@ -32,7 +33,6 @@ import (
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	moneypb "google.golang.org/genproto/googleapis/type/money"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"

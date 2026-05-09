@@ -24,15 +24,15 @@ package loans.v1;
 // - Product services (seed, stawi) create loan requests after their own acquisition workflows
 // - Integrates with Identity, Ledger, Payment, and Notification services
 // - All timestamps are RFC3339 / google.protobuf.Timestamp
-// - All monetary amounts use google.type.Money for precision
+// - All monetary amounts use common.v1.Money for precision
 // -----------------------------------------------------
 
 import "buf/validate/validate.proto";
 import "common/v1/common.proto";
+import "common/v1/money.proto";
 import "common/v1/permissions.proto";
 import "gnostic/openapi/v3/annotations.proto";
 import "google/protobuf/struct.proto";
-import "google/type/money.proto";
 
 option go_package = "github.com/antinvestor/apis/go/loans/v1;loansv1";
 option java_multiple_files = true;
@@ -217,8 +217,8 @@ message LoanProductObject {
   string currency_code = 7 [(buf.validate.field).string.len = 3]; // ISO 4217
   InterestMethod interest_method = 8;
   RepaymentFrequency repayment_frequency = 9;
-  google.type.Money min_amount = 10;
-  google.type.Money max_amount = 11;
+  common.v1.Money min_amount = 10;
+  common.v1.Money max_amount = 11;
   int32 min_term_days = 12;
   int32 max_term_days = 13;
   string annual_interest_rate = 14; // Decimal percentage e.g. "12.5"
@@ -265,8 +265,8 @@ message LoanRequestObject {
     (buf.validate.field).string.max_len = 40
   ];
   LoanRequestStatus status = 7;
-  google.type.Money requested_amount = 8;
-  google.type.Money approved_amount = 9;
+  common.v1.Money requested_amount = 8;
+  common.v1.Money approved_amount = 9;
   int32 requested_term_days = 10;
   int32 approved_term_days = 11;
   string interest_rate = 12; // Decimal percentage at approval
@@ -325,7 +325,7 @@ message LoanAccountObject {
   string organization_id = 7;
   LoanStatus status = 8;
   // Field 9 removed (currency_code now in Money).
-  google.type.Money principal_amount = 10;
+  common.v1.Money principal_amount = 10;
   string interest_rate = 11;
   int32 term_days = 12;
   InterestMethod interest_method = 13;
@@ -360,15 +360,15 @@ message ScheduleEntryObject {
   string schedule_id = 2;
   int32 installment_number = 3;
   string due_date = 4;
-  google.type.Money principal_due = 5;
-  google.type.Money interest_due = 6;
-  google.type.Money fees_due = 7;
-  google.type.Money total_due = 8;
-  google.type.Money principal_paid = 9;
-  google.type.Money interest_paid = 10;
-  google.type.Money fees_paid = 11;
-  google.type.Money total_paid = 12;
-  google.type.Money outstanding = 13;
+  common.v1.Money principal_due = 5;
+  common.v1.Money interest_due = 6;
+  common.v1.Money fees_due = 7;
+  common.v1.Money total_due = 8;
+  common.v1.Money principal_paid = 9;
+  common.v1.Money interest_paid = 10;
+  common.v1.Money fees_paid = 11;
+  common.v1.Money total_paid = 12;
+  common.v1.Money outstanding = 13;
   ScheduleEntryStatus status = 14;
   string paid_date = 15;
   google.protobuf.Struct properties = 16;
@@ -377,13 +377,13 @@ message ScheduleEntryObject {
 // LoanBalanceObject represents the current balance snapshot of a loan.
 message LoanBalanceObject {
   string loan_account_id = 1;
-  google.type.Money principal_outstanding = 2;
-  google.type.Money interest_accrued = 3;
-  google.type.Money fees_outstanding = 4;
-  google.type.Money penalties_outstanding = 5;
-  google.type.Money total_outstanding = 6;
-  google.type.Money total_paid = 7;
-  google.type.Money total_disbursed = 8;
+  common.v1.Money principal_outstanding = 2;
+  common.v1.Money interest_accrued = 3;
+  common.v1.Money fees_outstanding = 4;
+  common.v1.Money penalties_outstanding = 5;
+  common.v1.Money total_outstanding = 6;
+  common.v1.Money total_paid = 7;
+  common.v1.Money total_disbursed = 8;
   string last_calculated_at = 9;
 }
 
@@ -399,7 +399,7 @@ message DisbursementObject {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 3;
+  common.v1.Money amount = 3;
   // Field 4 removed (currency_code now in Money).
   DisbursementStatus status = 5;
   string payment_reference = 6;
@@ -424,7 +424,7 @@ message RepaymentObject {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 3;
+  common.v1.Money amount = 3;
   // Field 4 removed (currency_code now in Money).
   RepaymentStatus status = 5;
   string payment_reference = 6;
@@ -432,11 +432,11 @@ message RepaymentObject {
   string received_at = 8;
   string channel = 9;
   string payer_reference = 10;
-  google.type.Money principal_applied = 11;
-  google.type.Money interest_applied = 12;
-  google.type.Money fees_applied = 13;
-  google.type.Money penalties_applied = 14;
-  google.type.Money excess_amount = 15;
+  common.v1.Money principal_applied = 11;
+  common.v1.Money interest_applied = 12;
+  common.v1.Money fees_applied = 13;
+  common.v1.Money penalties_applied = 14;
+  common.v1.Money excess_amount = 15;
   string idempotency_key = 16;
   google.protobuf.Struct properties = 17;
 }
@@ -454,7 +454,7 @@ message PenaltyObject {
     (buf.validate.field).string.max_len = 40
   ];
   PenaltyType penalty_type = 3;
-  google.type.Money amount = 4;
+  common.v1.Money amount = 4;
   string reason = 5;
   bool is_waived = 6;
   string waived_by = 7;
@@ -485,7 +485,7 @@ message LoanRestructureObject {
   string new_interest_rate = 8;
   int32 old_term_days = 9;
   int32 new_term_days = 10;
-  google.type.Money waived_amount = 11;
+  common.v1.Money waived_amount = 11;
   string old_schedule_id = 12;
   string new_schedule_id = 13;
   common.v1.STATE state = 14;
@@ -517,7 +517,7 @@ message ReconciliationObject {
   ];
   string payment_reference = 3;
   string external_reference = 4;
-  google.type.Money amount = 5;
+  common.v1.Money amount = 5;
   // Field 6 removed (currency_code now in Money).
   ReconciliationStatus status = 7;
   string matched_repayment_id = 8;
@@ -531,9 +531,9 @@ message ReconciliationObject {
 message LoanStatementEntry {
   string date = 1;
   string description = 2;
-  google.type.Money debit = 3;
-  google.type.Money credit = 4;
-  google.type.Money balance = 5;
+  common.v1.Money debit = 3;
+  common.v1.Money credit = 4;
+  common.v1.Money balance = 5;
   string reference = 6;
 }
 
@@ -655,7 +655,7 @@ message RepaymentRecordRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 2;
+  common.v1.Money amount = 2;
   string payment_reference = 3;
   string channel = 4;
   string payer_reference = 5;
@@ -1033,13 +1033,13 @@ message PortfolioSummary {
   int32 default_loans = 4;
   int32 paid_off_loans = 5;
   int32 written_off_loans = 6;
-  google.type.Money total_disbursed = 7;
-  google.type.Money total_outstanding = 8;
-  google.type.Money total_collected = 9;
-  google.type.Money principal_outstanding = 10;
-  google.type.Money interest_outstanding = 11;
-  google.type.Money fees_outstanding = 12;
-  google.type.Money penalties_outstanding = 13;
+  common.v1.Money total_disbursed = 7;
+  common.v1.Money total_outstanding = 8;
+  common.v1.Money total_collected = 9;
+  common.v1.Money principal_outstanding = 10;
+  common.v1.Money interest_outstanding = 11;
+  common.v1.Money fees_outstanding = 12;
+  common.v1.Money penalties_outstanding = 13;
   string currency_code = 14;
   // collection_rate is total_collected / total_disbursed as a percentage string (e.g. "85.50").
   string collection_rate = 15;

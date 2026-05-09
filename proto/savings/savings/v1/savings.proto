@@ -23,16 +23,16 @@ package savings.v1;
 // - Handles the full savings account lifecycle from creation through to closure
 // - Integrates with Identity, Ledger, Payment, and Notification services
 // - All timestamps are RFC3339 / google.protobuf.Timestamp
-// - All monetary amounts use google.type.Money for precision
+// - All monetary amounts use common.v1.Money for precision
 // - All rates are decimal percentage strings (e.g. "12.50" = 12.50%)
 // -----------------------------------------------------
 
 import "buf/validate/validate.proto";
 import "common/v1/common.proto";
+import "common/v1/money.proto";
 import "common/v1/permissions.proto";
 import "gnostic/openapi/v3/annotations.proto";
 import "google/protobuf/struct.proto";
-import "google/type/money.proto";
 
 option go_package = "github.com/antinvestor/apis/go/savings/v1;savingsv1";
 option java_multiple_files = true;
@@ -150,8 +150,8 @@ message SavingsProductObject {
   string interest_rate = 7; // Annual interest rate as decimal percentage e.g. "5.50"
   CompoundingFrequency compounding_frequency = 8;
   SavingsPeriodType period_type = 9;
-  google.type.Money min_deposit = 10;
-  google.type.Money max_deposit = 11;
+  common.v1.Money min_deposit = 10;
+  common.v1.Money max_deposit = 11;
   google.protobuf.Struct withdrawal_rules = 12;
   common.v1.STATE state = 13;
   google.protobuf.Struct properties = 14;
@@ -207,7 +207,7 @@ message DepositObject {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 3;
+  common.v1.Money amount = 3;
   reserved 4;
   DepositStatus status = 5;
   string payment_reference = 6;
@@ -230,7 +230,7 @@ message WithdrawalObject {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 3;
+  common.v1.Money amount = 3;
   reserved 4;
   WithdrawalStatus status = 5;
   string payment_reference = 6;
@@ -254,11 +254,11 @@ message InterestAccrualObject {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 3;
+  common.v1.Money amount = 3;
   string period_start = 4; // RFC3339
   string period_end = 5; // RFC3339
   string rate_applied = 6; // Decimal percentage e.g. "5.50"
-  google.type.Money balance_used = 7; // Balance used for computation
+  common.v1.Money balance_used = 7; // Balance used for computation
   string ledger_transaction_id = 8;
   google.protobuf.Struct properties = 9;
 }
@@ -266,10 +266,10 @@ message InterestAccrualObject {
 // SavingsBalanceObject represents the current balance of a savings account.
 message SavingsBalanceObject {
   string savings_account_id = 1;
-  google.type.Money available_balance = 2;
-  google.type.Money total_deposits = 3;
-  google.type.Money total_withdrawals = 4;
-  google.type.Money total_interest = 5;
+  common.v1.Money available_balance = 2;
+  common.v1.Money total_deposits = 3;
+  common.v1.Money total_withdrawals = 4;
+  common.v1.Money total_interest = 5;
   string last_calculated_at = 6;
 }
 
@@ -277,9 +277,9 @@ message SavingsBalanceObject {
 message SavingsStatementEntry {
   string date = 1;
   string description = 2;
-  google.type.Money debit = 3;
-  google.type.Money credit = 4;
-  google.type.Money balance = 5;
+  common.v1.Money debit = 3;
+  common.v1.Money credit = 4;
+  common.v1.Money balance = 5;
   string reference = 6;
 }
 
@@ -403,7 +403,7 @@ message DepositRecordRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 2;
+  common.v1.Money amount = 2;
   string payment_reference = 3;
   string channel = 4;
   string payer_reference = 5;
@@ -446,7 +446,7 @@ message WithdrawalRequestRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  google.type.Money amount = 2;
+  common.v1.Money amount = 2;
   string channel = 3;
   string recipient_reference = 4;
   string reason = 5;

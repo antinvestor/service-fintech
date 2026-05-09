@@ -27,7 +27,7 @@ import (
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
-	utilmoney "github.com/pitabwire/util/money"
+	utilmoney "github.com/pitabwire/util/moneyx"
 
 	identitymodels "github.com/antinvestor/service-fintech/apps/identity/service/models"
 	identityrepo "github.com/antinvestor/service-fintech/apps/identity/service/repository"

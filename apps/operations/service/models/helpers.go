@@ -15,13 +15,13 @@
 package models
 
 import (
-	moneyx "github.com/pitabwire/util/money"
-	money "google.golang.org/genproto/googleapis/type/money"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	moneyx "github.com/pitabwire/util/moneyx"
 )
 
-// MoneyToMinorUnits converts a *money.Money to minor units and currency code.
+// MoneyToMinorUnits converts a *commonv1.Money to minor units and currency code.
 // Precision follows ISO 4217 via moneyx.Decimals (JPY=0, KWD/BHD/OMR=3, else=2).
-func MoneyToMinorUnits(m *money.Money) (int64, string) {
+func MoneyToMinorUnits(m *commonv1.Money) (int64, string) {
 	if m == nil {
 		return 0, ""
 	}
@@ -30,7 +30,7 @@ func MoneyToMinorUnits(m *money.Money) (int64, string) {
 }
 
 // MinorUnitsToMoney converts minor units (e.g. cents) and a currency code to a
-// *money.Money proto message. Precision follows ISO 4217 via moneyx.Decimals.
-func MinorUnitsToMoney(v int64, currencyCode string) *money.Money {
+// *commonv1.Money proto message. Precision follows ISO 4217 via moneyx.Decimals.
+func MinorUnitsToMoney(v int64, currencyCode string) *commonv1.Money {
 	return moneyx.FromMinorUnitsByCurrency(currencyCode, v)
 }

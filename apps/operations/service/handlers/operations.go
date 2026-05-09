@@ -25,7 +25,7 @@ import (
 	audit "github.com/antinvestor/common/audit"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/workerpool"
-	moneyx "github.com/pitabwire/util/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/business"
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
