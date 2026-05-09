@@ -12,22 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Bridges proto types from service-specific API packages to the common
-// types expected by antinvestor_ui_core.
+// Bridges proto enum types from service-specific API packages to the
+// common types expected by antinvestor_ui_core.
+//
+// Money is no longer bridged here — antinvestor_ui_core helpers
+// (formatMoney, moneyCurrency, setMoneyFields, …) read service-typed
+// Money via dynamic dispatch as of ui_core 0.4.0.
 
-import 'package:antinvestor_api_common/antinvestor_api_common.dart'
-    show Money, STATE;
-import 'package:fixnum/fixnum.dart';
-
-/// Converts any proto Money object to the common [Money] type.
-Money? bridgeMoney(dynamic money) {
-  if (money == null) return null;
-  final m = Money();
-  m.currencyCode = money.currencyCode as String;
-  m.units = money.units as Int64;
-  m.nanos = money.nanos as int;
-  return m;
-}
+import 'package:antinvestor_api_common/antinvestor_api_common.dart' show STATE;
 
 /// Converts any proto STATE enum to the common [STATE] type.
 STATE bridgeState(dynamic state) {

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:antinvestor_api_savings/antinvestor_api_savings.dart';
 import 'package:antinvestor_ui_core/api/stream_helpers.dart';
+import 'package:antinvestor_ui_core/widgets/money_helpers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'savings_transport_provider.dart';
@@ -194,23 +195,23 @@ class DepositNotifier extends Notifier<AsyncValue<void>> {
 
   Future<DepositObject> record({
     required String savingsAccountId,
-    required dynamic amount,
+    required String amount,
+    required String currencyCode,
     String paymentReference = '',
     String channel = '',
     String payerReference = '',
   }) async {
     state = const AsyncValue.loading();
     try {
-      final response = await _client.depositRecord(
-        DepositRecordRequest(
-          savingsAccountId: savingsAccountId,
-          amount: amount,
-          paymentReference: paymentReference,
-          channel: channel,
-          payerReference: payerReference,
-          idempotencyKey: _generateIdempotencyKey(),
-        ),
+      final req = DepositRecordRequest(
+        savingsAccountId: savingsAccountId,
+        paymentReference: paymentReference,
+        channel: channel,
+        payerReference: payerReference,
+        idempotencyKey: _generateIdempotencyKey(),
       );
+      setMoneyFields(req.ensureAmount(), amount, currencyCode);
+      final response = await _client.depositRecord(req);
       state = const AsyncValue.data(null);
       ref.invalidate(depositListProvider);
       ref.invalidate(savingsBalanceProvider);
@@ -256,23 +257,23 @@ class WithdrawalNotifier extends Notifier<AsyncValue<void>> {
 
   Future<WithdrawalObject> request({
     required String savingsAccountId,
-    required dynamic amount,
+    required String amount,
+    required String currencyCode,
     String channel = '',
     String recipientReference = '',
     String reason = '',
   }) async {
     state = const AsyncValue.loading();
     try {
-      final response = await _client.withdrawalRequest(
-        WithdrawalRequestRequest(
-          savingsAccountId: savingsAccountId,
-          amount: amount,
-          channel: channel,
-          recipientReference: recipientReference,
-          reason: reason,
-          idempotencyKey: _generateIdempotencyKey(),
-        ),
+      final req = WithdrawalRequestRequest(
+        savingsAccountId: savingsAccountId,
+        channel: channel,
+        recipientReference: recipientReference,
+        reason: reason,
+        idempotencyKey: _generateIdempotencyKey(),
       );
+      setMoneyFields(req.ensureAmount(), amount, currencyCode);
+      final response = await _client.withdrawalRequest(req);
       state = const AsyncValue.data(null);
       ref.invalidate(withdrawalListProvider);
       ref.invalidate(savingsBalanceProvider);

@@ -257,7 +257,7 @@ class _TransferOrderCard extends StatelessWidget {
                 Expanded(
                   child: _DetailItem(
                     label: 'Amount',
-                    value: formatMoney(bridgeMoney(order.amount)),
+                    value: formatMoney(order.amount),
                   ),
                 ),
                 Expanded(

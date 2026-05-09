@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import 'package:flutter/material.dart';
-import 'package:antinvestor_api_common/antinvestor_api_common.dart' show Money;
 
 const _zeroDecimal = {
   'BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW',
@@ -28,9 +27,10 @@ int _decimalsFor(String code) {
   return 2;
 }
 
-/// Renders [Money] with the right ISO 4217 precision.
+/// Renders a `Money`-shaped value (any generated proto Money) with the
+/// right ISO 4217 precision.
 class CurrencyAmountText extends StatelessWidget {
-  final Money? amount;
+  final dynamic amount;
   final TextStyle? style;
   final bool showCurrency;
 
@@ -44,10 +44,10 @@ class CurrencyAmountText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (amount == null) return Text('—', style: style);
-    final code = amount!.currencyCode;
+    final String code = amount.currencyCode as String;
     final decimals = _decimalsFor(code);
-    final units = amount!.units.toInt();
-    final nanos = amount!.nanos;
+    final units = (amount.units as dynamic).toInt() as int;
+    final int nanos = amount.nanos as int;
 
     // Sign: units and nanos always agree per google.type.Money semantics.
     final negative = units < 0 || nanos < 0;

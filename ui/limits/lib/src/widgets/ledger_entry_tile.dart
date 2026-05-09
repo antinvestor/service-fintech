@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 
 import '../utils/enum_labels.dart';
-import '../utils/money_bridge.dart';
 import 'currency_amount_text.dart';
 
 class LedgerEntryTile extends StatelessWidget {
@@ -40,7 +39,7 @@ class LedgerEntryTile extends StatelessWidget {
               ),
             ),
             CurrencyAmountText(
-              amount: bridgeMoney(entry.amount),
+              amount: entry.amount,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 decoration: reversed ? TextDecoration.lineThrough : null,

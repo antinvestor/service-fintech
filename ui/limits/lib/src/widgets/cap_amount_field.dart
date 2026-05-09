@@ -13,16 +13,27 @@
 // limitations under the License.
 
 import 'package:flutter/material.dart';
-import 'package:antinvestor_api_common/antinvestor_api_common.dart' show Money;
-import 'package:fixnum/fixnum.dart';
 
 const _commonCurrencies = ['KES', 'USD', 'EUR', 'GBP', 'UGX', 'TZS', 'JPY', 'KWD'];
 
+/// Edits a money-cap value as a free-text amount + currency dropdown.
+///
+/// Emits the raw `(amount, currency)` strings on every change so the
+/// caller can populate any service-specific Money proto via
+/// `setMoneyFields(target, amount, currency)`. Emits `(null, currency)`
+/// when the field is cleared.
 class CapAmountField extends StatefulWidget {
-  final Money? initial;
-  final ValueChanged<Money?> onChanged;
+  final String? initialAmount;
+  final String? initialCurrency;
+  final void Function(String? amount, String currency) onChanged;
   final String label;
-  const CapAmountField({super.key, this.initial, required this.onChanged, this.label = 'Cap'});
+  const CapAmountField({
+    super.key,
+    this.initialAmount,
+    this.initialCurrency,
+    required this.onChanged,
+    this.label = 'Cap',
+  });
 
   @override
   State<CapAmountField> createState() => _CapAmountFieldState();
@@ -35,36 +46,15 @@ class _CapAmountFieldState extends State<CapAmountField> {
   @override
   void initState() {
     super.initState();
-    _currency = widget.initial?.currencyCode ?? 'KES';
-    _amountCtrl = TextEditingController(text: _formatInitial());
-  }
-
-  String _formatInitial() {
-    final m = widget.initial;
-    if (m == null) return '';
-    final units = m.units.toInt();
-    final nanos = m.nanos;
-    if (nanos == 0) return units.toString();
-    return '$units.${(nanos.abs() ~/ 10000000).toString().padLeft(2, '0')}';
+    _currency = widget.initialCurrency?.isNotEmpty == true
+        ? widget.initialCurrency!
+        : 'KES';
+    _amountCtrl = TextEditingController(text: widget.initialAmount ?? '');
   }
 
   void _emit() {
     final raw = _amountCtrl.text.trim();
-    if (raw.isEmpty) {
-      widget.onChanged(null);
-      return;
-    }
-    final parts = raw.split('.');
-    final units = int.tryParse(parts[0]) ?? 0;
-    var nanos = 0;
-    if (parts.length > 1) {
-      final frac = parts[1].padRight(9, '0').substring(0, 9);
-      nanos = int.tryParse(frac) ?? 0;
-    }
-    widget.onChanged(Money()
-      ..currencyCode = _currency
-      ..units = Int64(units)
-      ..nanos = nanos);
+    widget.onChanged(raw.isEmpty ? null : raw, _currency);
   }
 
   @override

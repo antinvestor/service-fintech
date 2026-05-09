@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
+import 'package:antinvestor_ui_core/widgets/money_helpers.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/policy_providers.dart';
 import '../utils/enum_labels.dart';
-import '../utils/money_bridge.dart';
 import '../widgets/approver_tiers_editor.dart';
 import '../widgets/attribute_filter_editor.dart';
 import '../widgets/cap_amount_field.dart';
@@ -217,24 +217,22 @@ class _PolicyEditorScreenState extends ConsumerState<PolicyEditorScreen> {
           const SizedBox(height: 12),
 
           // Cap: amount field for non-count kinds, count field for count kind.
-          // CapAmountField uses Money from antinvestor_api_common; bridgeMoney()
-          // converts from the limits-SDK-embedded google/type/money.pb.dart.
           if (!_isCountKind) ...[
             CapAmountField(
-              initial: _draft.hasCapAmount()
-                  ? bridgeMoney(_draft.capAmount)
+              initialAmount: _draft.hasCapAmount()
+                  ? moneyToAmountString(_draft.capAmount)
                   : null,
-              onChanged: (m) {
+              initialCurrency: moneyCurrency(
+                _draft.hasCapAmount() ? _draft.capAmount : null,
+                _draft.currencyCode.isNotEmpty ? _draft.currencyCode : 'KES',
+              ),
+              onChanged: (amount, currency) {
                 setState(() {
-                  if (m == null) {
+                  if (amount == null) {
                     _draft.clearCapAmount();
                   } else {
-                    // Write fields back onto the proto-embedded Money type.
-                    _draft.ensureCapAmount()
-                      ..currencyCode = m.currencyCode
-                      ..units = m.units
-                      ..nanos = m.nanos;
-                    _draft.currencyCode = m.currencyCode;
+                    setMoneyFields(_draft.ensureCapAmount(), amount, currency);
+                    _draft.currencyCode = currency;
                   }
                 });
               },

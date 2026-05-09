@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 
 import '../utils/enum_labels.dart';
-import '../utils/money_bridge.dart';
 import 'currency_amount_text.dart';
 import 'policy_mode_badge.dart';
 import 'policy_scope_badge.dart';
@@ -47,7 +46,7 @@ class PolicyListTile extends StatelessWidget {
               if (policy.limitKind != LimitKind.LIMIT_KIND_ROLLING_WINDOW_COUNT &&
                   policy.hasCapAmount())
                 CurrencyAmountText(
-                  amount: bridgeMoney(policy.capAmount),
+                  amount: policy.capAmount,
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               if (policy.limitKind == LimitKind.LIMIT_KIND_ROLLING_WINDOW_COUNT)

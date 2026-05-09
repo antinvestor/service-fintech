@@ -17,7 +17,6 @@ import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 
 import '../utils/duration_format.dart';
 import '../utils/enum_labels.dart';
-import '../utils/money_bridge.dart';
 import 'approver_tiers_display.dart';
 import 'attribute_filter_display.dart';
 import 'currency_amount_text.dart';
@@ -68,7 +67,7 @@ class PolicyDetailCard extends StatelessWidget {
             else
               _kvWidget(
                 'Cap',
-                CurrencyAmountText(amount: bridgeMoney(policy.capAmount)),
+                CurrencyAmountText(amount: policy.capAmount),
               ),
             if (policy.window.seconds.toInt() > 0)
               _kv('Window', formatDuration(policy.window.seconds.toInt())),

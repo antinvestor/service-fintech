@@ -2,7 +2,6 @@ import 'package:antinvestor_api_savings/antinvestor_api_savings.dart'
     hide PageCursor, STATE;
 import 'package:antinvestor_ui_core/antinvestor_ui_core.dart';
 
-import '../utils/money_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -150,7 +149,7 @@ class _SavingsAccountDetailScreenState
                                   ),
                                 ),
                                 Text(
-                                  formatMoney(bridgeMoney(balance.availableBalance)),
+                                  formatMoney(balance.availableBalance),
                                   style: theme.textTheme.headlineSmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w700,
@@ -171,7 +170,7 @@ class _SavingsAccountDetailScreenState
                                   ),
                                 ),
                                 Text(
-                                  formatMoney(bridgeMoney(balance.totalDeposits)),
+                                  formatMoney(balance.totalDeposits),
                                   style: theme.textTheme.bodyLarge?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -190,7 +189,7 @@ class _SavingsAccountDetailScreenState
                                   ),
                                 ),
                                 Text(
-                                  formatMoney(bridgeMoney(balance.totalWithdrawals)),
+                                  formatMoney(balance.totalWithdrawals),
                                   style: theme.textTheme.bodyLarge?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -313,10 +312,8 @@ class _SavingsAccountDetailScreenState
                             .read(depositNotifierProvider.notifier)
                             .record(
                               savingsAccountId: account.id,
-                              amount: moneyFromString(
-                                amountCtrl.text.trim(),
-                                account.currencyCode,
-                              ),
+                              amount: amountCtrl.text.trim(),
+                              currencyCode: account.currencyCode,
                               paymentReference: refCtrl.text.trim(),
                             );
                         if (ctx.mounted) Navigator.of(ctx).pop();
@@ -390,10 +387,8 @@ class _SavingsAccountDetailScreenState
                             .read(withdrawalNotifierProvider.notifier)
                             .request(
                               savingsAccountId: account.id,
-                              amount: moneyFromString(
-                                amountCtrl.text.trim(),
-                                account.currencyCode,
-                              ),
+                              amount: amountCtrl.text.trim(),
+                              currencyCode: account.currencyCode,
                             );
                         if (ctx.mounted) Navigator.of(ctx).pop();
                         if (context.mounted) {
@@ -510,7 +505,7 @@ class _DepositsTab extends ConsumerWidget {
                   ),
                 ),
                 title: Text(
-                  formatMoney(bridgeMoney(d.amount)),
+                  formatMoney(d.amount),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -599,7 +594,7 @@ class _WithdrawalsTab extends ConsumerWidget {
                   ),
                 ),
                 title: Text(
-                  formatMoney(bridgeMoney(w.amount)),
+                  formatMoney(w.amount),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
