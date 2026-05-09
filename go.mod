@@ -37,8 +37,9 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/pitabwire/frame v1.94.6
-	github.com/pitabwire/util v0.8.1-0.20260509051930-7bcc4e49f592
+	github.com/pitabwire/util v0.8.1-0.20260509193553-0acf358c18ed
 	github.com/pitabwire/util/decimalx v0.7.1
+	github.com/pitabwire/util/moneyx v0.0.0-20260509193553-0acf358c18ed
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tsenart/vegeta/v12 v12.13.0
