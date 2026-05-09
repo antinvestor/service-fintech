@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 
 import '../utils/enum_labels.dart';
-import '../utils/money_bridge.dart';
 import 'currency_amount_text.dart';
 
 class ApprovalRequestTile extends StatelessWidget {
@@ -34,7 +33,7 @@ class ApprovalRequestTile extends StatelessWidget {
           children: [
             Expanded(child: Text(limitActionLabel(request.action))),
             CurrencyAmountText(
-              amount: bridgeMoney(request.amount),
+              amount: request.amount,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ],

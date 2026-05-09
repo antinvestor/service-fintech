@@ -18,11 +18,11 @@ package limits.v1;
 
 import "buf/validate/validate.proto";
 import "common/v1/common.proto";
+import "common/v1/money.proto";
 import "common/v1/permissions.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
-import "google/type/money.proto";
 
 option java_package = "limitsv1";
 
@@ -122,7 +122,7 @@ message PolicyObject {
   string currency_code = 7 [(buf.validate.field).string.max_len = 3];
   LimitKind limit_kind = 8 [(buf.validate.field).enum.defined_only = true];
   google.protobuf.Duration window = 9;
-  google.type.Money cap_amount = 10;
+  common.v1.Money cap_amount = 10;
   int64 cap_count = 11;
   PolicyMode mode = 12 [(buf.validate.field).enum.defined_only = true];
   google.protobuf.Struct attribute_filter = 13;
@@ -140,7 +140,7 @@ message LimitIntent {
   LimitAction action = 1 [(buf.validate.field).enum.defined_only = true];
   string tenant_id = 2 [(buf.validate.field).string.min_len = 3];
   string org_unit_id = 3;
-  google.type.Money amount = 4 [(buf.validate.field).required = true];
+  common.v1.Money amount = 4 [(buf.validate.field).required = true];
   repeated SubjectRef subjects = 5 [(buf.validate.field).repeated.min_items = 1];
   string maker_id = 6;
 }
@@ -153,8 +153,8 @@ message PolicyVerdict {
   bool would_require_approval = 5;
   PolicyMode mode = 6;
   string reason = 7;
-  google.type.Money current_usage = 8;
-  google.type.Money cap_amount = 9;
+  common.v1.Money current_usage = 8;
+  common.v1.Money cap_amount = 9;
   int64 current_count = 10;
   int64 cap_count = 11;
 }
@@ -164,12 +164,16 @@ message PolicyVerdict {
 message PolicySaveRequest {
   PolicyObject data = 1 [(buf.validate.field).required = true];
 }
-message PolicySaveResponse { PolicyObject data = 1; }
+message PolicySaveResponse {
+  PolicyObject data = 1;
+}
 
 message PolicyGetRequest {
   string id = 1 [(buf.validate.field).string.min_len = 1];
 }
-message PolicyGetResponse { PolicyObject data = 1; }
+message PolicyGetResponse {
+  PolicyObject data = 1;
+}
 
 message PolicySearchRequest {
   string query = 1;
@@ -180,7 +184,9 @@ message PolicySearchRequest {
   PolicyMode mode = 6;
   common.v1.PageCursor cursor = 7;
 }
-message PolicySearchResponse { repeated PolicyObject data = 1; }
+message PolicySearchResponse {
+  repeated PolicyObject data = 1;
+}
 
 message PolicyDeleteRequest {
   string id = 1 [(buf.validate.field).string.min_len = 1];
@@ -189,7 +195,7 @@ message PolicyDeleteResponse {}
 
 message ApprovalDecisionObject {
   string approver_id = 1;
-  string decision = 2;       // approve | reject
+  string decision = 2; // approve | reject
   string note = 3;
   google.protobuf.Timestamp decided_at = 4;
 }
@@ -202,7 +208,7 @@ message ApprovalRequestObject {
   string triggering_policy_id = 5;
   int32 policy_version = 6;
   LimitAction action = 7;
-  google.type.Money amount = 8;
+  common.v1.Money amount = 8;
   string required_role = 9;
   int32 required_count = 10;
   string maker_id = 11;
@@ -219,19 +225,30 @@ message ApprovalRequestListRequest {
   string required_role = 3;
   common.v1.PageCursor cursor = 4;
 }
-message ApprovalRequestListResponse { repeated ApprovalRequestObject data = 1; }
+message ApprovalRequestListResponse {
+  repeated ApprovalRequestObject data = 1;
+}
 
 message ApprovalRequestGetRequest {
   string id = 1 [(buf.validate.field).string.min_len = 1];
 }
-message ApprovalRequestGetResponse { ApprovalRequestObject data = 1; }
+message ApprovalRequestGetResponse {
+  ApprovalRequestObject data = 1;
+}
 
 message ApprovalRequestDecideRequest {
   string id = 1 [(buf.validate.field).string.min_len = 1];
-  string decision = 2 [(buf.validate.field).string = {in: ["approve", "reject"]}];
+  string decision = 2 [(buf.validate.field).string = {
+    in: [
+      "approve",
+      "reject"
+    ]
+  }];
   string note = 3;
 }
-message ApprovalRequestDecideResponse { ApprovalRequestObject data = 1; }
+message ApprovalRequestDecideResponse {
+  ApprovalRequestObject data = 1;
+}
 
 message LedgerEntryObject {
   string id = 1;
@@ -241,7 +258,7 @@ message LedgerEntryObject {
   LimitAction action = 5;
   SubjectType subject_type = 6;
   string subject_id = 7;
-  google.type.Money amount = 8;
+  common.v1.Money amount = 8;
   google.protobuf.Timestamp committed_at = 9;
   google.protobuf.Timestamp reversed_at = 10;
 }
@@ -256,7 +273,9 @@ message LedgerSearchRequest {
   google.protobuf.Timestamp to = 7;
   common.v1.PageCursor cursor = 8;
 }
-message LedgerSearchResponse { repeated LedgerEntryObject data = 1; }
+message LedgerSearchResponse {
+  repeated LedgerEntryObject data = 1;
+}
 
 // ─── Audit-on-limiting search ────────────────────────────────────────
 
@@ -284,11 +303,15 @@ message LimitsAuditSearchRequest {
   common.v1.PageCursor cursor = 7;
 }
 
-message LimitsAuditSearchResponse { repeated LimitsAuditEventObject data = 1; }
+message LimitsAuditSearchResponse {
+  repeated LimitsAuditEventObject data = 1;
+}
 
 // ─── Runtime service messages (defined now, implemented in a future plan) ──
 
-message CheckRequest { LimitIntent intent = 1 [(buf.validate.field).required = true]; }
+message CheckRequest {
+  LimitIntent intent = 1 [(buf.validate.field).required = true];
+}
 message CheckResponse {
   bool allowed = 1;
   bool requires_approval = 2;
@@ -304,7 +327,7 @@ message ReservationObject {
   string idempotency_key = 3;
   string org_unit_id = 4;
   LimitAction action = 5;
-  google.type.Money amount = 6;
+  common.v1.Money amount = 6;
   repeated SubjectRef subjects = 7;
   string maker_id = 8;
   ReservationStatus status = 9;
@@ -320,38 +343,63 @@ message ReserveRequest {
   string idempotency_key = 2 [(buf.validate.field).string.min_len = 1];
   google.protobuf.Duration ttl = 3;
 }
-message ReserveResponse { ReservationObject reservation = 1; CheckResponse check = 2; }
+message ReserveResponse {
+  ReservationObject reservation = 1;
+  CheckResponse check = 2;
+}
 
-message CommitRequest { string reservation_id = 1 [(buf.validate.field).string.min_len = 1]; }
-message CommitResponse { ReservationObject reservation = 1; }
+message CommitRequest {
+  string reservation_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message CommitResponse {
+  ReservationObject reservation = 1;
+}
 
-message ReleaseRequest { string reservation_id = 1 [(buf.validate.field).string.min_len = 1]; string reason = 2; }
-message ReleaseResponse { ReservationObject reservation = 1; }
+message ReleaseRequest {
+  string reservation_id = 1 [(buf.validate.field).string.min_len = 1];
+  string reason = 2;
+}
+message ReleaseResponse {
+  ReservationObject reservation = 1;
+}
 
 message ReverseRequest {
   string reservation_id = 1 [(buf.validate.field).string.min_len = 1];
   string idempotency_key = 2 [(buf.validate.field).string.min_len = 1];
   string reason = 3;
 }
-message ReverseResponse { ReservationObject original_reservation = 1; ReservationObject reversal_reservation = 2; }
+message ReverseResponse {
+  ReservationObject original_reservation = 1;
+  ReservationObject reversal_reservation = 2;
+}
 
 // ─── Services ────────────────────────────────────────────────────────
 
 service LimitsService {
   rpc Check(CheckRequest) returns (CheckResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_use"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_use"]
+    };
   }
   rpc Reserve(ReserveRequest) returns (ReserveResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_use"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_use"]
+    };
   }
   rpc Commit(CommitRequest) returns (CommitResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_use"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_use"]
+    };
   }
   rpc Release(ReleaseRequest) returns (ReleaseResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_use"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_use"]
+    };
   }
   rpc Reverse(ReverseRequest) returns (ReverseResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_use"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_use"]
+    };
   }
 }
 
@@ -425,41 +473,57 @@ service LimitsAdminService {
       },
       {
         role: ROLE_SERVICE
-        permissions: [
-          "limits_use"
-        ]
+        permissions: ["limits_use"]
       }
     ]
   };
 
   rpc PolicySave(PolicySaveRequest) returns (PolicySaveResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_policy_manage"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_policy_manage"]
+    };
   }
   rpc PolicyGet(PolicyGetRequest) returns (PolicyGetResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_policy_view"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_policy_view"]
+    };
   }
   rpc PolicySearch(PolicySearchRequest) returns (stream PolicySearchResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_policy_view"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_policy_view"]
+    };
   }
   rpc PolicyDelete(PolicyDeleteRequest) returns (PolicyDeleteResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_policy_manage"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_policy_manage"]
+    };
   }
 
   rpc ApprovalRequestList(ApprovalRequestListRequest) returns (stream ApprovalRequestListResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_approval_view"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_approval_view"]
+    };
   }
   rpc ApprovalRequestGet(ApprovalRequestGetRequest) returns (ApprovalRequestGetResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_approval_view"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_approval_view"]
+    };
   }
   rpc ApprovalRequestDecide(ApprovalRequestDecideRequest) returns (ApprovalRequestDecideResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_approval_act"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_approval_act"]
+    };
   }
 
   rpc LedgerSearch(LedgerSearchRequest) returns (stream LedgerSearchResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_ledger_view"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_ledger_view"]
+    };
   }
 
   rpc LimitsAuditSearch(LimitsAuditSearchRequest) returns (stream LimitsAuditSearchResponse) {
-    option (common.v1.method_permissions) = { permissions: ["limits_audit_view"] };
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_audit_view"]
+    };
   }
 }

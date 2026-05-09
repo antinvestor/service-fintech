@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:antinvestor_api_common/antinvestor_api_common.dart' show Money;
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
+import 'package:antinvestor_ui_core/widgets/money_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,9 +35,8 @@ class _PolicyVerdictPlaygroundScreenState
   LimitAction _action = LimitAction.LIMIT_ACTION_LOAN_DISBURSEMENT;
   String _tenantId = '';
   String _orgUnitId = '';
-  // Holds the common.Money emitted by CapAmountField; bridged to limits-embedded
-  // Money at call time via ensureAmount().
-  Money? _amount;
+  String? _amountText;
+  String _amountCurrency = 'KES';
   String _makerId = '';
 
   // Subjects are appended as (type, id) pairs.
@@ -66,12 +65,8 @@ class _PolicyVerdictPlaygroundScreenState
             .map((s) => SubjectRef(type: s.type, id: s.id))
             .toList(),
       );
-      // Bridge common.Money → limits-embedded google.type.Money by copying fields.
-      if (_amount != null) {
-        intent.ensureAmount()
-          ..currencyCode = _amount!.currencyCode
-          ..units = _amount!.units
-          ..nanos = _amount!.nanos;
+      if (_amountText != null && _amountText!.isNotEmpty) {
+        setMoneyFields(intent.ensureAmount(), _amountText!, _amountCurrency);
       }
       final client = ref.read(limitsServiceClientProvider);
       final resp = await client.check(CheckRequest(intent: intent));
@@ -140,7 +135,10 @@ class _PolicyVerdictPlaygroundScreenState
           const SizedBox(height: 12),
           CapAmountField(
             label: 'Amount',
-            onChanged: (m) => setState(() => _amount = m),
+            onChanged: (amount, currency) => setState(() {
+              _amountText = amount;
+              _amountCurrency = currency;
+            }),
           ),
           const SizedBox(height: 12),
           TextFormField(

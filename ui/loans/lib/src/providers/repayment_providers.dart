@@ -1,6 +1,6 @@
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import 'package:antinvestor_ui_core/api/stream_helpers.dart';
-import 'package:fixnum/fixnum.dart';
+import 'package:antinvestor_ui_core/widgets/money_helpers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'loans_transport_provider.dart';
@@ -37,16 +37,15 @@ class RepaymentNotifier extends Notifier<AsyncValue<void>> {
     state = const AsyncLoading();
     try {
       final client = ref.read(loanManagementServiceClientProvider);
-      final response = await client.repaymentRecord(
-        RepaymentRecordRequest(
-          loanAccountId: loanAccountId,
-          amount: _moneyFromString(amount, currencyCode),
-          paymentReference: paymentReference,
-          channel: channel,
-          payerReference: payerReference,
-          idempotencyKey: idempotencyKey,
-        ),
+      final req = RepaymentRecordRequest(
+        loanAccountId: loanAccountId,
+        paymentReference: paymentReference,
+        channel: channel,
+        payerReference: payerReference,
+        idempotencyKey: idempotencyKey,
       );
+      setMoneyFields(req.ensureAmount(), amount, currencyCode);
+      final response = await client.repaymentRecord(req);
       state = const AsyncData(null);
       ref.invalidate(repaymentListProvider);
       return response.data;
@@ -61,18 +60,3 @@ final repaymentNotifierProvider =
     NotifierProvider<RepaymentNotifier, AsyncValue<void>>(
   RepaymentNotifier.new,
 );
-
-/// Creates a Money proto from amount string and currency code.
-Money _moneyFromString(String amount, String currencyCode) {
-  final money = Money();
-  money.currencyCode = currencyCode;
-  final cleaned = amount.trim();
-  if (cleaned.isEmpty) return money;
-  final parts = cleaned.split('.');
-  money.units = Int64(int.tryParse(parts[0]) ?? 0);
-  if (parts.length > 1) {
-    final fractional = parts[1].padRight(9, '0').substring(0, 9);
-    money.nanos = int.tryParse(fractional) ?? 0;
-  }
-  return money;
-}

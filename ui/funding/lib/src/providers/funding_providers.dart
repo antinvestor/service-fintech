@@ -1,5 +1,6 @@
 import 'package:antinvestor_api_funding/antinvestor_api_funding.dart';
 import 'package:antinvestor_ui_core/api/stream_helpers.dart';
+import 'package:antinvestor_ui_core/widgets/money_helpers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'funding_transport_provider.dart';
@@ -62,13 +63,14 @@ class InvestorAccountNotifier extends Notifier<AsyncValue<void>> {
 
   Future<InvestorAccountObject> deposit({
     required String accountId,
-    required dynamic amount,
+    required String amount,
+    required String currencyCode,
   }) async {
     state = const AsyncValue.loading();
     try {
-      final response = await _client.investorDeposit(
-        InvestorDepositRequest(accountId: accountId, amount: amount),
-      );
+      final req = InvestorDepositRequest(accountId: accountId);
+      setMoneyFields(req.ensureAmount(), amount, currencyCode);
+      final response = await _client.investorDeposit(req);
       state = const AsyncValue.data(null);
       ref.invalidate(investorAccountDetailProvider(accountId));
       ref.invalidate(investorAccountListProvider);
@@ -81,13 +83,14 @@ class InvestorAccountNotifier extends Notifier<AsyncValue<void>> {
 
   Future<InvestorAccountObject> withdraw({
     required String accountId,
-    required dynamic amount,
+    required String amount,
+    required String currencyCode,
   }) async {
     state = const AsyncValue.loading();
     try {
-      final response = await _client.investorWithdraw(
-        InvestorWithdrawRequest(accountId: accountId, amount: amount),
-      );
+      final req = InvestorWithdrawRequest(accountId: accountId);
+      setMoneyFields(req.ensureAmount(), amount, currencyCode);
+      final response = await _client.investorWithdraw(req);
       state = const AsyncValue.data(null);
       ref.invalidate(investorAccountDetailProvider(accountId));
       ref.invalidate(investorAccountListProvider);

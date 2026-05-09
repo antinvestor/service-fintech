@@ -16,9 +16,9 @@ syntax = "proto3";
 package operations.v1;
 
 import "common/v1/common.proto";
+import "common/v1/money.proto";
 import "common/v1/permissions.proto";
 import "google/protobuf/struct.proto";
-import "google/type/money.proto";
 
 option go_package = "github.com/antinvestor/apis/go/operations/v1;operationsv1";
 option java_multiple_files = true;
@@ -28,7 +28,7 @@ message TransferOrderObject {
   string id = 1;
   string debit_account_ref = 2;
   string credit_account_ref = 3;
-  google.type.Money amount = 4;
+  common.v1.Money amount = 4;
   reserved 5;
   int32 order_type = 6;
   string reference = 7;
@@ -56,7 +56,7 @@ message TransferOrderSearchResponse {
 // IncomingPaymentNotifyRequest notifies the system of a new payment received.
 message IncomingPaymentNotifyRequest {
   string transaction_id = 1; // External transaction ID (idempotency key)
-  google.type.Money amount = 2; // Payment amount
+  common.v1.Money amount = 2; // Payment amount
   string payer_reference = 3; // Payer reference (phone, account, membership ID)
   string payer_name = 4; // Payer name for fuzzy matching
   string product_id = 5; // Product context

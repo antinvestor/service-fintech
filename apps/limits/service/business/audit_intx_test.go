@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/datastore"
@@ -29,7 +30,6 @@ import (
 	testpostgres "github.com/pitabwire/frame/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
-	moneypb "google.golang.org/genproto/googleapis/type/money"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 

@@ -17,14 +17,14 @@ package models
 import (
 	"time"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/frame/data"
-	moneyx "github.com/pitabwire/util/money"
-	money "google.golang.org/genproto/googleapis/type/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 )
 
-// MinorUnitsToMoney converts minor units and a currency code to a *money.Money.
+// MinorUnitsToMoney converts minor units and a currency code to a *commonv1.Money.
 // Precision follows ISO 4217 via moneyx.Decimals (JPY=0, KWD/BHD/OMR=3, else=2).
-func MinorUnitsToMoney(v int64, currencyCode string) *money.Money {
+func MinorUnitsToMoney(v int64, currencyCode string) *commonv1.Money {
 	return moneyx.FromMinorUnitsByCurrency(currencyCode, v)
 }
 

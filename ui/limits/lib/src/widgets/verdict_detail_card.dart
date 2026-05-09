@@ -15,7 +15,6 @@
 import 'package:flutter/material.dart';
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 
-import '../utils/money_bridge.dart';
 import 'policy_mode_badge.dart';
 import 'usage_bar.dart';
 import 'verdict_badge.dart';
@@ -103,8 +102,8 @@ class VerdictDetailCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: UsageBar(
-                currentUsage: bridgeMoney(v.currentUsage),
-                cap: bridgeMoney(v.capAmount),
+                currentUsage: v.currentUsage,
+                cap: v.capAmount,
               ),
             ),
           if (v.capCount.toInt() > 0)

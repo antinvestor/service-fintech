@@ -19,7 +19,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  antinvestor_ui_core: ^0.2.0
+  antinvestor_ui_core: ^0.4.0
   antinvestor_api_identity: ^0.4.0
   antinvestor_api_field: ^0.2.0
   antinvestor_api_common: ^1.52.0

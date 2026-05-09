@@ -20,7 +20,7 @@ import (
 	"time"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	moneyx "github.com/pitabwire/util/money"
+	moneyx "github.com/pitabwire/util/moneyx"
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"

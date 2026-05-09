@@ -18,7 +18,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/approval_providers.dart';
 import '../utils/enum_labels.dart';
-import '../utils/money_bridge.dart';
 import '../widgets/approval_decision_form.dart';
 import '../widgets/approval_decision_timeline.dart';
 import '../widgets/currency_amount_text.dart';
@@ -50,7 +49,7 @@ class ApprovalRequestDetailScreen extends ConsumerWidget {
                       _kv('Action', limitActionLabel(req.action)),
                       _kvWidget(
                         'Amount',
-                        CurrencyAmountText(amount: bridgeMoney(req.amount)),
+                        CurrencyAmountText(amount: req.amount),
                       ),
                       _kv(
                         'Triggering policy',

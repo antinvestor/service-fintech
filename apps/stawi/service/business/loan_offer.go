@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
@@ -29,7 +30,6 @@ import (
 	fevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
-	money "google.golang.org/genproto/googleapis/type/money"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/events"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
@@ -53,11 +53,11 @@ const (
 	moneyNanosFactor = 10_000_000
 )
 
-// minorUnitsToMoney converts minor units and a currency code to a *money.Money.
-func minorUnitsToMoney(v int64, currencyCode string) *money.Money {
+// minorUnitsToMoney converts minor units and a currency code to a *commonv1.Money.
+func minorUnitsToMoney(v int64, currencyCode string) *commonv1.Money {
 	units := v / percentageDivisor
 	nanos := (v % percentageDivisor) * moneyNanosFactor
-	return &money.Money{
+	return &commonv1.Money{
 		CurrencyCode: currencyCode,
 		Units:        units,
 		Nanos:        int32(nanos),

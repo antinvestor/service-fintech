@@ -74,7 +74,7 @@ class InvestorAccountDetailScreen extends ConsumerWidget {
           // Actions
           _ActionButtons(
             accountId: accountId,
-            currencyCode: moneyCurrency(bridgeMoney(account.availableBalance), 'KES'),
+            currencyCode: moneyCurrency(account.availableBalance, 'KES'),
           ),
           const SizedBox(height: 24),
 
@@ -110,7 +110,7 @@ class _BalanceSummary extends StatelessWidget {
             _MetricCard(
               label: 'Available',
               value: account.hasAvailableBalance()
-                  ? formatMoney(bridgeMoney(account.availableBalance))
+                  ? formatMoney(account.availableBalance)
                   : '-',
               icon: Icons.account_balance_wallet,
               color: Colors.green,
@@ -118,7 +118,7 @@ class _BalanceSummary extends StatelessWidget {
             _MetricCard(
               label: 'Reserved',
               value: account.hasReservedBalance()
-                  ? formatMoney(bridgeMoney(account.reservedBalance))
+                  ? formatMoney(account.reservedBalance)
                   : '-',
               icon: Icons.lock_outline,
               color: Colors.orange,
@@ -126,7 +126,7 @@ class _BalanceSummary extends StatelessWidget {
             _MetricCard(
               label: 'Total Deployed',
               value: account.hasTotalDeployed()
-                  ? formatMoney(bridgeMoney(account.totalDeployed))
+                  ? formatMoney(account.totalDeployed)
                   : '-',
               icon: Icons.trending_up,
               color: Colors.blue,
@@ -134,7 +134,7 @@ class _BalanceSummary extends StatelessWidget {
             _MetricCard(
               label: 'Total Returned',
               value: account.hasTotalReturned()
-                  ? formatMoney(bridgeMoney(account.totalReturned))
+                  ? formatMoney(account.totalReturned)
                   : '-',
               icon: Icons.trending_down,
               color: Colors.purple,
@@ -142,7 +142,7 @@ class _BalanceSummary extends StatelessWidget {
             _MetricCard(
               label: 'Max Exposure',
               value: account.hasMaxExposure()
-                  ? formatMoney(bridgeMoney(account.maxExposure))
+                  ? formatMoney(account.maxExposure)
                   : '-',
               icon: Icons.shield_outlined,
               color: Colors.red,
@@ -273,13 +273,16 @@ class _ActionButtons extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () async {
-              final amount =
-                  moneyFromString(amountCtrl.text.trim(), currencyCode);
+              final amount = amountCtrl.text.trim();
               Navigator.pop(ctx);
               try {
                 await ref
                     .read(investorAccountNotifierProvider.notifier)
-                    .deposit(accountId: accountId, amount: amount);
+                    .deposit(
+                      accountId: accountId,
+                      amount: amount,
+                      currencyCode: currencyCode,
+                    );
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Deposit recorded')),
@@ -324,13 +327,16 @@ class _ActionButtons extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () async {
-              final amount =
-                  moneyFromString(amountCtrl.text.trim(), currencyCode);
+              final amount = amountCtrl.text.trim();
               Navigator.pop(ctx);
               try {
                 await ref
                     .read(investorAccountNotifierProvider.notifier)
-                    .withdraw(accountId: accountId, amount: amount);
+                    .withdraw(
+                      accountId: accountId,
+                      amount: amount,
+                      currencyCode: currencyCode,
+                    );
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Withdrawal processed')),
@@ -388,8 +394,8 @@ class _ActionButtons extends ConsumerWidget {
                     );
                 if (context.mounted) {
                   final msg = result.fullyFunded
-                      ? 'Loan fully funded (${formatMoney(bridgeMoney(result.totalAllocated))})'
-                      : 'Partially funded (deficit: ${formatMoney(bridgeMoney(result.deficit))})';
+                      ? 'Loan fully funded (${formatMoney(result.totalAllocated)})'
+                      : 'Partially funded (deficit: ${formatMoney(result.deficit)})';
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(msg)),
                   );

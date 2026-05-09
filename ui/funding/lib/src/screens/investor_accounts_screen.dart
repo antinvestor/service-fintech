@@ -63,10 +63,10 @@ class _InvestorAccountsScreenState
               ),
             ),
             DataCell(Text(account.hasAvailableBalance()
-                ? formatMoney(bridgeMoney(account.availableBalance))
+                ? formatMoney(account.availableBalance)
                 : '-')),
             DataCell(Text(account.hasTotalDeployed()
-                ? formatMoney(bridgeMoney(account.totalDeployed))
+                ? formatMoney(account.totalDeployed)
                 : '-')),
             DataCell(Text(bridgeState(account.state).name)),
           ],
@@ -80,10 +80,10 @@ class _InvestorAccountsScreenState
       exportRow: (account) => [
         account.accountName,
         account.hasAvailableBalance()
-            ? formatMoney(bridgeMoney(account.availableBalance))
+            ? formatMoney(account.availableBalance)
             : '',
         account.hasTotalDeployed()
-            ? formatMoney(bridgeMoney(account.totalDeployed))
+            ? formatMoney(account.totalDeployed)
             : '',
         bridgeState(account.state).name,
         account.id,
@@ -157,11 +157,11 @@ class _InvestorAccountDetail extends StatelessWidget {
         if (account.hasAvailableBalance())
           _DetailRow(
               label: 'Balance',
-              value: formatMoney(bridgeMoney(account.availableBalance))),
+              value: formatMoney(account.availableBalance)),
         if (account.hasTotalDeployed())
           _DetailRow(
               label: 'Deployed',
-              value: formatMoney(bridgeMoney(account.totalDeployed))),
+              value: formatMoney(account.totalDeployed)),
         _DetailRow(label: 'State', value: bridgeState(account.state).name),
       ],
     );

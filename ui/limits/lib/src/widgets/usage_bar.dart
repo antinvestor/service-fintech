@@ -13,13 +13,12 @@
 // limitations under the License.
 
 import 'package:flutter/material.dart';
-import 'package:antinvestor_api_common/antinvestor_api_common.dart' show Money;
 
 import 'currency_amount_text.dart';
 
 class UsageBar extends StatelessWidget {
-  final Money? currentUsage;
-  final Money? cap;
+  final dynamic currentUsage;
+  final dynamic cap;
   const UsageBar({super.key, required this.currentUsage, required this.cap});
 
   @override
@@ -28,9 +27,13 @@ class UsageBar extends StatelessWidget {
 
     // Convert both to (units * 1e9 + nanos) for ratio. Use a large
     // intermediate via num so we don't lose precision on int boundaries.
-    final capNum = cap!.units.toInt() * 1000000000 + cap!.nanos;
-    final usedNum =
-        currentUsage == null ? 0 : currentUsage!.units.toInt() * 1000000000 + currentUsage!.nanos;
+    final int capUnits = (cap.units as dynamic).toInt() as int;
+    final int capNanos = cap.nanos as int;
+    final capNum = capUnits * 1000000000 + capNanos;
+    final usedNum = currentUsage == null
+        ? 0
+        : ((currentUsage.units as dynamic).toInt() as int) * 1000000000 +
+            (currentUsage.nanos as int);
     final ratio = capNum == 0 ? 0.0 : (usedNum / capNum).clamp(0.0, 1.0);
 
     final color = ratio < 0.7
