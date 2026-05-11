@@ -29,6 +29,7 @@ import (
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
 	"github.com/pitabwire/frame/security"
 	"github.com/pitabwire/frame/security/authorizer"
 	connectInterceptors "github.com/pitabwire/frame/security/interceptors/connect"
@@ -145,7 +146,7 @@ func main() {
 	)
 
 	// Setup Connect RPC servers
-	connectHandler := setupConnectServer(ctx, sm,
+	connectHandler := setupConnectServer(ctx, sm, dbPool,
 		spBusiness, saBusiness, depBusiness, wdBusiness, iaBusiness)
 
 	// Initialise the service with all options
@@ -217,6 +218,7 @@ func setupLimitsClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
+	dbPool pool.Pool,
 	spBusiness business.SavingsProductBusiness,
 	saBusiness business.SavingsAccountBusiness,
 	depBusiness business.DepositBusiness,
@@ -246,8 +248,18 @@ func setupConnectServer(
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
 	savingsAuditInterceptor := auditmw.NewInterceptor("service_savings", nil)
+
+	// TenancyTxInterceptor opens a request-scoped transaction after auth
+	// has populated the claims, publishes app.tenant_id + app.partition_id
+	// from the claims via set_config, and binds the transaction to the
+	// request context. Repository code then calls pool.DB(ctx, _) and gets
+	// the bound tx transparently; tenancy is enforced by Row-Level Security
+	// at the database layer.
+	tenancyTxInterceptor := connectInterceptors.NewTenancyTxInterceptor(dbPool)
+
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
-		ctx, sm.GetAuthenticator(ctx), tenancyAccessInterceptor, functionAccessInterceptor, savingsAuditInterceptor)
+		ctx, sm.GetAuthenticator(ctx),
+		tenancyAccessInterceptor, functionAccessInterceptor, savingsAuditInterceptor, tenancyTxInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}

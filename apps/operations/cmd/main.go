@@ -206,7 +206,7 @@ func setupServiceOptions(
 	_ = business.NewObligationBusiness(ctx, evtsMan, obRepo, identityCli, perAdapter)
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, toBiz, prBiz, toRepo)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo)
 
 	sd := operationspb.File_operations_v1_operations_proto.Services().ByName("OperationsService")
 
@@ -252,6 +252,7 @@ func setupIdentityClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
+	dbPool pool.Pool,
 	toBiz business.TransferOrderBusiness,
 	prBiz business.PaymentRoutingBusiness,
 	toRepo repository.TransferOrderRepository,
@@ -270,8 +271,18 @@ func setupConnectServer(
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
 	opsAuditInterceptor := auditmw.NewInterceptor("service_operations", nil)
+
+	// TenancyTxInterceptor opens a request-scoped transaction after auth
+	// has populated the claims, publishes app.tenant_id + app.partition_id
+	// from the claims via set_config, and binds the transaction to the
+	// request context. Repository code then calls pool.DB(ctx, _) and gets
+	// the bound tx transparently; tenancy is enforced by Row-Level Security
+	// at the database layer.
+	tenancyTxInterceptor := connectInterceptors.NewTenancyTxInterceptor(dbPool)
+
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
-		ctx, sm.GetAuthenticator(ctx), tenancyAccessInterceptor, functionAccessInterceptor, opsAuditInterceptor)
+		ctx, sm.GetAuthenticator(ctx),
+		tenancyAccessInterceptor, functionAccessInterceptor, opsAuditInterceptor, tenancyTxInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}

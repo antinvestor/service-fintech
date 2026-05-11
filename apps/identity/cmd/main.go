@@ -228,7 +228,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	)
 
 	connectHandler := setupConnectServer(
-		ctx, sm,
+		ctx, sm, dbPool,
 		organizationBusiness, orgUnitBusiness, workforceBusiness, agentBusiness, clientBusiness,
 		groupBusiness, membershipBusiness, investorBusiness,
 		loginClientBusiness, clientDataBusiness,
@@ -320,6 +320,7 @@ func setupTenancyClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
+	dbPool pool.Pool,
 	organizationBusiness business.OrganizationBusiness,
 	orgUnitBusiness business.OrgUnitBusiness,
 	workforceBusiness business.WorkforceBusiness,
@@ -382,19 +383,29 @@ func setupConnectServer(
 	identityAuditInterceptor := audit.NewInterceptor("service_identity", nil)
 	fieldAuditInterceptor := audit.NewInterceptor("service_field", nil)
 
+	// Layer 4: TenancyTxInterceptor opens a request-scoped transaction
+	// after auth has populated the claims, publishes app.tenant_id +
+	// app.partition_id from the claims via set_config, and binds the
+	// transaction to the request context. Repository code then calls
+	// pool.DB(ctx, _) and gets the bound tx transparently; tenancy is
+	// enforced by Row-Level Security at the database layer.
+	tenancyTxInterceptor := connectInterceptors.NewTenancyTxInterceptor(dbPool)
+
 	identityInterceptorList, err := connectInterceptors.DefaultList(
 		ctx,
 		sm.GetAuthenticator(ctx),
 		tenancyAccessInterceptor,
 		identityFunctionAccessInterceptor,
 		identityAuditInterceptor,
+		tenancyTxInterceptor,
 	)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create identity interceptors")
 	}
 
 	fieldInterceptorList, err := connectInterceptors.DefaultList(
-		ctx, sm.GetAuthenticator(ctx), tenancyAccessInterceptor, fieldFunctionAccessInterceptor, fieldAuditInterceptor)
+		ctx, sm.GetAuthenticator(ctx),
+		tenancyAccessInterceptor, fieldFunctionAccessInterceptor, fieldAuditInterceptor, tenancyTxInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create field interceptors")
 	}
