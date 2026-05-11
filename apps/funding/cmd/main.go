@@ -190,7 +190,7 @@ func setupServiceOptions(
 	)
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, iaBiz, faBiz)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz)
 
 	sd := fundingpb.File_funding_v1_funding_proto.Services().ByName("FundingService")
 
@@ -308,6 +308,7 @@ func loanRequestToRequestInfo(lr *loansv1.LoanRequestObject) *business.LoanReque
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
+	dbPool pool.Pool,
 	iaBiz business.InvestorAccountBusiness,
 	faBiz business.FundingAllocationBusiness,
 ) http.Handler {
@@ -325,8 +326,18 @@ func setupConnectServer(
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
 	fundingAuditInterceptor := auditmw.NewInterceptor("service_funding", nil)
+
+	// TenancyTxInterceptor opens a request-scoped transaction after auth
+	// has populated the claims, publishes app.tenant_id + app.partition_id
+	// from the claims via set_config, and binds the transaction to the
+	// request context. Repository code then calls pool.DB(ctx, _) and gets
+	// the bound tx transparently; tenancy is enforced by Row-Level Security
+	// at the database layer.
+	tenancyTxInterceptor := connectInterceptors.NewTenancyTxInterceptor(dbPool)
+
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
-		ctx, sm.GetAuthenticator(ctx), tenancyAccessInterceptor, functionAccessInterceptor, fundingAuditInterceptor)
+		ctx, sm.GetAuthenticator(ctx),
+		tenancyAccessInterceptor, functionAccessInterceptor, fundingAuditInterceptor, tenancyTxInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}

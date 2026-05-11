@@ -228,7 +228,7 @@ func setupServiceOptions(
 
 	portfolioBusiness := business.NewPortfolioBusiness(ctx, dbPool)
 
-	connectHandler := setupConnectServer(ctx, sm,
+	connectHandler := setupConnectServer(ctx, sm, dbPool,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
 		penaltyBusiness, restructBusiness, reconBusiness, portfolioBusiness, disbBusiness, lscRepo)
 
@@ -318,6 +318,7 @@ func setupLimitsClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
+	dbPool pool.Pool,
 	lpBusiness business.LoanProductBusiness,
 	lrBusiness business.LoanRequestBusiness,
 	laBusiness business.LoanAccountBusiness,
@@ -359,8 +360,18 @@ func setupConnectServer(
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
 	loansAuditInterceptor := auditmw.NewInterceptor("service_loans", nil)
+
+	// TenancyTxInterceptor opens a request-scoped transaction after auth
+	// has populated the claims, publishes app.tenant_id + app.partition_id
+	// from the claims via set_config, and binds the transaction to the
+	// request context. Repository code then calls pool.DB(ctx, _) and gets
+	// the bound tx transparently; tenancy is enforced by Row-Level Security
+	// at the database layer.
+	tenancyTxInterceptor := connectInterceptors.NewTenancyTxInterceptor(dbPool)
+
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
-		ctx, sm.GetAuthenticator(ctx), tenancyAccessInterceptor, functionAccessInterceptor, loansAuditInterceptor)
+		ctx, sm.GetAuthenticator(ctx),
+		tenancyAccessInterceptor, functionAccessInterceptor, loansAuditInterceptor, tenancyTxInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}
