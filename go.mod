@@ -32,14 +32,14 @@ require (
 	buf.build/gen/go/antinvestor/tenancy/connectrpc/go v1.19.2-20260416193615-c7ebb768c716.1
 	buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go v1.36.11-20260416193615-c7ebb768c716.1
 	connectrpc.com/connect v1.19.2
-	github.com/antinvestor/common v1.4.5
+	github.com/antinvestor/common v1.5.0
 	github.com/antinvestor/common/audit v0.0.0-20260427200632-833b5de926c7
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/pitabwire/frame v1.94.6
-	github.com/pitabwire/util v0.8.1-0.20260509193553-0acf358c18ed
-	github.com/pitabwire/util/decimalx v0.7.1
-	github.com/pitabwire/util/moneyx v0.0.0-20260509193553-0acf358c18ed
+	github.com/pitabwire/frame v1.94.7
+	github.com/pitabwire/util v0.9.0
+	github.com/pitabwire/util/decimalx v0.7.2
+	github.com/pitabwire/util/moneyx v0.9.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tsenart/vegeta/v12 v12.13.0
@@ -57,10 +57,10 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260415201107-50325440f8f2.1 // indirect
 	buf.build/gen/go/gnostic/gnostic/protocolbuffers/go v1.36.11-20230414000709-087bc8072ce4.1 // indirect
 	buf.build/go/protovalidate v1.2.0 // indirect
-	cel.dev/expr v0.25.1 // indirect
-	cloud.google.com/go/iam v1.10.0 // indirect
+	cel.dev/expr v0.25.2 // indirect
+	cloud.google.com/go/iam v1.11.0 // indirect
 	cloud.google.com/go/pubsub v1.50.2 // indirect
-	cloud.google.com/go/pubsub/v2 v2.5.1 // indirect
+	cloud.google.com/go/pubsub/v2 v2.6.0 // indirect
 	connectrpc.com/otelconnect v0.9.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -177,13 +177,13 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	gocloud.dev v0.45.0 // indirect
-	golang.org/x/crypto v0.50.0 // indirect
+	golang.org/x/crypto v0.51.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/api v0.278.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260427160629-7cedc36a6bc4 // indirect
