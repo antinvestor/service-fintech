@@ -46,6 +46,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/limits/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 	"github.com/antinvestor/service-fintech/apps/limits/service/repository"
+	"github.com/antinvestor/service-fintech/apps/limits/tests/rlstest"
 )
 
 // CrossTenantSuite exercises the cross-tenant security boundaries.
@@ -99,9 +100,13 @@ func (s *CrossTenantSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.T().Cleanup(func() { cleanup(ctx) })
 
+	s.Require().NoError(rlstest.CreateRole(ctx, dsn.String()))
+
+	rlsProv := rlstest.New()
 	ctx, svc := frame.NewServiceWithContext(
 		ctx,
 		frame.WithName("limits-cross-tenant-test"),
+		frame.WithTenancyProvider(rlsProv),
 		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
 	)
 	s.T().Cleanup(func() { svc.Stop(ctx) })
@@ -114,6 +119,12 @@ func (s *CrossTenantSuite) SetupTest() {
 	s.Require().NotNil(s.dbPool)
 
 	applyRTIndexes(s.T(), s.dbPool.DB(ctx, false))
+
+	// Grant the test role privileges after applyRTIndexes (which may
+	// create additional indexes/tables) and only then enable role
+	// switching so application queries actually hit RLS.
+	s.Require().NoError(rlstest.GrantAll(ctx, dsn.String()))
+	rlsProv.Enable()
 
 	workMan := svc.WorkManager()
 

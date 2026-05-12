@@ -22,7 +22,6 @@ import (
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/datastore/scopes"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -61,7 +60,7 @@ func (b *auditSearchBusiness) Search(
 	}
 	for {
 		var rows []*audit.Event
-		db := b.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx)).
+		db := b.dbPool.DB(ctx, true).
 			Table(audit.Event{}.TableName()).
 			Where("deleted_at IS NULL")
 		if len(req.GetActions()) == 0 {

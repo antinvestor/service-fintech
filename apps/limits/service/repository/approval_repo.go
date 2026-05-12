@@ -20,7 +20,7 @@ import (
 
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/datastore/scopes"
+	"github.com/pitabwire/frame/tenancy"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
@@ -93,7 +93,7 @@ func (r *approvalRequestRepository) ListByReservation(
 	ctx context.Context,
 	reservationID string,
 ) ([]*models.ApprovalRequest, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var rows []*models.ApprovalRequest
 	err := db.Where("reservation_id = ?", reservationID).
 		Order("created_at ASC").
@@ -107,7 +107,7 @@ func (r *approvalRequestRepository) SetStatus(
 	status models.ApprovalStatus,
 	decidedAt *time.Time,
 ) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	updates := map[string]any{
 		"status":      string(status),
 		"modified_at": time.Now().UTC(),
@@ -134,8 +134,7 @@ func (r *approvalRequestRepository) SetStatusTx(
 	if decidedAt != nil {
 		updates["decided_at"] = decidedAt
 	}
-	return tx.Scopes(scopes.TenancyPartition(ctx)).
-		Table(models.ApprovalRequest{}.TableName()).
+	return tx.Table(models.ApprovalRequest{}.TableName()).
 		Where("id = ?", id).
 		Updates(updates).Error
 }
@@ -148,7 +147,8 @@ func (r *approvalRequestRepository) ListExpired(
 	if limit <= 0 {
 		limit = 1000
 	}
-	// Reaper queries cross-tenant: skip TenancyPartition.
+	// Reaper queries cross-tenant: bypass RLS tenancy enforcement.
+	ctx = tenancy.WithSkipEnforcement(ctx)
 	db := r.dbPool.DB(ctx, true)
 	var rows []*models.ApprovalRequest
 	err := db.Where("status = ? AND expires_at < ?", string(models.ApprovalStatusPending), before).
@@ -167,7 +167,7 @@ func (r *approvalRequestRepository) Search(
 	if limit <= 0 {
 		limit = 50
 	}
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx)).
+	db := r.dbPool.DB(ctx, true).
 		Table(models.ApprovalRequest{}.TableName()).
 		Where("deleted_at IS NULL")
 	if f.Status != "" {
@@ -238,7 +238,7 @@ func (r *approvalDecisionRepository) ListDecisions(
 	ctx context.Context,
 	approvalRequestID string,
 ) ([]*models.ApprovalDecision, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var rows []*models.ApprovalDecision
 	err := db.Where("approval_request_id = ?", approvalRequestID).
 		Order("decided_at ASC").
@@ -251,9 +251,9 @@ func (r *approvalDecisionRepository) ListDecisionsTx(
 	tx *gorm.DB,
 	approvalRequestID string,
 ) ([]*models.ApprovalDecision, error) {
-	db := tx.Scopes(scopes.TenancyPartition(ctx))
 	var rows []*models.ApprovalDecision
-	err := db.Where("approval_request_id = ?", approvalRequestID).
+	err := tx.WithContext(ctx).
+		Where("approval_request_id = ?", approvalRequestID).
 		Order("decided_at ASC").
 		Find(&rows).Error
 	return rows, err

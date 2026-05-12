@@ -185,14 +185,6 @@ func setupConnectServer(
 	authenticator := sm.GetAuthenticator(ctx)
 	limitsAuditInterceptor := auditmw.NewInterceptor("service_limits", nil)
 
-	// TenancyTxInterceptor opens a request-scoped transaction after auth
-	// has populated the claims, publishes app.tenant_id + app.partition_id
-	// from the claims via set_config, and binds the transaction to the
-	// request context. Repository code then calls pool.DB(ctx, _) and gets
-	// the bound tx transparently; tenancy is enforced by Row-Level Security
-	// at the database layer.
-	tenancyTxInterceptor := connectInterceptors.NewTenancyTxInterceptor(dbPool)
-
 	// ─── Runtime service (LimitsService) ─────────────────────────────
 	runtimeSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsService")
 	runtimeProcMap := permissions.BuildProcedureMap(runtimeSD)
@@ -210,7 +202,6 @@ func setupConnectServer(
 		ctx, authenticator,
 		runtimeTenancyInterceptor, runtimeFunctionAccessInterceptor, limitsAuditInterceptor,
 		connect.UnaryInterceptorFunc(handlers.TenantAssertionInterceptor()),
-		tenancyTxInterceptor,
 	)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create runtime interceptors")
@@ -238,7 +229,6 @@ func setupConnectServer(
 		ctx, authenticator,
 		adminTenancyInterceptor, adminFunctionAccessInterceptor, limitsAuditInterceptor,
 		connect.UnaryInterceptorFunc(handlers.TenantAssertionInterceptor()),
-		tenancyTxInterceptor,
 	)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create admin interceptors")

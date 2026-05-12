@@ -20,7 +20,6 @@ import (
 
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/datastore/scopes"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
@@ -116,8 +115,7 @@ func (r *policyRepository) Search(
 	}
 
 	db := r.dbPool.DB(ctx, true).
-		Model(&models.Policy{}).
-		Scopes(scopes.TenancyPartition(ctx))
+		Model(&models.Policy{})
 
 	if f.OrgUnitID != "" {
 		db = db.Where("org_unit_id = ?", f.OrgUnitID)
@@ -187,7 +185,7 @@ func (r *policyVersionRepository) Append(ctx context.Context, v *models.PolicyVe
 
 func (r *policyVersionRepository) List(ctx context.Context, policyID string) ([]*models.PolicyVersion, error) {
 	var rows []*models.PolicyVersion
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	err := db.Model(&models.PolicyVersion{}).
 		Where("policy_id = ?", policyID).
 		Order("version ASC").

@@ -20,7 +20,7 @@ import (
 
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/datastore/scopes"
+	"github.com/pitabwire/frame/tenancy"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
@@ -119,7 +119,7 @@ func (r *ledgerRepository) WindowSum(
 	subject SubjectFilter,
 	since time.Time,
 ) (int64, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var sum int64
 	err := db.Table(models.LedgerEntry{}.TableName()).
 		Where("action = ? AND currency_code = ? AND subject_type = ? AND subject_id = ?",
@@ -138,7 +138,7 @@ func (r *ledgerRepository) WindowSumTx(
 	subject SubjectFilter,
 	since time.Time,
 ) (int64, error) {
-	db := tx.Scopes(scopes.TenancyPartition(ctx))
+	db := tx.WithContext(ctx)
 	var sum int64
 	err := db.Table(models.LedgerEntry{}.TableName()).
 		Where("action = ? AND currency_code = ? AND subject_type = ? AND subject_id = ?",
@@ -156,7 +156,7 @@ func (r *ledgerRepository) WindowCount(
 	subject SubjectFilter,
 	since time.Time,
 ) (int64, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var count int64
 	err := db.Table(models.LedgerEntry{}.TableName()).
 		Where("action = ? AND currency_code = ? AND subject_type = ? AND subject_id = ?",
@@ -174,7 +174,7 @@ func (r *ledgerRepository) WindowCountTx(
 	subject SubjectFilter,
 	since time.Time,
 ) (int64, error) {
-	db := tx.Scopes(scopes.TenancyPartition(ctx))
+	db := tx.WithContext(ctx)
 	var count int64
 	err := db.Table(models.LedgerEntry{}.TableName()).
 		Where("action = ? AND currency_code = ? AND subject_type = ? AND subject_id = ?",
@@ -185,7 +185,7 @@ func (r *ledgerRepository) WindowCountTx(
 }
 
 func (r *ledgerRepository) MarkReversed(ctx context.Context, reservationID string, at time.Time) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.LedgerEntry{}.TableName()).
 		Where("reservation_id = ? AND reversed_at IS NULL", reservationID).
 		Update("reversed_at", at).Error
@@ -193,6 +193,8 @@ func (r *ledgerRepository) MarkReversed(ctx context.Context, reservationID strin
 
 func (r *ledgerRepository) HardDeleteBefore(ctx context.Context, cutoff time.Time) (int, error) {
 	total := 0
+	// Cross-tenant cleanup: bypass RLS tenancy enforcement.
+	ctx = tenancy.WithSkipEnforcement(ctx)
 	for {
 		res := r.dbPool.DB(ctx, false).Unscoped().
 			Where("committed_at < ?", cutoff).
@@ -218,7 +220,7 @@ func (r *ledgerRepository) Search(
 	if limit <= 0 {
 		limit = 50
 	}
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx)).
+	db := r.dbPool.DB(ctx, true).
 		Table(models.LedgerEntry{}.TableName()).
 		Where("deleted_at IS NULL")
 	if f.Action != "" {
