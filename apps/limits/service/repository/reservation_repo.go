@@ -21,7 +21,7 @@ import (
 
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/datastore/scopes"
+	"github.com/pitabwire/frame/tenancy"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
@@ -119,7 +119,7 @@ func (r *reservationRepository) Create(ctx context.Context, m *models.Reservatio
 }
 
 func (r *reservationRepository) GetByIdempotencyKey(ctx context.Context, key string) (*models.Reservation, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var out models.Reservation
 	if err := db.Where("idempotency_key = ?", key).First(&out).Error; err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (r *reservationRepository) PendingSum(
 	currency string,
 	subject SubjectFilter,
 ) (int64, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var sum int64
 	err := db.Table(models.Reservation{}.TableName()).
 		Where("action = ? AND currency_code = ?", string(action), currency).
@@ -155,7 +155,7 @@ func (r *reservationRepository) PendingCount(
 	subject SubjectFilter,
 	since time.Time,
 ) (int64, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var count int64
 	err := db.Table(models.Reservation{}.TableName()).
 		Where("action = ? AND currency_code = ?", string(action), currency).
@@ -173,7 +173,7 @@ func (r *reservationRepository) PendingSumTx(
 	currency string,
 	subject SubjectFilter,
 ) (int64, error) {
-	db := tx.Scopes(scopes.TenancyPartition(ctx))
+	db := tx.WithContext(ctx)
 	var sum int64
 	err := db.Table(models.Reservation{}.TableName()).
 		Where("action = ? AND currency_code = ?", string(action), currency).
@@ -196,7 +196,7 @@ func (r *reservationRepository) PendingCountTx(
 	subject SubjectFilter,
 	since time.Time,
 ) (int64, error) {
-	db := tx.Scopes(scopes.TenancyPartition(ctx))
+	db := tx.WithContext(ctx)
 	var count int64
 	err := db.Table(models.Reservation{}.TableName()).
 		Where("action = ? AND currency_code = ?", string(action), currency).
@@ -213,7 +213,7 @@ func subjectMatch(s SubjectFilter) string {
 }
 
 func (r *reservationRepository) SetCommitted(ctx context.Context, id string, at time.Time) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	res := db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusActive)).
 		Updates(map[string]any{
@@ -231,7 +231,7 @@ func (r *reservationRepository) SetCommitted(ctx context.Context, id string, at 
 }
 
 func (r *reservationRepository) SetCommittedTx(ctx context.Context, tx *gorm.DB, id string, at time.Time) error {
-	res := tx.Scopes(scopes.TenancyPartition(ctx)).
+	res := tx.WithContext(ctx).
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusActive)).
 		Updates(map[string]any{
@@ -249,7 +249,7 @@ func (r *reservationRepository) SetCommittedTx(ctx context.Context, tx *gorm.DB,
 }
 
 func (r *reservationRepository) SetReleased(ctx context.Context, id, reason string, at time.Time) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	res := db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status IN ?", id, []string{string(models.ReservationStatusActive), string(models.ReservationStatusPendingApproval)}).
 		Updates(map[string]any{
@@ -268,7 +268,7 @@ func (r *reservationRepository) SetReleased(ctx context.Context, id, reason stri
 }
 
 func (r *reservationRepository) SetReleasedTx(ctx context.Context, tx *gorm.DB, id, reason string, at time.Time) error {
-	res := tx.Scopes(scopes.TenancyPartition(ctx)).
+	res := tx.WithContext(ctx).
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status IN ?", id, []string{string(models.ReservationStatusActive), string(models.ReservationStatusPendingApproval)}).
 		Updates(map[string]any{
@@ -287,7 +287,7 @@ func (r *reservationRepository) SetReleasedTx(ctx context.Context, tx *gorm.DB, 
 }
 
 func (r *reservationRepository) SetExpired(ctx context.Context, id string, at time.Time) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusActive)).
 		Updates(map[string]any{"status": string(models.ReservationStatusExpired), "modified_at": at}).Error
@@ -297,7 +297,8 @@ func (r *reservationRepository) BulkSetExpired(ctx context.Context, ids []string
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	// Cross-tenant: TenancyPartition intentionally omitted to match ListExpiredActive.
+	// Cross-tenant: bypass RLS to match ListExpiredActive.
+	ctx = tenancy.WithSkipEnforcement(ctx)
 	res := r.dbPool.DB(ctx, false).
 		Table(models.Reservation{}.TableName()).
 		Where("id IN ? AND status = ?", ids, string(models.ReservationStatusActive)).
@@ -309,14 +310,14 @@ func (r *reservationRepository) BulkSetExpired(ctx context.Context, ids []string
 }
 
 func (r *reservationRepository) SetReversed(ctx context.Context, id string, at time.Time) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ?", id).
 		Updates(map[string]any{"status": string(models.ReservationStatusReversed), "modified_at": at}).Error
 }
 
 func (r *reservationRepository) SetReversedTx(ctx context.Context, tx *gorm.DB, id string, at time.Time) error {
-	res := tx.Scopes(scopes.TenancyPartition(ctx)).
+	res := tx.WithContext(ctx).
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusCommitted)).
 		Updates(map[string]any{"status": string(models.ReservationStatusReversed), "modified_at": at})
@@ -330,7 +331,7 @@ func (r *reservationRepository) SetReversedTx(ctx context.Context, tx *gorm.DB, 
 }
 
 func (r *reservationRepository) SetPendingApproval(ctx context.Context, id string) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ?", id).
 		Updates(map[string]any{"status": string(models.ReservationStatusPendingApproval), "modified_at": time.Now().UTC()}).
@@ -338,14 +339,14 @@ func (r *reservationRepository) SetPendingApproval(ctx context.Context, id strin
 }
 
 func (r *reservationRepository) SetActive(ctx context.Context, id string) error {
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusPendingApproval)).
 		Updates(map[string]any{"status": string(models.ReservationStatusActive), "modified_at": time.Now().UTC()}).Error
 }
 
 func (r *reservationRepository) SetActiveTx(ctx context.Context, tx *gorm.DB, id string) error {
-	return tx.Scopes(scopes.TenancyPartition(ctx)).
+	return tx.WithContext(ctx).
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusPendingApproval)).
 		Updates(map[string]any{"status": string(models.ReservationStatusActive), "modified_at": time.Now().UTC()}).Error
@@ -359,9 +360,11 @@ func (r *reservationRepository) HardDeleteTerminalBefore(ctx context.Context, cu
 		string(models.ReservationStatusExpired),
 	}
 	total := 0
+	// Cross-tenant: bypass RLS for terminal-row physical deletion.
+	ctx = tenancy.WithSkipEnforcement(ctx)
 	for {
 		// Unscoped so GORM's soft-delete WHERE clause is bypassed; we physically
-		// delete the rows. Cross-tenant: TenancyPartition intentionally omitted.
+		// delete the rows.
 		res := r.dbPool.DB(ctx, false).Unscoped().
 			Where("status IN ? AND modified_at < ?", terminalStatuses, cutoff).
 			Limit(1000).
@@ -385,7 +388,8 @@ func (r *reservationRepository) ListExpiredActive(
 	if limit <= 0 {
 		limit = 1000
 	}
-	// Reaper queries cross-tenant: skip TenancyPartition.
+	// Reaper queries cross-tenant: bypass RLS tenancy enforcement.
+	ctx = tenancy.WithSkipEnforcement(ctx)
 	db := r.dbPool.DB(ctx, true)
 	var rows []*models.Reservation
 	err := db.Where("status = ? AND ttl_at < ?", string(models.ReservationStatusActive), before).

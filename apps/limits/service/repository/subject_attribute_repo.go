@@ -21,7 +21,6 @@ import (
 
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/datastore/scopes"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
@@ -60,7 +59,7 @@ func (r *subjectAttributeRepository) Get(
 	subjectType models.Subject,
 	subjectID string,
 ) (*models.SubjectAttributeSnapshot, error) {
-	db := r.dbPool.DB(ctx, true).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, true)
 	var out models.SubjectAttributeSnapshot
 	err := db.Where("subject_type = ? AND subject_id = ?", string(subjectType), subjectID).First(&out).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -86,7 +85,7 @@ func (r *subjectAttributeRepository) Upsert(ctx context.Context, snap *models.Su
 		}
 		return r.BaseRepository.Create(ctx, snap)
 	}
-	db := r.dbPool.DB(ctx, false).Scopes(scopes.TenancyPartition(ctx))
+	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.SubjectAttributeSnapshot{}.TableName()).
 		Where("id = ?", existing.ID).
 		Updates(map[string]any{

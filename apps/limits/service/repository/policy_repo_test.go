@@ -30,6 +30,7 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 	"github.com/antinvestor/service-fintech/apps/limits/service/repository"
+	"github.com/antinvestor/service-fintech/apps/limits/tests/rlstest"
 )
 
 type PolicyRepoSuite struct {
@@ -48,7 +49,11 @@ func (s *PolicyRepoSuite) SetupSuite() {
 	s.FrameBaseTestSuite.SetupSuite()
 }
 
-// newEnv creates an isolated DB + migrated repo for each test.
+// newEnv creates an isolated DB + migrated repo for each test. The
+// service is wired with the rlstest provider so application queries
+// run as a non-superuser, otherwise Postgres bypasses FORCE ROW LEVEL
+// SECURITY for the testcontainer's superuser and the tenancy-isolation
+// guarantees never actually get exercised.
 func (s *PolicyRepoSuite) newEnv(tenantID, partitionID string) (context.Context, repository.PolicyRepository) {
 	s.T().Helper()
 
@@ -60,9 +65,13 @@ func (s *PolicyRepoSuite) newEnv(tenantID, partitionID string) (context.Context,
 	s.Require().NoError(err)
 	s.T().Cleanup(func() { cleanup(ctx) })
 
+	s.Require().NoError(rlstest.CreateRole(ctx, dsn.String()))
+
+	rlsProv := rlstest.New()
 	ctx, svc := frame.NewServiceWithContext(
 		ctx,
 		frame.WithName("limits-policy-test"),
+		frame.WithTenancyProvider(rlsProv),
 		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
 	)
 	s.T().Cleanup(func() { svc.Stop(ctx) })
@@ -70,6 +79,9 @@ func (s *PolicyRepoSuite) newEnv(tenantID, partitionID string) (context.Context,
 
 	dbManager := svc.DatastoreManager()
 	s.Require().NoError(Migrate(ctx, dbManager, ""))
+
+	s.Require().NoError(rlstest.GrantAll(ctx, dsn.String()))
+	rlsProv.Enable()
 
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 	s.Require().NotNil(dbPool)
@@ -153,9 +165,13 @@ func (s *PolicyRepoSuite) TestTenantIsolation() {
 	ctxA := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "user-a")
 	ctxB := s.WithAuthClaims(ctx, "tenant-b", "partition-a", "user-b")
 
+	s.Require().NoError(rlstest.CreateRole(ctxA, dsn.String()))
+
+	rlsProv := rlstest.New()
 	ctxA, svc := frame.NewServiceWithContext(
 		ctxA,
 		frame.WithName("limits-isolation-test"),
+		frame.WithTenancyProvider(rlsProv),
 		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
 	)
 	s.T().Cleanup(func() { svc.Stop(ctxA) })
@@ -163,6 +179,9 @@ func (s *PolicyRepoSuite) TestTenantIsolation() {
 
 	dbManager := svc.DatastoreManager()
 	s.Require().NoError(repository.Migrate(ctxA, dbManager, ""))
+
+	s.Require().NoError(rlstest.GrantAll(ctxA, dsn.String()))
+	rlsProv.Enable()
 
 	dbPool := dbManager.GetPool(ctxA, datastore.DefaultPoolName)
 	s.Require().NotNil(dbPool)
