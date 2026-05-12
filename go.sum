@@ -8,10 +8,10 @@ buf.build/gen/go/antinvestor/field/connectrpc/go v1.19.2-20260509052652-a3bbaa6e
 buf.build/gen/go/antinvestor/field/connectrpc/go v1.19.2-20260509052652-a3bbaa6e5d2d.1/go.mod h1:gnP2J9fFOZJoruzDzEMWx5zvhHFEWIABQT+OECwAhCs=
 buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.11-20260509052652-a3bbaa6e5d2d.1 h1:9YsGZrMxj5KjrWK8FwM7Ei4Ux51bqebNs657jkjovIY=
 buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.11-20260509052652-a3bbaa6e5d2d.1/go.mod h1:0fli3AwqOA2A8Zk2J6ahqQFrxs618X/BtR7hSjsroc0=
-buf.build/gen/go/antinvestor/files/connectrpc/go v1.19.2-20260418163144-8859a39db5b5.1 h1:Of3zH6FEC/cZ5T/gBVnSXkpVBAZrVpD1SL5PEvLqXIY=
-buf.build/gen/go/antinvestor/files/connectrpc/go v1.19.2-20260418163144-8859a39db5b5.1/go.mod h1:6fDiRqJQIyx0E+NF2b+45A5mN7ORdVmO1aVJxROjjpY=
-buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.11-20260418163144-8859a39db5b5.1 h1:UV93VbXf3eaTrLtwzt14g/tr4sM7hT1QRQkiWTYnlnQ=
-buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.11-20260418163144-8859a39db5b5.1/go.mod h1:704FqZDzo7BbFrH82zsl1KA/26YwlfPVOwOTeOGXzzo=
+buf.build/gen/go/antinvestor/files/connectrpc/go v1.19.2-20260511135453-ad06fa76a0de.1 h1:tre/EHZTFh1dm77vHbYUciuLPLhVZo4BRKcdIhJyq0M=
+buf.build/gen/go/antinvestor/files/connectrpc/go v1.19.2-20260511135453-ad06fa76a0de.1/go.mod h1:0ZSZYpTAdU2Dg2biRqozFwMvTfVsVTRUlZhGulIcGlk=
+buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.11-20260511135453-ad06fa76a0de.1 h1:x+Wq5g5JTTwdDTuJMm8dAcxSuPxTCM0FEbsnqg8ez8g=
+buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.11-20260511135453-ad06fa76a0de.1/go.mod h1:CckO2COEmtdS9Z3VHkwodusWm1IQF/sa7XfKAL4Dl1o=
 buf.build/gen/go/antinvestor/funding/connectrpc/go v1.19.2-20260509052652-4e35b6d4cc63.1 h1:jiNqbYcGIhBtcCFFKEo3u7jKNbY95JtPwUw9OVzgaWI=
 buf.build/gen/go/antinvestor/funding/connectrpc/go v1.19.2-20260509052652-4e35b6d4cc63.1/go.mod h1:lQPQqj1B+ICu+o39pqCgytkOI0W4Ry0jhvRcHx5ZM1A=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.11-20260509052652-4e35b6d4cc63.1 h1:4lEVZTwPF1wKRqEESHe0yaUUFwy55S+JPv7Ofr6yi5Q=
