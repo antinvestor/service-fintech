@@ -31,7 +31,7 @@ require (
 	buf.build/gen/go/antinvestor/savings/protocolbuffers/go v1.36.11-20260509052652-45934efcd3ec.1
 	buf.build/gen/go/antinvestor/tenancy/connectrpc/go v1.19.2-20260510082433-f63874a7edbf.1
 	buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go v1.36.11-20260510082433-f63874a7edbf.1
-	connectrpc.com/connect v1.19.2
+	connectrpc.com/connect v1.20.0
 	github.com/antinvestor/common v1.5.0
 	github.com/antinvestor/common/audit v0.0.0-20260427200632-833b5de926c7
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -85,7 +85,7 @@ require (
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
-	github.com/exaring/otelpgx v0.10.0 // indirect
+	github.com/exaring/otelpgx v0.11.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
