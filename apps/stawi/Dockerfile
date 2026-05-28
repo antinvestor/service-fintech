@@ -17,6 +17,7 @@ COPY ./apps/identity ./apps/identity
 COPY ./apps/funding ./apps/funding
 COPY ./apps/operations ./apps/operations
 COPY ./pkg ./pkg
+COPY ./products/stawi/workflows ./products/stawi/workflows
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -trimpath \
@@ -32,4 +33,5 @@ FROM cgr.dev/chainguard/static:latest
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/binary /service
+COPY --from=builder /app/products/stawi/workflows /workflows
 ENTRYPOINT ["/service"]

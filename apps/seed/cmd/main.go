@@ -46,7 +46,12 @@ package main
 import (
 	"context"
 	"net/http"
+	"os"
 
+	"github.com/antinvestor/common"
+	"github.com/antinvestor/common/connection"
+	"github.com/antinvestor/service-trustage/client/workflows"
+	"github.com/antinvestor/service-trustage/gen/go/workflow/v1/workflowv1connect"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
@@ -88,6 +93,22 @@ func main() {
 	if cfg.DoDatabaseMigrate() {
 		if migErr := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath()); migErr != nil {
 			log.WithError(migErr).Error("main -- could not migrate successfully")
+		}
+		// Sync Trustage workflow definitions baked into the image.
+		if trustageURL := os.Getenv("TRUSTAGE_URL"); trustageURL != "" {
+			workflowsDir := os.Getenv("TRUSTAGE_WORKFLOWS_DIR")
+			if workflowsDir == "" {
+				workflowsDir = "/workflows"
+			}
+			trustageCli, cliErr := connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+				Endpoint:  trustageURL,
+				Audiences: []string{"service_trustage"},
+			}, workflowv1connect.NewWorkflowServiceClient)
+			if cliErr != nil {
+				log.WithError(cliErr).Warn("trustage workflow client init failed")
+			} else if syncErr := workflows.SyncFromDir(ctx, trustageCli, workflowsDir); syncErr != nil {
+				log.WithError(syncErr).Warn("trustage workflow sync failed")
+			}
 		}
 		return
 	}

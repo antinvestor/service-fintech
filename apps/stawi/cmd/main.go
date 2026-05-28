@@ -18,11 +18,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	"github.com/antinvestor/common"
 	"github.com/antinvestor/common/connection"
+	"github.com/antinvestor/service-trustage/client/workflows"
+	"github.com/antinvestor/service-trustage/gen/go/workflow/v1/workflowv1connect"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
@@ -326,6 +329,22 @@ func handleDatabaseMigration(
 		migrationPath := cfg.GetDatabaseMigrationPath()
 		if err := stawirepo.Migrate(ctx, dbManager, migrationPath); err != nil {
 			util.Log(ctx).WithError(err).Fatal("main -- Could not migrate stawi tables")
+		}
+		// Sync Trustage workflow definitions baked into the image.
+		if trustageURL := os.Getenv("TRUSTAGE_URL"); trustageURL != "" {
+			workflowsDir := os.Getenv("TRUSTAGE_WORKFLOWS_DIR")
+			if workflowsDir == "" {
+				workflowsDir = "/workflows"
+			}
+			trustageCli, cliErr := connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+				Endpoint:  trustageURL,
+				Audiences: []string{"service_trustage"},
+			}, workflowv1connect.NewWorkflowServiceClient)
+			if cliErr != nil {
+				util.Log(ctx).WithError(cliErr).Warn("trustage workflow client init failed")
+			} else if syncErr := workflows.SyncFromDir(ctx, trustageCli, workflowsDir); syncErr != nil {
+				util.Log(ctx).WithError(syncErr).Warn("trustage workflow sync failed")
+			}
 		}
 		return true
 	}
