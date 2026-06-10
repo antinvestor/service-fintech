@@ -85,28 +85,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         // 1: Loans created
         ds.queryScalar(
-            metric: 'loans_created_total', aggregation: 'sum', timeRange: tr),
+          metric: 'loans_created_total',
+          aggregation: 'sum',
+          timeRange: tr,
+        ),
         // 2: Loans closed
         ds.queryScalar(
-            metric: 'loans_closed_total', aggregation: 'sum', timeRange: tr),
+          metric: 'loans_closed_total',
+          aggregation: 'sum',
+          timeRange: tr,
+        ),
         // 3: Loans defaulted
         ds.queryScalar(
-            metric: 'loans_defaulted_total', aggregation: 'sum', timeRange: tr),
+          metric: 'loans_defaulted_total',
+          aggregation: 'sum',
+          timeRange: tr,
+        ),
         // 4: Loans written off
         ds.queryScalar(
-            metric: 'loans_written_off_total',
-            aggregation: 'sum',
-            timeRange: tr),
+          metric: 'loans_written_off_total',
+          aggregation: 'sum',
+          timeRange: tr,
+        ),
         // 5: Disbursed amount
         ds.queryScalar(
-            metric: 'loans_disbursed_amount_total',
-            aggregation: 'sum',
-            timeRange: tr),
+          metric: 'loans_disbursed_amount_total',
+          aggregation: 'sum',
+          timeRange: tr,
+        ),
         // 6: Repaid amount
         ds.queryScalar(
-            metric: 'loans_repaid_amount_total',
-            aggregation: 'sum',
-            timeRange: tr),
+          metric: 'loans_repaid_amount_total',
+          aggregation: 'sum',
+          timeRange: tr,
+        ),
         // 7: Default rate (ratio)
         ds.queryScalar(
           numerator: {'metric': 'loans_defaulted_total', 'aggregation': 'sum'},
@@ -115,21 +127,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         // 8-11: Today's snapshot
         ds.queryScalar(
-            metric: 'loans_disbursed_total',
-            aggregation: 'sum',
-            timeRange: today),
+          metric: 'loans_disbursed_total',
+          aggregation: 'sum',
+          timeRange: today,
+        ),
         ds.queryScalar(
-            metric: 'loans_disbursed_amount_total',
-            aggregation: 'sum',
-            timeRange: today),
+          metric: 'loans_disbursed_amount_total',
+          aggregation: 'sum',
+          timeRange: today,
+        ),
         ds.queryScalar(
-            metric: 'loans_repaid_amount_total',
-            aggregation: 'sum',
-            timeRange: today),
+          metric: 'loans_repaid_amount_total',
+          aggregation: 'sum',
+          timeRange: today,
+        ),
         ds.queryScalar(
-            metric: 'loans_defaulted_total',
-            aggregation: 'sum',
-            timeRange: today),
+          metric: 'loans_defaulted_total',
+          aggregation: 'sum',
+          timeRange: today,
+        ),
         // 12: Customer growth time series
         ds.queryTimeSeries(
           metric: 'identity_organizations_created_total',
@@ -200,8 +216,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Expanded(
                 child: Text(
                   'Lending Dashboard',
-                  style: theme.textTheme.headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               IconButton(
@@ -341,14 +358,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ? SizedBox(
                 height: 240,
                 child: Center(
-                  child: Text('No data',
-                      style: TextStyle(color: cs.onSurfaceVariant)),
+                  child: Text(
+                    'No data',
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
                 ),
               )
             : TimeSeriesChart(
-                series: [
-                  TimeSeries(key: key, label: title, points: points),
-                ],
+                series: [TimeSeries(key: key, label: title, points: points)],
                 granularity: _timeRange.granularity,
               ),
       );
@@ -366,11 +383,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     if (!isDesktop) {
-      return Column(children: [
-        customerChart,
-        const SizedBox(height: 16),
-        portfolioChart,
-      ]);
+      return Column(
+        children: [customerChart, const SizedBox(height: 16), portfolioChart],
+      );
     }
 
     return IntrinsicHeight(
@@ -398,7 +413,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // ── Helpers ──────────────────────────────────────────────────────────
 
   MetricCard _kpiMetric(
-      String label, double value, String unit, IconData icon) {
+    String label,
+    double value,
+    String unit,
+    IconData icon,
+  ) {
     return MetricCard(
       compact: true,
       metric: MetricValue(
@@ -422,10 +441,9 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w600),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
     );
   }
 }
@@ -453,10 +471,7 @@ class _ResponsiveCardRow extends StatelessWidget {
         runSpacing: 12,
         children: [
           for (final child in children)
-            SizedBox(
-              width: double.infinity,
-              child: child,
-            ),
+            SizedBox(width: double.infinity, child: child),
         ],
       );
     }
@@ -545,8 +560,9 @@ class _ChartCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
           if (loading)

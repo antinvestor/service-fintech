@@ -21,18 +21,12 @@ class ContentConstraint extends StatelessWidget {
   });
 
   /// Constraint sized for form containers.
-  const ContentConstraint.form({
-    super.key,
-    required this.child,
-    this.padding,
-  }) : maxWidth = DesignTokens.maxFormWidth;
+  const ContentConstraint.form({super.key, required this.child, this.padding})
+    : maxWidth = DesignTokens.maxFormWidth;
 
   /// Constraint sized for narrow reading content.
-  const ContentConstraint.narrow({
-    super.key,
-    required this.child,
-    this.padding,
-  }) : maxWidth = DesignTokens.maxFieldWidth;
+  const ContentConstraint.narrow({super.key, required this.child, this.padding})
+    : maxWidth = DesignTokens.maxFieldWidth;
 
   final Widget child;
   final double maxWidth;

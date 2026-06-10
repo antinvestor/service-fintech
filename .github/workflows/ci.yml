@@ -38,11 +38,11 @@ jobs:
 
       - name: Analyze code
         run: flutter analyze --no-fatal-infos
-        working-directory: ui
+        working-directory: ui/seed
 
       - name: Check formatting
         run: dart format --set-exit-if-changed .
-        working-directory: ui
+        working-directory: ui/seed
 
   test:
     name: Test
@@ -60,17 +60,17 @@ jobs:
 
       - name: Run tests with coverage
         run: flutter test --coverage
-        working-directory: ui
+        working-directory: ui/seed
 
       - name: Upload coverage
         uses: codecov/codecov-action@v7
         with:
-          file: ui/coverage/lcov.info
+          file: ui/seed/coverage/lcov.info
           flags: unittests
         continue-on-error: true
 
       - name: Check coverage threshold
-        working-directory: ui
+        working-directory: ui/seed
         run: |
           if command -v lcov &> /dev/null; then
             COVERAGE=$(lcov --summary coverage/lcov.info 2>/dev/null | grep "lines......:" | awk '{print $2}' | sed 's/%//' || echo "0")
@@ -102,14 +102,14 @@ jobs:
 
       - name: Build Web
         run: flutter build web
-        working-directory: ui
+        working-directory: ui/seed
 
       - name: Report Web build size
         run: |
           WEB_SIZE=$(du -sb build/web | cut -f1)
           echo "Web build size: $(( WEB_SIZE / 1024 / 1024 )) MB"
           echo "::notice::Web build size: $(( WEB_SIZE / 1024 / 1024 )) MB"
-        working-directory: ui
+        working-directory: ui/seed
 
   build-linux:
     name: Build Linux
@@ -133,14 +133,14 @@ jobs:
 
       - name: Build Linux (debug)
         run: flutter build linux --debug
-        working-directory: ui
+        working-directory: ui/seed
 
       - name: Report Linux build size
         run: |
           BUNDLE_SIZE=$(du -sb build/linux/x64/debug/bundle | cut -f1)
           echo "Linux bundle size: $(( BUNDLE_SIZE / 1024 / 1024 )) MB"
           echo "::notice::Linux bundle size: $(( BUNDLE_SIZE / 1024 / 1024 )) MB"
-        working-directory: ui
+        working-directory: ui/seed
 
   # ============================================
   # Summary job - always runs

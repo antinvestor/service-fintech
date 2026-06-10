@@ -62,10 +62,7 @@ void main() {
 
         // Analytics data source for dashboard (Thesa POST query API).
         analyticsDataSourceProvider.overrideWith((ref) {
-          return RestAnalyticsDataSource(
-            http.Client(),
-            AppConfig.thesaBaseUrl,
-          );
+          return RestAnalyticsDataSource(http.Client(), AppConfig.thesaBaseUrl);
         }),
 
         // ── Library endpoint overrides ──────────────────────────────

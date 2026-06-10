@@ -33,10 +33,7 @@ class PermissionBatchChecker {
         },
         body: jsonEncode({
           'checks': permsByNamespace.entries
-              .map((e) => {
-                    'namespace': e.key,
-                    'permissions': e.value.toList(),
-                  })
+              .map((e) => {'namespace': e.key, 'permissions': e.value.toList()})
               .toList(),
         }),
       );
@@ -60,9 +57,7 @@ class PermissionBatchChecker {
     try {
       final response = await _httpClient.get(
         Uri.parse('$_baseUrl/ui/capabilities'),
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-        },
+        headers: {'Authorization': 'Bearer $accessToken'},
       );
 
       if (response.statusCode != 200) return const <String>{};

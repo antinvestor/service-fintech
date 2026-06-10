@@ -114,7 +114,8 @@ class RestAnalyticsDataSource implements AnalyticsDataSource {
           value: (map['value'] as num).toDouble(),
           color: map['color'] != null
               ? Color(
-                  int.parse((map['color'] as String).replaceFirst('#', '0xFF')))
+                  int.parse((map['color'] as String).replaceFirst('#', '0xFF')),
+                )
               : null,
         );
       }).toList();
@@ -200,9 +201,9 @@ class RestAnalyticsDataSource implements AnalyticsDataSource {
   }
 
   Map<String, dynamic> _timeRangeBody(AnalyticsTimeRange timeRange) => {
-        'start': timeRange.start.toUtc().toIso8601String(),
-        'end': timeRange.end.toUtc().toIso8601String(),
-        if (timeRange.granularity != null)
-          'granularity': timeRange.granularity!.name,
-      };
+    'start': timeRange.start.toUtc().toIso8601String(),
+    'end': timeRange.end.toUtc().toIso8601String(),
+    if (timeRange.granularity != null)
+      'granularity': timeRange.granularity!.name,
+  };
 }
