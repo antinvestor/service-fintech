@@ -102,3 +102,6 @@ ui/.flutter-plugins
 ui/.flutter-plugins-dependencies
 WORK_STATE.md
 .playwright-mcp/
+
+# Accidentally committed root build artifact (go build ./apps/.../cmd writes here)
+/cmd
