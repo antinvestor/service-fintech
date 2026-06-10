@@ -69,3 +69,19 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+
+  # Dart/Flutter UI apps — pub was previously unwatched, which left the
+  # jose JWK advisory invisible to dependabot (2026-06 finding).
+  - package-ecosystem: "pub"
+    directories:
+      - "/ui/seed"
+      - "/ui/old-implementation"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "auto-merge"
+    commit-message:
+      prefix: "deps"
+      include: "scope"

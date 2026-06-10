@@ -42,6 +42,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
+  # Security floor: GHSA jose <=0.3.5 accepts untrusted JWK header keys
+  # during signature verification; fixed in 0.3.5+1. The range keeps any
+  # newer release eligible while preventing resolution below the patch.
+  jose: '>=0.3.5+1'
   antinvestor_ui_core:
     path: ../../../common/ui_core
   antinvestor_api_identity:
