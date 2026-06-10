@@ -22,6 +22,7 @@ dependencies:
   antinvestor_ui_core: ^0.5.0
   antinvestor_api_identity: ^0.4.0
   antinvestor_api_field: ^0.2.0
+  antinvestor_api_profile: ^1.52.0
   antinvestor_api_common: ^1.52.0
   antinvestor_api_tenancy: ^1.54.0
   antinvestor_ui_audit: ^0.2.0

@@ -58,7 +58,7 @@ packages:
     source: hosted
     version: "0.4.0"
   antinvestor_api_profile:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: antinvestor_api_profile
       sha256: fb540379b01a5c2b899a74a4ef0c8ceec96ff43846d9b18488a628cf0ab734c5
