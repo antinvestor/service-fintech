@@ -248,17 +248,17 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 		Action:     "savings.interest.accrued",
 		Reason:     "periodic interest accrual posted to ledger",
 		After: data.JSONMap{
-			"amount":                accrued,
-			"ledger_transaction_id": ia.LedgerTransactionID,
+			fieldAmount:              accrued,
+			fieldLedgerTransactionID: ia.LedgerTransactionID,
 		},
 		Metadata: data.JSONMap{
-			"savings_account_id": savingsAccountID,
-			"period_start":       periodStart.UTC().Format(time.RFC3339),
-			"period_end":         periodEnd.UTC().Format(time.RFC3339),
-			"rate_bps":           product.InterestRate,
-			"balance_used":       balance.Balance,
-			"days":               days,
-			"currency":           sa.CurrencyCode,
+			fieldSavingsAccountID: savingsAccountID,
+			"period_start":        periodStart.UTC().Format(time.RFC3339),
+			"period_end":          periodEnd.UTC().Format(time.RFC3339),
+			"rate_bps":            product.InterestRate,
+			"balance_used":        balance.Balance,
+			"days":                days,
+			fieldCurrency:         sa.CurrencyCode,
 		},
 		Parent: &ia.BaseModel,
 	}, func(auErr error) {
@@ -273,8 +273,8 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 	))
 
 	logger.WithFields(map[string]any{
-		"amount": accrued,
-		"days":   days,
+		fieldAmount: accrued,
+		"days":      days,
 	}).Info("interest accrual posted")
 	return ia.ToAPI(), nil
 }
@@ -295,7 +295,7 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 
 	reference := fmt.Sprintf("interest_accrual:%s:%s", sa.GetID(), ia.PeriodEnd.UTC().Format(time.RFC3339))
 	extraData := data.JSONMap{
-		"savings_account_id":  sa.GetID(),
+		fieldSavingsAccountID: sa.GetID(),
 		"interest_accrual_id": ia.GetID(),
 		"period_start":        ia.PeriodStart.UTC().Format(time.RFC3339),
 		"period_end":          ia.PeriodEnd.UTC().Format(time.RFC3339),
@@ -342,7 +342,7 @@ func (b *interestAccrualBusiness) AccrueAllActive(
 
 	query := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
-			"status = ?": int32(savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE),
+			whereStatusEq: int32(savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE),
 		}),
 	)
 	results, err := b.saRepo.Search(ctx, query)

@@ -49,10 +49,17 @@ import (
 // noopWithdrawalEventsManager implements fevents.Manager and silently drops all emissions.
 type noopWithdrawalEventsManager struct{}
 
-func (n *noopWithdrawalEventsManager) Add(_ fevents.EventI)                          {}
-func (n *noopWithdrawalEventsManager) Get(_ string) (fevents.EventI, error)          { return nil, nil }
+func (n *noopWithdrawalEventsManager) Add(_ fevents.EventI) {}
+func (n *noopWithdrawalEventsManager) Get(_ string) (fevents.EventI, error) {
+	return nil, nil //nolint:nilnil // no-op stub: tests never look up events
+}
 func (n *noopWithdrawalEventsManager) Emit(_ context.Context, _ string, _ any) error { return nil }
 func (n *noopWithdrawalEventsManager) Handler() queue.SubscribeWorker                { return nil }
+
+// Strict / SetStrict satisfy events.Manager (frame >=v1.98.2); the noop
+// manager never consumes from a queue, so strict mode is irrelevant here.
+func (n *noopWithdrawalEventsManager) Strict() bool   { return true }
+func (n *noopWithdrawalEventsManager) SetStrict(bool) {}
 
 var _ fevents.Manager = (*noopWithdrawalEventsManager)(nil)
 

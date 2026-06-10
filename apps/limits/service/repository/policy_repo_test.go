@@ -25,12 +25,12 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/frame/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/frametests/rlstest"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 	"github.com/antinvestor/service-fintech/apps/limits/service/repository"
-	"github.com/antinvestor/service-fintech/apps/limits/tests/rlstest"
 )
 
 type PolicyRepoSuite struct {
@@ -131,7 +131,7 @@ func (s *PolicyRepoSuite) TestSaveAndGet() {
 func (s *PolicyRepoSuite) TestSearchByActionAndScope() {
 	ctx, repo := s.newEnv("tenant-a", "partition-a")
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		s.Require().NoError(repo.Save(ctx, &models.Policy{
 			Scope:         models.ScopeOrg,
 			Action:        models.ActionLoanDisbursement,

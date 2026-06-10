@@ -49,8 +49,8 @@ type stubLimitsClient struct {
 }
 
 func (s *stubLimitsClient) Check(
-	ctx context.Context,
-	req *connect.Request[limitsv1.CheckRequest],
+	_ context.Context,
+	_ *connect.Request[limitsv1.CheckRequest],
 ) (*connect.Response[limitsv1.CheckResponse], error) {
 	s.checkCalls++
 	if s.checkErr != nil {
@@ -60,8 +60,8 @@ func (s *stubLimitsClient) Check(
 }
 
 func (s *stubLimitsClient) Reserve(
-	ctx context.Context,
-	req *connect.Request[limitsv1.ReserveRequest],
+	_ context.Context,
+	_ *connect.Request[limitsv1.ReserveRequest],
 ) (*connect.Response[limitsv1.ReserveResponse], error) {
 	s.reserveCalls++
 	if s.reserveErr != nil {
@@ -71,8 +71,8 @@ func (s *stubLimitsClient) Reserve(
 }
 
 func (s *stubLimitsClient) Commit(
-	ctx context.Context,
-	req *connect.Request[limitsv1.CommitRequest],
+	_ context.Context,
+	_ *connect.Request[limitsv1.CommitRequest],
 ) (*connect.Response[limitsv1.CommitResponse], error) {
 	s.commitCalls++
 	if s.commitErr != nil {
@@ -82,8 +82,8 @@ func (s *stubLimitsClient) Commit(
 }
 
 func (s *stubLimitsClient) Release(
-	ctx context.Context,
-	req *connect.Request[limitsv1.ReleaseRequest],
+	_ context.Context,
+	_ *connect.Request[limitsv1.ReleaseRequest],
 ) (*connect.Response[limitsv1.ReleaseResponse], error) {
 	s.releaseCalls++
 	if s.releaseErr != nil {
@@ -93,8 +93,8 @@ func (s *stubLimitsClient) Release(
 }
 
 func (s *stubLimitsClient) Reverse(
-	ctx context.Context,
-	req *connect.Request[limitsv1.ReverseRequest],
+	_ context.Context,
+	_ *connect.Request[limitsv1.ReverseRequest],
 ) (*connect.Response[limitsv1.ReverseResponse], error) {
 	s.reverseCalls++
 	if s.reverseErr != nil {
@@ -130,7 +130,7 @@ func TestGate_HappyPath_CallsCommitOnSuccess(t *testing.T) {
 	}
 	called := false
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-1", limits.ModeEnforce,
-		func(ctx context.Context, reservationID string) error {
+		func(_ context.Context, reservationID string) error {
 			called = true
 			assert.Equal(t, "res-1", reservationID)
 			return nil
@@ -156,7 +156,7 @@ func TestGate_HandlerError_CallsRelease(t *testing.T) {
 	}
 	handlerErr := errors.New("local DB write failed")
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-1", limits.ModeEnforce,
-		func(ctx context.Context, reservationID string) error {
+		func(_ context.Context, _ string) error {
 			return handlerErr
 		})
 	require.ErrorIs(t, err, handlerErr)
@@ -183,7 +183,7 @@ func TestGate_PendingApproval_ReturnsTypedError(t *testing.T) {
 	}
 	called := false
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-1", limits.ModeEnforce,
-		func(ctx context.Context, reservationID string) error {
+		func(_ context.Context, _ string) error {
 			called = true
 			return nil
 		})
@@ -201,7 +201,7 @@ func TestGate_ReserveError_PropagatesAndDoesNotCallHandler(t *testing.T) {
 	stub := &stubLimitsClient{reserveErr: errors.New("limits unavailable")}
 	called := false
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-1", limits.ModeEnforce,
-		func(ctx context.Context, reservationID string) error {
+		func(_ context.Context, _ string) error {
 			called = true
 			return nil
 		})
@@ -214,7 +214,7 @@ func TestGate_ReserveError_PropagatesAndDoesNotCallHandler(t *testing.T) {
 
 func TestGate_NilClient_Errors(t *testing.T) {
 	err := limits.Gate(context.Background(), nil, &limitsv1.LimitIntent{}, "idem-1", limits.ModeEnforce,
-		func(ctx context.Context, reservationID string) error { return nil })
+		func(_ context.Context, _ string) error { return nil })
 	require.Error(t, err)
 }
 
@@ -233,7 +233,7 @@ func TestGate_Shadow_DeniedReservation_RunsHandler(t *testing.T) {
 	}
 	called := false
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-shadow-deny", limits.ModeShadow,
-		func(ctx context.Context, reservationID string) error {
+		func(_ context.Context, _ string) error {
 			called = true
 			return nil
 		})
@@ -259,7 +259,7 @@ func TestGate_Shadow_PendingReservation_RunsHandler(t *testing.T) {
 	}
 	called := false
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-shadow-pend", limits.ModeShadow,
-		func(ctx context.Context, reservationID string) error {
+		func(_ context.Context, _ string) error {
 			called = true
 			return nil
 		})
@@ -272,9 +272,9 @@ func TestGate_Shadow_RPCError_RunsHandler(t *testing.T) {
 	stub := &stubLimitsClient{reserveErr: errors.New("limits service down")}
 	called := false
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-shadow-err", limits.ModeShadow,
-		func(ctx context.Context, reservationID string) error {
+		func(_ context.Context, reservationID string) error {
 			called = true
-			assert.Equal(t, "", reservationID, "shadow RPC-error path passes empty reservationID")
+			assert.Empty(t, reservationID, "shadow RPC-error path passes empty reservationID")
 			return nil
 		})
 	require.NoError(t, err)
@@ -300,12 +300,12 @@ func TestGate_HandlerError_ReleaseAlsoFails_ReturnsHandlerError(t *testing.T) {
 
 	handlerErr := errors.New("handler-side failure")
 	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "key-double-fail", limits.ModeEnforce,
-		func(ctx context.Context, _ string) error {
+		func(_ context.Context, _ string) error {
 			return handlerErr
 		})
 
 	require.Error(t, err)
-	require.True(t, errors.Is(err, handlerErr),
+	require.ErrorIs(t, err, handlerErr,
 		"outer error must be the original handler error, not the Release error")
 	assert.Equal(t, 1, stub.ReleaseCallCount(),
 		"Release must still have been attempted despite expected failure")
@@ -330,13 +330,13 @@ func TestGate_HandlerError_ClientCancel_StillReleases(t *testing.T) {
 	handlerErr := errors.New("simulated handler failure")
 
 	err := limits.Gate(ctx, stub, &limitsv1.LimitIntent{}, "test-key-1", limits.ModeEnforce,
-		func(ctx context.Context, _ string) error {
+		func(_ context.Context, _ string) error {
 			cancel() // simulate client cancel mid-handler
 			return handlerErr
 		})
 
 	require.Error(t, err)
-	require.True(t, errors.Is(err, handlerErr))
+	require.ErrorIs(t, err, handlerErr)
 
 	// Despite ctx being cancelled, Release was still called because Gate uses
 	// context.WithoutCancel to detach the Release RPC from the original context.

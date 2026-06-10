@@ -58,7 +58,7 @@ func (e *ClientDataEntryHistorySave) Execute(ctx context.Context, payload any) e
 		return errors.New("payload is not of type models.ClientDataEntryHistory")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "history_id": history.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "history_id": history.GetID()})
 	defer logger.Release()
 
 	if err := e.historyRepo.Create(ctx, history); err != nil && !data.ErrorIsDuplicateKey(err) {

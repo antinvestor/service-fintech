@@ -476,7 +476,7 @@ func (b *orgUnitBusiness) Search(
 	if req.GetQuery() != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
-				map[string]any{"searchable @@ websearch_to_tsquery( 'english', ?) ": req.GetQuery()},
+				map[string]any{searchableTSQuery: req.GetQuery()},
 			),
 		)
 	}

@@ -23,15 +23,17 @@ import (
 
 func TestAuditingNilSafe(t *testing.T) {
 	var a *Auditing
-	a.RecordBreachHard(context.Background(), nil, nil, "")
-	a.RecordReservationCommitted(context.Background(), nil)
-	a.RecordApprovalRequired(context.Background(), nil)
-	assert.True(t, true) // panics would have failed before this line.
+	assert.NotPanics(t, func() {
+		a.RecordBreachHard(context.Background(), nil, nil, "")
+		a.RecordReservationCommitted(context.Background(), nil)
+		a.RecordApprovalRequired(context.Background(), nil)
+	})
 }
 
 func TestAuditingNilWriterIsNoOp(t *testing.T) {
 	a := NewAuditing(nil)
-	a.RecordBreachHard(context.Background(), nil, nil, "")
-	a.RecordReservationCommitted(context.Background(), nil)
-	assert.True(t, true)
+	assert.NotPanics(t, func() {
+		a.RecordBreachHard(context.Background(), nil, nil, "")
+		a.RecordReservationCommitted(context.Background(), nil)
+	})
 }

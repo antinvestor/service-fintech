@@ -197,6 +197,11 @@ func (e *paymentEventsManagerStub) Emit(_ context.Context, name string, payload 
 
 func (e *paymentEventsManagerStub) Handler() queue.SubscribeWorker { return nil }
 
+// Strict / SetStrict satisfy events.Manager (frame >=v1.98.2); the stub
+// never consumes from a queue, so strict mode is irrelevant here.
+func (e *paymentEventsManagerStub) Strict() bool   { return true }
+func (e *paymentEventsManagerStub) SetStrict(bool) {}
+
 type incomingPaymentRepoStub struct {
 	baseRepositoryStub[*models.IncomingPayment]
 	byID            map[string]*models.IncomingPayment

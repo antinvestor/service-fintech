@@ -55,7 +55,7 @@ func (e *TeamMembershipSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.TeamMembership")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "membership_id": m.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "membership_id": m.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, m.GetID())

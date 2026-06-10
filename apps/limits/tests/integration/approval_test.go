@@ -74,7 +74,7 @@ func (h *headerProfileInterceptor) WrapStreamingHandler(
 }
 
 func (h *headerProfileInterceptor) injectClaims(ctx context.Context, header http.Header) context.Context {
-	profileID := header.Get("x-test-as-profile")
+	profileID := header.Get("X-Test-As-Profile")
 	if profileID == "" {
 		profileID = h.defaultProfile
 	}

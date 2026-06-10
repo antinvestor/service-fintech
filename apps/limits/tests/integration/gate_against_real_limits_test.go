@@ -34,7 +34,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -308,7 +307,7 @@ func (s *GateIntegrationSuite) TestGate_Pending_TypedError() {
 
 	// The error must wrap a *limits.PendingApprovalError.
 	var pendingErr *limits.PendingApprovalError
-	s.Require().True(errors.As(err, &pendingErr),
+	s.Require().ErrorAs(err, &pendingErr,
 		"error must be (or wrap) *limits.PendingApprovalError; got: %T / %v", err, err)
 	s.NotEmpty(pendingErr.ReservationID,
 		"PendingApprovalError must carry the reservation ID")

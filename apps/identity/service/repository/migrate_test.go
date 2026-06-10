@@ -27,7 +27,9 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/frame/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/frametests/rlstest"
 	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/tenancy"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 
@@ -72,9 +74,18 @@ func (s *migrateSuite) TestPostMigrateAddsSearchableColumnsAndSupportsSearchQuer
 		cleanup(ctx)
 	})
 
+	// frame enforces tenant isolation via Postgres RLS, and the
+	// testcontainer superuser bypasses RLS even with FORCE. rlstest
+	// drops every connection to an unprivileged role once Enable is
+	// called (after migration + grants below) so the searchable-column
+	// queries here run with the same isolation as production.
+	s.Require().NoError(rlstest.CreateRole(ctx, dsn.String()))
+	rlsProv := rlstest.New()
+
 	ctx, svc := frame.NewServiceWithContext(
 		ctx,
 		frame.WithName("identity-migrate-test"),
+		frame.WithTenancyProvider(rlsProv),
 		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
 	)
 	s.T().Cleanup(func() {
@@ -85,7 +96,7 @@ func (s *migrateSuite) TestPostMigrateAddsSearchableColumnsAndSupportsSearchQuer
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 	s.Require().NotNil(dbPool)
 
-	s.Require().NoError(dbPool.DB(ctx, false).AutoMigrate(
+	migrationModels := []any{
 		&models.Organization{},
 		&models.Branch{},
 		&models.Agent{},
@@ -106,8 +117,20 @@ func (s *migrateSuite) TestPostMigrateAddsSearchableColumnsAndSupportsSearchQuer
 		&models.FormTemplate{},
 		&models.FormSubmission{},
 		&models.ClientRelationship{},
-	))
+	}
+
+	superDB := dbPool.DB(ctx, false)
+	s.Require().NoError(superDB.AutoMigrate(migrationModels...))
 	s.Require().NoError(postMigrate(ctx, dbPool))
+
+	// Raw AutoMigrate does not run frame's tenancy install, so install
+	// the RLS policies explicitly, grant the test role access, then
+	// flip queries onto the unprivileged role.
+	enrolled, err := tenancy.EnrolledModels(superDB, migrationModels)
+	s.Require().NoError(err)
+	s.Require().NoError(rlsProv.Install(ctx, superDB, enrolled))
+	s.Require().NoError(rlstest.GrantAll(ctx, dsn.String()))
+	rlsProv.Enable()
 
 	s.assertSearchableColumnExists(ctx, dbPool, "organizations")
 	s.assertSearchableColumnExists(ctx, dbPool, "org_units")
@@ -123,8 +146,10 @@ func (s *migrateSuite) TestPostMigrateAddsSearchableColumnsAndSupportsSearchQuer
 		State:      int32(commonv1.STATE_ACTIVE),
 		Properties: data.JSONMap{"display_name": "Seed Capital Ltd"},
 	}
+	// GenID fills tenant/partition from the context claims; rows must
+	// stay inside the session's tenancy scope or the RLS WITH CHECK
+	// rejects the insert.
 	org.GenID(ctx)
-	org.PartitionID = "org-partition"
 	s.Require().NoError(dbPool.DB(ctx, false).Create(org).Error)
 
 	unit := &models.Branch{
@@ -137,7 +162,6 @@ func (s *migrateSuite) TestPostMigrateAddsSearchableColumnsAndSupportsSearchQuer
 		Properties:     data.JSONMap{"label": "Regional Office"},
 	}
 	unit.GenID(ctx)
-	unit.PartitionID = "unit-partition"
 	s.Require().NoError(dbPool.DB(ctx, false).Create(unit).Error)
 
 	agent := &models.Agent{

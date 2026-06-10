@@ -92,7 +92,7 @@ func (r *policyRepository) SaveTx(ctx context.Context, tx *gorm.DB, p *models.Po
 }
 
 // DeleteTx soft-deletes a Policy within the caller's DB transaction.
-func (r *policyRepository) DeleteTx(ctx context.Context, tx *gorm.DB, id string) error {
+func (r *policyRepository) DeleteTx(_ context.Context, tx *gorm.DB, id string) error {
 	entity := &models.Policy{}
 	return tx.Where("id = ?", id).Delete(entity).Error
 }

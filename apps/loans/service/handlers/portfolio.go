@@ -130,7 +130,7 @@ func handlePortfolioExport(pb business.PortfolioBusiness) http.HandlerFunc {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 
 		// CSV body: nosniff + attachment, never rendered as HTML/JS.
-		_, writeErr := w.Write(csvData) //nolint:gosec // G705 false positive on CSV download
+		_, writeErr := w.Write(csvData)
 		if writeErr != nil {
 			logger.WithError(writeErr).Error("could not write CSV response")
 		}

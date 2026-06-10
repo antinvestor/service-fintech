@@ -55,7 +55,7 @@ func (e *DepositSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Deposit")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "deposit_id": d.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "deposit_id": d.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, d.GetID())

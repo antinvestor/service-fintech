@@ -48,6 +48,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 )
 
+//nolint:funlen // linear service wiring; splitting hurts readability
 func main() {
 	tmpCtx := context.Background()
 
@@ -218,7 +219,7 @@ func setupLimitsClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
-	dbPool pool.Pool,
+	_ pool.Pool,
 	spBusiness business.SavingsProductBusiness,
 	saBusiness business.SavingsAccountBusiness,
 	depBusiness business.DepositBusiness,

@@ -40,6 +40,10 @@ func policiesCmd() *cobra.Command {
 	return cmd
 }
 
+// tabPadding is the cell padding used for tabwriter output.
+const tabPadding = 2
+
+//nolint:gocognit // sequential CLI flag mapping and output formatting reads clearer inline
 func policiesListCmd() *cobra.Command {
 	var (
 		flagQuery  string
@@ -50,7 +54,7 @@ func policiesListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List limit policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := newAdminClient(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("build client: %w", err)
@@ -91,23 +95,23 @@ func policiesListCmd() *cobra.Command {
 			for stream.Receive() {
 				policies = append(policies, stream.Msg().GetData()...)
 			}
-			if err := stream.Err(); err != nil {
-				return fmt.Errorf("stream error: %w", err)
+			if streamErr := stream.Err(); streamErr != nil {
+				return fmt.Errorf("stream error: %w", streamErr)
 			}
 
 			if flagJSON {
 				mo := protojson.MarshalOptions{Indent: "  "}
 				for _, p := range policies {
-					out, err := mo.Marshal(p)
-					if err != nil {
-						return err
+					out, marshalErr := mo.Marshal(p)
+					if marshalErr != nil {
+						return marshalErr
 					}
-					fmt.Println(string(out))
+					fmt.Fprintln(os.Stdout, string(out))
 				}
 				return nil
 			}
 
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, tabPadding, ' ', 0)
 			fmt.Fprintln(w, "ID\tSCOPE\tACTION\tMODE\tCURRENCY\tNOTES")
 			for _, p := range policies {
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
@@ -149,15 +153,15 @@ func policiesShowCmd() *cobra.Command {
 
 			p := resp.Msg.GetData()
 			if flagJSON {
-				out, err := protojson.MarshalOptions{Indent: "  "}.Marshal(p)
-				if err != nil {
-					return err
+				out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(p)
+				if marshalErr != nil {
+					return marshalErr
 				}
-				fmt.Println(string(out))
+				fmt.Fprintln(os.Stdout, string(out))
 				return nil
 			}
 
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, tabPadding, ' ', 0)
 			fmt.Fprintf(w, "ID:\t%s\n", p.GetId())
 			fmt.Fprintf(w, "Scope:\t%s\n", p.GetScope().String())
 			fmt.Fprintf(w, "Action:\t%s\n", p.GetAction().String())
@@ -226,6 +230,12 @@ func togglePolicyMode(ctx context.Context, id string, mode limitsv1.PolicyMode) 
 	}
 
 	saved := saveResp.Msg.GetData()
-	fmt.Printf("policy %s mode set to %s (version %d)\n", saved.GetId(), saved.GetMode().String(), saved.GetVersion())
+	fmt.Fprintf(
+		os.Stdout,
+		"policy %s mode set to %s (version %d)\n",
+		saved.GetId(),
+		saved.GetMode().String(),
+		saved.GetVersion(),
+	)
 	return nil
 }

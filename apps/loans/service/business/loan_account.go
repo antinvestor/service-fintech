@@ -211,7 +211,7 @@ func (b *loanAccountBusiness) populateLoanFromRequest(
 		LoanRequestID: loanRequestID,
 		Status:        int32(loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT),
 		Properties: data.JSONMap{
-			"loan_request_id": loanRequestID,
+			fieldLoanRequestID: loanRequestID,
 		},
 	}
 
@@ -327,12 +327,12 @@ func fundingAllocationsJSON(allocations []*fundingv1.FundingAllocationObject) []
 		}
 		amount, _ := models.MoneyToMinorUnits(allocation.GetAmount())
 		result = append(result, map[string]any{
-			"id":              allocation.GetId(),
-			"loan_request_id": fundingcompat.AllocationLoanRequestID(allocation),
-			"source_id":       allocation.GetSourceId(),
-			"source_type":     allocation.GetSourceType(),
-			"tranche_level":   float64(allocation.GetTrancheLevel()),
-			"amount":          float64(amount),
+			"id":               allocation.GetId(),
+			fieldLoanRequestID: fundingcompat.AllocationLoanRequestID(allocation),
+			"source_id":        allocation.GetSourceId(),
+			"source_type":      allocation.GetSourceType(),
+			"tranche_level":    float64(allocation.GetTrancheLevel()),
+			fieldAmount:        float64(amount),
 		})
 	}
 	return result
@@ -448,7 +448,7 @@ func (b *loanAccountBusiness) Search(
 	if req.GetQuery() != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
-				map[string]any{"searchable @@ websearch_to_tsquery( 'english', ?) ": req.GetQuery()},
+				map[string]any{searchableTSQuery: req.GetQuery()},
 			),
 		)
 	}
@@ -726,13 +726,13 @@ func (b *loanAccountBusiness) TransitionStatus(
 		ActorID:    changedBy,
 		ActorType:  "user",
 		Reason:     reason,
-		Before:     data.JSONMap{"status": previousStatus.String()},
-		After:      data.JSONMap{"status": newStatus.String()},
+		Before:     data.JSONMap{fieldStatus: previousStatus.String()},
+		After:      data.JSONMap{fieldStatus: newStatus.String()},
 		Metadata: data.JSONMap{
-			"client_id":       la.ClientID,
-			"product_id":      la.ProductID,
-			"application_id":  la.LoanRequestID,
-			"loan_request_id": loanRequestIDFromProperties(la.Properties, la.LoanRequestID),
+			fieldClientID:      la.ClientID,
+			"product_id":       la.ProductID,
+			"application_id":   la.LoanRequestID,
+			fieldLoanRequestID: loanRequestIDFromProperties(la.Properties, la.LoanRequestID),
 		},
 		Parent: &la.BaseModel,
 	}, func(auErr error) {
@@ -821,8 +821,8 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 
 	reference := fmt.Sprintf("writeoff:%s", la.GetID())
 	extraData := data.JSONMap{
-		"loan_account_id":       la.GetID(),
-		"client_id":             la.ClientID,
+		fieldLoanAccountID:      la.GetID(),
+		fieldClientID:           la.ClientID,
 		"principal_outstanding": balance.PrincipalOutstanding,
 		"interest_outstanding":  balance.InterestAccrued,
 		"fees_outstanding":      balance.FeesOutstanding,

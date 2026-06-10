@@ -66,6 +66,8 @@ func (e *Evaluator) EvaluateInTx(
 
 // evaluate is the shared core of Evaluate and EvaluateInTx. When tx is non-nil,
 // rolling-window reads are routed through the transaction connection.
+//
+//nolint:gocognit,funlen // per-kind verdict matrix is clearer as one switch than split helpers
 func (e *Evaluator) evaluate(
 	ctx context.Context,
 	tx *gorm.DB,
@@ -76,7 +78,7 @@ func (e *Evaluator) evaluate(
 ) (*limitsv1.PolicyVerdict, error) {
 	v := &limitsv1.PolicyVerdict{
 		PolicyId:      p.ID,
-		PolicyVersion: int32(p.Version),
+		PolicyVersion: int32(p.Version), //nolint:gosec // version counters never approach int32 range
 		Matched:       true,
 		Mode:          policyModeToAPI(p.Mode),
 	}
@@ -200,13 +202,13 @@ func unmarshalPolicyApproverTiers(p *models.Policy) ([]approverTier, error) {
 	}
 	out := make([]approverTier, len(rs))
 	for i, r := range rs {
-		out[i] = approverTier{UpTo: r.UpTo, Role: r.Role, Approvers: r.Approvers}
+		out[i] = approverTier(r)
 	}
 	return out, nil
 }
 
-// PickTier finds the first approver tier whose up_to covers intentMinor.
-func PickTier(p *models.Policy, intentMinor int64) (approverTier, bool) {
+// pickTier finds the first approver tier whose up_to covers intentMinor.
+func pickTier(p *models.Policy, intentMinor int64) (approverTier, bool) {
 	tiers, _ := unmarshalPolicyApproverTiers(p)
 	for _, t := range tiers {
 		if t.UpTo == 0 || intentMinor <= t.UpTo {

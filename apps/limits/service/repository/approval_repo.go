@@ -109,8 +109,8 @@ func (r *approvalRequestRepository) SetStatus(
 ) error {
 	db := r.dbPool.DB(ctx, false)
 	updates := map[string]any{
-		"status":      string(status),
-		"modified_at": time.Now().UTC(),
+		colStatus:     string(status),
+		colModifiedAt: time.Now().UTC(),
 	}
 	if decidedAt != nil {
 		updates["decided_at"] = decidedAt
@@ -121,15 +121,15 @@ func (r *approvalRequestRepository) SetStatus(
 }
 
 func (r *approvalRequestRepository) SetStatusTx(
-	ctx context.Context,
+	_ context.Context,
 	tx *gorm.DB,
 	id string,
 	status models.ApprovalStatus,
 	decidedAt *time.Time,
 ) error {
 	updates := map[string]any{
-		"status":      string(status),
-		"modified_at": time.Now().UTC(),
+		colStatus:     string(status),
+		colModifiedAt: time.Now().UTC(),
 	}
 	if decidedAt != nil {
 		updates["decided_at"] = decidedAt
@@ -224,7 +224,7 @@ func (r *approvalDecisionRepository) RecordDecision(ctx context.Context, d *mode
 }
 
 func (r *approvalDecisionRepository) RecordDecisionTx(
-	ctx context.Context,
+	_ context.Context,
 	tx *gorm.DB,
 	d *models.ApprovalDecision,
 ) error {

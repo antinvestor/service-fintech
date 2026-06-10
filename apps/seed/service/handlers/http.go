@@ -136,7 +136,7 @@ func (s *Server) handleRequestLoan(w http.ResponseWriter, r *http.Request) {
 		"product_id":       result.ProductID,
 		"amount":           result.Amount,
 		"currency_code":    result.CurrencyCode,
-		"status":           result.Status,
+		fieldStatus:        result.Status,
 		"application_id":   result.ApplicationID,
 		"loan_account_id":  result.LoanAccountID,
 		"disbursement_id":  result.DisbursementID,
@@ -175,7 +175,7 @@ func (s *Server) handleGetCreditProfile(w http.ResponseWriter, r *http.Request) 
 		"product_id":             profile.ProductID,
 		"tier":                   profile.Tier,
 		"max_loan_amount":        profile.MaxLoanAmount,
-		"status":                 profile.Status,
+		fieldStatus:              profile.Status,
 		"successful_repayments":  profile.SuccessfulRepayments,
 		"outstanding_loan_count": profile.OutstandingLoanCount,
 		"total_borrowed":         profile.TotalBorrowed,
@@ -212,7 +212,7 @@ func (s *Server) handlePaidOff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]any{fieldStatus: "ok"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

@@ -55,7 +55,7 @@ func (e *WithdrawalSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Withdrawal")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "withdrawal_id": w.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "withdrawal_id": w.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, w.GetID())

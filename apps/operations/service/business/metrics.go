@@ -66,38 +66,38 @@ func RegisteredMetrics() []MetricInfo {
 	return []MetricInfo{
 		{
 			Name:        "ops_transfers_executed_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Transfer orders executed",
 		},
 		{
 			Name:        "ops_transfers_amount_total",
-			Type:        "counter",
+			Type:        metricTypeCounter,
 			Unit:        "currency_unit",
 			Description: "Total amount of executed transfers",
 		},
 		{
 			Name:        "ops_payments_received_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Incoming payments received",
 		},
 		{
 			Name:        "ops_payments_amount_total",
-			Type:        "counter",
+			Type:        metricTypeCounter,
 			Unit:        "currency_unit",
 			Description: "Total amount of incoming payments",
 		},
 		{
 			Name:        "ops_payments_allocated_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Payments successfully allocated to obligations",
 		},
 		{
 			Name:        "ops_payments_unmatched_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Payments that could not be identified",
 		},
 	}

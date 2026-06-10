@@ -58,7 +58,7 @@ func (e *FormSubmissionSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.FormSubmission")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "form_submission_id": fs.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "form_submission_id": fs.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.formSubmissionRepo.GetByID(ctx, fs.GetID())

@@ -146,7 +146,7 @@ func (b *obligationBusiness) CalculateForGroup(ctx context.Context, groupID stri
 		if !existingByMember[memberID]["periodic_saving"] && savingAmount > 0 {
 			ob := &models.Obligation{
 				MembershipID:   memberID,
-				CauseType:      "periodic_saving",
+				CauseType:      obligationPeriodicSaving,
 				CauseID:        groupID,
 				ObligationType: int32(models.ObligationTypePeriodic),
 				PeriodID:       period.GetID(),
@@ -200,7 +200,7 @@ func (b *obligationBusiness) CreateLoanObligations(
 
 		// Build properties map carrying the group_id so that downstream routing
 		// (e.g. creditAccountForBucket) can direct funds to the correct group account.
-		oblProps := data.JSONMap{"group_id": entry.GroupID}
+		oblProps := data.JSONMap{fieldGroupID: entry.GroupID}
 
 		// Create principal obligation
 		if entry.PrincipalDue > 0 {
@@ -304,14 +304,14 @@ func (b *obligationBusiness) GetStatus(ctx context.Context, obligationID string)
 
 	status := map[string]interface{}{
 		"id":              ob.GetID(),
-		"membership_id":   ob.MembershipID,
+		fieldMembershipID: ob.MembershipID,
 		"cause_type":      ob.CauseType,
 		"cause_id":        ob.CauseID,
 		"obligation_type": ob.ObligationType,
 		"period_id":       ob.PeriodID,
-		"amount":          ob.Amount,
-		"currency":        ob.Currency,
-		"state":           ob.State,
+		fieldAmount:       ob.Amount,
+		fieldCurrency:     ob.Currency,
+		fieldState:        ob.State,
 		"fulfilled":       fulfilled,
 		"description":     ob.Description,
 	}

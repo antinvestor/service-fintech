@@ -55,7 +55,7 @@ func (e *ScheduleEntrySave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.ScheduleEntry")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "schedule_entry_id": se.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "schedule_entry_id": se.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.scheduleEntryRepo.GetByID(ctx, se.GetID())

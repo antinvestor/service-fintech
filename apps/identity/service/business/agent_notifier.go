@@ -78,8 +78,8 @@ func (n *AgentNotifier) NotifyAgentOnboarded(ctx context.Context, contactDetail,
 	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"component": "AgentNotifier",
-		"template":  n.templateName,
+		logKeyComponent: "AgentNotifier",
+		logKeyTemplate:  n.templateName,
 	})
 
 	data := map[string]string{
@@ -134,8 +134,8 @@ func (n *AgentNotifier) CreateOrLinkProfile(ctx context.Context, name, contactDe
 	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"component": "AgentNotifier",
-		"method":    "CreateOrLinkProfile",
+		logKeyComponent: "AgentNotifier",
+		"method":        "CreateOrLinkProfile",
 	})
 
 	props, err := structpb.NewStruct(map[string]any{

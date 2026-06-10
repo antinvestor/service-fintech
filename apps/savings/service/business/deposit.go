@@ -154,7 +154,7 @@ func (b *depositBusiness) Record(
 	}
 	if idempotencyKey == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument,
-			fmt.Errorf("idempotency_key required for savings deposit"))
+			errors.New("idempotency_key required for savings deposit"))
 	}
 	idemKey := idempotencyKey
 
@@ -240,18 +240,18 @@ func (b *depositBusiness) recordInner(
 		Action:     "savings.deposit.settled",
 		Reason:     "inbound deposit posted to ledger and credited",
 		After: data.JSONMap{
-			"status":                dep.Status,
-			"ledger_transaction_id": dep.LedgerTransactionID,
+			fieldStatus:              dep.Status,
+			fieldLedgerTransactionID: dep.LedgerTransactionID,
 		},
 		Metadata: data.JSONMap{
-			"savings_account_id": sa.GetID(),
-			"owner_id":           sa.OwnerID,
-			"amount":             amountMinor,
-			"currency":           sa.CurrencyCode,
-			"channel":            channel,
-			"payer_reference":    payerRef,
-			"payment_reference":  paymentRef,
-			"idempotency_key":    idempotencyKey,
+			fieldSavingsAccountID: sa.GetID(),
+			fieldOwnerID:          sa.OwnerID,
+			fieldAmount:           amountMinor,
+			fieldCurrency:         sa.CurrencyCode,
+			fieldChannel:          channel,
+			"payer_reference":     payerRef,
+			"payment_reference":   paymentRef,
+			"idempotency_key":     idempotencyKey,
 		},
 		Parent: &dep.BaseModel,
 	}, func(auErr error) {
@@ -287,12 +287,12 @@ func (b *depositBusiness) postDepositTransferOrder(
 
 	reference := fmt.Sprintf("deposit:%s", dep.GetID())
 	extraData := data.JSONMap{
-		"savings_account_id": sa.GetID(),
-		"deposit_id":         dep.GetID(),
-		"owner_id":           sa.OwnerID,
-		"channel":            dep.Channel,
-		"payer_reference":    dep.PayerReference,
-		"payment_reference":  dep.PaymentReference,
+		fieldSavingsAccountID: sa.GetID(),
+		"deposit_id":          dep.GetID(),
+		fieldOwnerID:          sa.OwnerID,
+		fieldChannel:          dep.Channel,
+		"payer_reference":     dep.PayerReference,
+		"payment_reference":   dep.PaymentReference,
 	}
 
 	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{

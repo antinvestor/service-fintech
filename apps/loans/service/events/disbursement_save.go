@@ -55,7 +55,7 @@ func (e *DisbursementSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Disbursement")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "disbursement_id": d.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "disbursement_id": d.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, d.GetID())

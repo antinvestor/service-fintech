@@ -16,7 +16,7 @@ package handlers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
@@ -118,6 +118,7 @@ func (s *FundingServer) InvestorAccountSearch(
 
 // --- Deposit / Withdraw RPCs ---
 
+//nolint:dupl // deposit and withdraw RPCs mirror each other over distinct proto types
 func (s *FundingServer) InvestorDeposit(
 	ctx context.Context,
 	req *connect.Request[fundingv1.InvestorDepositRequest],
@@ -125,7 +126,7 @@ func (s *FundingServer) InvestorDeposit(
 	idemKey := req.Header().Get("Idempotency-Key")
 	if idemKey == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument,
-			fmt.Errorf("Idempotency-Key header required"))
+			errors.New("Idempotency-Key header required"))
 	}
 
 	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyDecimalPlaces)
@@ -147,6 +148,7 @@ func (s *FundingServer) InvestorDeposit(
 	}), nil
 }
 
+//nolint:dupl // deposit and withdraw RPCs mirror each other over distinct proto types
 func (s *FundingServer) InvestorWithdraw(
 	ctx context.Context,
 	req *connect.Request[fundingv1.InvestorWithdrawRequest],
@@ -154,7 +156,7 @@ func (s *FundingServer) InvestorWithdraw(
 	idemKey := req.Header().Get("Idempotency-Key")
 	if idemKey == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument,
-			fmt.Errorf("Idempotency-Key header required"))
+			errors.New("Idempotency-Key header required"))
 	}
 
 	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyDecimalPlaces)

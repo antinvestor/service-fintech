@@ -184,7 +184,7 @@ func (b *organizationBusiness) Search(
 	if searchQuery.GetQuery() != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
-				map[string]any{"searchable @@ websearch_to_tsquery( 'english', ?) ": searchQuery.GetQuery()},
+				map[string]any{searchableTSQuery: searchQuery.GetQuery()},
 			),
 		)
 		for _, filter := range searchQuery.GetProperties() {

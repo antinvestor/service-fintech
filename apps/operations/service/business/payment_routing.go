@@ -117,8 +117,8 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 		payment.Properties.GetString("payer_name"),
 	)
 	productID := firstNonEmptyString(
-		extractString(paymentData, "product_id"),
-		payment.Properties.GetString("product_id"),
+		extractString(paymentData, fieldProductID),
+		payment.Properties.GetString(fieldProductID),
 	)
 	groupID := firstNonEmptyString(extractString(paymentData, "group_id"), payment.Properties.GetString("group_id"))
 
@@ -183,9 +183,9 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 	logger.Warn("payment could not be identified, routing to unidentified account")
 	recordPaymentUnmatched(ctx)
 	unidentified := map[string]interface{}{
-		"payment_id": payment.GetID(),
-		"strategy":   "unidentified",
-		"reason":     "no matching member found across all identification strategies",
+		fieldPaymentID: payment.GetID(),
+		"strategy":     "unidentified",
+		"reason":       "no matching member found across all identification strategies",
 	}
 	if productID != "" {
 		unidentified["unidentified_account"] = constants.ProductUnidentifiedAccount(productID)
@@ -295,7 +295,7 @@ func parseIncomingPaymentMetadata(paymentData map[string]interface{}) incomingPa
 		transactionID: strings.TrimSpace(extractString(paymentData, "transaction_id")),
 		amount:        amount,
 		currency:      strings.TrimSpace(extractString(paymentData, "currency")),
-		productID:     strings.TrimSpace(extractString(paymentData, "product_id")),
+		productID:     strings.TrimSpace(extractString(paymentData, fieldProductID)),
 		properties:    incomingPaymentProperties(paymentData),
 	}
 }
@@ -380,7 +380,7 @@ func (b *paymentRoutingBusiness) identifyByProfileID(
 
 	mem := active[0]
 	return &identificationResult{
-		Strategy:     "profile_id",
+		Strategy:     fieldProfileID,
 		MembershipID: mem.GetId(),
 		GroupID:      mem.GetGroupId(),
 		ProfileID:    mem.GetProfileId(),
@@ -521,7 +521,7 @@ func (b *paymentRoutingBusiness) identifyByPayerName(
 
 	mem := matched[0]
 	return &identificationResult{
-		Strategy:     "payer_name",
+		Strategy:     fieldPayerName,
 		MembershipID: mem.GetId(),
 		GroupID:      mem.GetGroupId(),
 		ProfileID:    mem.GetProfileId(),
@@ -534,18 +534,18 @@ func (b *paymentRoutingBusiness) buildIdentificationResult(
 	r *identificationResult,
 ) map[string]interface{} {
 	return map[string]interface{}{
-		"payment_id":    payment.GetID(),
-		"strategy":      r.Strategy,
-		"membership_id": r.MembershipID,
-		"group_id":      r.GroupID,
-		"profile_id":    r.ProfileID,
+		fieldPaymentID:    payment.GetID(),
+		"strategy":        r.Strategy,
+		fieldMembershipID: r.MembershipID,
+		fieldGroupID:      r.GroupID,
+		fieldProfileID:    r.ProfileID,
 	}
 }
 
 func (b *paymentRoutingBusiness) buildStoredPaymentResult(payment *models.IncomingPayment) map[string]interface{} {
 	result := map[string]interface{}{
-		"payment_id":    payment.GetID(),
-		"membership_id": payment.OwnerID,
+		fieldPaymentID:    payment.GetID(),
+		fieldMembershipID: payment.OwnerID,
 	}
 	if payment.Properties != nil {
 		if strategy := payment.Properties.GetString("identification_strategy"); strategy != "" {
@@ -578,8 +578,8 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 	}
 	payment.Properties = mergeJSONMaps(payment.Properties, data.JSONMap{
 		"identification_strategy": result.Strategy,
-		"group_id":                result.GroupID,
-		"profile_id":              result.ProfileID,
+		fieldGroupID:              result.GroupID,
+		fieldProfileID:            result.ProfileID,
 	})
 
 	if emitErr := b.eventsMan.Emit(ctx, events.IncomingPaymentSaveEvent, payment); emitErr != nil {
@@ -612,9 +612,9 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	// Idempotency + concurrency guard: only allocate payments in initial state.
 	if payment.State != int32(constants.StateJustCreated) && payment.State != int32(constants.StateCheckCreated) {
 		return map[string]interface{}{
-			"payment_id": paymentID,
-			"status":     "already_processed",
-			"state":      payment.State,
+			fieldPaymentID: paymentID,
+			"status":       "already_processed",
+			fieldState:     payment.State,
 		}, nil
 	}
 
@@ -671,8 +671,8 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	}
 
 	return map[string]interface{}{
-		"payment_id":       paymentID,
-		"membership_id":    membershipID,
+		fieldPaymentID:     paymentID,
+		fieldMembershipID:  membershipID,
 		"total_amount":     payment.Amount,
 		"allocated_amount": allocatedAmount,
 		"remaining_amount": remainingAmount,
@@ -697,23 +697,23 @@ func buildAllocationBuckets() []allocationBucket {
 			filter: obligationMatcherCurrent(active, "loan_fees")},
 		{name: "loan_principal_repayment", orderType: constants.TransferTypeLoanRepayment,
 			filter: obligationMatcherCurrent(active, "loan_principal")},
-		{name: "penalty", orderType: constants.TransferTypePenalty,
+		{name: obligationPenalty, orderType: constants.TransferTypePenalty,
 			filter: func(o *models.Obligation) bool {
-				return o.State == active && o.CauseType == "penalty"
+				return o.State == active && o.CauseType == obligationPenalty
 			}},
-		{name: "periodic_saving", orderType: constants.TransferTypePeriodicSaving,
+		{name: obligationPeriodicSaving, orderType: constants.TransferTypePeriodicSaving,
 			filter: func(o *models.Obligation) bool {
 				return o.State == active && o.ObligationType == int32(models.ObligationTypePeriodic) &&
 					o.CauseType == "saving"
 			}},
-		{name: "registration_fee", orderType: constants.TransferTypeRegistrationFee,
+		{name: obligationRegistrationFee, orderType: constants.TransferTypeRegistrationFee,
 			filter: func(o *models.Obligation) bool {
 				return o.State == active && o.ObligationType == int32(models.ObligationTypeOneTime) &&
-					o.CauseType == "registration_fee"
+					o.CauseType == obligationRegistrationFee
 			}},
-		{name: "service_fee", orderType: constants.TransferTypeServiceFee,
+		{name: obligationServiceFee, orderType: constants.TransferTypeServiceFee,
 			filter: func(o *models.Obligation) bool {
-				return o.State == active && o.CauseType == "service_fee"
+				return o.State == active && o.CauseType == obligationServiceFee
 			}},
 	}
 }
@@ -838,7 +838,7 @@ func (b *paymentRoutingBusiness) allocateBucket(
 			"bucket":            bkt.name,
 			"obligation_id":     obl.GetID(),
 			"transfer_order_id": to.GetID(),
-			"amount":            allocAmount,
+			fieldAmount:         allocAmount,
 			"partial":           allocAmount < obl.Amount,
 		})
 
@@ -866,15 +866,15 @@ func (b *paymentRoutingBusiness) creditAccountForBucket(bucket, membershipID str
 		return constants.GroupInterestIncomeAccount(groupID)
 	case "overdue_loan_fees", "loan_fees_repayment":
 		return constants.GroupServiceFeeAccount(groupID)
-	case "penalty":
+	case obligationPenalty:
 		return constants.GroupPenaltyIncomeAccount(groupID)
 	case "overdue_loan_principal", "loan_principal_repayment":
 		return constants.MemberLoansAccount(membershipID)
-	case "periodic_saving":
+	case obligationPeriodicSaving:
 		return constants.MemberPeriodicSavingsAccount(membershipID)
-	case "registration_fee":
+	case obligationRegistrationFee:
 		return constants.GroupJoiningFeeAccount(groupID)
-	case "service_fee":
+	case obligationServiceFee:
 		return constants.GroupServiceFeeAccount(groupID)
 	default:
 		return constants.MemberSuspenseAccount(membershipID)
@@ -937,7 +937,7 @@ func extractPaymentReference(paymentData map[string]interface{}, payment *models
 
 func incomingPaymentProperties(paymentData map[string]interface{}) data.JSONMap {
 	properties := jsonMapFromValue(paymentData["properties"])
-	for _, key := range []string{"payer_reference", "payer_name", "product_id", "group_id", "reference"} {
+	for _, key := range []string{"payer_reference", fieldPayerName, fieldProductID, fieldGroupID, "reference"} {
 		if value := strings.TrimSpace(extractString(paymentData, key)); value != "" {
 			properties[key] = value
 		}

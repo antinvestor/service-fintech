@@ -64,6 +64,13 @@ type cachedAttrs struct {
 	attrs map[string]any
 }
 
+const (
+	// defaultAttrTTL caps how long cached subject attributes stay fresh.
+	defaultAttrTTL = 60 * time.Second
+	// attrCacheSize bounds the in-process attribute LRU.
+	attrCacheSize = 10000
+)
+
 // NewAttributeResolver constructs a resolver. A nil identity client makes
 // the resolver "DB-only" — useful in tests and as a graceful fallback when
 // the identity service is misconfigured.
@@ -73,12 +80,12 @@ func NewAttributeResolver(
 	ttl time.Duration,
 ) AttributeResolver {
 	if ttl == 0 {
-		ttl = 60 * time.Second
+		ttl = defaultAttrTTL
 	}
 	return &attributeResolver{
 		repo:           repo,
 		identityClient: identityClient,
-		cache:          expirable.NewLRU[string, cachedAttrs](10000, nil, ttl),
+		cache:          expirable.NewLRU[string, cachedAttrs](attrCacheSize, nil, ttl),
 		ttl:            ttl,
 	}
 }
@@ -117,6 +124,7 @@ func (r *attributeResolver) Get(
 			WithField("subject_type", string(subjectType)).
 			WithField("subject_id", subjectID).
 			Warn("attribute resolver: identity fetch failed; falling back to empty attributes")
+		//nolint:nilnil // graceful degradation: callers treat a nil map as "no attributes"
 		return nil, nil
 	}
 
@@ -171,6 +179,7 @@ func decodeAttrs(j datatypes.JSON) map[string]any {
 // Returns (nil, nil) when the client isn't configured (graceful degradation).
 func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID string) (map[string]any, error) {
 	if r.identityClient == nil {
+		//nolint:nilnil // documented contract: nil map when no identity client is configured
 		return nil, nil
 	}
 

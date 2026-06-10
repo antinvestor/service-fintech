@@ -63,15 +63,15 @@ func (s *CandidatePolicySuite) candidateDBResource(ctx context.Context) definiti
 //   - a PolicyRepository for inserting test rows (scoped to org-A),
 //   - a factory func to create PolicyRepositories for arbitrary tenants.
 func (s *CandidatePolicySuite) newCandidateEnv() (
-	ctxBase context.Context,
-	ctxOrgA context.Context,
-	dbPool pool.Pool,
-	policyRepo repository.PolicyRepository,
-	newRepo func(ctx context.Context) repository.PolicyRepository,
+	context.Context,
+	context.Context,
+	pool.Pool,
+	repository.PolicyRepository,
+	func(ctx context.Context) repository.PolicyRepository,
 ) {
 	s.T().Helper()
 
-	ctxBase = s.T().Context()
+	ctxBase := s.T().Context()
 
 	db := s.candidateDBResource(ctxBase)
 	dsn, cleanup, err := db.GetRandomisedDS(ctxBase, util.RandomAlphaNumericString(8))
@@ -90,16 +90,16 @@ func (s *CandidatePolicySuite) newCandidateEnv() (
 	dbManager := svc.DatastoreManager()
 	s.Require().NoError(repository.Migrate(ctxBase, dbManager, ""))
 
-	dbPool = dbManager.GetPool(ctxBase, datastore.DefaultPoolName)
+	dbPool := dbManager.GetPool(ctxBase, datastore.DefaultPoolName)
 	s.Require().NotNil(dbPool)
 
 	workMan := svc.WorkManager()
-	newRepo = func(ctx context.Context) repository.PolicyRepository {
+	newRepo := func(ctx context.Context) repository.PolicyRepository {
 		return repository.NewPolicyRepository(ctx, dbPool, workMan)
 	}
 
-	ctxOrgA = s.WithAuthClaims(ctxBase, "org-A", "p-1", "wf-1")
-	policyRepo = newRepo(ctxOrgA)
+	ctxOrgA := s.WithAuthClaims(ctxBase, "org-A", "p-1", "wf-1")
+	policyRepo := newRepo(ctxOrgA)
 
 	return ctxBase, ctxOrgA, dbPool, policyRepo, newRepo
 }

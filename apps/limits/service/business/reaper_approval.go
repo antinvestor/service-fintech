@@ -66,16 +66,16 @@ func (r *ApprovalReaper) Run(ctx context.Context) error {
 	}
 	log := util.Log(ctx).With("reaper", "approval_expiry")
 	for _, ar := range rows {
-		if err := r.approvalRepo.SetStatus(ctx, ar.ID, models.ApprovalStatusExpired, &now); err != nil {
-			log.WithError(err).With("approval_id", ar.ID).
+		if setErr := r.approvalRepo.SetStatus(ctx, ar.ID, models.ApprovalStatusExpired, &now); setErr != nil {
+			log.WithError(setErr).With("approval_id", ar.ID).
 				Error("failed to expire approval request")
 			continue
 		}
 		// Release the reservation. Best-effort: if the reservation has
 		// already moved to a terminal state, SetReleased returns an error
 		// which we log but don't propagate (the approval was already expired).
-		if err := r.resvRepo.SetReleased(ctx, ar.ReservationID, "approval expired", now); err != nil {
-			log.WithError(err).With("reservation_id", ar.ReservationID).
+		if relErr := r.resvRepo.SetReleased(ctx, ar.ReservationID, "approval expired", now); relErr != nil {
+			log.WithError(relErr).With("reservation_id", ar.ReservationID).
 				Warn("could not release reservation after approval expiry")
 		}
 		ar.Status = models.ApprovalStatusExpired

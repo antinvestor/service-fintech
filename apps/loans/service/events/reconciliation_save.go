@@ -58,7 +58,7 @@ func (e *ReconciliationSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Reconciliation")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "reconciliation_id": r.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "reconciliation_id": r.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.reconciliationRepo.GetByID(ctx, r.GetID())

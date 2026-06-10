@@ -32,6 +32,7 @@ func SetupClient(
 	target common.ServiceTarget,
 ) (limitsv1connect.LimitsServiceClient, error) {
 	if target.Endpoint == "" {
+		//nolint:nilnil // documented contract: nil client when the limits service is not configured
 		return nil, nil
 	}
 	cli, err := connection.NewServiceClient(ctx, cfg, target, limitsv1connect.NewLimitsServiceClient)

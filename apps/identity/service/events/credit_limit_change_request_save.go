@@ -63,7 +63,7 @@ func (e *CreditLimitChangeRequestSave) Execute(ctx context.Context, payload any)
 	if !ok {
 		return errors.New("invalid payload type for credit_limit_change_request.save")
 	}
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "client_id": req.ClientID})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "client_id": req.ClientID})
 
 	existing, err := e.repo.GetByID(ctx, req.ID)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {

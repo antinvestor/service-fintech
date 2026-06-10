@@ -107,10 +107,10 @@ func (b *disbursementBusiness) Create(
 
 	if req.GetIdempotencyKey() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument,
-			fmt.Errorf("idempotency_key required for loan disbursement"))
+			errors.New("idempotency_key required for loan disbursement"))
 	}
 
-	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == "off" {
+	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
 		return b.createInner(ctx, req)
 	}
 
@@ -119,7 +119,7 @@ func (b *disbursementBusiness) Create(
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
 	}
-	intent := buildDisbursementIntent(la, ctx)
+	intent := buildDisbursementIntent(ctx, la)
 
 	var result *loansv1.DisbursementObject
 	gateErr := limits.Gate(ctx, b.limitsCli, intent, req.GetIdempotencyKey(), limits.ParseMode(b.limitsGateMode),
@@ -243,14 +243,14 @@ func (b *disbursementBusiness) createInner( //nolint:funlen // sequential disbur
 		Action:     "loan.disbursed",
 		Reason:     "loan principal disbursed to recipient",
 		After: data.JSONMap{
-			"status":                disb.Status,
+			fieldStatus:             disb.Status,
 			"ledger_transaction_id": disb.LedgerTransactionID,
 		},
 		Metadata: data.JSONMap{
-			"loan_account_id":     la.GetID(),
-			"client_id":           la.ClientID,
-			"amount":              la.PrincipalAmount,
-			"currency":            la.CurrencyCode,
+			fieldLoanAccountID:    la.GetID(),
+			fieldClientID:         la.ClientID,
+			fieldAmount:           la.PrincipalAmount,
+			fieldCurrency:         la.CurrencyCode,
 			"channel":             req.GetChannel(),
 			"recipient_reference": req.GetRecipientReference(),
 			"idempotency_key":     req.GetIdempotencyKey(),
@@ -275,7 +275,7 @@ func (b *disbursementBusiness) createInner( //nolint:funlen // sequential disbur
 }
 
 // buildDisbursementIntent constructs a LimitIntent from the loan account.
-func buildDisbursementIntent(la *models.LoanAccount, ctx context.Context) *limitsv1.LimitIntent {
+func buildDisbursementIntent(ctx context.Context, la *models.LoanAccount) *limitsv1.LimitIntent {
 	return &limitsv1.LimitIntent{
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		TenantId: la.OrganizationID,
@@ -317,9 +317,9 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 				State:            commonv1.STATE_ACTIVE,
 				ExtraData: (&data.JSONMap{
 					"loan_id":             la.GetID(),
-					"loan_request_id":     loanRequestID,
+					fieldLoanRequestID:    loanRequestID,
 					"recipient_id":        la.ClientID,
-					"client_id":           la.ClientID,
+					fieldClientID:         la.ClientID,
 					"payment_channel":     req.GetChannel(),
 					"payment_account_ref": la.PaymentAccountRef,
 				}).ToProtoStruct(),

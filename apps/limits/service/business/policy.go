@@ -75,6 +75,7 @@ func NewPolicyBusiness(
 	}
 }
 
+//nolint:gocognit // save + snapshot + audit is one atomic flow; splitting obscures tx boundaries
 func (b *policyBusiness) Save(ctx context.Context, in *limitsv1.PolicyObject) (*limitsv1.PolicyObject, error) {
 	log := util.Log(ctx).WithField("method", "PolicyBusiness.Save")
 
@@ -84,8 +85,8 @@ func (b *policyBusiness) Save(ctx context.Context, in *limitsv1.PolicyObject) (*
 		return nil, fmt.Errorf("%w: %s", ErrInvalidPolicy, err.Error())
 	}
 
-	if err := validatePolicy(pol); err != nil {
-		return nil, err
+	if vErr := validatePolicy(pol); vErr != nil {
+		return nil, vErr
 	}
 
 	// Snapshot version counter is managed separately from data.BaseModel.Version
@@ -95,9 +96,9 @@ func (b *policyBusiness) Save(ctx context.Context, in *limitsv1.PolicyObject) (*
 
 	isUpdate := pol.ID != ""
 	if isUpdate {
-		prior, err := b.repo.Get(ctx, pol.ID)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrPolicyNotFound, err.Error())
+		prior, getErr := b.repo.Get(ctx, pol.ID)
+		if getErr != nil {
+			return nil, fmt.Errorf("%w: %s", ErrPolicyNotFound, getErr.Error())
 		}
 		// Preserve immutable fields so Frame's BeforeUpdate does not lose them.
 		pol.CreatedAt = prior.CreatedAt
@@ -105,12 +106,12 @@ func (b *policyBusiness) Save(ctx context.Context, in *limitsv1.PolicyObject) (*
 		// Carry the Frame optimistic-lock version so BeforeUpdate increments it correctly.
 		pol.Version = prior.Version
 
-		existing, err := b.verRepo.List(ctx, pol.ID)
-		if err != nil {
-			log.WithError(err).Warn("could not count existing versions; defaulting to 1")
+		existing, listErr := b.verRepo.List(ctx, pol.ID)
+		if listErr != nil {
+			log.WithError(listErr).Warn("could not count existing versions; defaulting to 1")
 			snapshotVersion = 1
 		} else {
-			snapshotVersion = int32(len(existing)) + 1 //nolint:gosec
+			snapshotVersion = int32(len(existing)) + 1 //nolint:gosec // snapshot counts never approach int32 range
 		}
 	} else {
 		snapshotVersion = 1
@@ -122,6 +123,7 @@ func (b *policyBusiness) Save(ctx context.Context, in *limitsv1.PolicyObject) (*
 	var apiOut *limitsv1.PolicyObject
 	var snapshot []byte
 
+	//nolint:nestif // tx-vs-non-tx fallback paths are clearer inline
 	if b.dbPool != nil && b.auditing != nil {
 		tx := b.dbPool.DB(ctx, false).Begin()
 		if tx.Error != nil {
@@ -134,19 +136,19 @@ func (b *policyBusiness) Save(ctx context.Context, in *limitsv1.PolicyObject) (*
 			}
 		}()
 
-		if err := b.repo.SaveTx(ctx, tx, pol); err != nil {
-			return nil, err
+		if saveErr := b.repo.SaveTx(ctx, tx, pol); saveErr != nil {
+			return nil, saveErr
 		}
 		if auditErr := b.auditing.RecordPolicySavedTx(ctx, tx, pol); auditErr != nil {
 			return nil, auditErr
 		}
-		if err := tx.Commit().Error; err != nil {
-			return nil, err
+		if commitErr := tx.Commit().Error; commitErr != nil {
+			return nil, commitErr
 		}
 		txCommitted = true
 	} else {
-		if err := b.repo.Save(ctx, pol); err != nil {
-			return nil, err
+		if saveErr := b.repo.Save(ctx, pol); saveErr != nil {
+			return nil, saveErr
 		}
 	}
 
@@ -161,14 +163,14 @@ func (b *policyBusiness) Save(ctx context.Context, in *limitsv1.PolicyObject) (*
 		log.WithError(marshalErr).Error("failed to marshal policy snapshot")
 	}
 	if snapshot != nil {
-		if err := b.verRepo.Append(ctx, &models.PolicyVersion{
+		if appendErr := b.verRepo.Append(ctx, &models.PolicyVersion{
 			PolicyID: pol.ID,
 			Version:  snapshotVersion,
 			Snapshot: snapshot,
-		}); err != nil {
+		}); appendErr != nil {
 			// Audit-only: log and continue. The policy is saved; missing version
 			// rows are recoverable via reconciliation.
-			log.WithError(err).Error("failed to append policy version snapshot")
+			log.WithError(appendErr).Error("failed to append policy version snapshot")
 		}
 	}
 
@@ -223,8 +225,8 @@ func (b *policyBusiness) Search(ctx context.Context, req *limitsv1.PolicySearchR
 		for i, p := range out.Items {
 			api[i] = p.ToAPI()
 		}
-		if err := batch(ctx, api); err != nil {
-			return err
+		if batchErr := batch(ctx, api); batchErr != nil {
+			return batchErr
 		}
 		if out.NextCursor == "" {
 			return nil
@@ -239,6 +241,7 @@ func (b *policyBusiness) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("%w: %s", ErrPolicyNotFound, err.Error())
 	}
 
+	//nolint:nestif // tx-vs-non-tx fallback paths are clearer inline
 	if b.dbPool != nil && b.auditing != nil {
 		tx := b.dbPool.DB(ctx, false).Begin()
 		if tx.Error != nil {
@@ -256,13 +259,13 @@ func (b *policyBusiness) Delete(ctx context.Context, id string) error {
 		if auditErr := b.auditing.RecordPolicyDeletedTx(ctx, tx, pol); auditErr != nil {
 			return auditErr
 		}
-		if err := tx.Commit().Error; err != nil {
-			return err
+		if commitErr := tx.Commit().Error; commitErr != nil {
+			return commitErr
 		}
 		txCommitted = true
 	} else {
-		if err := b.repo.Delete(ctx, id); err != nil {
-			return err
+		if delErr := b.repo.Delete(ctx, id); delErr != nil {
+			return delErr
 		}
 	}
 
@@ -287,7 +290,7 @@ func (b *policyBusiness) ListVersions(ctx context.Context, policyID string) ([]*
 	out := make([]*limitsv1.PolicyObject, 0, len(rows))
 	for _, r := range rows {
 		var snap limitsv1.PolicyObject
-		if err := protojson.Unmarshal(r.Snapshot, &snap); err != nil {
+		if uErr := protojson.Unmarshal(r.Snapshot, &snap); uErr != nil {
 			continue
 		}
 		snap.ModifiedAt = timestamppb.New(r.CreatedAt)

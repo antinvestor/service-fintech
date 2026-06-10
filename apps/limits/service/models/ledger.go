@@ -26,6 +26,8 @@ import (
 // LedgerEntry is the per-(reservation, subject) row used by rolling-window
 // scans. Created when a reservation is committed; its ReversedAt is set
 // when the reservation is reversed.
+//
+//nolint:recvcheck // TableName uses a value receiver per GORM convention; converters need pointers
 type LedgerEntry struct {
 	data.BaseModel `gorm:"embedded"`
 

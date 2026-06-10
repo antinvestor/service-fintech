@@ -55,7 +55,7 @@ func (e *InvestorSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Investor")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "investor_id": investor.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "investor_id": investor.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.investorRepo.GetByID(ctx, investor.GetID())

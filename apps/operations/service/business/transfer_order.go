@@ -229,14 +229,14 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 		Action:     "transfer_order.executed",
 		Reason:     fmt.Sprintf("posted %s ledger transaction", typeName),
 		After: data.JSONMap{
-			"state":                 "inactive",
+			fieldState:              "inactive",
 			"ledger_transaction_id": ledgerTxnID,
 		},
 		Metadata: data.JSONMap{
 			"order_type":         orderType,
 			"order_type_name":    typeName,
-			"amount":             order.Amount,
-			"currency":           order.Currency,
+			fieldAmount:          order.Amount,
+			fieldCurrency:        order.Currency,
 			"debit_account_ref":  order.DebitAccountRef,
 			"credit_account_ref": order.CreditAccountRef,
 			"reference":          order.Reference,
@@ -586,7 +586,7 @@ func (b *transferOrderBusiness) redistributeRepayment(
 		distributed += share
 	}
 
-	logger.WithFields(map[string]any{"amount": amount, "distributed": distributed, "funding_sources": len(fundings)}).
+	logger.WithFields(map[string]any{fieldAmount: amount, "distributed": distributed, "funding_sources": len(fundings)}).
 		Info("repayment redistribution completed")
 }
 

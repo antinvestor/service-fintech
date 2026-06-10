@@ -183,7 +183,7 @@ func (s *ReservationReaperSuite) TestReservationReaper_BatchLimit() {
 	smallReaper := business.NewReservationReaper(resvRepo, auditing, 2)
 
 	past := time.Now().Add(-1 * time.Minute).UTC()
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		resv := sampleResvForReaper(fmt.Sprintf("reaper-batch-%d", i), models.ReservationStatusActive, past)
 		s.Require().NoError(resvRepo.Create(ctx, resv))
 	}
@@ -192,13 +192,13 @@ func (s *ReservationReaperSuite) TestReservationReaper_BatchLimit() {
 	s.Require().NoError(smallReaper.Run(ctx))
 	rows, err := resvRepo.ListExpiredActive(ctx, time.Now().UTC(), 1000)
 	s.Require().NoError(err)
-	s.Equal(3, len(rows), "3 should remain after first pass")
+	s.Len(rows, 3, "3 should remain after first pass")
 
 	// Second pass: expires 2 more.
 	s.Require().NoError(smallReaper.Run(ctx))
 	rows, err = resvRepo.ListExpiredActive(ctx, time.Now().UTC(), 1000)
 	s.Require().NoError(err)
-	s.Equal(1, len(rows), "1 should remain after second pass")
+	s.Len(rows, 1, "1 should remain after second pass")
 
 	// Third pass: expires the last one.
 	s.Require().NoError(smallReaper.Run(ctx))

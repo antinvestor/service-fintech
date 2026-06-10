@@ -55,7 +55,7 @@ func (e *SavingsProductSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.SavingsProduct")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "savings_product_id": sp.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "savings_product_id": sp.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, sp.GetID())

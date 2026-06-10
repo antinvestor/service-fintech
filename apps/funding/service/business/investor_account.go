@@ -130,6 +130,8 @@ func (b *investorAccountBusiness) GetByInvestorID(
 // When the limits gate is enabled, a reservation is obtained from the limits
 // service before execution proceeds. DENY returns an error; PENDING_APPROVAL
 // returns PendingApprovalError.
+//
+//nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Deposit(
 	ctx context.Context,
 	accountID string,
@@ -138,7 +140,7 @@ func (b *investorAccountBusiness) Deposit(
 ) error {
 	if idempotencyKey == "" {
 		return connect.NewError(connect.CodeInvalidArgument,
-			fmt.Errorf("idempotency_key required"))
+			errors.New("idempotency_key required"))
 	}
 
 	if !b.limitsDepositEnabled || b.limitsCli == nil || b.limitsDepositMode == "off" {
@@ -214,12 +216,12 @@ func (b *investorAccountBusiness) depositInner(
 		EntityID:   accountID,
 		Action:     "investor.capital.deposited",
 		Reason:     "investor capital inflow settled on ledger",
-		Before:     data.JSONMap{"available_balance": account.AvailableBalance},
-		After:      data.JSONMap{"available_balance": fresh.AvailableBalance},
+		Before:     data.JSONMap{fieldAvailableBalance: account.AvailableBalance},
+		After:      data.JSONMap{fieldAvailableBalance: fresh.AvailableBalance},
 		Metadata: data.JSONMap{
-			"investor_id": account.InvestorID,
-			"amount":      amount,
-			"currency":    account.Currency,
+			fieldInvestorID: account.InvestorID,
+			fieldAmount:     amount,
+			fieldCurrency:   account.Currency,
 		},
 		Parent: &fresh.BaseModel,
 	}, func(auErr error) {
@@ -235,7 +237,7 @@ func (b *investorAccountBusiness) depositInner(
 	FundingDeposits.Add(ctx, 1, depAttrs)
 	FundingDepositsAmount.Add(ctx, float64(amount)/minorUnitsPerMajor, depAttrs)
 
-	logger.WithFields(map[string]any{"account_id": accountID, "amount": amount}).
+	logger.WithFields(map[string]any{"account_id": accountID, fieldAmount: amount}).
 		Info("investor deposit processed")
 	return nil
 }
@@ -253,6 +255,8 @@ func (b *investorAccountBusiness) depositInner(
 // When the limits gate is enabled, a reservation is obtained from the limits
 // service before execution proceeds. DENY returns an error; PENDING_APPROVAL
 // returns PendingApprovalError.
+//
+//nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Withdraw(
 	ctx context.Context,
 	accountID string,
@@ -261,7 +265,7 @@ func (b *investorAccountBusiness) Withdraw(
 ) error {
 	if idempotencyKey == "" {
 		return connect.NewError(connect.CodeInvalidArgument,
-			fmt.Errorf("idempotency_key required"))
+			errors.New("idempotency_key required"))
 	}
 
 	if !b.limitsWithdrawEnabled || b.limitsCli == nil || b.limitsWithdrawMode == "off" {
@@ -343,12 +347,12 @@ func (b *investorAccountBusiness) withdrawInner(
 		EntityID:   accountID,
 		Action:     "investor.capital.withdrawn",
 		Reason:     "investor capital outflow settled on ledger",
-		Before:     data.JSONMap{"available_balance": account.AvailableBalance},
-		After:      data.JSONMap{"available_balance": fresh.AvailableBalance},
+		Before:     data.JSONMap{fieldAvailableBalance: account.AvailableBalance},
+		After:      data.JSONMap{fieldAvailableBalance: fresh.AvailableBalance},
 		Metadata: data.JSONMap{
-			"investor_id": fresh.InvestorID,
-			"amount":      amount,
-			"currency":    fresh.Currency,
+			fieldInvestorID: fresh.InvestorID,
+			fieldAmount:     amount,
+			fieldCurrency:   fresh.Currency,
 		},
 		Parent: &fresh.BaseModel,
 	}, func(auErr error) {
@@ -364,7 +368,7 @@ func (b *investorAccountBusiness) withdrawInner(
 	FundingWithdrawals.Add(ctx, 1, wdrAttrs)
 	FundingWithdrawalsAmount.Add(ctx, float64(amount)/minorUnitsPerMajor, wdrAttrs)
 
-	logger.WithFields(map[string]any{"account_id": accountID, "amount": amount}).
+	logger.WithFields(map[string]any{"account_id": accountID, fieldAmount: amount}).
 		Info("investor withdrawal processed")
 	return nil
 }
@@ -459,7 +463,7 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 
 	extraData := data.JSONMap{
 		"investor_account_id": account.GetID(),
-		"investor_id":         account.InvestorID,
+		fieldInvestorID:       account.InvestorID,
 	}
 
 	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{

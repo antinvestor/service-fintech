@@ -129,7 +129,7 @@ func (b *clientGroupBusiness) Search(
 	if query != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
-				map[string]any{"searchable @@ websearch_to_tsquery( 'english', ?) ": query},
+				map[string]any{searchableTSQuery: query},
 			),
 		)
 	}

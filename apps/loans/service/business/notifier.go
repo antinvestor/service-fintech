@@ -41,7 +41,7 @@ func NewLoanNotifier(client notificationv1connect.NotificationServiceClient) *Lo
 func (n *LoanNotifier) NotifyLoanApproved(ctx context.Context, clientContact, clientName, loanAmount, currency string) {
 	data := map[string]string{
 		"loan_amount": loanAmount,
-		"currency":    currency,
+		fieldCurrency: currency,
 	}
 	n.send(ctx, "loan_approved", clientContact, clientName, data, notificationv1.PRIORITY_HIGH)
 }
@@ -52,8 +52,8 @@ func (n *LoanNotifier) NotifyRepaymentReceived(
 	clientContact, clientName, amount, currency, remainingBalance string,
 ) {
 	data := map[string]string{
-		"amount":            amount,
-		"currency":          currency,
+		fieldAmount:         amount,
+		fieldCurrency:       currency,
 		"remaining_balance": remainingBalance,
 	}
 	n.send(ctx, "repayment_received", clientContact, clientName, data, notificationv1.PRIORITY_LOW)

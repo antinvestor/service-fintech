@@ -55,7 +55,7 @@ func (e *RepaymentSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Repayment")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "repayment_id": r.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "repayment_id": r.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repaymentRepo.GetByID(ctx, r.GetID())

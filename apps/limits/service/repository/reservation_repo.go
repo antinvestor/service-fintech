@@ -217,9 +217,9 @@ func (r *reservationRepository) SetCommitted(ctx context.Context, id string, at 
 	res := db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusActive)).
 		Updates(map[string]any{
-			"status":       string(models.ReservationStatusCommitted),
+			colStatus:      string(models.ReservationStatusCommitted),
 			"committed_at": at,
-			"modified_at":  at,
+			colModifiedAt:  at,
 		})
 	if res.Error != nil {
 		return res.Error
@@ -235,9 +235,9 @@ func (r *reservationRepository) SetCommittedTx(ctx context.Context, tx *gorm.DB,
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusActive)).
 		Updates(map[string]any{
-			"status":       string(models.ReservationStatusCommitted),
+			colStatus:      string(models.ReservationStatusCommitted),
 			"committed_at": at,
-			"modified_at":  at,
+			colModifiedAt:  at,
 		})
 	if res.Error != nil {
 		return res.Error
@@ -253,10 +253,10 @@ func (r *reservationRepository) SetReleased(ctx context.Context, id, reason stri
 	res := db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status IN ?", id, []string{string(models.ReservationStatusActive), string(models.ReservationStatusPendingApproval)}).
 		Updates(map[string]any{
-			"status":      string(models.ReservationStatusReleased),
+			colStatus:     string(models.ReservationStatusReleased),
 			"released_at": at,
 			"notes":       reason,
-			"modified_at": at,
+			colModifiedAt: at,
 		})
 	if res.Error != nil {
 		return res.Error
@@ -272,10 +272,10 @@ func (r *reservationRepository) SetReleasedTx(ctx context.Context, tx *gorm.DB, 
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status IN ?", id, []string{string(models.ReservationStatusActive), string(models.ReservationStatusPendingApproval)}).
 		Updates(map[string]any{
-			"status":      string(models.ReservationStatusReleased),
+			colStatus:     string(models.ReservationStatusReleased),
 			"released_at": at,
 			"notes":       reason,
-			"modified_at": at,
+			colModifiedAt: at,
 		})
 	if res.Error != nil {
 		return res.Error
@@ -290,7 +290,7 @@ func (r *reservationRepository) SetExpired(ctx context.Context, id string, at ti
 	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusActive)).
-		Updates(map[string]any{"status": string(models.ReservationStatusExpired), "modified_at": at}).Error
+		Updates(map[string]any{colStatus: string(models.ReservationStatusExpired), colModifiedAt: at}).Error
 }
 
 func (r *reservationRepository) BulkSetExpired(ctx context.Context, ids []string, at time.Time) (int, error) {
@@ -303,8 +303,8 @@ func (r *reservationRepository) BulkSetExpired(ctx context.Context, ids []string
 		Table(models.Reservation{}.TableName()).
 		Where("id IN ? AND status = ?", ids, string(models.ReservationStatusActive)).
 		Updates(map[string]any{
-			"status":      string(models.ReservationStatusExpired),
-			"modified_at": at,
+			colStatus:     string(models.ReservationStatusExpired),
+			colModifiedAt: at,
 		})
 	return int(res.RowsAffected), res.Error
 }
@@ -313,14 +313,14 @@ func (r *reservationRepository) SetReversed(ctx context.Context, id string, at t
 	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ?", id).
-		Updates(map[string]any{"status": string(models.ReservationStatusReversed), "modified_at": at}).Error
+		Updates(map[string]any{colStatus: string(models.ReservationStatusReversed), colModifiedAt: at}).Error
 }
 
 func (r *reservationRepository) SetReversedTx(ctx context.Context, tx *gorm.DB, id string, at time.Time) error {
 	res := tx.WithContext(ctx).
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusCommitted)).
-		Updates(map[string]any{"status": string(models.ReservationStatusReversed), "modified_at": at})
+		Updates(map[string]any{colStatus: string(models.ReservationStatusReversed), colModifiedAt: at})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -334,7 +334,7 @@ func (r *reservationRepository) SetPendingApproval(ctx context.Context, id strin
 	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ?", id).
-		Updates(map[string]any{"status": string(models.ReservationStatusPendingApproval), "modified_at": time.Now().UTC()}).
+		Updates(map[string]any{colStatus: string(models.ReservationStatusPendingApproval), colModifiedAt: time.Now().UTC()}).
 		Error
 }
 
@@ -342,14 +342,16 @@ func (r *reservationRepository) SetActive(ctx context.Context, id string) error 
 	db := r.dbPool.DB(ctx, false)
 	return db.Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusPendingApproval)).
-		Updates(map[string]any{"status": string(models.ReservationStatusActive), "modified_at": time.Now().UTC()}).Error
+		Updates(map[string]any{colStatus: string(models.ReservationStatusActive), colModifiedAt: time.Now().UTC()}).
+		Error
 }
 
 func (r *reservationRepository) SetActiveTx(ctx context.Context, tx *gorm.DB, id string) error {
 	return tx.WithContext(ctx).
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusPendingApproval)).
-		Updates(map[string]any{"status": string(models.ReservationStatusActive), "modified_at": time.Now().UTC()}).Error
+		Updates(map[string]any{colStatus: string(models.ReservationStatusActive), colModifiedAt: time.Now().UTC()}).
+		Error
 }
 
 func (r *reservationRepository) HardDeleteTerminalBefore(ctx context.Context, cutoff time.Time) (int, error) {
@@ -367,13 +369,13 @@ func (r *reservationRepository) HardDeleteTerminalBefore(ctx context.Context, cu
 		// delete the rows.
 		res := r.dbPool.DB(ctx, false).Unscoped().
 			Where("status IN ? AND modified_at < ?", terminalStatuses, cutoff).
-			Limit(1000).
+			Limit(hardDeleteBatchSize).
 			Delete(&models.Reservation{})
 		if res.Error != nil {
 			return total, res.Error
 		}
 		total += int(res.RowsAffected)
-		if res.RowsAffected < 1000 {
+		if res.RowsAffected < hardDeleteBatchSize {
 			break
 		}
 	}

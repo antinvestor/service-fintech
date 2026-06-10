@@ -55,7 +55,7 @@ func (e *ClientDataEntrySave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.ClientDataEntry")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "entry_id": entry.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "entry_id": entry.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.entryRepo.GetByID(ctx, entry.GetID())

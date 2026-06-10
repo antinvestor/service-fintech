@@ -44,9 +44,16 @@ type emittedEvent struct {
 	Payload any
 }
 
-func (s *stubEventsManager) Add(_ fevents.EventI)                 {}
-func (s *stubEventsManager) Get(_ string) (fevents.EventI, error) { return nil, nil }
-func (s *stubEventsManager) Handler() queue.SubscribeWorker       { return nil }
+func (s *stubEventsManager) Add(_ fevents.EventI) {}
+func (s *stubEventsManager) Get(_ string) (fevents.EventI, error) {
+	return nil, nil //nolint:nilnil // no-op stub: tests never look up events
+}
+func (s *stubEventsManager) Handler() queue.SubscribeWorker { return nil }
+
+// Strict / SetStrict satisfy events.Manager (frame >=v1.98.2); the stub
+// never consumes from a queue, so strict mode is irrelevant here.
+func (s *stubEventsManager) Strict() bool   { return true }
+func (s *stubEventsManager) SetStrict(bool) {}
 func (s *stubEventsManager) Emit(_ context.Context, name string, payload any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

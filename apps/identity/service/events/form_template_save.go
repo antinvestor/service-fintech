@@ -55,7 +55,7 @@ func (e *FormTemplateSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.FormTemplate")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "form_template_id": ft.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "form_template_id": ft.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.formTemplateRepo.GetByID(ctx, ft.GetID())

@@ -79,7 +79,7 @@ func (b *tenureBusiness) Open(ctx context.Context, groupID string) (*models.Tenu
 
 	// Determine next position from latest tenure
 	var nextPosition int32 = 1
-	latestTenure, err := b.tenRepo.GetLastestBy(ctx, map[string]any{"group_id": groupID})
+	latestTenure, err := b.tenRepo.GetLastestBy(ctx, map[string]any{fieldGroupID: groupID})
 	if err == nil && latestTenure != nil {
 		nextPosition = latestTenure.Position + 1
 	}

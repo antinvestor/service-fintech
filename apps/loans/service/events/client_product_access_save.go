@@ -58,7 +58,7 @@ func (e *ClientProductAccessSave) Execute(ctx context.Context, payload any) erro
 		return errors.New("payload is not of type models.ClientProductAccess")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "cpa_id": cpa.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "cpa_id": cpa.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.cpaRepo.GetByID(ctx, cpa.GetID())

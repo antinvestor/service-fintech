@@ -26,6 +26,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -223,7 +224,7 @@ func (s *AdminIntegrationSuite) TestFullLifecycle() {
 			}
 		}
 	}
-	if searchErr := searchStream.Err(); searchErr != nil && searchErr != io.EOF {
+	if searchErr := searchStream.Err(); searchErr != nil && !errors.Is(searchErr, io.EOF) {
 		s.Require().NoError(searchErr, "search stream closed with error")
 	}
 	s.True(found, "search must return the saved policy")

@@ -38,6 +38,8 @@ const (
 // Multiple requests may exist for a single reservation if multiple policies
 // each require approval; the reservation transitions to ACTIVE only when
 // every request reaches APPROVED.
+//
+//nolint:recvcheck // TableName uses a value receiver per GORM convention; converters need pointers
 type ApprovalRequest struct {
 	data.BaseModel `gorm:"embedded"`
 

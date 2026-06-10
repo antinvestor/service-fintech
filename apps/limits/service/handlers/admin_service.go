@@ -80,7 +80,7 @@ func (s *AdminService) PolicySearch(
 	req *connect.Request[limitsv1.PolicySearchRequest],
 	stream *connect.ServerStream[limitsv1.PolicySearchResponse],
 ) error {
-	return s.policy.Search(ctx, req.Msg, func(ctx context.Context, items []*limitsv1.PolicyObject) error {
+	return s.policy.Search(ctx, req.Msg, func(_ context.Context, items []*limitsv1.PolicyObject) error {
 		return stream.Send(&limitsv1.PolicySearchResponse{Data: items})
 	})
 }
@@ -102,7 +102,7 @@ func (s *AdminService) ApprovalRequestList(
 	req *connect.Request[limitsv1.ApprovalRequestListRequest],
 	stream *connect.ServerStream[limitsv1.ApprovalRequestListResponse],
 ) error {
-	return s.approval.List(ctx, req.Msg, func(ctx context.Context, items []*limitsv1.ApprovalRequestObject) error {
+	return s.approval.List(ctx, req.Msg, func(_ context.Context, items []*limitsv1.ApprovalRequestObject) error {
 		return stream.Send(&limitsv1.ApprovalRequestListResponse{Data: items})
 	})
 }
@@ -137,7 +137,7 @@ func (s *AdminService) LedgerSearch(
 	req *connect.Request[limitsv1.LedgerSearchRequest],
 	stream *connect.ServerStream[limitsv1.LedgerSearchResponse],
 ) error {
-	return s.ledger.Search(ctx, req.Msg, func(ctx context.Context, items []*limitsv1.LedgerEntryObject) error {
+	return s.ledger.Search(ctx, req.Msg, func(_ context.Context, items []*limitsv1.LedgerEntryObject) error {
 		return stream.Send(&limitsv1.LedgerSearchResponse{Data: items})
 	})
 }
@@ -152,7 +152,7 @@ func (s *AdminService) LimitsAuditSearch(
 	if s.audit == nil {
 		return connect.NewError(connect.CodeUnimplemented, errors.New("audit search not wired"))
 	}
-	return s.audit.Search(ctx, req.Msg, func(ctx context.Context, items []*limitsv1.LimitsAuditEventObject) error {
+	return s.audit.Search(ctx, req.Msg, func(_ context.Context, items []*limitsv1.LimitsAuditEventObject) error {
 		return stream.Send(&limitsv1.LimitsAuditSearchResponse{Data: items})
 	})
 }

@@ -127,7 +127,7 @@ func (b *repaymentBusiness) Record(
 		}
 	}
 
-	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == "off" {
+	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
 		return b.recordInner(ctx, req)
 	}
 
@@ -149,7 +149,7 @@ func (b *repaymentBusiness) Record(
 	}
 	if req.GetIdempotencyKey() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument,
-			fmt.Errorf("idempotency_key required"))
+			errors.New("idempotency_key required"))
 	}
 	idemKey := "loan_repayment:" + req.GetLoanAccountId() + ":" + req.GetIdempotencyKey()
 
@@ -271,7 +271,7 @@ func (b *repaymentBusiness) recordInner( //nolint:funlen // sequential repayment
 		Action:     "repayment.applied",
 		Reason:     "inbound repayment applied via waterfall",
 		After: data.JSONMap{
-			"status":            alloc.status.String(),
+			fieldStatus:         alloc.status.String(),
 			"principal_applied": alloc.principalApplied,
 			"interest_applied":  alloc.interestApplied,
 			"fees_applied":      alloc.feesApplied,
@@ -279,10 +279,10 @@ func (b *repaymentBusiness) recordInner( //nolint:funlen // sequential repayment
 			"excess_amount":     alloc.excessAmount,
 		},
 		Metadata: data.JSONMap{
-			"loan_account_id":   la.GetID(),
-			"client_id":         la.ClientID,
-			"amount":            amount,
-			"currency":          la.CurrencyCode,
+			fieldLoanAccountID:  la.GetID(),
+			fieldClientID:       la.ClientID,
+			fieldAmount:         amount,
+			fieldCurrency:       la.CurrencyCode,
 			"channel":           req.GetChannel(),
 			"payment_reference": req.GetPaymentReference(),
 			"payer_reference":   req.GetPayerReference(),
@@ -396,10 +396,10 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 	memberAccount := constants.MemberLoansAccount(la.ClientID)
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 	baseExtraData := data.JSONMap{
-		"loan_id":         la.GetID(),
-		"loan_request_id": loanRequestID,
-		"client_id":       la.ClientID,
-		"repayment_id":    repayment.GetID(),
+		"loan_id":          la.GetID(),
+		fieldLoanRequestID: loanRequestID,
+		fieldClientID:      la.ClientID,
+		"repayment_id":     repayment.GetID(),
 	}
 
 	if alloc.principalApplied > 0 {

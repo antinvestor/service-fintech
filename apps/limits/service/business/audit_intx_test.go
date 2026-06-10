@@ -269,7 +269,7 @@ func (s *AuditInTxSuite) TestReleaseCascadeAudit() {
 			{UpTo: 500_000_00, Role: "manager", Approvers: 1},
 		},
 	}
-	seedPolicy(s.T(), ctx, policyRepo, polIn)
+	seedPolicy(ctx, s.T(), policyRepo, polIn)
 
 	// Reserve over cap → PENDING_APPROVAL.
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 500)

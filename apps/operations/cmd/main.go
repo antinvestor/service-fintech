@@ -252,7 +252,7 @@ func setupIdentityClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
-	dbPool pool.Pool,
+	_ pool.Pool,
 	toBiz business.TransferOrderBusiness,
 	prBiz business.PaymentRoutingBusiness,
 	toRepo repository.TransferOrderRepository,

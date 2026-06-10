@@ -110,14 +110,14 @@ func (b *penaltyBusiness) Save(ctx context.Context, obj *loansv1.PenaltyObject) 
 		Action:     "penalty.applied",
 		Reason:     penalty.Reason,
 		After: data.JSONMap{
-			"amount":                penalty.Amount,
-			"currency":              penalty.CurrencyCode,
+			fieldAmount:             penalty.Amount,
+			fieldCurrency:           penalty.CurrencyCode,
 			"is_waived":             penalty.IsWaived,
 			"ledger_transaction_id": penalty.LedgerTransactionID,
 		},
 		Metadata: data.JSONMap{
-			"loan_account_id": penalty.LoanAccountID,
-			"penalty_type":    penalty.PenaltyType,
+			fieldLoanAccountID: penalty.LoanAccountID,
+			"penalty_type":     penalty.PenaltyType,
 		},
 		Parent: &penalty.BaseModel,
 	}, func(auErr error) {
@@ -154,10 +154,10 @@ func (b *penaltyBusiness) postPenaltyAccrual(
 
 	reference := fmt.Sprintf("penalty:%s", penalty.GetID())
 	extraData := data.JSONMap{
-		"loan_account_id": penalty.LoanAccountID,
-		"penalty_id":      penalty.GetID(),
-		"penalty_type":    penalty.PenaltyType,
-		"client_id":       la.ClientID,
+		fieldLoanAccountID: penalty.LoanAccountID,
+		"penalty_id":       penalty.GetID(),
+		"penalty_type":     penalty.PenaltyType,
+		fieldClientID:      la.ClientID,
 	}
 
 	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{

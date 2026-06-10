@@ -74,7 +74,7 @@ func (b *groupBusiness) Get(ctx context.Context, id string) (*identityv1.ClientG
 
 func (b *groupBusiness) Transition(ctx context.Context, groupID string, newState int32, reason string) error {
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"method": "GroupBusiness.Transition", "group_id": groupID, "new_state": newState,
+		"method": "GroupBusiness.Transition", fieldGroupID: groupID, "new_state": newState,
 	})
 
 	group, err := b.Get(ctx, groupID)
@@ -135,7 +135,7 @@ func (b *groupBusiness) CheckFormation(ctx context.Context, groupID string) (map
 
 	formed := memberCount >= minMembers
 	result := map[string]interface{}{
-		"group_id":      groupID,
+		fieldGroupID:    groupID,
 		"member_count":  memberCount,
 		"min_members":   minMembers,
 		"formed":        formed,
