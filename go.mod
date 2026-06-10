@@ -37,7 +37,7 @@ require (
 	github.com/antinvestor/service-trustage v0.3.55
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/pitabwire/frame v1.98.3
+	github.com/pitabwire/frame v1.98.4
 	github.com/pitabwire/util v0.9.1
 	github.com/pitabwire/util/decimalx v0.7.2
 	github.com/pitabwire/util/moneyx v0.9.0
@@ -46,6 +46,7 @@ require (
 	github.com/tsenart/vegeta/v12 v12.13.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/metric v1.44.0
+	go.opentelemetry.io/otel/sdk/metric v1.44.0
 	google.golang.org/protobuf v1.36.11
 	gorm.io/datatypes v1.2.7
 	gorm.io/gorm v1.31.1
@@ -172,7 +173,6 @@ require (
 	go.opentelemetry.io/otel/log v0.20.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.20.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
