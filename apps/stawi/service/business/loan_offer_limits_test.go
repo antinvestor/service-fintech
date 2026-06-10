@@ -50,6 +50,11 @@ func (n *noopStawiEventsManager) Get(_ string) (fevents.EventI, error)          
 func (n *noopStawiEventsManager) Emit(_ context.Context, _ string, _ any) error { return nil }
 func (n *noopStawiEventsManager) Handler() queue.SubscribeWorker                { return nil }
 
+// Strict / SetStrict satisfy events.Manager (frame >=v1.98.2); the noop
+// manager never consumes from a queue, so strict mode is irrelevant here.
+func (n *noopStawiEventsManager) Strict() bool   { return true }
+func (n *noopStawiEventsManager) SetStrict(bool) {}
+
 var _ fevents.Manager = (*noopStawiEventsManager)(nil)
 
 // stubLoanOfferRepo implements repository.LoanOfferRepository.

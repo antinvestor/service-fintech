@@ -55,6 +55,11 @@ func (n *noopEventsManager) Get(_ string) (fevents.EventI, error)          { ret
 func (n *noopEventsManager) Emit(_ context.Context, _ string, _ any) error { return nil }
 func (n *noopEventsManager) Handler() queue.SubscribeWorker                { return nil }
 
+// Strict / SetStrict satisfy events.Manager (frame >=v1.98.2); the noop
+// manager never consumes from a queue, so strict mode is irrelevant here.
+func (n *noopEventsManager) Strict() bool   { return true }
+func (n *noopEventsManager) SetStrict(bool) {}
+
 // Compile-time check.
 var _ fevents.Manager = (*noopEventsManager)(nil)
 

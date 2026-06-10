@@ -28,10 +28,13 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/frame/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/frametests/rlstest"
 	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/tenancy"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"gorm.io/gorm"
 
 	identityevents "github.com/antinvestor/service-fintech/apps/identity/service/events"
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
@@ -86,9 +89,18 @@ func (s *orgUnitSuite) newEnv() *orgUnitTestEnv {
 	s.Require().NoError(err)
 	s.T().Cleanup(func() { cleanup(ctx) })
 
+	// frame enforces tenant isolation via Postgres RLS, and the
+	// testcontainer superuser bypasses RLS even with FORCE. rlstest
+	// drops every connection to an unprivileged role once Enable is
+	// called (after migration + grants below) so business/repository
+	// queries run with the same isolation guarantees as production.
+	s.Require().NoError(rlstest.CreateRole(ctx, dsn.String()))
+	rlsProv := rlstest.New()
+
 	ctx, svc := frame.NewServiceWithContext(
 		ctx,
 		frame.WithName("identity-org-unit-test"),
+		frame.WithTenancyProvider(rlsProv),
 		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
 	)
 	s.T().Cleanup(func() { svc.Stop(ctx) })
@@ -99,11 +111,23 @@ func (s *orgUnitSuite) newEnv() *orgUnitTestEnv {
 	s.Require().NotNil(dbPool)
 	workMan := svc.WorkManager()
 
-	s.Require().NoError(dbPool.DB(ctx, false).AutoMigrate(
+	migrationModels := []any{
 		&models.Organization{},
 		&models.Branch{},
 		&models.ApprovalCase{},
-	))
+	}
+
+	superDB := dbPool.DB(ctx, false)
+	s.Require().NoError(superDB.AutoMigrate(migrationModels...))
+
+	// Raw AutoMigrate does not run frame's tenancy install, so install
+	// the RLS policies explicitly, grant the test role access, then
+	// flip queries onto the unprivileged role.
+	enrolled, err := tenancy.EnrolledModels(superDB, migrationModels)
+	s.Require().NoError(err)
+	s.Require().NoError(rlsProv.Install(ctx, superDB, enrolled))
+	s.Require().NoError(rlstest.GrantAll(ctx, dsn.String()))
+	rlsProv.Enable()
 
 	organizationRepo := repository.NewOrganizationRepository(ctx, dbPool, workMan)
 	orgUnitRepo := repository.NewOrgUnitRepository(ctx, dbPool, workMan)
@@ -400,4 +424,72 @@ func (s *orgUnitSuite) TestOrgUnitSaveInheritsOrganizationPartition() {
 
 	// The org unit should inherit the organization's partition since no partition client is configured.
 	s.Equal(org.PartitionID, result.GetPartitionId())
+}
+
+// --- Cross-tenant RLS isolation ---
+
+// withTenant layers authentication claims for a different tenant on top
+// of the env's service context, so queries hit the same database but
+// run under another principal's tenancy scope.
+func (e *orgUnitTestEnv) withTenant(tenantID, partitionID, profileID string) context.Context {
+	return (&security.AuthenticationClaims{
+		TenantID:    tenantID,
+		PartitionID: partitionID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: profileID,
+		},
+	}).ClaimsToContext(e.ctx)
+}
+
+func (s *orgUnitSuite) TestOrganizationGetByIDCrossTenantReturnsNotFound() {
+	env := s.newEnv()
+	org := env.createOrganization("Org Tenant A Only", "org-tenant-a-only", "nairobi")
+
+	// Sanity: the owning tenant can read its own organization back.
+	got, err := env.organizationRepo.GetByID(env.ctx, org.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(org.GetID(), got.GetID())
+
+	// A principal from another tenant must not see the row at all.
+	ctxB := env.withTenant("tenant-intruder", "partition-intruder", "profile-intruder")
+	_, err = env.organizationRepo.GetByID(ctxB, org.GetID())
+	s.Require().Error(err, "cross-tenant GetByID must not return tenant A's organization")
+	s.Require().ErrorIs(err, gorm.ErrRecordNotFound)
+}
+
+func (s *orgUnitSuite) TestOrgUnitSearchCrossTenantReturnsEmpty() {
+	env := s.newEnv()
+	org := env.createOrganization("Org Search Isolation", "org-search-isolation", "kampala")
+	env.createOrgUnit(
+		org,
+		"Isolated HQ",
+		"isolated-hq",
+		"kampala",
+		"",
+		identityv1.OrgUnitType_ORG_UNIT_TYPE_REGION,
+	)
+
+	collect := func(out *[]*identityv1.OrgUnitObject) func(context.Context, []*identityv1.OrgUnitObject) error {
+		return func(_ context.Context, batch []*identityv1.OrgUnitObject) error {
+			*out = append(*out, batch...)
+			return nil
+		}
+	}
+
+	// Sanity: the owning tenant sees its unit.
+	var ownResults []*identityv1.OrgUnitObject
+	err := env.orgUnitBusiness.Search(env.ctx, &identityv1.OrgUnitSearchRequest{
+		OrganizationId: org.GetID(),
+	}, collect(&ownResults))
+	s.Require().NoError(err)
+	s.Require().Len(ownResults, 1)
+
+	// Another tenant searching with the very same organization id must get nothing.
+	ctxB := env.withTenant("tenant-intruder", "partition-intruder", "profile-intruder")
+	var intruderResults []*identityv1.OrgUnitObject
+	err = env.orgUnitBusiness.Search(ctxB, &identityv1.OrgUnitSearchRequest{
+		OrganizationId: org.GetID(),
+	}, collect(&intruderResults))
+	s.Require().NoError(err)
+	s.Empty(intruderResults, "tenant B must not see tenant A's org units")
 }

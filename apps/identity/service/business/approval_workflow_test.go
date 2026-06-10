@@ -31,12 +31,15 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/frame/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/frametests/rlstest"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/tenancy"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/structpb"
+	"gorm.io/gorm"
 
 	identityevents "github.com/antinvestor/service-fintech/apps/identity/service/events"
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
@@ -319,6 +322,32 @@ func (s *approvalWorkflowSuite) TestClientPhoneChangeActualizesOnlyAfterApproval
 	s.Equal("profile-approver", approvalCase.ApprovedBy)
 }
 
+func (s *approvalWorkflowSuite) TestClientGetByIDCrossTenantReturnsNotFound() {
+	env := s.newEnv()
+	org := env.createOrganization("Org Client Isolation", "org-client-isolation")
+	branch := env.createBranch(org, "Isolation Branch", "isolation-branch")
+	agent := env.createAgent(org, "Agent Isolation", "agent-profile-isolation")
+	env.assignAgentToBranch(agent, branch)
+	client := env.createClient(agent, "Isolated Client", "+256700000333")
+
+	// Sanity: the owning tenant can read its own client back.
+	got, err := env.clientRepo.GetByID(env.ctx, client.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(client.GetID(), got.GetID())
+
+	// A principal from another tenant must not see the client at all.
+	ctxB := (&security.AuthenticationClaims{
+		TenantID:    "tenant-intruder",
+		PartitionID: "partition-intruder",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: "profile-intruder",
+		},
+	}).ClaimsToContext(env.ctx)
+	_, err = env.clientRepo.GetByID(ctxB, client.GetID())
+	s.Require().Error(err, "cross-tenant GetByID must not return tenant A's client")
+	s.Require().ErrorIs(err, gorm.ErrRecordNotFound)
+}
+
 func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 	s.T().Helper()
 
@@ -338,9 +367,18 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		cleanup(ctx)
 	})
 
+	// frame enforces tenant isolation via Postgres RLS, and the
+	// testcontainer superuser bypasses RLS even with FORCE. rlstest
+	// drops every connection to an unprivileged role once Enable is
+	// called (after migration + grants below) so business/repository
+	// queries run with the same isolation guarantees as production.
+	s.Require().NoError(rlstest.CreateRole(ctx, dsn.String()))
+	rlsProv := rlstest.New()
+
 	ctx, svc := frame.NewServiceWithContext(
 		ctx,
 		frame.WithName("identity-approval-test"),
+		frame.WithTenancyProvider(rlsProv),
 		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
 	)
 	s.T().Cleanup(func() {
@@ -353,7 +391,7 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 	s.Require().NotNil(dbPool)
 	workMan := svc.WorkManager()
 
-	s.Require().NoError(dbPool.DB(ctx, false).AutoMigrate(
+	migrationModels := []any{
 		&models.Organization{},
 		&models.Branch{},
 		&models.Agent{},
@@ -366,7 +404,19 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		&models.WorkforceMember{},
 		&models.InternalTeam{},
 		&models.TeamMembership{},
-	))
+	}
+
+	superDB := dbPool.DB(ctx, false)
+	s.Require().NoError(superDB.AutoMigrate(migrationModels...))
+
+	// Raw AutoMigrate does not run frame's tenancy install, so install
+	// the RLS policies explicitly, grant the test role access, then
+	// flip queries onto the unprivileged role.
+	enrolled, err := tenancy.EnrolledModels(superDB, migrationModels)
+	s.Require().NoError(err)
+	s.Require().NoError(rlsProv.Install(ctx, superDB, enrolled))
+	s.Require().NoError(rlstest.GrantAll(ctx, dsn.String()))
+	rlsProv.Enable()
 
 	organizationRepo := repository.NewOrganizationRepository(ctx, dbPool, workMan)
 	orgUnitRepo := repository.NewOrgUnitRepository(ctx, dbPool, workMan)
@@ -465,6 +515,13 @@ func (m *immediateEventsManager) Emit(ctx context.Context, name string, payload 
 func (m *immediateEventsManager) Handler() queue.SubscribeWorker {
 	return nil
 }
+
+// Strict / SetStrict satisfy events.Manager (frame ≥v1.98.2); the
+// immediate manager never consumes from a queue, so the strict
+// unknown-event behaviour is irrelevant here.
+func (m *immediateEventsManager) Strict() bool { return true }
+
+func (m *immediateEventsManager) SetStrict(bool) {}
 
 func (s *approvalWorkflowSuite) databaseResource(ctx context.Context) definition.DependancyConn {
 	s.T().Helper()

@@ -37,6 +37,7 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	testpostgres "github.com/pitabwire/frame/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/frametests/rlstest"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -46,7 +47,6 @@ import (
 	"github.com/antinvestor/service-fintech/apps/limits/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 	"github.com/antinvestor/service-fintech/apps/limits/service/repository"
-	"github.com/antinvestor/service-fintech/apps/limits/tests/rlstest"
 )
 
 // CrossTenantSuite exercises the cross-tenant security boundaries.

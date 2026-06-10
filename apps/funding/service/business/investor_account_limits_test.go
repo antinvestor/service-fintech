@@ -51,6 +51,11 @@ func (n *noopFundingEventsManager) Get(_ string) (fevents.EventI, error)        
 func (n *noopFundingEventsManager) Emit(_ context.Context, _ string, _ any) error { return nil }
 func (n *noopFundingEventsManager) Handler() queue.SubscribeWorker                { return nil }
 
+// Strict / SetStrict satisfy events.Manager (frame >=v1.98.2); the noop
+// manager never consumes from a queue, so strict mode is irrelevant here.
+func (n *noopFundingEventsManager) Strict() bool   { return true }
+func (n *noopFundingEventsManager) SetStrict(bool) {}
+
 var _ fevents.Manager = (*noopFundingEventsManager)(nil)
 
 // stubInvestorAccountRepo implements repository.InvestorAccountRepository.

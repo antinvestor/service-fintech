@@ -52,6 +52,11 @@ func (n *noopTransferEventsManager) Get(_ string) (fevents.EventI, error)       
 func (n *noopTransferEventsManager) Emit(_ context.Context, _ string, _ any) error { return nil }
 func (n *noopTransferEventsManager) Handler() queue.SubscribeWorker                { return nil }
 
+// Strict / SetStrict satisfy events.Manager (frame >=v1.98.2); the noop
+// manager never consumes from a queue, so strict mode is irrelevant here.
+func (n *noopTransferEventsManager) Strict() bool   { return true }
+func (n *noopTransferEventsManager) SetStrict(bool) {}
+
 var _ fevents.Manager = (*noopTransferEventsManager)(nil)
 
 // stubTransferOrderRepo implements repository.TransferOrderRepository.
