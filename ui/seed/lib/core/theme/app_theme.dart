@@ -181,9 +181,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: cs.surfaceContainerHighest,
-        constraints: const BoxConstraints(
-          maxWidth: DesignTokens.maxFieldWidth,
-        ),
+        constraints: const BoxConstraints(maxWidth: DesignTokens.maxFieldWidth),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
@@ -410,9 +408,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: darkColorScheme.surfaceContainerHigh,
-        constraints: const BoxConstraints(
-          maxWidth: DesignTokens.maxFieldWidth,
-        ),
+        constraints: const BoxConstraints(maxWidth: DesignTokens.maxFieldWidth),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,

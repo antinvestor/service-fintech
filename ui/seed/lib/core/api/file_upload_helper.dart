@@ -48,15 +48,14 @@ Future<UploadResult> uploadPublicImageFull(
   if (token == null) throw Exception('Not authenticated');
 
   final uri = Uri.parse(
-      '${AppConfig.filesBaseUrl}/v1/media/upload?filename=${Uri.encodeComponent(filename)}');
+    '${AppConfig.filesBaseUrl}/v1/media/upload?filename=${Uri.encodeComponent(filename)}',
+  );
 
   final request = http.MultipartRequest('POST', uri)
     ..headers['Authorization'] = 'Bearer $token'
-    ..files.add(http.MultipartFile.fromBytes(
-      'file',
-      bytes,
-      filename: filename,
-    ));
+    ..files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: filename),
+    );
 
   debugPrint('[FileUpload] Uploading ${bytes.length} bytes to $uri');
 

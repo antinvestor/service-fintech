@@ -50,8 +50,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             branchName: loginContext.branchName,
           );
         } else {
-          tenancy.initializeFromLogin(LoginLevel.root,
-              partitionId: partitionId);
+          tenancy.initializeFromLogin(
+            LoginLevel.root,
+            partitionId: partitionId,
+          );
         }
       }
     } catch (_) {}
@@ -85,10 +87,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/auth/callback',
         builder: (context, state) => const _AuthCallbackScreen(),
@@ -107,7 +106,11 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (context, ref, _) => OrganizationsScreen(
                 filesBaseUrl: AppConfig.filesBaseUrl,
                 onPickLogo: (bytes, filename) async {
-                  final result = await uploadPublicImageFull(ref, bytes, filename);
+                  final result = await uploadPublicImageFull(
+                    ref,
+                    bytes,
+                    filename,
+                  );
                   return result.mxcUri;
                 },
               ),
@@ -120,7 +123,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                     organizationId: state.pathParameters['organizationId']!,
                     backRoute: '/organizations',
                     onPickLogo: (bytes, filename) async {
-                      final result = await uploadPublicImageFull(ref, bytes, filename);
+                      final result = await uploadPublicImageFull(
+                        ref,
+                        bytes,
+                        filename,
+                      );
                       return result.mxcUri;
                     },
                     filesBaseUrl: AppConfig.filesBaseUrl,
@@ -176,9 +183,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':teamId',
-                builder: (context, state) => TeamDetailScreen(
-                  teamId: state.pathParameters['teamId']!,
-                ),
+                builder: (context, state) =>
+                    TeamDetailScreen(teamId: state.pathParameters['teamId']!),
               ),
             ],
           ),

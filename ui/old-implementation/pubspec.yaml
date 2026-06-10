@@ -54,3 +54,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+dependency_overrides:
+  # Security floor: see ui/seed/pubspec.yaml — jose <=0.3.5 JWK advisory.
+  jose: '>=0.3.5+1'

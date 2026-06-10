@@ -146,8 +146,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     height: 52,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient:
-                            _isLoading ? null : DesignTokens.primaryGradient,
+                        gradient: _isLoading
+                            ? null
+                            : DesignTokens.primaryGradient,
                         color: _isLoading
                             ? theme.colorScheme.outlineVariant
                             : null,
@@ -174,8 +175,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 : const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.login,
-                                          size: 20, color: Colors.white),
+                                      Icon(
+                                        Icons.login,
+                                        size: 20,
+                                        color: Colors.white,
+                                      ),
                                       SizedBox(width: 8),
                                       Text(
                                         'Sign In',

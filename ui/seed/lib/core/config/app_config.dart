@@ -27,20 +27,20 @@ abstract final class AppConfig {
 
   // ── Identity service endpoint ───────────────────────────────────────────
 
-  static const String _identityExplicit =
-      String.fromEnvironment('IDENTITY_URL');
-  static String get identityBaseUrl =>
-      _identityExplicit.isNotEmpty ? _identityExplicit : '$_apiBaseUrl/identity';
+  static const String _identityExplicit = String.fromEnvironment(
+    'IDENTITY_URL',
+  );
+  static String get identityBaseUrl => _identityExplicit.isNotEmpty
+      ? _identityExplicit
+      : '$_apiBaseUrl/identity';
 
   // ── Platform service endpoints (profile, tenancy) ──────────────────────
 
-  static const String _profileExplicit =
-      String.fromEnvironment('PROFILE_URL');
+  static const String _profileExplicit = String.fromEnvironment('PROFILE_URL');
   static String get profileBaseUrl =>
       _profileExplicit.isNotEmpty ? _profileExplicit : '$_apiBaseUrl/profile';
 
-  static const String _tenancyExplicit =
-      String.fromEnvironment('TENANCY_URL');
+  static const String _tenancyExplicit = String.fromEnvironment('TENANCY_URL');
   static String get tenancyBaseUrl =>
       _tenancyExplicit.isNotEmpty ? _tenancyExplicit : '$_apiBaseUrl/tenancy';
 
@@ -58,8 +58,9 @@ abstract final class AppConfig {
 
   // ── Geolocation service endpoint ──────────────────────────────────
 
-  static const String _geolocationExplicit =
-      String.fromEnvironment('GEOLOCATION_URL');
+  static const String _geolocationExplicit = String.fromEnvironment(
+    'GEOLOCATION_URL',
+  );
   static String get geolocationBaseUrl => _geolocationExplicit.isNotEmpty
       ? _geolocationExplicit
       : '$_apiBaseUrl/geolocation';
@@ -73,14 +74,14 @@ abstract final class AppConfig {
   // ── All endpoints (for diagnostics) ─────────────────────────────────────
 
   static Map<String, String> get allEndpoints => {
-        'identity': identityBaseUrl,
-        'profile': profileBaseUrl,
-        'tenancy': tenancyBaseUrl,
-        'files': filesBaseUrl,
-        'audit': auditBaseUrl,
-        'geolocation': geolocationBaseUrl,
-        'thesa': thesaBaseUrl,
-      };
+    'identity': identityBaseUrl,
+    'profile': profileBaseUrl,
+    'tenancy': tenancyBaseUrl,
+    'files': filesBaseUrl,
+    'audit': auditBaseUrl,
+    'geolocation': geolocationBaseUrl,
+    'thesa': thesaBaseUrl,
+  };
 
   // ── Connection settings ─────────────────────────────────────────────────
 
