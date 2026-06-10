@@ -15,40 +15,45 @@
 package business
 
 import (
-	"go.opentelemetry.io/otel"
+	"github.com/pitabwire/frame/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
 
 // minorUnitsPerMajor converts minor currency units (e.g. cents) to major units (e.g. dollars).
 const minorUnitsPerMajor = 100.0
 
+// operationsMetrics creates transparently tenant-scoped instruments: every
+// measurement automatically carries tenant_id/partition_id derived from
+// the context's security claims, so call sites cannot forget tenant
+// attribution.
+//
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
-var operationsMeter = otel.Meter("service-operations")
+var operationsMetrics = telemetry.NewBusinessMetrics("service-operations")
 
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
 var (
-	OpsTransfersExecuted, _ = operationsMeter.Int64Counter("ops_transfers_executed_total",
-		metric.WithDescription("Transfer orders executed"),
+	OpsTransfersExecuted = operationsMetrics.Counter("ops_transfers_executed_total",
+		"Transfer orders executed",
 		metric.WithUnit("{transfer}"))
 
-	OpsTransfersAmount, _ = operationsMeter.Float64Counter("ops_transfers_amount_total",
-		metric.WithDescription("Total amount of executed transfers"),
+	OpsTransfersAmount = operationsMetrics.FloatCounter("ops_transfers_amount_total",
+		"Total amount of executed transfers",
 		metric.WithUnit("{currency_unit}"))
 
-	OpsPaymentsReceived, _ = operationsMeter.Int64Counter("ops_payments_received_total",
-		metric.WithDescription("Incoming payments received"),
+	OpsPaymentsReceived = operationsMetrics.Counter("ops_payments_received_total",
+		"Incoming payments received",
 		metric.WithUnit("{payment}"))
 
-	OpsPaymentsAmount, _ = operationsMeter.Float64Counter("ops_payments_amount_total",
-		metric.WithDescription("Total amount of incoming payments"),
+	OpsPaymentsAmount = operationsMetrics.FloatCounter("ops_payments_amount_total",
+		"Total amount of incoming payments",
 		metric.WithUnit("{currency_unit}"))
 
-	OpsPaymentsAllocated, _ = operationsMeter.Int64Counter("ops_payments_allocated_total",
-		metric.WithDescription("Payments successfully allocated to obligations"),
+	OpsPaymentsAllocated = operationsMetrics.Counter("ops_payments_allocated_total",
+		"Payments successfully allocated to obligations",
 		metric.WithUnit("{payment}"))
 
-	OpsPaymentsUnmatched, _ = operationsMeter.Int64Counter("ops_payments_unmatched_total",
-		metric.WithDescription("Payments that could not be identified"),
+	OpsPaymentsUnmatched = operationsMetrics.Counter("ops_payments_unmatched_total",
+		"Payments that could not be identified",
 		metric.WithUnit("{payment}"))
 )
 

@@ -15,29 +15,34 @@
 package business
 
 import (
-	"go.opentelemetry.io/otel"
+	"github.com/pitabwire/frame/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
 
+// identityMetrics creates transparently tenant-scoped instruments: every
+// measurement automatically carries tenant_id/partition_id derived from
+// the context's security claims, so call sites cannot forget tenant
+// attribution.
+//
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
-var identityMeter = otel.Meter("service-identity")
+var identityMetrics = telemetry.NewBusinessMetrics("service-identity")
 
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
 var (
-	IdentityOrganizationsCreated, _ = identityMeter.Int64Counter("identity_organizations_created_total",
-		metric.WithDescription("New organizations created"),
+	IdentityOrganizationsCreated = identityMetrics.Counter("identity_organizations_created_total",
+		"New organizations created",
 		metric.WithUnit("{organization}"))
 
-	IdentityOrgUnitsCreated, _ = identityMeter.Int64Counter("identity_org_units_created_total",
-		metric.WithDescription("New organizational units created"),
+	IdentityOrgUnitsCreated = identityMetrics.Counter("identity_org_units_created_total",
+		"New organizational units created",
 		metric.WithUnit("{org_unit}"))
 
-	IdentityWorkforceAdded, _ = identityMeter.Int64Counter("identity_workforce_added_total",
-		metric.WithDescription("Workforce members added"),
+	IdentityWorkforceAdded = identityMetrics.Counter("identity_workforce_added_total",
+		"Workforce members added",
 		metric.WithUnit("{member}"))
 
-	IdentityWorkforceRemoved, _ = identityMeter.Int64Counter("identity_workforce_removed_total",
-		metric.WithDescription("Workforce members removed (deactivated)"),
+	IdentityWorkforceRemoved = identityMetrics.Counter("identity_workforce_removed_total",
+		"Workforce members removed (deactivated)",
 		metric.WithUnit("{member}"))
 )
 

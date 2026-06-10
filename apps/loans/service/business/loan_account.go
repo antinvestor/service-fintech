@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
@@ -190,12 +189,7 @@ func (b *loanAccountBusiness) Create(ctx context.Context, loanRequestID string) 
 		}
 	}
 
-	audit := constants.AuditTrailFromContext(ctx)
-	LoansCreated.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("tenant_id", audit.TenantID),
-		attribute.String("partition_id", audit.PartitionID),
-		attribute.String("currency", la.CurrencyCode),
-	))
+	LoansCreated.Add(ctx, 1, attribute.String("currency", la.CurrencyCode))
 
 	return la.ToAPI(), nil
 }
@@ -763,21 +757,17 @@ func (b *loanAccountBusiness) TransitionStatus(
 }
 
 // recordLoanStatusTransition emits OTel counters for a loan status transition.
+// Tenant attribution is attached automatically from the context's claims.
 func recordLoanStatusTransition(ctx context.Context, newStatus loansv1.LoanStatus) {
-	auditCtx := constants.AuditTrailFromContext(ctx)
-	statusAttrs := metric.WithAttributes(
-		attribute.String("tenant_id", auditCtx.TenantID),
-		attribute.String("partition_id", auditCtx.PartitionID),
-	)
 	switch newStatus {
 	case loansv1.LoanStatus_LOAN_STATUS_DEFAULT:
-		LoansDefaulted.Add(ctx, 1, statusAttrs)
+		LoansDefaulted.Add(ctx, 1)
 	case loansv1.LoanStatus_LOAN_STATUS_CLOSED:
-		LoansClosed.Add(ctx, 1, statusAttrs)
+		LoansClosed.Add(ctx, 1)
 	case loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:
-		LoansRestructured.Add(ctx, 1, statusAttrs)
+		LoansRestructured.Add(ctx, 1)
 	case loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF:
-		LoansWrittenOff.Add(ctx, 1, statusAttrs)
+		LoansWrittenOff.Add(ctx, 1)
 	case loansv1.LoanStatus_LOAN_STATUS_UNSPECIFIED,
 		loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT,
 		loansv1.LoanStatus_LOAN_STATUS_ACTIVE,

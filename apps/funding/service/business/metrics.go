@@ -15,40 +15,45 @@
 package business
 
 import (
-	"go.opentelemetry.io/otel"
+	"github.com/pitabwire/frame/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
 
 // minorUnitsPerMajor converts minor currency units (e.g. cents) to major units (e.g. dollars).
 const minorUnitsPerMajor = 100.0
 
+// fundingMetrics creates transparently tenant-scoped instruments: every
+// measurement automatically carries tenant_id/partition_id derived from
+// the context's security claims, so call sites cannot forget tenant
+// attribution.
+//
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
-var fundingMeter = otel.Meter("service-funding")
+var fundingMetrics = telemetry.NewBusinessMetrics("service-funding")
 
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
 var (
-	FundingDeposits, _ = fundingMeter.Int64Counter("funding_deposits_total",
-		metric.WithDescription("Investor capital deposits"),
+	FundingDeposits = fundingMetrics.Counter("funding_deposits_total",
+		"Investor capital deposits",
 		metric.WithUnit("{deposit}"))
 
-	FundingDepositsAmount, _ = fundingMeter.Float64Counter("funding_deposits_amount_total",
-		metric.WithDescription("Total investor capital deposited"),
+	FundingDepositsAmount = fundingMetrics.FloatCounter("funding_deposits_amount_total",
+		"Total investor capital deposited",
 		metric.WithUnit("{currency_unit}"))
 
-	FundingWithdrawals, _ = fundingMeter.Int64Counter("funding_withdrawals_total",
-		metric.WithDescription("Investor capital withdrawals"),
+	FundingWithdrawals = fundingMetrics.Counter("funding_withdrawals_total",
+		"Investor capital withdrawals",
 		metric.WithUnit("{withdrawal}"))
 
-	FundingWithdrawalsAmount, _ = fundingMeter.Float64Counter("funding_withdrawals_amount_total",
-		metric.WithDescription("Total investor capital withdrawn"),
+	FundingWithdrawalsAmount = fundingMetrics.FloatCounter("funding_withdrawals_amount_total",
+		"Total investor capital withdrawn",
 		metric.WithUnit("{currency_unit}"))
 
-	FundingAllocations, _ = fundingMeter.Int64Counter("funding_allocations_total",
-		metric.WithDescription("Funding allocations completed for loan requests"),
+	FundingAllocations = fundingMetrics.Counter("funding_allocations_total",
+		"Funding allocations completed for loan requests",
 		metric.WithUnit("{allocation}"))
 
-	FundingAllocationsAmount, _ = fundingMeter.Float64Counter("funding_allocations_amount_total",
-		metric.WithDescription("Total funding allocated to loan requests"),
+	FundingAllocationsAmount = fundingMetrics.FloatCounter("funding_allocations_amount_total",
+		"Total funding allocated to loan requests",
 		metric.WithUnit("{currency_unit}"))
 )
 
