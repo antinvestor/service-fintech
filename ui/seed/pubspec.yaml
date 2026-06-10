@@ -18,6 +18,8 @@ dependencies:
     path: ../identity
   antinvestor_ui_limits:
     path: ../limits
+  antinvestor_ui_profile: ^0.2.1
+  antinvestor_ui_geolocation: ^0.2.1
   antinvestor_api_common: ^1.52.0
   antinvestor_api_files: ^1.54.0
   connectrpc: ^1.0.0
@@ -41,6 +43,10 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+# NOTE: the sibling-repo path overrides below mean this app only
+# resolves on a machine with common/ and service-profile/ checked out
+# beside service-fintech — CI cannot build it until antinvestor_ui_core
+# >=0.4.0 (and friends) are published to pub.dev.
 dependency_overrides:
   # Security floor: GHSA jose <=0.3.5 accepts untrusted JWK header keys
   # during signature verification; fixed in 0.3.5+1. The range keeps any

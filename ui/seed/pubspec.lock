@@ -103,7 +103,7 @@ packages:
     source: path
     version: "0.4.1"
   antinvestor_ui_geolocation:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       path: "../../../service-profile/ui/geolocation"
       relative: true
@@ -124,7 +124,7 @@ packages:
     source: path
     version: "0.1.0"
   antinvestor_ui_profile:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       path: "../../../service-profile/ui/profile"
       relative: true
