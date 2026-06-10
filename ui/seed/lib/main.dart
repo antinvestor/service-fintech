@@ -16,7 +16,7 @@ import 'package:http/http.dart' as http;
 
 import 'app/router.dart';
 import 'core/auth/auth_bridge.dart';
-import 'core/data/analytics_client.dart';
+import 'core/data/analytics_data_source.dart';
 import 'core/auth/permission_checker.dart';
 import 'core/auth/permission_manifests.dart';
 import 'core/config/app_config.dart';
@@ -61,8 +61,13 @@ void main() {
         }),
 
         // Analytics data source for dashboard (Thesa POST query API).
+        // Standard ui_core ThesaAnalyticsDataSource over an authenticated
+        // transport; the server injects tenant scope from the JWT.
         analyticsDataSourceProvider.overrideWith((ref) {
-          return RestAnalyticsDataSource(http.Client(), AppConfig.thesaBaseUrl);
+          final auth = ref.watch(authTokenProviderProvider);
+          return SeedAnalyticsDataSource(
+            seedAnalyticsTransport(http.Client(), auth, AppConfig.thesaBaseUrl),
+          );
         }),
 
         // ── Library endpoint overrides ──────────────────────────────

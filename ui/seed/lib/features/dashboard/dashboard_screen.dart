@@ -8,12 +8,14 @@ import 'package:antinvestor_ui_core/responsive/breakpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/data/analytics_client.dart';
+import '../../core/data/analytics_data_source.dart';
 
 /// Lending-focused analytics dashboard for Seed.
 ///
 /// Displays business health KPIs, today's snapshot, trend charts,
-/// and org unit proportions using the Thesa POST query API.
+/// and org unit proportions using the standardized Thesa analytics
+/// gate (ui_core's ThesaAnalyticsDataSource). Tenant scoping is
+/// injected server-side from the JWT; no tenant filters are sent.
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -52,8 +54,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _fetchAll());
   }
 
-  RestAnalyticsDataSource get _ds =>
-      ref.read(analyticsDataSourceProvider) as RestAnalyticsDataSource;
+  SeedAnalyticsDataSource get _ds =>
+      ref.read(analyticsDataSourceProvider) as SeedAnalyticsDataSource;
 
   AnalyticsTimeRange get _todayRange {
     final now = DateTime.now().toUtc();
@@ -76,91 +78,46 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final tr = _timeRange;
       final today = _todayRange;
 
-      final results = await Future.wait([
+      final results = await Future.wait<Object>([
         // 0: Total customers
         ds.queryScalar(
           metric: 'identity_organizations_created_total',
-          aggregation: 'sum',
           timeRange: tr,
         ),
         // 1: Loans created
-        ds.queryScalar(
-          metric: 'loans_created_total',
-          aggregation: 'sum',
-          timeRange: tr,
-        ),
+        ds.queryScalar(metric: 'loans_created_total', timeRange: tr),
         // 2: Loans closed
-        ds.queryScalar(
-          metric: 'loans_closed_total',
-          aggregation: 'sum',
-          timeRange: tr,
-        ),
+        ds.queryScalar(metric: 'loans_closed_total', timeRange: tr),
         // 3: Loans defaulted
-        ds.queryScalar(
-          metric: 'loans_defaulted_total',
-          aggregation: 'sum',
-          timeRange: tr,
-        ),
+        ds.queryScalar(metric: 'loans_defaulted_total', timeRange: tr),
         // 4: Loans written off
-        ds.queryScalar(
-          metric: 'loans_written_off_total',
-          aggregation: 'sum',
-          timeRange: tr,
-        ),
+        ds.queryScalar(metric: 'loans_written_off_total', timeRange: tr),
         // 5: Disbursed amount
-        ds.queryScalar(
-          metric: 'loans_disbursed_amount_total',
-          aggregation: 'sum',
-          timeRange: tr,
-        ),
+        ds.queryScalar(metric: 'loans_disbursed_amount_total', timeRange: tr),
         // 6: Repaid amount
-        ds.queryScalar(
-          metric: 'loans_repaid_amount_total',
-          aggregation: 'sum',
-          timeRange: tr,
-        ),
-        // 7: Default rate (ratio)
-        ds.queryScalar(
-          numerator: {'metric': 'loans_defaulted_total', 'aggregation': 'sum'},
-          denominator: {'metric': 'loans_created_total', 'aggregation': 'sum'},
-          timeRange: tr,
-        ),
-        // 8-11: Today's snapshot
-        ds.queryScalar(
-          metric: 'loans_disbursed_total',
-          aggregation: 'sum',
-          timeRange: today,
-        ),
+        ds.queryScalar(metric: 'loans_repaid_amount_total', timeRange: tr),
+        // 7-10: Today's snapshot
+        ds.queryScalar(metric: 'loans_disbursed_total', timeRange: today),
         ds.queryScalar(
           metric: 'loans_disbursed_amount_total',
-          aggregation: 'sum',
           timeRange: today,
         ),
-        ds.queryScalar(
-          metric: 'loans_repaid_amount_total',
-          aggregation: 'sum',
-          timeRange: today,
-        ),
-        ds.queryScalar(
-          metric: 'loans_defaulted_total',
-          aggregation: 'sum',
-          timeRange: today,
-        ),
-        // 12: Customer growth time series
+        ds.queryScalar(metric: 'loans_repaid_amount_total', timeRange: today),
+        ds.queryScalar(metric: 'loans_defaulted_total', timeRange: today),
+        // 11: Customer growth time series
         ds.queryTimeSeries(
           metric: 'identity_organizations_created_total',
           timeRange: tr,
         ),
-        // 13: Portfolio growth time series
+        // 12: Portfolio growth time series
         ds.queryTimeSeries(
           metric: 'loans_disbursed_amount_total',
           timeRange: tr,
         ),
-        // 14: Org unit distribution
-        ds.queryGrouped(
+        // 13: Org unit distribution across all accessible org units
+        ds.queryGroupedAllPartitions(
           metric: 'loans_disbursed_amount_total',
           groupBy: 'partition_id',
-          partitionIds: ['*'],
           timeRange: tr,
         ),
       ]);
@@ -179,20 +136,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         _activeLoans =
             loansCreated - loansClosed - loansDefaulted - loansWrittenOff;
         _portfolioValue = disbursedAmount - repaidAmount;
-        _defaultRate = (results[7] as double) * 100; // Convert to percentage
-        _loansDisbursedToday = results[8] as double;
-        _amountDisbursedToday = results[9] as double;
-        _amountRepaidToday = results[10] as double;
-        _defaultsToday = results[11] as double;
-        _customerGrowthSeries = results[12] as List<TimeSeriesPoint>;
-        _portfolioGrowthSeries = results[13] as List<TimeSeriesPoint>;
-        _orgUnitSegments = results[14] as List<DistributionSegment>;
+        // Default rate computed client-side from the scalars above; the
+        // standard gate contract has no ratio query.
+        _defaultRate = loansCreated > 0
+            ? (loansDefaulted / loansCreated) * 100
+            : 0;
+        _loansDisbursedToday = results[7] as double;
+        _amountDisbursedToday = results[8] as double;
+        _amountRepaidToday = results[9] as double;
+        _defaultsToday = results[10] as double;
+        _customerGrowthSeries = results[11] as List<TimeSeriesPoint>;
+        _portfolioGrowthSeries = results[12] as List<TimeSeriesPoint>;
+        _orgUnitSegments = results[13] as List<DistributionSegment>;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load dashboard data: $e';
+        _error = friendlyAnalyticsMessage(e);
         _loading = false;
       });
     }
@@ -242,7 +203,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 24),
 
           if (_error != null) ...[
-            _ErrorBanner(message: _error!),
+            _ErrorBanner(message: _error!, onRetry: _fetchAll),
             const SizedBox(height: 16),
           ],
 
@@ -579,8 +540,9 @@ class _ChartCard extends StatelessWidget {
 }
 
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+  const _ErrorBanner({required this.message, this.onRetry});
   final String message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -601,6 +563,8 @@ class _ErrorBanner extends StatelessWidget {
               style: TextStyle(color: cs.error, fontSize: 13),
             ),
           ),
+          if (onRetry != null)
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );
