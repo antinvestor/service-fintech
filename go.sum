@@ -97,8 +97,8 @@ github.com/antinvestor/common v1.5.0 h1:ZSBEqAHG/vFbB/GNZAo8lM7JAbWT+SOAHdNqXzEV
 github.com/antinvestor/common v1.5.0/go.mod h1:a/YUP1aqsOTbVo6fs7BrBigrm3LB5ndOEHrSMb0ISeE=
 github.com/antinvestor/common/audit v0.0.0-20260427200632-833b5de926c7 h1:1EWWcugikC0up7/Ls8yyJTT7E+VoNcW4YJAancanqwc=
 github.com/antinvestor/common/audit v0.0.0-20260427200632-833b5de926c7/go.mod h1:sx8llgDvHVwZbr/3xBB//m42BVfdfjV2lufQlZYmXEY=
-github.com/antinvestor/service-trustage v0.3.52 h1:e03BFeqPtVWF9lG/3FD1wlYm96VhzFBLQUFLeQyxGJs=
-github.com/antinvestor/service-trustage v0.3.52/go.mod h1:FsaAPYnordojqXjqFn6v6HRm4Xsbx0ibk3SXAd6ckHw=
+github.com/antinvestor/service-trustage v0.3.55 h1:y8VXf1tEeWgAIMelskzhp6FIF9yn5KIDypdw6tpjCsE=
+github.com/antinvestor/service-trustage v0.3.55/go.mod h1:Wn0HClbK795LNmvfdgY3R9rqIPhwWgxn9n9AB4in7jI=
 github.com/antithesishq/antithesis-sdk-go v0.7.0-default-no-op h1:Z/MZK75wC/NSrkgqeNIa7jexam9uWzhLmFTSCPI/kn0=
 github.com/antithesishq/antithesis-sdk-go v0.7.0-default-no-op/go.mod h1:FQyySiasQQM8735Ddel3MRojmy4dA1IqCeyJ5jmPMbI=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
@@ -272,8 +272,8 @@ github.com/ory/keto/proto v0.13.0-alpha.0.0.20260420082854-eb334a7a5cf0 h1:huZxe
 github.com/ory/keto/proto v0.13.0-alpha.0.0.20260420082854-eb334a7a5cf0/go.mod h1:c2UboItfGpqIzXoXlxBRMCp3rQqO+Wx2ecsH25jcWxU=
 github.com/panjf2000/ants/v2 v2.12.1 h1:BWvU2wHpyXWxhhNXsGB6JXLCNbshyLd1QxvoAmZnu10=
 github.com/panjf2000/ants/v2 v2.12.1/go.mod h1:tSQuaNQ6r6NRhPt+IZVUevvDyFMTs+eS4ztZc52uJTY=
-github.com/pitabwire/frame v1.98.2 h1:Kv/9w4+P/2En9hGBrXawNPOk0DMwek8HUg0A21WMnu8=
-github.com/pitabwire/frame v1.98.2/go.mod h1:k6TV0rPXAgR8hG5CH3vjqepmitIiw5EvHVM7dfR1xV8=
+github.com/pitabwire/frame v1.98.3 h1:M0iR5sNjsCvWQC3zAUL5vVva1rqERdkFf1gjr/yhiz4=
+github.com/pitabwire/frame v1.98.3/go.mod h1:k6TV0rPXAgR8hG5CH3vjqepmitIiw5EvHVM7dfR1xV8=
 github.com/pitabwire/natspubsub v0.8.4 h1:iXncMM/Fuvmyu3+VFDazOxKf5M3AWNQZdvLpM+NtKZ0=
 github.com/pitabwire/natspubsub v0.8.4/go.mod h1:h2S81+ro+eB1NeWWDbhK4EkEN/A72o7hnrDXTUq67Js=
 github.com/pitabwire/util v0.9.1 h1:V8Ag8TNGXoLztuTCbItj67MmQSS+ObEPzQipUCo2NKY=
@@ -426,8 +426,8 @@ golang.org/x/crypto v0.53.0/go.mod h1:DNLU434OwVakk9PzuwV8w62mAJpRJL3vsgcfp4Qnsi
 golang.org/x/exp v0.0.0-20180321215751-8460e604b9de/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
 golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f h1:W3F4c+6OLc6H2lb//N1q4WpJkhzJCK5J6kUi1NTVXfM=
 golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f/go.mod h1:J1xhfL/vlindoeF/aINzNzt2Bket5bjo9sdOYzOsU80=
-golang.org/x/net v0.55.0 h1:bcvxaJn3e1U6InsFWt1JUq1aSjnRxLzT2rtD2KfkDF8=
-golang.org/x/net v0.55.0/go.mod h1:L5U2KuzuOe1lY7Z+aWVIKK6qEeJXnXV9yzGA+WCHJww=
+golang.org/x/net v0.56.0 h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+golang.org/x/net v0.56.0/go.mod h1:D3Ku6r+V6JROoZK144D2XfMHFcMq/0zSfLelVTCFKec=
 golang.org/x/oauth2 v0.36.0 h1:peZ/1z27fi9hUOFCAZaHyrpWG5lwe0RJEEEeH0ThlIs=
 golang.org/x/oauth2 v0.36.0/go.mod h1:YDBUJMTkDnJS+A4BP4eZBjCqtokkg1hODuPjwiGPO7Q=
 golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=

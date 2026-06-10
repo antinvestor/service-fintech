@@ -34,10 +34,10 @@ require (
 	connectrpc.com/connect v1.20.0
 	github.com/antinvestor/common v1.5.0
 	github.com/antinvestor/common/audit v0.0.0-20260427200632-833b5de926c7
-	github.com/antinvestor/service-trustage v0.3.52
+	github.com/antinvestor/service-trustage v0.3.55
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/pitabwire/frame v1.98.2
+	github.com/pitabwire/frame v1.98.3
 	github.com/pitabwire/util v0.9.1
 	github.com/pitabwire/util/decimalx v0.7.2
 	github.com/pitabwire/util/moneyx v0.9.0
@@ -180,7 +180,7 @@ require (
 	gocloud.dev v0.46.0 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
