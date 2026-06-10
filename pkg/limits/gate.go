@@ -39,6 +39,9 @@ const (
 	ModeShadow
 )
 
+// releaseTimeout bounds the detached Release call issued after a handler error.
+const releaseTimeout = 30 * time.Second
+
 // ParseMode converts a string config value to a Mode constant.
 // "shadow" → ModeShadow; everything else (including "enforce" or "") → ModeEnforce.
 func ParseMode(s string) Mode {
@@ -117,6 +120,7 @@ func Gate(
 		return errors.New("limits.Gate: Reserve returned no reservation")
 	}
 
+	//nolint:exhaustive // only PENDING_APPROVAL diverts the flow; every other status proceeds to the handler
 	switch reservation.GetStatus() {
 	case limitsv1.ReservationStatus_RESERVATION_STATUS_PENDING_APPROVAL:
 		if mode == ModeShadow {
@@ -154,7 +158,7 @@ func Gate(
 		// does not prevent Release from reaching the limits service. Without this,
 		// ctx.Err() != nil causes the RPC to fail immediately and the reservation
 		// would hold cap-space for the full TTL (default 5 min).
-		relCtx, relCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		relCtx, relCancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
 		defer relCancel()
 		if _, relErr := rpc.Release(relCtx, connect.NewRequest(&limitsv1.ReleaseRequest{
 			ReservationId: reservation.GetId(),

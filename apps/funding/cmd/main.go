@@ -308,7 +308,7 @@ func loanRequestToRequestInfo(lr *loansv1.LoanRequestObject) *business.LoanReque
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
-	dbPool pool.Pool,
+	_ pool.Pool,
 	iaBiz business.InvestorAccountBusiness,
 	faBiz business.FundingAllocationBusiness,
 ) http.Handler {

@@ -320,7 +320,7 @@ func (s *AdminHandlerSuite) TestApprovalRequestList() {
 		},
 		MakerId: "wf-maker-1",
 	}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		_, err := s.resvBiz.Reserve(ctx, intent, "idem-list-"+util.IDString(), 5*time.Minute)
 		s.Require().NoError(err)
 	}

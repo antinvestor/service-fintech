@@ -122,7 +122,7 @@ func (r *Reconciler) ComputeTrialBalance(ctx context.Context) (*TrialBalance, er
 
 	query := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
-			"state = ?": int32(constants.StateInactive),
+			whereStateEq: int32(constants.StateInactive),
 		}),
 	)
 	results, err := r.toRepo.Search(ctx, query)
@@ -371,7 +371,7 @@ func (r *Reconciler) calculateExpectedBalance(ctx context.Context, accountRef st
 	creditQuery := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
 			"credit_account_ref = ?": accountRef,
-			"state = ?":              int32(constants.StateInactive),
+			whereStateEq:             int32(constants.StateInactive),
 		}),
 	)
 	creditResults, err := r.toRepo.Search(ctx, creditQuery)
@@ -392,7 +392,7 @@ func (r *Reconciler) calculateExpectedBalance(ctx context.Context, accountRef st
 	debitQuery := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
 			"debit_account_ref = ?": accountRef,
-			"state = ?":             int32(constants.StateInactive),
+			whereStateEq:            int32(constants.StateInactive),
 		}),
 	)
 	debitResults, err := r.toRepo.Search(ctx, debitQuery)
@@ -420,7 +420,7 @@ func (r *Reconciler) ReconcileAllActiveGroups(ctx context.Context) ([]*Result, e
 
 	query := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
-			"state = ?": int32(constants.StateActive),
+			whereStateEq: int32(constants.StateActive),
 		}),
 	)
 	groupResults, err := r.grpRepo.Search(ctx, query)

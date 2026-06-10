@@ -38,19 +38,19 @@ func NewArchival(resvRepo repository.ReservationRepository, ledgerRepo repositor
 
 // Run hard-deletes terminal reservations older than 7 days and ledger entries
 // older than 90 days. Cross-tenant. Returns counts per category.
-func (a *Archival) Run(ctx context.Context) (resvDeleted, ledgerDeleted int, err error) {
+func (a *Archival) Run(ctx context.Context) (int, int, error) {
 	log := util.Log(ctx).With("job", "archival")
 
 	cutoffResv := time.Now().UTC().Add(-7 * 24 * time.Hour)
 	cutoffLedger := time.Now().UTC().Add(-90 * 24 * time.Hour)
 
-	resvDeleted, err = a.resvRepo.HardDeleteTerminalBefore(ctx, cutoffResv)
+	resvDeleted, err := a.resvRepo.HardDeleteTerminalBefore(ctx, cutoffResv)
 	if err != nil {
 		log.WithError(err).Error("archival: reservation hard-delete failed")
 		return 0, 0, err
 	}
 
-	ledgerDeleted, err = a.ledgerRepo.HardDeleteBefore(ctx, cutoffLedger)
+	ledgerDeleted, err := a.ledgerRepo.HardDeleteBefore(ctx, cutoffLedger)
 	if err != nil {
 		log.WithError(err).Error("archival: ledger hard-delete failed")
 		return resvDeleted, 0, err

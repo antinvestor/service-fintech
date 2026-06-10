@@ -159,7 +159,7 @@ func (b *loanRequestBusiness) Search(
 	if req.GetQuery() != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
-				map[string]any{"searchable @@ websearch_to_tsquery( 'english', ?) ": req.GetQuery()},
+				map[string]any{searchableTSQuery: req.GetQuery()},
 			),
 		)
 	}
@@ -181,7 +181,7 @@ func (b *loanRequestBusiness) Search(
 }
 
 func (b *loanRequestBusiness) Approve(ctx context.Context, id string) (*loansv1.LoanRequestObject, error) {
-	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == "off" {
+	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
 		return b.approveInner(ctx, id)
 	}
 

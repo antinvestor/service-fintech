@@ -76,24 +76,54 @@ type MetricInfo struct {
 // the loans business package.
 func RegisteredMetrics() []MetricInfo {
 	return []MetricInfo{
-		{Name: "loans_created_total", Type: "counter", Unit: "count", Description: "New loan accounts created"},
-		{Name: "loans_disbursed_total", Type: "counter", Unit: "count", Description: "Loan disbursements completed"},
+		{
+			Name:        "loans_created_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "New loan accounts created",
+		},
+		{
+			Name:        "loans_disbursed_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Loan disbursements completed",
+		},
 		{
 			Name:        "loans_disbursed_amount_total",
-			Type:        "counter",
+			Type:        metricTypeCounter,
 			Unit:        "currency_unit",
 			Description: "Total amount disbursed",
 		},
-		{Name: "loans_repaid_total", Type: "counter", Unit: "count", Description: "Loan repayments recorded"},
-		{Name: "loans_repaid_amount_total", Type: "counter", Unit: "currency_unit", Description: "Total amount repaid"},
+		{
+			Name:        "loans_repaid_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Loan repayments recorded",
+		},
+		{
+			Name:        "loans_repaid_amount_total",
+			Type:        metricTypeCounter,
+			Unit:        "currency_unit",
+			Description: "Total amount repaid",
+		},
 		{
 			Name:        "loans_defaulted_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Loans transitioned to default status",
 		},
-		{Name: "loans_closed_total", Type: "counter", Unit: "count", Description: "Loans closed"},
-		{Name: "loans_restructured_total", Type: "counter", Unit: "count", Description: "Loans restructured"},
-		{Name: "loans_written_off_total", Type: "counter", Unit: "count", Description: "Loans written off"},
+		{Name: "loans_closed_total", Type: metricTypeCounter, Unit: metricUnitCount, Description: "Loans closed"},
+		{
+			Name:        "loans_restructured_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Loans restructured",
+		},
+		{
+			Name:        "loans_written_off_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Loans written off",
+		},
 	}
 }

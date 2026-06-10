@@ -40,7 +40,7 @@ func (s *ReservationBusinessSuite) TestReserve_ConcurrentSameSubject_RespectsCap
 
 	// rolling_window_amount cap=100 KES over a 24-hour window.
 	// KES has 2 decimal places so cap=100 KES = 10000 minor units.
-	seedPolicy(s.T(), ctx, policyRepo, rollingWindowPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, rollingWindowPolicy(
 		"KES", 100, // 100 KES (units; seedPolicy uses PolicyObject which works in units)
 		24,
 		limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
@@ -53,7 +53,7 @@ func (s *ReservationBusinessSuite) TestReserve_ConcurrentSameSubject_RespectsCap
 	var successes atomic.Int64
 	var denials atomic.Int64
 
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -109,14 +109,14 @@ func (s *ReservationBusinessSuite) TestReserve_ConcurrentSameSubject_RollingCoun
 		// A minimum cap amount is required to satisfy validation; use 1 KES.
 		CapAmount: &moneypb.Money{CurrencyCode: "KES", Units: 1},
 	}
-	seedPolicy(s.T(), ctx, policyRepo, countPolicy)
+	seedPolicy(ctx, s.T(), policyRepo, countPolicy)
 
 	const goroutines = 20
 	var wg sync.WaitGroup
 	var successes atomic.Int64
 	var denials atomic.Int64
 
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

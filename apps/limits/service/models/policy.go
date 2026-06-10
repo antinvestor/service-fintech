@@ -29,9 +29,9 @@ import (
 	"gorm.io/datatypes"
 )
 
-// Scope, Mode, Kind, Subject, Action are typed string aliases so the GORM
-// columns are constrained at the type level. Keep the string values stable
-// — they are persisted and surface in audit logs.
+// Scope is a typed string alias so the GORM column is constrained at the
+// type level. Like Mode, Kind, Subject, and Action below, keep the string
+// values stable — they are persisted and surface in audit logs.
 type Scope string
 
 const (
@@ -84,7 +84,12 @@ const (
 	ActionStawiPayout          Action = "stawi_payout"
 )
 
+// defaultApprovalTTL is applied when a policy does not specify an approval TTL.
+const defaultApprovalTTL = 72 * time.Hour
+
 // Policy is the rule definition. Tenant/Partition/Audit fields come from BaseModel.
+//
+//nolint:recvcheck // TableName uses a value receiver per GORM convention; converters need pointers
 type Policy struct {
 	data.BaseModel `gorm:"embedded"`
 
@@ -173,7 +178,7 @@ func PolicyFromAPI(in *limitsv1.PolicyObject) (*Policy, error) {
 	if d := in.GetApprovalTtl(); d != nil {
 		pol.ApprovalTTLSec = int64(d.AsDuration().Seconds())
 	} else {
-		pol.ApprovalTTLSec = 72 * 3600
+		pol.ApprovalTTLSec = int64(defaultApprovalTTL / time.Second)
 	}
 	if t := in.GetEffectiveTo(); t != nil {
 		tt := t.AsTime()
@@ -181,16 +186,16 @@ func PolicyFromAPI(in *limitsv1.PolicyObject) (*Policy, error) {
 	}
 
 	if in.GetAttributeFilter() != nil {
-		b, err := marshalStruct(in.GetAttributeFilter())
-		if err != nil {
-			return nil, err
+		b, marshalErr := marshalStruct(in.GetAttributeFilter())
+		if marshalErr != nil {
+			return nil, marshalErr
 		}
 		pol.AttributeFilter = datatypes.JSON(b)
 	}
 	if len(in.GetApproverTiers()) > 0 {
-		b, err := marshalApproverTiers(in.GetApproverTiers())
-		if err != nil {
-			return nil, err
+		b, marshalErr := marshalApproverTiers(in.GetApproverTiers())
+		if marshalErr != nil {
+			return nil, marshalErr
 		}
 		pol.ApproverTiers = datatypes.JSON(b)
 	}
@@ -211,7 +216,7 @@ func (p *Policy) ToAPI() *limitsv1.PolicyObject {
 		LimitKind:     kindToAPI(p.LimitKind),
 		Mode:          modeToAPI(p.Mode),
 		Notes:         p.Notes,
-		Version:       int32(p.Version),
+		Version:       int32(p.Version), //nolint:gosec // version counters never approach int32 range
 		EffectiveFrom: timestamppb.New(p.EffectiveFrom),
 		ApprovalTtl:   durationpb.New(time.Duration(p.ApprovalTTLSec) * time.Second),
 		CreatedAt:     timestamppb.New(p.CreatedAt),
@@ -220,10 +225,9 @@ func (p *Policy) ToAPI() *limitsv1.PolicyObject {
 	if p.WindowSeconds > 0 {
 		out.Window = durationpb.New(time.Duration(p.WindowSeconds) * time.Second)
 	}
-	switch p.LimitKind {
-	case KindRollingWindowCount:
+	if p.LimitKind == KindRollingWindowCount {
 		out.CapCount = p.Value
-	default:
+	} else {
 		out.CapAmount = moneyx.FromMinorUnitsByCurrency(p.CurrencyCode, p.Value)
 	}
 	if p.EffectiveTo != nil {

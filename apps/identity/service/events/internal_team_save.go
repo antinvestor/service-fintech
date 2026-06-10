@@ -55,7 +55,7 @@ func (e *InternalTeamSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.InternalTeam")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "team_id": m.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "team_id": m.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, m.GetID())

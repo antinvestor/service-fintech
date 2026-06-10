@@ -63,7 +63,7 @@ func (e *LoanStatusChangeSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.LoanStatusChange")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "loan_status_change_id": lsc.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "loan_status_change_id": lsc.GetID()})
 	defer logger.Release()
 
 	if err := e.loanStatusChangeRepo.Create(ctx, lsc); err != nil {

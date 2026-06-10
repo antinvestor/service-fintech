@@ -16,7 +16,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"connectrpc.com/connect"
@@ -45,7 +47,7 @@ func approvalsApproveCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if flagReason == "" {
-				return fmt.Errorf("--reason is required")
+				return errors.New("--reason is required")
 			}
 			return decide(cmd.Context(), args[0], "approve", flagReason)
 		},
@@ -65,7 +67,7 @@ func approvalsRejectCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if flagReason == "" {
-				return fmt.Errorf("--reason is required")
+				return errors.New("--reason is required")
 			}
 			return decide(cmd.Context(), args[0], "reject", flagReason)
 		},
@@ -96,15 +98,15 @@ func decide(ctx context.Context, id, decision, note string) error {
 
 	item := resp.Msg.GetData()
 	if flagJSON {
-		out, err := protojson.MarshalOptions{Indent: "  "}.Marshal(item)
-		if err != nil {
-			return err
+		out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(item)
+		if marshalErr != nil {
+			return marshalErr
 		}
-		fmt.Println(string(out))
+		fmt.Fprintln(os.Stdout, string(out))
 		return nil
 	}
 
-	fmt.Printf("decision recorded: %s → %s (status: %s)\n",
+	fmt.Fprintf(os.Stdout, "decision recorded: %s → %s (status: %s)\n",
 		item.GetId(), decision, item.GetStatus().String())
 	return nil
 }

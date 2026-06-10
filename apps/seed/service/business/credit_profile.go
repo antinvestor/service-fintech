@@ -155,19 +155,19 @@ func (b *creditProfileBusiness) EnsureProfile(
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_credit_profile",
+		EntityType: entityCreditProfile,
 		EntityID:   profile.GetID(),
 		Action:     "seed.credit_profile.created",
 		Reason:     "client first seen by seed",
 		After: data.JSONMap{
-			"tier":            profile.Tier,
-			"max_loan_amount": profile.MaxLoanAmount,
-			"status":          profile.Status,
+			fieldTier:          profile.Tier,
+			fieldMaxLoanAmount: profile.MaxLoanAmount,
+			fieldStatus:        profile.Status,
 		},
 		Metadata: data.JSONMap{
-			"client_id":     clientID,
-			"currency_code": currencyCode,
-			"product_id":    productID,
+			fieldClientID:     clientID,
+			fieldCurrencyCode: currencyCode,
+			fieldProductID:    productID,
 		},
 		Parent: &profile.BaseModel,
 	}, func(auErr error) {
@@ -256,21 +256,21 @@ func (b *creditProfileBusiness) RecordSuccessfulRepayment(
 				Warn("could not promote credit profile tier after repayment")
 		} else {
 			b.auditWriter.RecordOrLog(ctx, audit.Record{
-				EntityType: "seed_credit_profile",
+				EntityType: entityCreditProfile,
 				EntityID:   promoted.GetID(),
 				Action:     "seed.credit_profile.tier_promoted",
 				Reason:     "successful repayment crossed tier threshold",
 				Before: data.JSONMap{
-					"tier":            updated.Tier,
-					"max_loan_amount": updated.MaxLoanAmount,
+					fieldTier:          updated.Tier,
+					fieldMaxLoanAmount: updated.MaxLoanAmount,
 				},
 				After: data.JSONMap{
-					"tier":            promoted.Tier,
-					"max_loan_amount": promoted.MaxLoanAmount,
-					"tier_name":       tier.Name,
+					fieldTier:          promoted.Tier,
+					fieldMaxLoanAmount: promoted.MaxLoanAmount,
+					"tier_name":        tier.Name,
 				},
 				Metadata: data.JSONMap{
-					"client_id":             clientID,
+					fieldClientID:           clientID,
 					"successful_repayments": promoted.SuccessfulRepayments,
 				},
 				Parent: &promoted.BaseModel,
@@ -282,16 +282,16 @@ func (b *creditProfileBusiness) RecordSuccessfulRepayment(
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_credit_profile",
+		EntityType: entityCreditProfile,
 		EntityID:   updated.GetID(),
 		Action:     "seed.credit_profile.repayment_recorded",
 		Reason:     reason,
 		Before:     before,
 		After:      snapshotProfile(updated),
 		Metadata: data.JSONMap{
-			"client_id":     clientID,
-			"currency_code": currencyCode,
-			"repaid_amount": repaidAmount,
+			fieldClientID:     clientID,
+			fieldCurrencyCode: currencyCode,
+			"repaid_amount":   repaidAmount,
 		},
 		Parent: &updated.BaseModel,
 	}, func(auErr error) {
@@ -310,12 +310,12 @@ func snapshotProfile(p *models.CreditProfile) data.JSONMap {
 		return nil
 	}
 	return data.JSONMap{
-		"tier":                   p.Tier,
-		"max_loan_amount":        p.MaxLoanAmount,
+		fieldTier:                p.Tier,
+		fieldMaxLoanAmount:       p.MaxLoanAmount,
 		"successful_repayments":  p.SuccessfulRepayments,
 		"outstanding_loan_count": p.OutstandingLoanCount,
 		"total_borrowed":         p.TotalBorrowed,
 		"total_repaid":           p.TotalRepaid,
-		"status":                 p.Status,
+		fieldStatus:              p.Status,
 	}
 }

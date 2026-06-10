@@ -55,7 +55,7 @@ func (e *AgentSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Agent")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "agent_id": agent.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "agent_id": agent.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.agentRepo.GetByID(ctx, agent.GetID())

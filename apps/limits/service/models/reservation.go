@@ -38,6 +38,8 @@ const (
 )
 
 // Reservation is the per-intent hold against the usage budget.
+//
+//nolint:recvcheck // TableName uses a value receiver per GORM convention; converters need pointers
 type Reservation struct {
 	data.BaseModel `gorm:"embedded"`
 

@@ -141,6 +141,7 @@ func main() {
 	}
 }
 
+//nolint:funlen // linear service wiring; splitting hurts readability
 func setupServiceOptions(
 	ctx context.Context,
 	sm security.Manager,
@@ -318,7 +319,7 @@ func setupLimitsClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
-	dbPool pool.Pool,
+	_ pool.Pool,
 	lpBusiness business.LoanProductBusiness,
 	lrBusiness business.LoanRequestBusiness,
 	laBusiness business.LoanAccountBusiness,

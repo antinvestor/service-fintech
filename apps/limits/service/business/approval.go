@@ -116,8 +116,8 @@ func (b *approvalBusiness) List(
 			decisions, _ := b.decisionRepo.ListDecisions(ctx, ar.ID)
 			api[i] = ar.ToAPI(decisions)
 		}
-		if err := batch(ctx, api); err != nil {
-			return err
+		if batchErr := batch(ctx, api); batchErr != nil {
+			return batchErr
 		}
 		if out.NextCursor == "" {
 			return nil
@@ -154,6 +154,8 @@ func (b *approvalBusiness) Get(ctx context.Context, id string) (*limitsv1.Approv
 //
 // TODO(plan-4): per-policy role check via Keto. Currently the limits_approval_act
 // permission on the RPC boundary is the only gate, supplemented by maker-exclusion.
+//
+//nolint:gocognit,gocyclo,cyclop,funlen // quorum decision flow is a single auditable sequence; splitting obscures the state machine
 func (b *approvalBusiness) Decide(
 	ctx context.Context,
 	req *limitsv1.ApprovalRequestDecideRequest,
@@ -169,7 +171,7 @@ func (b *approvalBusiness) Decide(
 		ctxTenant := claims.GetTenantID()
 		if ctxTenant != "" && ar.TenantID != ctxTenant {
 			return nil, connect.NewError(connect.CodePermissionDenied,
-				fmt.Errorf("approval belongs to a different tenant"))
+				errors.New("approval belongs to a different tenant"))
 		}
 	}
 
@@ -199,7 +201,7 @@ func (b *approvalBusiness) Decide(
 		DecidedAt:         time.Now().UTC(),
 	}
 	d.ID = util.IDString()
-	if err := b.decisionRepo.RecordDecision(ctx, d); err != nil {
+	if recordErr := b.decisionRepo.RecordDecision(ctx, d); recordErr != nil {
 		// pgx returns code 23505 (unique_violation) on double-vote.
 		return nil, connect.NewError(connect.CodeAlreadyExists,
 			fmt.Errorf("approver %s already decided", caller))
@@ -221,7 +223,13 @@ func (b *approvalBusiness) Decide(
 			if sErr := b.approvalRepo.SetStatusTx(ctx, tx, ar.ID, models.ApprovalStatusRejected, &now); sErr != nil {
 				return sErr
 			}
-			if rErr := b.resvRepo.SetReleasedTx(ctx, tx, ar.ReservationID, "approval rejected: "+req.GetNote(), now); rErr != nil {
+			if rErr := b.resvRepo.SetReleasedTx(
+				ctx,
+				tx,
+				ar.ReservationID,
+				"approval rejected: "+req.GetNote(),
+				now,
+			); rErr != nil {
 				return rErr
 			}
 			// Audit inside the tx so the record is durable with the state change.
@@ -316,12 +324,23 @@ func (b *approvalBusiness) Decide(
 		ar.DecidedAt = &now
 		if txErr := b.runInTx(ctx, func(tx *gorm.DB) error {
 			if tx == nil {
-				if sErr := b.approvalRepo.SetStatus(ctx, ar.ID, models.ApprovalStatusAutoRejectedRecheck, &now); sErr != nil {
+				if sErr := b.approvalRepo.SetStatus(
+					ctx,
+					ar.ID,
+					models.ApprovalStatusAutoRejectedRecheck,
+					&now,
+				); sErr != nil {
 					return sErr
 				}
 				return b.resvRepo.SetReleased(ctx, resv.ID, "auto-rejected: "+failingReason, now)
 			}
-			if sErr := b.approvalRepo.SetStatusTx(ctx, tx, ar.ID, models.ApprovalStatusAutoRejectedRecheck, &now); sErr != nil {
+			if sErr := b.approvalRepo.SetStatusTx(
+				ctx,
+				tx,
+				ar.ID,
+				models.ApprovalStatusAutoRejectedRecheck,
+				&now,
+			); sErr != nil {
 				return sErr
 			}
 			if rErr := b.resvRepo.SetReleasedTx(ctx, tx, resv.ID, "auto-rejected: "+failingReason, now); rErr != nil {

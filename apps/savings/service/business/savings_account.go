@@ -196,7 +196,7 @@ func (b *savingsAccountBusiness) Freeze(
 		return nil, err
 	}
 
-	logger.WithFields(map[string]any{"savings_account_id": id, "reason": reason}).
+	logger.WithFields(map[string]any{fieldSavingsAccountID: id, "reason": reason}).
 		Info("savings account frozen")
 
 	return sa.ToAPI(), nil
@@ -227,7 +227,7 @@ func (b *savingsAccountBusiness) Close(
 		return nil, err
 	}
 
-	logger.WithFields(map[string]any{"savings_account_id": id, "reason": reason}).
+	logger.WithFields(map[string]any{fieldSavingsAccountID: id, "reason": reason}).
 		Info("savings account closed")
 
 	return sa.ToAPI(), nil
@@ -329,10 +329,10 @@ func (b *savingsAccountBusiness) fetchStatementEntries(
 	// Fetch deposits in the period
 	depQuery := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
-			"savings_account_id = ?": accountID,
-			"status = ?":             int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED),
-			"created_at >= ?":        from,
-			"created_at <= ?":        to,
+			whereSavingsAccountIDEq: accountID,
+			whereStatusEq:           int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED),
+			whereCreatedAtGte:       from,
+			whereCreatedAtLte:       to,
 		}),
 	)
 	depResults, err := b.depRepo.Search(ctx, depQuery)
@@ -355,10 +355,10 @@ func (b *savingsAccountBusiness) fetchStatementEntries(
 	// Fetch withdrawals in the period
 	wdrQuery := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
-			"savings_account_id = ?": accountID,
-			"status = ?":             int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED),
-			"created_at >= ?":        from,
-			"created_at <= ?":        to,
+			whereSavingsAccountIDEq: accountID,
+			whereStatusEq:           int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED),
+			whereCreatedAtGte:       from,
+			whereCreatedAtLte:       to,
 		}),
 	)
 	wdrResults, err := b.wdrRepo.Search(ctx, wdrQuery)
@@ -381,9 +381,9 @@ func (b *savingsAccountBusiness) fetchStatementEntries(
 	// Fetch interest accruals in the period
 	iaQuery := data.NewSearchQuery(
 		data.WithSearchFiltersAndByValue(map[string]any{
-			"savings_account_id = ?": accountID,
-			"created_at >= ?":        from,
-			"created_at <= ?":        to,
+			whereSavingsAccountIDEq: accountID,
+			whereCreatedAtGte:       from,
+			whereCreatedAtLte:       to,
 		}),
 	)
 	iaResults, err := b.iaRepo.Search(ctx, iaQuery)

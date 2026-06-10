@@ -158,7 +158,7 @@ func (s *ApprovalBusinessSuite) reservePendingApproval(
 	approvers int32,
 ) string {
 	s.T().Helper()
-	seedPolicy(s.T(), ctx, policyRepo, approvalPolicy(capUnits, approvers))
+	seedPolicy(ctx, s.T(), policyRepo, approvalPolicy(capUnits, approvers))
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, intentUnits)
 	resp, err := resvBiz.Reserve(ctx, intent, "idem-appr-"+util.IDString(), 5*time.Minute)
 	s.Require().NoError(err)
@@ -175,10 +175,10 @@ func (s *ApprovalBusinessSuite) TestList_FiltersByStatus() {
 
 	// Seed a policy that triggers approval for any amount over 1000 KES.
 	pol := approvalPolicy(1000, 1)
-	savedPol := seedPolicy(s.T(), ctx, policyRepo, pol)
+	savedPol := seedPolicy(ctx, s.T(), policyRepo, pol)
 
 	// Create 3 pending approval requests.
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000)
 		resp, err := resvBiz.Reserve(ctx, intent, "idem-list-"+util.IDString(), 5*time.Minute)
 		s.Require().NoError(err)
@@ -229,7 +229,7 @@ func (s *ApprovalBusinessSuite) TestGet_HappyPath_IncludesDecisions() {
 	ctx, approvalBiz, resvBiz, _, policyRepo, _, approvalRepo := s.approvalEnv("tenant-a", "partition-a")
 
 	pol := approvalPolicy(1000, 2) // need 2 approvers
-	seedPolicy(s.T(), ctx, policyRepo, pol)
+	seedPolicy(ctx, s.T(), policyRepo, pol)
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000)
 	resp, err := resvBiz.Reserve(ctx, intent, "idem-get-happy-"+util.IDString(), 5*time.Minute)
 	s.Require().NoError(err)
@@ -304,7 +304,7 @@ func (s *ApprovalBusinessSuite) TestDecide_Approve_MultiRequired_Partial() {
 	pol.ApproverTiers = []*limitsv1.ApproverTier{
 		{UpTo: 0, Role: "branch_manager", Approvers: 2},
 	}
-	seedPolicy(s.T(), ctx, policyRepo, pol)
+	seedPolicy(ctx, s.T(), policyRepo, pol)
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000)
 	resp, err := resvBiz.Reserve(ctx, intent, "idem-multi-"+util.IDString(), 5*time.Minute)
 	s.Require().NoError(err)
@@ -392,7 +392,7 @@ func (s *ApprovalBusinessSuite) TestDecide_RecheckFails_AutoRejected() {
 			{UpTo: 500000, Role: "branch_manager", Approvers: 1}, // covers up to 5000 KES
 		},
 	}
-	savedPol := seedPolicy(s.T(), ctx, policyRepo, polIn)
+	savedPol := seedPolicy(ctx, s.T(), policyRepo, polIn)
 
 	// Reserve at 2000 KES: above cap but within tier range → PENDING_APPROVAL.
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000)
@@ -456,7 +456,7 @@ func (s *ApprovalBusinessSuite) TestDecide_DoubleVoteRejected() {
 	pol.ApproverTiers = []*limitsv1.ApproverTier{
 		{UpTo: 0, Role: "branch_manager", Approvers: 2},
 	}
-	seedPolicy(s.T(), ctx, policyRepo, pol)
+	seedPolicy(ctx, s.T(), policyRepo, pol)
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000)
 	resp, err := resvBiz.Reserve(ctx, intent, "idem-doublevote-"+util.IDString(), 5*time.Minute)
 	s.Require().NoError(err)

@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+//nolint:gochecknoglobals // cobra persistent flags are bound to package-level vars by design
 var (
 	flagURI  string
 	flagJSON bool
@@ -94,10 +94,4 @@ func (t *bearerTokenTransport) RoundTrip(r *http.Request) (*http.Response, error
 	r2 := r.Clone(r.Context())
 	r2.Header.Set("Authorization", "Bearer "+t.token)
 	return t.base.RoundTrip(r2)
-}
-
-// die prints msg to stderr and exits 1.
-func die(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "error: "+format+"\n", args...)
-	os.Exit(1)
 }

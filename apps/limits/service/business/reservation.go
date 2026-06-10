@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
@@ -113,6 +114,8 @@ type evaluation struct {
 // subject type and attribute predicates, runs the evaluator per policy, and
 // returns the aggregated result. It does NOT open a transaction or acquire
 // advisory locks (those are Reserve-only concerns).
+//
+//nolint:gocognit // verdict aggregation matrix is one auditable pass over policies
 func (b *reservationBusiness) evaluateIntent(
 	ctx context.Context,
 	intent *limitsv1.LimitIntent,
@@ -132,7 +135,7 @@ func (b *reservationBusiness) evaluateIntent(
 
 	action, err := models.ActionFromAPISafe(intent.GetAction())
 	if err != nil || action == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid action"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid action"))
 	}
 
 	cands, err := b.candidateRepo.FindCandidates(ctx, repository.CandidateQuery{
@@ -190,6 +193,8 @@ func (b *reservationBusiness) evaluateIntent(
 			if v.GetBreached() || v.GetWouldRequireApproval() {
 				ev.shadowBreaches = append(ev.shadowBreaches, v)
 			}
+		case models.ModeOff:
+			// Off policies are filtered out of the candidate set; nothing to aggregate.
 		}
 	}
 	return ev, nil
@@ -212,7 +217,7 @@ func (b *reservationBusiness) Check(
 	// Compute max required approvers across approval-needed specs.
 	var maxApprovers int32
 	for _, ap := range ev.approvalNeeded {
-		if tier, ok := PickTier(ap.policy, ev.intentMinor); ok {
+		if tier, ok := pickTier(ap.policy, ev.intentMinor); ok {
 			if tier.Approvers > maxApprovers {
 				maxApprovers = tier.Approvers
 			}
@@ -228,6 +233,7 @@ func (b *reservationBusiness) Check(
 	}, nil
 }
 
+//nolint:gocognit,gocyclo,cyclop,funlen // the reserve pipeline is a deliberately linear, numbered sequence inside one tx
 func (b *reservationBusiness) Reserve(
 	ctx context.Context,
 	intent *limitsv1.LimitIntent,
@@ -266,7 +272,7 @@ func (b *reservationBusiness) Reserve(
 	// 5. Candidate policies.
 	action, err := models.ActionFromAPISafe(intent.GetAction())
 	if err != nil || action == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid action"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid action"))
 	}
 	cands, err := b.candidateRepo.FindCandidates(ctx, repository.CandidateQuery{
 		Action:       action,
@@ -327,8 +333,8 @@ func (b *reservationBusiness) Reserve(
 	}
 	keys := LockKeys(action, currency, rollingSubjects)
 	for _, k := range keys {
-		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", k).Error; err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
+		if lockErr := tx.Exec("SELECT pg_advisory_xact_lock(?)", k).Error; lockErr != nil {
+			return nil, connect.NewError(connect.CodeInternal, lockErr)
 		}
 	}
 
@@ -358,6 +364,8 @@ func (b *reservationBusiness) Reserve(
 			if v.GetBreached() || v.GetWouldRequireApproval() {
 				shadowBreaches = append(shadowBreaches, v)
 			}
+		case models.ModeOff:
+			// Off policies are filtered out of the candidate set; nothing to aggregate.
 		}
 	}
 
@@ -372,7 +380,7 @@ func (b *reservationBusiness) Reserve(
 			b.auditing.RecordBreachShadow(ctx, intent, v)
 		}
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("limits cap breached"))
+			errors.New("limits cap breached"))
 	}
 
 	// 11. Persist reservation.
@@ -394,14 +402,14 @@ func (b *reservationBusiness) Reserve(
 		resv.IsShadow = true
 	}
 	resv.PoliciesEvaluated = verdictsJSON(verdicts)
-	if err := tx.Create(resv).Error; err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if createErr := tx.Create(resv).Error; createErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, createErr)
 	}
 
 	// 12. Persist approval requests.
 	approvalRows := make([]*models.ApprovalRequest, 0, len(approvalNeeded))
 	for _, ap := range approvalNeeded {
-		tier, ok := PickTier(ap.policy, intentMinor)
+		tier, ok := pickTier(ap.policy, intentMinor)
 		if !ok {
 			return nil, connect.NewError(connect.CodeInternal,
 				fmt.Errorf("policy %s flagged for approval but no tier covers amount", ap.policy.ID))
@@ -413,7 +421,7 @@ func (b *reservationBusiness) Reserve(
 			CurrencyCode:       resv.CurrencyCode,
 			Amount:             resv.Amount,
 			TriggeringPolicyID: ap.policy.ID,
-			PolicyVersion:      int32(ap.policy.Version),
+			PolicyVersion:      int32(ap.policy.Version), //nolint:gosec // version counters never approach int32 range
 			RequiredRole:       tier.Role,
 			RequiredCount:      tier.Approvers,
 			MakerID:            resv.MakerID,
@@ -422,19 +430,19 @@ func (b *reservationBusiness) Reserve(
 			ExpiresAt:          time.Now().Add(time.Duration(ap.policy.ApprovalTTLSec) * time.Second).UTC(),
 		}
 		ar.ID = util.IDString()
-		if err := tx.Create(ar).Error; err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
+		if createErr := tx.Create(ar).Error; createErr != nil {
+			return nil, connect.NewError(connect.CodeInternal, createErr)
 		}
 		// Audit inside the tx so the record lands atomically with the approval row.
-		if err := b.auditing.RecordApprovalRequiredTx(ctx, tx, ar); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
+		if auditErr := b.auditing.RecordApprovalRequiredTx(ctx, tx, ar); auditErr != nil {
+			return nil, connect.NewError(connect.CodeInternal, auditErr)
 		}
 		approvalRows = append(approvalRows, ar)
 	}
 
 	// 13. Commit transaction.
-	if err := tx.Commit().Error; err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if commitErr := tx.Commit().Error; commitErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, commitErr)
 	}
 	committed = true
 
@@ -483,12 +491,12 @@ func (b *reservationBusiness) Commit(
 
 	// 3. Pending approval: caller must get approval first.
 	if r.Status == models.ReservationStatusPendingApproval {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("pending approval"))
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("pending approval"))
 	}
 
 	// 4. Must be active.
 	if r.Status != models.ReservationStatusActive {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("not active"))
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("not active"))
 	}
 
 	now := time.Now().UTC()
@@ -507,8 +515,8 @@ func (b *reservationBusiness) Commit(
 	}()
 
 	// 6. Update reservation status via scoped Tx method (enforces tenant + status guard).
-	if err := b.resvRepo.SetCommittedTx(ctx, tx, r.ID, now); err != nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("not active"))
+	if setErr := b.resvRepo.SetCommittedTx(ctx, tx, r.ID, now); setErr != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("not active"))
 	}
 
 	// 7. Materialise ledger entries (skip for shadow reservations).
@@ -523,7 +531,7 @@ func (b *reservationBusiness) Commit(
 				ReservationID: r.ID,
 				OrgUnitID:     r.OrgUnitID,
 				Action:        r.Action,
-				SubjectType:   models.Subject(subjectFromAPILocal(s.GetType())),
+				SubjectType:   subjectFromAPILocal(s.GetType()),
 				SubjectID:     s.GetId(),
 				CurrencyCode:  r.CurrencyCode,
 				Amount:        r.Amount,
@@ -533,8 +541,8 @@ func (b *reservationBusiness) Commit(
 			entries = append(entries, e)
 		}
 		if len(entries) > 0 {
-			if err := tx.Create(&entries).Error; err != nil {
-				return nil, connect.NewError(connect.CodeInternal, err)
+			if createErr := tx.Create(&entries).Error; createErr != nil {
+				return nil, connect.NewError(connect.CodeInternal, createErr)
 			}
 		}
 	}
@@ -543,13 +551,13 @@ func (b *reservationBusiness) Commit(
 	// Apply in-memory first so reservationMetadata reflects the new status.
 	r.Status = models.ReservationStatusCommitted
 	r.CommittedAt = &now
-	if err := b.auditing.RecordReservationCommittedTx(ctx, tx, r); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if auditErr := b.auditing.RecordReservationCommittedTx(ctx, tx, r); auditErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, auditErr)
 	}
 
 	// 9. Commit transaction.
-	if err := tx.Commit().Error; err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if commitErr := tx.Commit().Error; commitErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, commitErr)
 	}
 	txCommitted = true
 
@@ -596,8 +604,8 @@ func (b *reservationBusiness) Release(
 	}()
 
 	// 4. Update reservation row.
-	if err := b.resvRepo.SetReleasedTx(ctx, tx, reservationID, reason, now); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if setErr := b.resvRepo.SetReleasedTx(ctx, tx, reservationID, reason, now); setErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, setErr)
 	}
 
 	// 5. Cancel any pending approval requests.
@@ -607,7 +615,13 @@ func (b *reservationBusiness) Release(
 	}
 	for _, ar := range approvals {
 		if ar.Status == models.ApprovalStatusPending {
-			if setErr := b.approvalRepo.SetStatusTx(ctx, tx, ar.ID, models.ApprovalStatusRejected, &now); setErr != nil {
+			if setErr := b.approvalRepo.SetStatusTx(
+				ctx,
+				tx,
+				ar.ID,
+				models.ApprovalStatusRejected,
+				&now,
+			); setErr != nil {
 				return nil, connect.NewError(connect.CodeInternal, setErr)
 			}
 			// Audit the cascade-rejected approval inside the same tx.
@@ -622,13 +636,13 @@ func (b *reservationBusiness) Release(
 	r.ReleasedAt = &now
 
 	// 6. Audit the reservation release inside the tx.
-	if err := b.auditing.RecordReservationReleasedTx(ctx, tx, r, reason); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if auditErr := b.auditing.RecordReservationReleasedTx(ctx, tx, r, reason); auditErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, auditErr)
 	}
 
 	// 7. Commit.
-	if err := tx.Commit().Error; err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if commitErr := tx.Commit().Error; commitErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, commitErr)
 	}
 	txCommitted = true
 
@@ -637,6 +651,7 @@ func (b *reservationBusiness) Release(
 
 // ─── Reverse ───────────────────────────────────────────────────────────────
 
+//nolint:gocognit,funlen // reversal must stay one atomic, numbered sequence inside one tx
 func (b *reservationBusiness) Reverse(
 	ctx context.Context,
 	reservationID, idempotencyKey, reason string,
@@ -667,7 +682,7 @@ func (b *reservationBusiness) Reverse(
 	if claims := security.ClaimsFromContext(ctx); claims != nil {
 		if ctxTenant := claims.GetTenantID(); ctxTenant != "" && original.TenantID != ctxTenant {
 			return nil, connect.NewError(connect.CodeNotFound,
-				fmt.Errorf("reservation not found"))
+				errors.New("reservation not found"))
 		}
 	}
 
@@ -707,16 +722,16 @@ func (b *reservationBusiness) Reverse(
 	}
 	lockKeys := LockKeys(original.Action, original.CurrencyCode, reverseSubjectFilters)
 	for _, k := range lockKeys {
-		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", k).Error; err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
+		if lockErr := tx.Exec("SELECT pg_advisory_xact_lock(?)", k).Error; lockErr != nil {
+			return nil, connect.NewError(connect.CodeInternal, lockErr)
 		}
 	}
 
 	// 5. Mark ledger entries reversed (within the transaction for atomicity).
-	if err := tx.Table(models.LedgerEntry{}.TableName()).
+	if updErr := tx.Table(models.LedgerEntry{}.TableName()).
 		Where("reservation_id = ? AND reversed_at IS NULL", original.ID).
-		Update("reversed_at", now).Error; err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		Update("reversed_at", now).Error; updErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, updErr)
 	}
 
 	// 6. Create traceability reservation.
@@ -742,27 +757,27 @@ func (b *reservationBusiness) Reverse(
 	traceability.TenantID = original.TenantID
 	traceability.PartitionID = original.PartitionID
 
-	if err := tx.Create(traceability).Error; err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if createErr := tx.Create(traceability).Error; createErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, createErr)
 	}
 
 	// 8. Mark original status reversed (status='committed' guard prevents double-reverse).
-	if err := b.resvRepo.SetReversedTx(ctx, tx, original.ID, now); err != nil {
+	if setErr := b.resvRepo.SetReversedTx(ctx, tx, original.ID, now); setErr != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("reservation %s cannot be reversed: %w", original.ID, err))
+			fmt.Errorf("reservation %s cannot be reversed: %w", original.ID, setErr))
 	}
 
 	// Apply in-memory so reservationMetadata reflects the new status.
 	original.Status = models.ReservationStatusReversed
 
 	// 9. Audit inside the tx so the record lands atomically with the state change.
-	if err := b.auditing.RecordReservationReversedTx(ctx, tx, original, reason); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if auditErr := b.auditing.RecordReservationReversedTx(ctx, tx, original, reason); auditErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, auditErr)
 	}
 
 	// 10. Commit transaction.
-	if err := tx.Commit().Error; err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if commitErr := tx.Commit().Error; commitErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, commitErr)
 	}
 	txCommitted = true
 
@@ -795,6 +810,8 @@ func validateIntent(intent *limitsv1.LimitIntent) error {
 
 // actionSubjectRequirements declares the minimum subject set per action.
 // Reserve refuses intents missing any required subject type.
+//
+//nolint:exhaustive,gochecknoglobals // static lookup table; UNSPECIFIED is rejected by validateIntent first
 var actionSubjectRequirements = map[limitsv1.LimitAction][]limitsv1.SubjectType{
 	limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT: {
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -891,6 +908,8 @@ func subjectFromAPILocal(t limitsv1.SubjectType) models.Subject {
 		return models.SubjectOrgUnit
 	case limitsv1.SubjectType_SUBJECT_TYPE_WORKFORCE_MEMBER:
 		return models.SubjectWorkforceMember
+	case limitsv1.SubjectType_SUBJECT_TYPE_UNSPECIFIED:
+		return ""
 	default:
 		return ""
 	}
@@ -899,6 +918,8 @@ func subjectFromAPILocal(t limitsv1.SubjectType) models.Subject {
 // evaluatePredicate evaluates a Policy.AttributeFilter (a jsonb field) against
 // the given attribute map. Supported operators in v1: "in" (array), "eq" (literal).
 // Unknown operators or malformed filter → false (predicate denies).
+//
+//nolint:gocognit,nestif // small recursive-free matcher; flattening the operator checks hurts clarity
 func evaluatePredicate(filter datatypes.JSON, attrs map[string]any) bool {
 	if len(filter) == 0 {
 		return true
@@ -928,7 +949,7 @@ func evaluatePredicate(filter datatypes.JSON, attrs map[string]any) bool {
 				if !match {
 					return false
 				}
-			} else if eqVal, has := w["eq"]; has {
+			} else if eqVal, hasEq := w["eq"]; hasEq {
 				if fmt.Sprint(eqVal) != fmt.Sprint(got) {
 					return false
 				}
@@ -948,9 +969,11 @@ func intentHash(intent *limitsv1.LimitIntent, idempotencyKey string) string {
 	currency := intent.GetAmount().GetCurrencyCode()
 	amountMinor, _ := moneyx.ToMinorUnitsByCurrency(intent.GetAmount(), currency)
 	subjects := ""
+	var subjectsSb951 strings.Builder
 	for _, s := range intent.GetSubjects() {
-		subjects += s.GetType().String() + ":" + s.GetId() + ";"
+		subjectsSb951.WriteString(s.GetType().String() + ":" + s.GetId() + ";")
 	}
+	subjects += subjectsSb951.String()
 	raw := fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%s",
 		idempotencyKey,
 		intent.GetAction().String(),
@@ -968,9 +991,11 @@ func intentHash(intent *limitsv1.LimitIntent, idempotencyKey string) string {
 func reservationIntentHash(r *models.Reservation) string {
 	subjects := ""
 	if refs, err := unmarshalReservationSubjects(r.SubjectRefs); err == nil {
+		var subjectsSb971 strings.Builder
 		for _, s := range refs {
-			subjects += s.GetType().String() + ":" + s.GetId() + ";"
+			subjectsSb971.WriteString(s.GetType().String() + ":" + s.GetId() + ";")
 		}
+		subjects += subjectsSb971.String()
 	}
 	raw := fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%s",
 		r.IdempotencyKey,
@@ -1036,28 +1061,31 @@ func verdictsJSON(verdicts []*limitsv1.PolicyVerdict) datatypes.JSON {
 	return datatypes.JSON(b)
 }
 
+// fallbackApprovalTTL is used when no involved policy declares an approval TTL.
+const fallbackApprovalTTL = 72 * time.Hour
+
 func approvalTTLForPolicies(specs []approvalSpec) time.Duration {
 	// Take the SHORTEST approval TTL across involved policies —
 	// conservative on stale approval risk.
-	min := time.Duration(0)
+	shortest := time.Duration(0)
 	for _, s := range specs {
 		d := time.Duration(s.policy.ApprovalTTLSec) * time.Second
-		if min == 0 || d < min {
-			min = d
+		if shortest == 0 || d < shortest {
+			shortest = d
 		}
 	}
-	if min == 0 {
-		return 72 * time.Hour
+	if shortest == 0 {
+		return fallbackApprovalTTL
 	}
-	return min
+	return shortest
 }
 
 func requiredApproverCount(rows []*models.ApprovalRequest) int32 {
-	max := int32(0)
+	highest := int32(0)
 	for _, r := range rows {
-		if r.RequiredCount > max {
-			max = r.RequiredCount
+		if r.RequiredCount > highest {
+			highest = r.RequiredCount
 		}
 	}
-	return max
+	return highest
 }

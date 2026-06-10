@@ -158,8 +158,8 @@ func applyRuntimeIndexesForResv(t *testing.T, db *gorm.DB) {
 // seedPolicy persists a policy directly via PolicyRepository.Save, bypassing
 // version tracking for test simplicity.
 func seedPolicy(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	policyRepo repository.PolicyRepository,
 	in *limitsv1.PolicyObject,
 ) *models.Policy {
@@ -189,6 +189,7 @@ func kesIntent(action limitsv1.LimitAction, units int64) *limitsv1.LimitIntent {
 	}
 }
 
+//nolint:exhaustive // remaining actions take the default single-client subject set
 func subjectsForAction(action limitsv1.LimitAction) []*limitsv1.SubjectRef {
 	switch action {
 	case limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
@@ -264,7 +265,7 @@ func rollingWindowPolicy(
 func (s *ReservationBusinessSuite) TestReserveHappyPath() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -283,7 +284,7 @@ func (s *ReservationBusinessSuite) TestReserveHappyPath() {
 func (s *ReservationBusinessSuite) TestReserveHardBreach() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -304,7 +305,7 @@ func (s *ReservationBusinessSuite) TestReserveHardBreach() {
 func (s *ReservationBusinessSuite) TestReserveShadowBreach() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_SHADOW,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -323,14 +324,14 @@ func (s *ReservationBusinessSuite) TestReserveShadowBreach() {
 func (s *ReservationBusinessSuite) TestReserveRollingWindowUnderCap() {
 	ctx, biz, dbPool, policyRepo, ledgerRepo := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, rollingWindowPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, rollingWindowPolicy(
 		"KES", 1000, 24, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
 	))
 
 	// Pre-seed a committed ledger entry of 200 KES for client-1.
-	seedLedger(s.T(), ctx, ledgerRepo, dbPool, models.ActionLoanDisbursement, "KES", 200, "client")
+	seedLedger(ctx, s.T(), ledgerRepo, dbPool, models.ActionLoanDisbursement, "KES", 200, "client")
 
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 500)
 	resp, err := biz.Reserve(ctx, intent, "idem-rolling-under-1", 5*time.Minute)
@@ -342,14 +343,14 @@ func (s *ReservationBusinessSuite) TestReserveRollingWindowUnderCap() {
 func (s *ReservationBusinessSuite) TestReserveRollingWindowOverCap() {
 	ctx, biz, dbPool, policyRepo, ledgerRepo := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, rollingWindowPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, rollingWindowPolicy(
 		"KES", 1000, 24, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
 	))
 
 	// Pre-seed a committed ledger entry of 200 KES for client-1.
-	seedLedger(s.T(), ctx, ledgerRepo, dbPool, models.ActionLoanDisbursement, "KES", 200, "client")
+	seedLedger(ctx, s.T(), ledgerRepo, dbPool, models.ActionLoanDisbursement, "KES", 200, "client")
 
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 900)
 	resp, err := biz.Reserve(ctx, intent, "idem-rolling-over-1", 5*time.Minute)
@@ -365,7 +366,7 @@ func (s *ReservationBusinessSuite) TestReserveRollingWindowOverCap() {
 func (s *ReservationBusinessSuite) TestReserveIdempotencyReplay() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -390,12 +391,12 @@ func (s *ReservationBusinessSuite) TestReserveIdempotencyConflictDifferentIntent
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
 	// Seed policies for both actions.
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
 	))
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_REQUEST,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -429,7 +430,7 @@ func (s *ReservationBusinessSuite) TestReserveApprovalRequired() {
 	polIn.ApproverTiers = []*limitsv1.ApproverTier{
 		{UpTo: 500000, Role: "branch_manager", Approvers: 1}, // up to 5000 KES (minor units)
 	}
-	seedPolicy(s.T(), ctx, policyRepo, polIn)
+	seedPolicy(ctx, s.T(), policyRepo, polIn)
 
 	intent := kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000) // 2000 KES > 1000 cap
 	resp, err := biz.Reserve(ctx, intent, "idem-approval-1", 5*time.Minute)
@@ -452,8 +453,8 @@ func (s *ReservationBusinessSuite) TestReserveApprovalRequired() {
 
 // seedLedger inserts a committed ledger entry directly to set up rolling-window state.
 func seedLedger(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	ledgerRepo repository.LedgerRepository,
 	_ pool.Pool,
 	action models.Action,
@@ -480,7 +481,7 @@ func seedLedger(
 func (s *ReservationBusinessSuite) TestCommit_HappyPath() {
 	ctx, biz, _, policyRepo, ledgerRepo := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -509,7 +510,7 @@ func (s *ReservationBusinessSuite) TestCommit_HappyPath() {
 func (s *ReservationBusinessSuite) TestCommit_Idempotent() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -545,7 +546,7 @@ func (s *ReservationBusinessSuite) TestCommit_PendingApprovalFails() {
 	polIn.ApproverTiers = []*limitsv1.ApproverTier{
 		{UpTo: 500000, Role: "manager", Approvers: 1},
 	}
-	seedPolicy(s.T(), ctx, policyRepo, polIn)
+	seedPolicy(ctx, s.T(), policyRepo, polIn)
 
 	resp, err := biz.Reserve(
 		ctx,
@@ -578,7 +579,7 @@ func (s *ReservationBusinessSuite) TestCommit_NotFound() {
 func (s *ReservationBusinessSuite) TestCommit_ShadowSkipsLedger() {
 	ctx, biz, _, policyRepo, ledgerRepo := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_SHADOW,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -613,7 +614,7 @@ func (s *ReservationBusinessSuite) TestCommit_ShadowSkipsLedger() {
 func (s *ReservationBusinessSuite) TestRelease_HappyPath() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -645,7 +646,7 @@ func (s *ReservationBusinessSuite) TestRelease_PendingApprovalCascadesApprovalRe
 	polIn.ApproverTiers = []*limitsv1.ApproverTier{
 		{UpTo: 500000, Role: "manager", Approvers: 1},
 	}
-	seedPolicy(s.T(), ctx, policyRepo, polIn)
+	seedPolicy(ctx, s.T(), policyRepo, polIn)
 
 	resp, err := biz.Reserve(
 		ctx,
@@ -674,7 +675,7 @@ func (s *ReservationBusinessSuite) TestRelease_PendingApprovalCascadesApprovalRe
 func (s *ReservationBusinessSuite) TestRelease_Idempotent() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -704,7 +705,7 @@ func (s *ReservationBusinessSuite) TestRelease_Idempotent() {
 func (s *ReservationBusinessSuite) TestReverse_HappyPath() {
 	ctx, biz, _, policyRepo, ledgerRepo := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -751,7 +752,7 @@ func (s *ReservationBusinessSuite) TestReverse_HappyPath() {
 func (s *ReservationBusinessSuite) TestReverse_NotCommittedFails() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -777,7 +778,7 @@ func (s *ReservationBusinessSuite) TestReverse_NotCommittedFails() {
 func (s *ReservationBusinessSuite) TestReverse_Idempotent() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -811,7 +812,7 @@ func (s *ReservationBusinessSuite) TestReverse_Idempotent() {
 func (s *ReservationBusinessSuite) TestCheck_HappyPath() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -828,7 +829,7 @@ func (s *ReservationBusinessSuite) TestCheck_HappyPath() {
 func (s *ReservationBusinessSuite) TestCheck_HardBreach() {
 	ctx, biz, _, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -852,7 +853,7 @@ func (s *ReservationBusinessSuite) TestCheck_ApprovalRequired() {
 	polIn.ApproverTiers = []*limitsv1.ApproverTier{
 		{UpTo: 500000, Role: "branch_manager", Approvers: 2},
 	}
-	seedPolicy(s.T(), ctx, policyRepo, polIn)
+	seedPolicy(ctx, s.T(), policyRepo, polIn)
 
 	checkResp, err := biz.Check(ctx, kesIntent(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000))
 	s.Require().NoError(err)
@@ -869,7 +870,7 @@ func (s *ReservationBusinessSuite) TestCheck_ApprovalRequired() {
 func (s *ReservationBusinessSuite) TestReverse_Concurrent_OnlyOneSucceeds() {
 	ctx, biz, dbPool, policyRepo, _ := s.resvEnv("tenant-a", "partition-a")
 
-	seedPolicy(s.T(), ctx, policyRepo, perTxnMaxPolicy(
+	seedPolicy(ctx, s.T(), policyRepo, perTxnMaxPolicy(
 		"KES", 100_000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -891,7 +892,7 @@ func (s *ReservationBusinessSuite) TestReverse_Concurrent_OnlyOneSucceeds() {
 		err  error
 	}
 	ch := make(chan result, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		idemKey := fmt.Sprintf("concurrent-reverse-rev-k%d", i)
 		go func(key string) {
 			resp, rerr := biz.Reverse(ctx, resvID, key, "concurrent test")

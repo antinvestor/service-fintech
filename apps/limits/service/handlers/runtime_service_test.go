@@ -151,8 +151,8 @@ func applyRuntimeIndexes(t *testing.T, db *gorm.DB) {
 
 // seedPolicyForHandler persists a policy directly for handler tests.
 func seedPolicyForHandler(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	policyRepo repository.PolicyRepository,
 	in *limitsv1.PolicyObject,
 ) *models.Policy {
@@ -189,6 +189,8 @@ func perTxnMaxPolicyHandler(
 }
 
 // kesIntentForHandler builds a LimitIntent with the required subjects for the action.
+//
+//nolint:exhaustive // remaining actions take the default single-client subject set
 func kesIntentForHandler(action limitsv1.LimitAction, units int64) *limitsv1.LimitIntent {
 	var subjects []*limitsv1.SubjectRef
 	switch action {
@@ -217,7 +219,7 @@ func kesIntentForHandler(action limitsv1.LimitAction, units int64) *limitsv1.Lim
 func (s *RuntimeHandlerSuite) TestRuntimeService_ReserveCommitFlow() {
 	ctx, handler, _, policyRepo, _ := s.runtimeEnv("tenant-a", "partition-a")
 
-	seedPolicyForHandler(s.T(), ctx, policyRepo, perTxnMaxPolicyHandler(
+	seedPolicyForHandler(ctx, s.T(), policyRepo, perTxnMaxPolicyHandler(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -247,7 +249,7 @@ func (s *RuntimeHandlerSuite) TestRuntimeService_ReserveCommitFlow() {
 func (s *RuntimeHandlerSuite) TestRuntimeService_CheckReadOnly() {
 	ctx, handler, dbPool, policyRepo, _ := s.runtimeEnv("tenant-a", "partition-a")
 
-	seedPolicyForHandler(s.T(), ctx, policyRepo, perTxnMaxPolicyHandler(
+	seedPolicyForHandler(ctx, s.T(), policyRepo, perTxnMaxPolicyHandler(
 		"KES", 1000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,
@@ -271,7 +273,7 @@ func (s *RuntimeHandlerSuite) TestRuntimeService_CheckReadOnly() {
 func (s *RuntimeHandlerSuite) TestRuntimeService_ReserveRelease() {
 	ctx, handler, _, policyRepo, _ := s.runtimeEnv("tenant-a", "partition-a")
 
-	seedPolicyForHandler(s.T(), ctx, policyRepo, perTxnMaxPolicyHandler(
+	seedPolicyForHandler(ctx, s.T(), policyRepo, perTxnMaxPolicyHandler(
 		"KES", 10000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE,
 		limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,

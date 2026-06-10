@@ -190,10 +190,10 @@ type brokenResvRepo struct{}
 
 func (b *brokenResvRepo) Create(_ context.Context, _ *models.Reservation) error { return nil }
 func (b *brokenResvRepo) GetByID(_ context.Context, _ string) (*models.Reservation, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // no-op stub: archival never reads reservations
 }
 func (b *brokenResvRepo) GetByIdempotencyKey(_ context.Context, _ string) (*models.Reservation, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // no-op stub: archival never reads reservations
 }
 
 func (b *brokenResvRepo) PendingSum(

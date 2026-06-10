@@ -69,7 +69,7 @@ func (e *OrganizationSave) Execute(ctx context.Context, payload any) error {
 	}
 
 	logger := util.Log(ctx).
-		WithFields(map[string]any{"type": e.Name(), "organization_id": organization.GetID()})
+		WithFields(map[string]any{logFieldType: e.Name(), "organization_id": organization.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.organizationRepo.GetByID(ctx, organization.GetID())

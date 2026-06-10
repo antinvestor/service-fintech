@@ -48,6 +48,7 @@ func NewAuditSearchBusiness(p pool.Pool) AuditSearchBusiness {
 	return &auditSearchBusiness{dbPool: p}
 }
 
+//nolint:gocognit // filter assembly + pagination loop is a single linear flow
 func (b *auditSearchBusiness) Search(
 	ctx context.Context,
 	req *limitsv1.LimitsAuditSearchRequest,

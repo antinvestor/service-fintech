@@ -55,7 +55,7 @@ func (e *InterestAccrualSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.InterestAccrual")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "interest_accrual_id": ia.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "interest_accrual_id": ia.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, ia.GetID())

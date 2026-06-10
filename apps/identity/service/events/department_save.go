@@ -55,7 +55,7 @@ func (e *DepartmentSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of expected type")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "id": m.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "id": m.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.repo.GetByID(ctx, m.GetID())

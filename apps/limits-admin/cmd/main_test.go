@@ -17,6 +17,7 @@ package main_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -88,7 +89,7 @@ func (s *stubAdminServer) ApprovalRequestDecide(
 
 // newTestServer spins up an httptest.Server with the stub admin handler and
 // returns the server URL plus a cleanup function.
-func newTestServer(t *testing.T, policies []*limitsv1.PolicyObject) (serverURL string, cleanup func()) {
+func newTestServer(t *testing.T, policies []*limitsv1.PolicyObject) (string, func()) {
 	t.Helper()
 
 	stub := &stubAdminServer{policies: policies}
@@ -197,7 +198,8 @@ func TestApprove_RequiresReason(t *testing.T) {
 		t.Fatal("expected non-zero exit when --reason is missing, got exit 0")
 	}
 
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	exitErr := &exec.ExitError{}
+	if errors.As(err, &exitErr) {
 		if exitErr.ExitCode() == 0 {
 			t.Fatal("expected non-zero exit code")
 		}

@@ -64,7 +64,7 @@ func (e *SavingsBalanceSave) Execute(ctx context.Context, payload any) error {
 	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"type":               e.Name(),
+		logFieldType:         e.Name(),
 		"savings_balance_id": sb.GetID(),
 		"savings_account_id": sb.SavingsAccountID,
 	})

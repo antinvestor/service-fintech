@@ -33,6 +33,8 @@ func scopeFromAPI(s limitsv1.PolicyScope) (Scope, error) {
 		return ScopeOrg, nil
 	case limitsv1.PolicyScope_POLICY_SCOPE_ORG_UNIT:
 		return ScopeOrgUnit, nil
+	case limitsv1.PolicyScope_POLICY_SCOPE_UNSPECIFIED:
+		return "", errors.New("policy: invalid scope")
 	default:
 		return "", errors.New("policy: invalid scope")
 	}
@@ -65,6 +67,8 @@ func subjectFromAPI(s limitsv1.SubjectType) (Subject, error) {
 		return SubjectOrgUnit, nil
 	case limitsv1.SubjectType_SUBJECT_TYPE_WORKFORCE_MEMBER:
 		return SubjectWorkforceMember, nil
+	case limitsv1.SubjectType_SUBJECT_TYPE_UNSPECIFIED:
+		return "", errors.New("policy: invalid subject type")
 	default:
 		return "", errors.New("policy: invalid subject type")
 	}
@@ -113,6 +117,8 @@ func actionFromAPI(a limitsv1.LimitAction) (Action, error) {
 		return ActionStawiContribution, nil
 	case limitsv1.LimitAction_LIMIT_ACTION_STAWI_PAYOUT:
 		return ActionStawiPayout, nil
+	case limitsv1.LimitAction_LIMIT_ACTION_UNSPECIFIED:
+		return "", errors.New("policy: invalid action")
 	default:
 		return "", errors.New("policy: invalid action")
 	}
@@ -157,6 +163,8 @@ func kindFromAPI(k limitsv1.LimitKind) (Kind, error) {
 		return KindRollingWindowAmount, nil
 	case limitsv1.LimitKind_LIMIT_KIND_ROLLING_WINDOW_COUNT:
 		return KindRollingWindowCount, nil
+	case limitsv1.LimitKind_LIMIT_KIND_UNSPECIFIED:
+		return "", errors.New("policy: invalid kind")
 	default:
 		return "", errors.New("policy: invalid kind")
 	}
@@ -185,6 +193,8 @@ func modeFromAPI(m limitsv1.PolicyMode) (Mode, error) {
 		return ModeShadow, nil
 	case limitsv1.PolicyMode_POLICY_MODE_ENFORCE:
 		return ModeEnforce, nil
+	case limitsv1.PolicyMode_POLICY_MODE_UNSPECIFIED:
+		return "", errors.New("policy: invalid mode")
 	default:
 		return "", errors.New("policy: invalid mode")
 	}
@@ -214,6 +224,7 @@ func marshalStruct(s *structpb.Struct) ([]byte, error) {
 
 func unmarshalStruct(b []byte) (*structpb.Struct, error) {
 	if len(b) == 0 {
+		//nolint:nilnil // empty column yields no struct and no error by contract
 		return nil, nil
 	}
 	out := &structpb.Struct{}
@@ -356,6 +367,8 @@ func subjectTypeJSON(t limitsv1.SubjectType) string {
 		return "org_unit"
 	case limitsv1.SubjectType_SUBJECT_TYPE_WORKFORCE_MEMBER:
 		return "workforce_member"
+	case limitsv1.SubjectType_SUBJECT_TYPE_UNSPECIFIED:
+		return ""
 	default:
 		return ""
 	}

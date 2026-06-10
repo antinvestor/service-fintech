@@ -131,10 +131,10 @@ func (n *ApprovalCaseNotifier) notifyRole(
 	priority notificationv1.PRIORITY,
 ) {
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"component": "ApprovalCaseNotifier",
-		"case_id":   approvalCase.GetID(),
-		"template":  template,
-		"role_key":  roleKey,
+		logKeyComponent: componentApprovalCaseNotifier,
+		logKeyCaseID:    approvalCase.GetID(),
+		logKeyTemplate:  template,
+		"role_key":      roleKey,
 	})
 
 	profileIDs, err := n.caseProfileRecipients(ctx, approvalCase, roleKey)
@@ -348,9 +348,9 @@ func (n *ApprovalCaseNotifier) sendToProfiles(
 	priority notificationv1.PRIORITY,
 ) {
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"component": "ApprovalCaseNotifier",
-		"case_id":   approvalCase.GetID(),
-		"template":  template,
+		logKeyComponent: componentApprovalCaseNotifier,
+		logKeyCaseID:    approvalCase.GetID(),
+		logKeyTemplate:  template,
 	})
 
 	if n == nil || n.client == nil {
@@ -434,9 +434,9 @@ func (n *ApprovalCaseNotifier) send(
 	priority notificationv1.PRIORITY,
 ) {
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"component": "ApprovalCaseNotifier",
-		"template":  template,
-		"recipient": contactDetail,
+		logKeyComponent: componentApprovalCaseNotifier,
+		logKeyTemplate:  template,
+		"recipient":     contactDetail,
 	})
 
 	stream, err := n.client.Send(ctx, connect.NewRequest(&notificationv1.SendRequest{
@@ -473,7 +473,7 @@ func approvalCaseNotificationData(approvalCase *models.ApprovalCase) map[string]
 	}
 
 	return map[string]string{
-		"case_id":           approvalCase.GetID(),
+		logKeyCaseID:        approvalCase.GetID(),
 		"case_type":         approvalCase.CaseType,
 		"case_type_label":   humanizeCaseValue(approvalCase.CaseType),
 		"case_status":       approvalCase.Status,

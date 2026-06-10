@@ -55,26 +55,26 @@ func RegisteredMetrics() []MetricInfo {
 	return []MetricInfo{
 		{
 			Name:        "identity_organizations_created_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "New organizations created",
 		},
 		{
 			Name:        "identity_org_units_created_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "New organizational units created",
 		},
 		{
 			Name:        "identity_workforce_added_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Workforce members added",
 		},
 		{
 			Name:        "identity_workforce_removed_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Workforce members removed (deactivated)",
 		},
 	}

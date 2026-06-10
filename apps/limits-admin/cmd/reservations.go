@@ -41,6 +41,9 @@ func reservationsCmd() *cobra.Command {
 	return cmd
 }
 
+// watchInterval is how often --watch re-renders the reservation list.
+const watchInterval = 5 * time.Second
+
 func reservationsListCmd() *cobra.Command {
 	var (
 		flagStatus string
@@ -50,7 +53,7 @@ func reservationsListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List approval requests",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			status := limitsv1.ApprovalStatus_APPROVAL_STATUS_PENDING
 			if flagStatus != "" {
 				v, ok := limitsv1.ApprovalStatus_value[flagStatus]
@@ -94,8 +97,8 @@ func listReservationsOnce(ctx context.Context, status limitsv1.ApprovalStatus) e
 	for stream.Receive() {
 		items = append(items, stream.Msg().GetData()...)
 	}
-	if err := stream.Err(); err != nil {
-		return fmt.Errorf("stream error: %w", err)
+	if streamErr := stream.Err(); streamErr != nil {
+		return fmt.Errorf("stream error: %w", streamErr)
 	}
 
 	return renderReservations(items)
@@ -109,12 +112,12 @@ func renderReservations(items []*limitsv1.ApprovalRequestObject) error {
 			if err != nil {
 				return err
 			}
-			fmt.Println(string(out))
+			fmt.Fprintln(os.Stdout, string(out))
 		}
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, tabPadding, ' ', 0)
 	fmt.Fprintln(w, "ID\tRESERVATION_ID\tACTION\tSTATUS\tSUBMITTED_AT\tEXPIRES_AT")
 	for _, item := range items {
 		submittedAt := ""
@@ -141,7 +144,7 @@ func watchReservations(parentCtx context.Context, status limitsv1.ApprovalStatus
 	ctx, stop := signal.NotifyContext(parentCtx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(watchInterval)
 	defer ticker.Stop()
 
 	// Run immediately, then on each tick.
@@ -155,7 +158,7 @@ func watchReservations(parentCtx context.Context, status limitsv1.ApprovalStatus
 			return nil
 		case <-ticker.C:
 			// Clear screen by printing ANSI escape.
-			fmt.Print("\033[2J\033[H")
+			fmt.Fprint(os.Stdout, "\033[2J\033[H")
 			if err := listReservationsOnce(ctx, status); err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			}
@@ -185,15 +188,15 @@ func reservationsShowCmd() *cobra.Command {
 
 			item := resp.Msg.GetData()
 			if flagJSON {
-				out, err := protojson.MarshalOptions{Indent: "  "}.Marshal(item)
-				if err != nil {
-					return err
+				out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(item)
+				if marshalErr != nil {
+					return marshalErr
 				}
-				fmt.Println(string(out))
+				fmt.Fprintln(os.Stdout, string(out))
 				return nil
 			}
 
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, tabPadding, ' ', 0)
 			fmt.Fprintf(w, "ID:\t%s\n", item.GetId())
 			fmt.Fprintf(w, "ReservationID:\t%s\n", item.GetReservationId())
 			fmt.Fprintf(w, "Action:\t%s\n", item.GetAction().String())

@@ -25,6 +25,9 @@ import (
 	"github.com/antinvestor/service-fintech/apps/limits/service/business"
 )
 
+// defaultReserveTTL applies when the caller does not provide a reservation TTL.
+const defaultReserveTTL = 5 * time.Minute
+
 // RuntimeService implements limitsv1connect.LimitsServiceHandler. It
 // wraps ReservationBusiness in connect-rpc shape; all business logic
 // lives in the business layer.
@@ -57,7 +60,7 @@ func (s *RuntimeService) Reserve(
 ) (*connect.Response[limitsv1.ReserveResponse], error) {
 	ttl := req.Msg.GetTtl().AsDuration()
 	if ttl <= 0 {
-		ttl = 5 * time.Minute
+		ttl = defaultReserveTTL
 	}
 	out, err := s.biz.Reserve(ctx, req.Msg.GetIntent(), req.Msg.GetIdempotencyKey(), ttl)
 	if err != nil {

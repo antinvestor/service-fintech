@@ -34,6 +34,7 @@ func LockKeys(action models.Action, currency string, subjects []repository.Subje
 	for _, s := range subjects {
 		h := fnv.New64a()
 		_, _ = h.Write([]byte(strings.Join([]string{string(s.Type), s.ID, string(action), currency}, "|")))
+		//nolint:gosec // intentional wraparound: hash bits reused as advisory-lock key
 		keys = append(keys, int64(h.Sum64()))
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })

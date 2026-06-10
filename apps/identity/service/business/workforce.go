@@ -200,7 +200,7 @@ func (b *workforceBusiness) WorkforceMemberSearch(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
-			"organization_id = ?":  req.GetOrganizationId(),
+			whereOrganizationID:    req.GetOrganizationId(),
 			"home_org_unit_id = ?": req.GetHomeOrgUnitId(),
 		},
 	))
@@ -252,8 +252,8 @@ func (b *workforceBusiness) DepartmentSearch(
 	consumer func(ctx context.Context, batch []*identityv1.DepartmentObject) error,
 ) error {
 	filters := map[string]any{
-		"organization_id = ?": req.GetOrganizationId(),
-		"parent_id = ?":       req.GetParentId(),
+		whereOrganizationID: req.GetOrganizationId(),
+		"parent_id = ?":     req.GetParentId(),
 	}
 	if req.GetKind() != identityv1.DepartmentKind_DEPARTMENT_KIND_UNSPECIFIED {
 		filters["kind = ?"] = int32(req.GetKind())
@@ -316,7 +316,7 @@ func (b *workforceBusiness) PositionSearch(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
-			"organization_id = ?":        req.GetOrganizationId(),
+			whereOrganizationID:          req.GetOrganizationId(),
 			"org_unit_id = ?":            req.GetOrgUnitId(),
 			"department_id = ?":          req.GetDepartmentId(),
 			"reports_to_position_id = ?": req.GetReportsToPositionId(),
@@ -385,7 +385,7 @@ func (b *workforceBusiness) PositionAssignmentSearch(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
-			"member_id = ?":   req.GetMemberId(),
+			whereMemberID:     req.GetMemberId(),
 			"position_id = ?": req.GetPositionId(),
 		},
 	))
@@ -440,7 +440,7 @@ func (b *workforceBusiness) InternalTeamSearch(
 	consumer func(ctx context.Context, batch []*identityv1.InternalTeamObject) error,
 ) error {
 	filters := map[string]any{
-		"organization_id = ?":  req.GetOrganizationId(),
+		whereOrganizationID:    req.GetOrganizationId(),
 		"home_org_unit_id = ?": req.GetHomeOrgUnitId(),
 	}
 	if req.GetTeamType() != "" {
@@ -510,8 +510,8 @@ func (b *workforceBusiness) TeamMembershipSearch(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
-			"team_id = ?":   req.GetTeamId(),
-			"member_id = ?": req.GetMemberId(),
+			"team_id = ?": req.GetTeamId(),
+			whereMemberID: req.GetMemberId(),
 		},
 	))
 	if err != nil {
@@ -569,9 +569,9 @@ func (b *workforceBusiness) AccessRoleAssignmentSearch(
 	consumer func(ctx context.Context, batch []*identityv1.AccessRoleAssignmentObject) error,
 ) error {
 	filters := map[string]any{
-		"member_id = ?": req.GetMemberId(),
-		"role_key = ?":  req.GetRoleKey(),
-		"scope_id = ?":  req.GetScopeId(),
+		whereMemberID:  req.GetMemberId(),
+		"role_key = ?": req.GetRoleKey(),
+		"scope_id = ?": req.GetScopeId(),
 	}
 	if req.GetScopeType() != identityv1.AccessScopeType_ACCESS_SCOPE_TYPE_UNSPECIFIED {
 		filters["scope_type = ?"] = int32(req.GetScopeType())
@@ -611,7 +611,7 @@ func buildSearchQuery(query string, cursor *commonv1.PageCursor, filters map[str
 	}
 	if query != "" {
 		searchOpts = append(searchOpts, data.WithSearchFiltersOrByValue(
-			map[string]any{"searchable @@ websearch_to_tsquery( 'english', ?) ": query},
+			map[string]any{searchableTSQuery: query},
 		))
 	}
 

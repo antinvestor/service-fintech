@@ -55,7 +55,7 @@ func (e *PenaltySave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Penalty")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "penalty_id": p.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "penalty_id": p.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.penaltyRepo.GetByID(ctx, p.GetID())

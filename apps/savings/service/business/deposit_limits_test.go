@@ -49,8 +49,10 @@ import (
 // noopDepositEventsManager implements fevents.Manager and silently drops all emissions.
 type noopDepositEventsManager struct{}
 
-func (n *noopDepositEventsManager) Add(_ fevents.EventI)                          {}
-func (n *noopDepositEventsManager) Get(_ string) (fevents.EventI, error)          { return nil, nil }
+func (n *noopDepositEventsManager) Add(_ fevents.EventI) {}
+func (n *noopDepositEventsManager) Get(_ string) (fevents.EventI, error) {
+	return nil, nil //nolint:nilnil // no-op stub: tests never look up events
+}
 func (n *noopDepositEventsManager) Emit(_ context.Context, _ string, _ any) error { return nil }
 func (n *noopDepositEventsManager) Handler() queue.SubscribeWorker                { return nil }
 

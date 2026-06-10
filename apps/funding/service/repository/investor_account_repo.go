@@ -210,9 +210,9 @@ func (r *investorAccountRepository) AtomicDeposit(
 		Model(&models.InvestorAccount{}).
 		Where("id = ?", accountID).
 		Updates(map[string]any{
-			"available_balance": gorm.Expr("available_balance + ?", amount),
-			"modified_at":       now,
-			"version":           gorm.Expr("version + 1"),
+			colAvailableBalance: gorm.Expr("available_balance + ?", amount),
+			colModifiedAt:       now,
+			colVersion:          gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -236,9 +236,9 @@ func (r *investorAccountRepository) AtomicWithdraw(
 		Model(&models.InvestorAccount{}).
 		Where("id = ? AND (available_balance - reserved_balance) >= ?", accountID, amount).
 		Updates(map[string]any{
-			"available_balance": gorm.Expr("available_balance - ?", amount),
-			"modified_at":       now,
-			"version":           gorm.Expr("version + 1"),
+			colAvailableBalance: gorm.Expr("available_balance - ?", amount),
+			colModifiedAt:       now,
+			colVersion:          gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -271,9 +271,9 @@ func (r *investorAccountRepository) AtomicAbsorbLoss(
 		Model(&models.InvestorAccount{}).
 		Where("id = ?", accountID).
 		Updates(map[string]any{
-			"reserved_balance": gorm.Expr("GREATEST(reserved_balance - ?, 0)", lossAmount),
-			"modified_at":      now,
-			"version":          gorm.Expr("version + 1"),
+			colReservedBalance: gorm.Expr("GREATEST(reserved_balance - ?, 0)", lossAmount),
+			colModifiedAt:      now,
+			colVersion:         gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -297,11 +297,11 @@ func (r *investorAccountRepository) AtomicReserve(
 		Model(&models.InvestorAccount{}).
 		Where("id = ? AND (available_balance - reserved_balance) >= ?", accountID, amount).
 		Updates(map[string]any{
-			"reserved_balance": gorm.Expr("reserved_balance + ?", amount),
+			colReservedBalance: gorm.Expr("reserved_balance + ?", amount),
 			"total_deployed":   gorm.Expr("total_deployed + ?", amount),
 			"last_deployed_at": now,
-			"modified_at":      now,
-			"version":          gorm.Expr("version + 1"),
+			colModifiedAt:      now,
+			colVersion:         gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -333,9 +333,9 @@ func (r *investorAccountRepository) AtomicRelease(
 		Model(&models.InvestorAccount{}).
 		Where("id = ? AND reserved_balance >= ?", accountID, amount).
 		Updates(map[string]any{
-			"reserved_balance": gorm.Expr("reserved_balance - ?", amount),
-			"modified_at":      now,
-			"version":          gorm.Expr("version + 1"),
+			colReservedBalance: gorm.Expr("reserved_balance - ?", amount),
+			colModifiedAt:      now,
+			colVersion:         gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -372,11 +372,11 @@ func (r *investorAccountRepository) AtomicReleaseWithReturn(
 		Model(&models.InvestorAccount{}).
 		Where("id = ?", accountID).
 		Updates(map[string]any{
-			"reserved_balance":  gorm.Expr("GREATEST(reserved_balance - ?, 0)", principalReturned),
-			"available_balance": gorm.Expr("available_balance + ?", principalReturned+interestEarned),
+			colReservedBalance:  gorm.Expr("GREATEST(reserved_balance - ?, 0)", principalReturned),
+			colAvailableBalance: gorm.Expr("available_balance + ?", principalReturned+interestEarned),
 			"total_returned":    gorm.Expr("total_returned + ?", principalReturned+interestEarned),
-			"modified_at":       now,
-			"version":           gorm.Expr("version + 1"),
+			colModifiedAt:       now,
+			colVersion:          gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error

@@ -198,7 +198,7 @@ func (s *LedgerRepoSuite) TestWindowSumTx_ReturnsCorrectSum() {
 
 	tx := dbPool.DB(ctx, false).Begin()
 	s.Require().NoError(tx.Error)
-	defer tx.Rollback() //nolint:errcheck
+	defer tx.Rollback()
 
 	since := now.Add(-1 * time.Hour)
 	sum, err := repo.WindowSumTx(ctx, tx, models.ActionLoanDisbursement, "KES",
@@ -222,7 +222,7 @@ func (s *LedgerRepoSuite) TestWindowSumTx_ReversedEntriesExcluded() {
 
 	tx := dbPool.DB(ctx, false).Begin()
 	s.Require().NoError(tx.Error)
-	defer tx.Rollback() //nolint:errcheck
+	defer tx.Rollback()
 
 	since := now.Add(-1 * time.Hour)
 	sum, err := repo.WindowSumTx(ctx, tx, models.ActionLoanDisbursement, "KES",
@@ -243,7 +243,7 @@ func (s *LedgerRepoSuite) TestWindowSumTx_OutsideWindowExcluded() {
 
 	tx := dbPool.DB(ctx, false).Begin()
 	s.Require().NoError(tx.Error)
-	defer tx.Rollback() //nolint:errcheck
+	defer tx.Rollback()
 
 	since := now.Add(-1 * time.Hour)
 	sum, err := repo.WindowSumTx(ctx, tx, models.ActionLoanDisbursement, "KES",
@@ -266,7 +266,7 @@ func (s *LedgerRepoSuite) TestWindowCountTx_CountsActiveOnly() {
 
 	tx := dbPool.DB(ctx, false).Begin()
 	s.Require().NoError(tx.Error)
-	defer tx.Rollback() //nolint:errcheck
+	defer tx.Rollback()
 
 	since := now.Add(-1 * time.Hour)
 	count, err := repo.WindowCountTx(ctx, tx, models.ActionLoanDisbursement, "KES",
@@ -292,7 +292,7 @@ func (s *LedgerRepoSuite) TestWindowSumTx_AppliesTenantPartition() {
 	// Open a tx scoped to tenant-A's pool and run WindowSumTx with ctxA.
 	tx := dbPoolA.DB(ctxA, false).Begin()
 	s.Require().NoError(tx.Error)
-	defer tx.Rollback() //nolint:errcheck
+	defer tx.Rollback()
 
 	since := now.Add(-1 * time.Hour)
 	sum, err := repoA.WindowSumTx(ctxA, tx, models.ActionLoanDisbursement, "KES",

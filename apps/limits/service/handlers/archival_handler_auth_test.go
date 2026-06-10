@@ -18,7 +18,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/pitabwire/frame/security"
@@ -119,7 +118,7 @@ func TestArchivalHandler_AcceptsValidToken(t *testing.T) {
 	// The stub archival returns (0,0,nil) so the inner handler succeeds.
 	assert.Equal(t, http.StatusOK, rec.Code,
 		"expected 200 for a POST with a valid bearer token")
-	assert.True(t, strings.Contains(rec.Header().Get("Content-Type"), "application/json"),
+	assert.Contains(t, rec.Header().Get("Content-Type"), "application/json",
 		"response should be JSON")
 }
 

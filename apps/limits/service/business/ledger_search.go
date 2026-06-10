@@ -80,8 +80,8 @@ func (b *ledgerSearchBusiness) Search(
 		for i, e := range out.Items {
 			api[i] = e.ToAPI()
 		}
-		if err := batch(ctx, api); err != nil {
-			return err
+		if batchErr := batch(ctx, api); batchErr != nil {
+			return batchErr
 		}
 		if out.NextCursor == "" {
 			return nil

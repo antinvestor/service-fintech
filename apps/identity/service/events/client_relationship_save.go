@@ -58,7 +58,7 @@ func (e *ClientRelationshipSave) Execute(ctx context.Context, payload any) error
 		return errors.New("payload is not of type models.ClientRelationship")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "cr_id": cr.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "cr_id": cr.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.crRepo.GetByID(ctx, cr.GetID())

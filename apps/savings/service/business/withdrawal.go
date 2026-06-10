@@ -176,18 +176,18 @@ func (b *withdrawalBusiness) Request(
 		Action:     "savings.withdrawal.requested",
 		Reason:     reason,
 		After: data.JSONMap{
-			"status":           wdr.Status,
+			fieldStatus:        wdr.Status,
 			"reserved_amount":  amountMinor,
 			"balance_reserved": true,
 		},
 		Metadata: data.JSONMap{
-			"savings_account_id":  sa.GetID(),
-			"owner_id":            sa.OwnerID,
-			"amount":              amountMinor,
-			"currency":            sa.CurrencyCode,
-			"channel":             channel,
-			"recipient_reference": recipientRef,
-			"idempotency_key":     idempotencyKey,
+			fieldSavingsAccountID:   sa.GetID(),
+			fieldOwnerID:            sa.OwnerID,
+			fieldAmount:             amountMinor,
+			fieldCurrency:           sa.CurrencyCode,
+			fieldChannel:            channel,
+			fieldRecipientReference: recipientRef,
+			"idempotency_key":       idempotencyKey,
 		},
 		Parent: &wdr.BaseModel,
 	}, func(auErr error) {
@@ -293,19 +293,19 @@ func (b *withdrawalBusiness) approveInner(
 		EntityID:   wdr.GetID(),
 		Action:     "savings.withdrawal.approved",
 		Reason:     "withdrawal approved, ledger posted, reservation settled",
-		Before:     data.JSONMap{"status": int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_PENDING)},
+		Before:     data.JSONMap{fieldStatus: int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_PENDING)},
 		After: data.JSONMap{
-			"status":                wdr.Status,
-			"ledger_transaction_id": wdr.LedgerTransactionID,
+			fieldStatus:              wdr.Status,
+			fieldLedgerTransactionID: wdr.LedgerTransactionID,
 		},
 		Metadata: data.JSONMap{
-			"savings_account_id":  sa.GetID(),
-			"owner_id":            sa.OwnerID,
-			"amount":              wdr.Amount,
-			"currency":            sa.CurrencyCode,
-			"channel":             wdr.Channel,
-			"recipient_reference": wdr.RecipientReference,
-			"withdrawal_id":       id,
+			fieldSavingsAccountID:   sa.GetID(),
+			fieldOwnerID:            sa.OwnerID,
+			fieldAmount:             wdr.Amount,
+			fieldCurrency:           sa.CurrencyCode,
+			fieldChannel:            wdr.Channel,
+			fieldRecipientReference: wdr.RecipientReference,
+			"withdrawal_id":         id,
 		},
 		Parent: &wdr.BaseModel,
 	}, func(auErr error) {
@@ -340,11 +340,11 @@ func (b *withdrawalBusiness) postWithdrawalTransferOrder(
 
 	reference := fmt.Sprintf("withdrawal:%s", wdr.GetID())
 	extraData := data.JSONMap{
-		"savings_account_id":  sa.GetID(),
-		"withdrawal_id":       wdr.GetID(),
-		"owner_id":            sa.OwnerID,
-		"channel":             wdr.Channel,
-		"recipient_reference": wdr.RecipientReference,
+		fieldSavingsAccountID:   sa.GetID(),
+		"withdrawal_id":         wdr.GetID(),
+		fieldOwnerID:            sa.OwnerID,
+		fieldChannel:            wdr.Channel,
+		fieldRecipientReference: wdr.RecipientReference,
 	}
 
 	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{

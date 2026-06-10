@@ -66,6 +66,30 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/audit"
 )
 
+// syncTrustageWorkflows pushes the workflow definitions baked into the image
+// to the Trustage service, when TRUSTAGE_URL is configured.
+func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.SeedConfig, log *util.LogEntry) {
+	trustageURL := os.Getenv("TRUSTAGE_URL")
+	if trustageURL == "" {
+		return
+	}
+	workflowsDir := os.Getenv("TRUSTAGE_WORKFLOWS_DIR")
+	if workflowsDir == "" {
+		workflowsDir = "/workflows"
+	}
+	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
+		Endpoint:  trustageURL,
+		Audiences: []string{"service_trustage"},
+	}, workflowv1connect.NewWorkflowServiceClient)
+	if cliErr != nil {
+		log.WithError(cliErr).Warn("trustage workflow client init failed")
+		return
+	}
+	if syncErr := workflows.SyncFromDir(ctx, trustageCli, workflowsDir); syncErr != nil {
+		log.WithError(syncErr).Warn("trustage workflow sync failed")
+	}
+}
+
 func main() {
 	tmpCtx := context.Background()
 
@@ -94,22 +118,7 @@ func main() {
 		if migErr := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath()); migErr != nil {
 			log.WithError(migErr).Error("main -- could not migrate successfully")
 		}
-		// Sync Trustage workflow definitions baked into the image.
-		if trustageURL := os.Getenv("TRUSTAGE_URL"); trustageURL != "" {
-			workflowsDir := os.Getenv("TRUSTAGE_WORKFLOWS_DIR")
-			if workflowsDir == "" {
-				workflowsDir = "/workflows"
-			}
-			trustageCli, cliErr := connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
-				Endpoint:  trustageURL,
-				Audiences: []string{"service_trustage"},
-			}, workflowv1connect.NewWorkflowServiceClient)
-			if cliErr != nil {
-				log.WithError(cliErr).Warn("trustage workflow client init failed")
-			} else if syncErr := workflows.SyncFromDir(ctx, trustageCli, workflowsDir); syncErr != nil {
-				log.WithError(syncErr).Warn("trustage workflow sync failed")
-			}
-		}
+		syncTrustageWorkflows(ctx, &cfg, log)
 		return
 	}
 

@@ -131,7 +131,7 @@ func (s *PolicyRepoSuite) TestSaveAndGet() {
 func (s *PolicyRepoSuite) TestSearchByActionAndScope() {
 	ctx, repo := s.newEnv("tenant-a", "partition-a")
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		s.Require().NoError(repo.Save(ctx, &models.Policy{
 			Scope:         models.ScopeOrg,
 			Action:        models.ActionLoanDisbursement,

@@ -55,7 +55,7 @@ func (e *LoanAccountSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.LoanAccount")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "loan_account_id": la.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "loan_account_id": la.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.loanAccountRepo.GetByID(ctx, la.GetID())

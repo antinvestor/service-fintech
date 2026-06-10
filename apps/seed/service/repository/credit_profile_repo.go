@@ -188,8 +188,8 @@ func (r *creditProfileRepository) AtomicMarkBorrowed(
 			"total_borrowed":         gorm.Expr("total_borrowed + ?", amount),
 			"last_borrowed_at":       now,
 			"first_borrowed_at":      gorm.Expr("COALESCE(first_borrowed_at, ?)", now),
-			"modified_at":            now,
-			"version":                gorm.Expr("version + 1"),
+			colModifiedAt:            now,
+			colVersion:               gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -217,8 +217,8 @@ func (r *creditProfileRepository) AtomicRecordRepayment(
 			"successful_repayments":  gorm.Expr("successful_repayments + 1"),
 			"total_repaid":           gorm.Expr("total_repaid + ?", amount),
 			"last_repaid_at":         now,
-			"modified_at":            now,
-			"version":                gorm.Expr("version + 1"),
+			colModifiedAt:            now,
+			colVersion:               gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -242,8 +242,8 @@ func (r *creditProfileRepository) AtomicPromoteTier(
 		Updates(map[string]any{
 			"tier":            newTier,
 			"max_loan_amount": newMaxLoanAmount,
-			"modified_at":     now,
-			"version":         gorm.Expr("version + 1"),
+			colModifiedAt:     now,
+			colVersion:        gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -265,8 +265,8 @@ func (r *creditProfileRepository) AtomicSetStatus(
 		Where("id = ?", profileID).
 		Updates(map[string]any{
 			"status":      int32(status),
-			"modified_at": now,
-			"version":     gorm.Expr("version + 1"),
+			colModifiedAt: now,
+			colVersion:    gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error

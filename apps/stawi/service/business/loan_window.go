@@ -75,7 +75,7 @@ func (b *loanWindowBusiness) Evaluate(ctx context.Context, groupID string) (map[
 		Info("loan window evaluation completed")
 
 	return map[string]interface{}{
-		"group_id":          groupID,
+		fieldGroupID:        groupID,
 		"should_open":       shouldOpen,
 		"cycle_position":    cycle,
 		"completed_periods": completedPeriods,

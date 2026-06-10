@@ -136,15 +136,15 @@ func (b *fundingAllocationBusiness) SourceForRequest(
 		allocAttrs)
 
 	return map[string]interface{}{
-		"loan_request_id": loanRequestID,
-		"currency":        requestInfo.Currency,
-		"loan_amount":     loanAmount,
-		"total_allocated": result.TotalAllocated.ToMinorUnits(decimalPrecision),
-		"deficit":         result.Deficit.ToMinorUnits(decimalPrecision),
-		"fully_funded":    result.Deficit.IsZero(),
-		"tranches":        len(result.Allocations),
-		"allocations":     allocations,
-		"is_group_loan":   request.IsGroupLoan,
+		fieldLoanRequestID: loanRequestID,
+		fieldCurrency:      requestInfo.Currency,
+		"loan_amount":      loanAmount,
+		"total_allocated":  result.TotalAllocated.ToMinorUnits(decimalPrecision),
+		"deficit":          result.Deficit.ToMinorUnits(decimalPrecision),
+		"fully_funded":     result.Deficit.IsZero(),
+		"tranches":         len(result.Allocations),
+		"allocations":      allocations,
+		"is_group_loan":    request.IsGroupLoan,
 	}, nil
 }
 
@@ -185,13 +185,13 @@ func (b *fundingAllocationBusiness) persistAllocations(
 		}
 
 		allocations = append(allocations, map[string]interface{}{
-			"id":              funding.GetID(),
-			"loan_request_id": loanRequestID,
-			"source_id":       alloc.SourceID,
-			"source_type":     fundingSourceLabel(alloc.SourceType),
-			"tranche_level":   alloc.TrancheLevel,
-			"amount":          allocAmount,
-			"currency":        currency,
+			"id":               funding.GetID(),
+			fieldLoanRequestID: loanRequestID,
+			"source_id":        alloc.SourceID,
+			"source_type":      fundingSourceLabel(alloc.SourceType),
+			"tranche_level":    alloc.TrancheLevel,
+			fieldAmount:        allocAmount,
+			fieldCurrency:      currency,
 		})
 	}
 
@@ -372,13 +372,13 @@ func (b *fundingAllocationBusiness) buildPersistedResult(
 			trancheLevel = tranches[0].TrancheLevel
 		}
 		allocations = append(allocations, map[string]interface{}{
-			"id":              funding.GetID(),
-			"loan_request_id": loanRequestID,
-			"source_id":       funding.OwnerID,
-			"source_type":     fundingSourceLabel(funding.FundingType),
-			"tranche_level":   trancheLevel,
-			"amount":          funding.Amount,
-			"currency":        funding.Currency,
+			"id":               funding.GetID(),
+			fieldLoanRequestID: loanRequestID,
+			"source_id":        funding.OwnerID,
+			"source_type":      fundingSourceLabel(funding.FundingType),
+			"tranche_level":    trancheLevel,
+			fieldAmount:        funding.Amount,
+			fieldCurrency:      funding.Currency,
 		})
 	}
 
@@ -388,14 +388,14 @@ func (b *fundingAllocationBusiness) buildPersistedResult(
 	}
 
 	return map[string]interface{}{
-		"loan_request_id": loanRequestID,
-		"currency":        requestInfo.Currency,
-		"loan_amount":     requestInfo.Amount,
-		"total_allocated": totalAllocated,
-		"deficit":         deficit,
-		"fully_funded":    deficit == 0,
-		"tranches":        len(allocations),
-		"allocations":     allocations,
+		fieldLoanRequestID: loanRequestID,
+		fieldCurrency:      requestInfo.Currency,
+		"loan_amount":      requestInfo.Amount,
+		"total_allocated":  totalAllocated,
+		"deficit":          deficit,
+		"fully_funded":     deficit == 0,
+		"tranches":         len(allocations),
+		"allocations":      allocations,
 	}, nil
 }
 

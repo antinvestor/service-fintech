@@ -50,8 +50,10 @@ import (
 // noopEventsManager implements fevents.Manager and silently drops all emissions.
 type noopEventsManager struct{}
 
-func (n *noopEventsManager) Add(_ fevents.EventI)                          {}
-func (n *noopEventsManager) Get(_ string) (fevents.EventI, error)          { return nil, nil }
+func (n *noopEventsManager) Add(_ fevents.EventI) {}
+func (n *noopEventsManager) Get(_ string) (fevents.EventI, error) {
+	return nil, nil //nolint:nilnil // no-op stub: tests never look up events
+}
 func (n *noopEventsManager) Emit(_ context.Context, _ string, _ any) error { return nil }
 func (n *noopEventsManager) Handler() queue.SubscribeWorker                { return nil }
 
@@ -187,10 +189,10 @@ var _ datastore.BaseRepository[*loansmodels.LoanAccount] = (*stubLoanAccountRepo
 type stubLoanAccountBusiness struct{}
 
 func (s *stubLoanAccountBusiness) Create(_ context.Context, _ string) (*loansv1.LoanAccountObject, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // no-op stub: disbursement tests never call this
 }
 func (s *stubLoanAccountBusiness) Get(_ context.Context, _ string) (*loansv1.LoanAccountObject, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // no-op stub: disbursement tests never call this
 }
 func (s *stubLoanAccountBusiness) Search(
 	_ context.Context,
@@ -200,14 +202,14 @@ func (s *stubLoanAccountBusiness) Search(
 	return nil
 }
 func (s *stubLoanAccountBusiness) GetBalance(_ context.Context, _ string) (*loansv1.LoanBalanceObject, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // no-op stub: disbursement tests never call this
 }
 
 func (s *stubLoanAccountBusiness) GetStatement(
 	_ context.Context,
 	_ *loansv1.LoanStatementRequest,
 ) (*loansv1.LoanStatementResponse, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // no-op stub: disbursement tests never call this
 }
 func (s *stubLoanAccountBusiness) TransitionStatus(
 	_ context.Context, _ string, _ loansv1.LoanStatus, _, _ string,

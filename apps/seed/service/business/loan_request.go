@@ -296,23 +296,23 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_loan_request",
+		EntityType: entityLoanRequest,
 		EntityID:   lr.GetID(),
 		Action:     "seed.loan_request.submitted",
 		ActorID:    req.ActorID,
 		ActorType:  req.ActorType,
 		Reason:     req.Purpose,
 		After: data.JSONMap{
-			"status":            lr.Status,
-			"amount":            lr.Amount,
+			fieldStatus:         lr.Status,
+			fieldAmount:         lr.Amount,
 			"tier_at_approval":  lr.TierAtApproval,
 			"interest_rate_bps": lr.InterestRateAtApproval,
 			"term_days":         lr.TermDaysAtApproval,
 		},
 		Metadata: data.JSONMap{
-			"client_id":     lr.ClientID,
-			"product_id":    lr.ProductID,
-			"currency_code": lr.CurrencyCode,
+			fieldClientID:     lr.ClientID,
+			fieldProductID:    lr.ProductID,
+			fieldCurrencyCode: lr.CurrencyCode,
 		},
 		Parent: &lr.BaseModel,
 	}, func(auErr error) {
@@ -356,14 +356,14 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_loan_request",
+		EntityType: entityLoanRequest,
 		EntityID:   lr.GetID(),
 		Action:     "seed.loan_request.approved",
 		Reason:     "downstream application and loan account created",
 		After: data.JSONMap{
-			"status":          lr.Status,
-			"application_id":  lr.ApplicationID,
-			"loan_account_id": lr.LoanAccountID,
+			fieldStatus:        lr.Status,
+			"application_id":   lr.ApplicationID,
+			fieldLoanAccountID: lr.LoanAccountID,
 		},
 		Parent: &lr.BaseModel,
 	}, func(auErr error) {
@@ -395,19 +395,19 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_loan_request",
+		EntityType: entityLoanRequest,
 		EntityID:   lr.GetID(),
 		Action:     "seed.loan_request.disbursed",
 		Reason:     "loan principal disbursed to client",
 		After: data.JSONMap{
-			"status":          lr.Status,
+			fieldStatus:       lr.Status,
 			"disbursement_id": lr.DisbursementID,
 			"disbursed_at":    disbursedAt.Format(time.RFC3339),
 		},
 		Metadata: data.JSONMap{
-			"loan_account_id": lr.LoanAccountID,
-			"amount":          lr.Amount,
-			"currency_code":   lr.CurrencyCode,
+			fieldLoanAccountID: lr.LoanAccountID,
+			fieldAmount:        lr.Amount,
+			fieldCurrencyCode:  lr.CurrencyCode,
 		},
 		Parent: &lr.BaseModel,
 	}, func(auErr error) {
@@ -461,7 +461,7 @@ func (b *loanRequestBusiness) HandlePaidOff(
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_loan_request",
+		EntityType: entityLoanRequest,
 		EntityID:   lr.GetID(),
 		Action:     "seed.loan_request.completed",
 		Reason:     "loan paid off",
@@ -469,9 +469,9 @@ func (b *loanRequestBusiness) HandlePaidOff(
 			"completed_at": now.Format(time.RFC3339),
 		},
 		Metadata: data.JSONMap{
-			"loan_account_id": loanAccountID,
-			"total_repaid":    totalRepaid,
-			"client_id":       lr.ClientID,
+			fieldLoanAccountID: loanAccountID,
+			"total_repaid":     totalRepaid,
+			fieldClientID:      lr.ClientID,
 		},
 		Parent: &lr.BaseModel,
 	}, func(auErr error) {
@@ -502,12 +502,12 @@ func (b *loanRequestBusiness) ensureClientSuspense(
 	accountName := constants.ClientSuspenseAccount(clientID)
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_loan_request",
+		EntityType: entityLoanRequest,
 		EntityID:   lr.GetID(),
 		Action:     "seed.client_suspense.declared",
 		Reason:     "client suspense account convention applied",
 		Metadata: data.JSONMap{
-			"client_id":    clientID,
+			fieldClientID:  clientID,
 			"account_name": accountName,
 			"currency":     currencyCode,
 		},
@@ -547,19 +547,19 @@ func (b *loanRequestBusiness) persistEligibilityFailure(
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_loan_request",
+		EntityType: entityLoanRequest,
 		EntityID:   lr.GetID(),
 		Action:     "seed.loan_request.eligibility_failed",
 		ActorID:    req.ActorID,
 		ActorType:  req.ActorType,
 		Reason:     detail,
-		After:      data.JSONMap{"status": lr.Status},
+		After:      data.JSONMap{fieldStatus: lr.Status},
 		Metadata: data.JSONMap{
-			"client_id":     req.ClientID,
-			"amount":        req.Amount,
-			"currency_code": req.CurrencyCode,
-			"product_id":    req.ProductID,
-			"error":         cause.Error(),
+			fieldClientID:     req.ClientID,
+			fieldAmount:       req.Amount,
+			fieldCurrencyCode: req.CurrencyCode,
+			fieldProductID:    req.ProductID,
+			"error":           cause.Error(),
 		},
 		Parent: &lr.BaseModel,
 	}, func(auErr error) {
@@ -584,16 +584,16 @@ func (b *loanRequestBusiness) persistRequestFailure(
 	_ = b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr)
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "seed_loan_request",
+		EntityType: entityLoanRequest,
 		EntityID:   lr.GetID(),
 		Action:     "seed.loan_request.failed",
 		Reason:     lr.DeniedReason,
-		After:      data.JSONMap{"status": lr.Status},
+		After:      data.JSONMap{fieldStatus: lr.Status},
 		Metadata: data.JSONMap{
-			"stage":           stage,
-			"error":           cause.Error(),
-			"application_id":  lr.ApplicationID,
-			"loan_account_id": lr.LoanAccountID,
+			"stage":            stage,
+			"error":            cause.Error(),
+			"application_id":   lr.ApplicationID,
+			fieldLoanAccountID: lr.LoanAccountID,
 		},
 		Parent: &lr.BaseModel,
 	}, func(auErr error) {

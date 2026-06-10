@@ -168,10 +168,10 @@ func (r *savingsBalanceRepository) Credit(
 		Model(&models.SavingsBalance{}).
 		Where("savings_account_id = ?", savingsAccountID).
 		Updates(map[string]any{
-			"balance":        gorm.Expr("balance + ?", amount),
+			colBalance:       gorm.Expr("balance + ?", amount),
 			"total_deposits": gorm.Expr("total_deposits + ?", amount),
-			"modified_at":    now,
-			"version":        gorm.Expr("version + 1"),
+			colModifiedAt:    now,
+			colVersion:       gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -195,10 +195,10 @@ func (r *savingsBalanceRepository) CreditInterest(
 		Model(&models.SavingsBalance{}).
 		Where("savings_account_id = ?", savingsAccountID).
 		Updates(map[string]any{
-			"balance":        gorm.Expr("balance + ?", amount),
+			colBalance:       gorm.Expr("balance + ?", amount),
 			"total_interest": gorm.Expr("total_interest + ?", amount),
-			"modified_at":    now,
-			"version":        gorm.Expr("version + 1"),
+			colModifiedAt:    now,
+			colVersion:       gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -222,9 +222,9 @@ func (r *savingsBalanceRepository) Reserve(
 		Model(&models.SavingsBalance{}).
 		Where("savings_account_id = ? AND (balance - reserved_balance) >= ?", savingsAccountID, amount).
 		Updates(map[string]any{
-			"reserved_balance": gorm.Expr("reserved_balance + ?", amount),
-			"modified_at":      now,
-			"version":          gorm.Expr("version + 1"),
+			colReservedBalance: gorm.Expr("reserved_balance + ?", amount),
+			colModifiedAt:      now,
+			colVersion:         gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -253,11 +253,11 @@ func (r *savingsBalanceRepository) DebitReserved(
 		Model(&models.SavingsBalance{}).
 		Where("savings_account_id = ? AND reserved_balance >= ? AND balance >= ?", savingsAccountID, amount, amount).
 		Updates(map[string]any{
-			"balance":           gorm.Expr("balance - ?", amount),
-			"reserved_balance":  gorm.Expr("reserved_balance - ?", amount),
+			colBalance:          gorm.Expr("balance - ?", amount),
+			colReservedBalance:  gorm.Expr("reserved_balance - ?", amount),
 			"total_withdrawals": gorm.Expr("total_withdrawals + ?", amount),
-			"modified_at":       now,
-			"version":           gorm.Expr("version + 1"),
+			colModifiedAt:       now,
+			colVersion:          gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -284,9 +284,9 @@ func (r *savingsBalanceRepository) ReleaseReserved(
 		Model(&models.SavingsBalance{}).
 		Where("savings_account_id = ? AND reserved_balance >= ?", savingsAccountID, amount).
 		Updates(map[string]any{
-			"reserved_balance": gorm.Expr("reserved_balance - ?", amount),
-			"modified_at":      now,
-			"version":          gorm.Expr("version + 1"),
+			colReservedBalance: gorm.Expr("reserved_balance - ?", amount),
+			colModifiedAt:      now,
+			colVersion:         gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error

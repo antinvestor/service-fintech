@@ -198,13 +198,13 @@ func (r *ledgerRepository) HardDeleteBefore(ctx context.Context, cutoff time.Tim
 	for {
 		res := r.dbPool.DB(ctx, false).Unscoped().
 			Where("committed_at < ?", cutoff).
-			Limit(1000).
+			Limit(hardDeleteBatchSize).
 			Delete(&models.LedgerEntry{})
 		if res.Error != nil {
 			return total, res.Error
 		}
 		total += int(res.RowsAffected)
-		if res.RowsAffected < 1000 {
+		if res.RowsAffected < hardDeleteBatchSize {
 			break
 		}
 	}

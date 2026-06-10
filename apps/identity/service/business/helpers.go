@@ -30,3 +30,7 @@ func workerpoolConsumeStream[T any](
 		return consumer(res)
 	})
 }
+
+// searchableTSQuery is the GORM map-key predicate used for full-text search
+// against the generated "searchable" tsvector column.
+const searchableTSQuery = "searchable @@ websearch_to_tsquery( 'english', ?) "

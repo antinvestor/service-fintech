@@ -44,6 +44,14 @@ import (
 
 const namespaceTenancyAccess = "tenancy_access"
 
+const (
+	// reaperBatchSize bounds how many rows each reaper pass processes.
+	reaperBatchSize = 1000
+	// reaperInterval is how often the reservation/approval reapers run.
+	reaperInterval = 30 * time.Second
+)
+
+//nolint:funlen // linear service wiring; splitting hurts readability
 func main() {
 	tmpCtx := context.Background()
 
@@ -130,10 +138,10 @@ func main() {
 	connectHandler := setupConnectServer(ctx, sm, dbPool, runtimeH, adminH, archivalH)
 
 	// ─── Reapers ──────────────────────────────────────────────────────
-	resvReaper := business.NewReservationReaper(reservationRepo, auditing, 1000)
-	approvalReaper := business.NewApprovalReaper(approvalRepo, reservationRepo, auditing, 1000, evtsMan)
-	go runPeriodically(ctx, 30*time.Second, resvReaper.Run)
-	go runPeriodically(ctx, 30*time.Second, approvalReaper.Run)
+	resvReaper := business.NewReservationReaper(reservationRepo, auditing, reaperBatchSize)
+	approvalReaper := business.NewApprovalReaper(approvalRepo, reservationRepo, auditing, reaperBatchSize, evtsMan)
+	go runPeriodically(ctx, reaperInterval, resvReaper.Run)
+	go runPeriodically(ctx, reaperInterval, approvalReaper.Run)
 
 	// ─── Permission registration + EventSave + Run ────────────────────
 	limitsAdminSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsAdminService")
@@ -176,7 +184,7 @@ func handleDatabaseMigration(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
-	dbPool pool.Pool,
+	_ pool.Pool,
 	runtimeH *handlers.RuntimeService,
 	adminH *handlers.AdminService,
 	archivalH *handlers.ArchivalHandler,
@@ -201,7 +209,7 @@ func setupConnectServer(
 	runtimeInterceptors, err := connectInterceptors.DefaultList(
 		ctx, authenticator,
 		runtimeTenancyInterceptor, runtimeFunctionAccessInterceptor, limitsAuditInterceptor,
-		connect.UnaryInterceptorFunc(handlers.TenantAssertionInterceptor()),
+		handlers.TenantAssertionInterceptor(),
 	)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create runtime interceptors")
@@ -228,7 +236,7 @@ func setupConnectServer(
 	adminInterceptors, err := connectInterceptors.DefaultList(
 		ctx, authenticator,
 		adminTenancyInterceptor, adminFunctionAccessInterceptor, limitsAuditInterceptor,
-		connect.UnaryInterceptorFunc(handlers.TenantAssertionInterceptor()),
+		handlers.TenantAssertionInterceptor(),
 	)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create admin interceptors")

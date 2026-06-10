@@ -63,6 +63,7 @@ func (r *subjectAttributeRepository) Get(
 	var out models.SubjectAttributeSnapshot
 	err := db.Where("subject_type = ? AND subject_id = ?", string(subjectType), subjectID).First(&out).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		//nolint:nilnil // absent snapshot is not an error; resolver falls through to identity fetch
 		return nil, nil
 	}
 	if err != nil {
@@ -91,6 +92,6 @@ func (r *subjectAttributeRepository) Upsert(ctx context.Context, snap *models.Su
 		Updates(map[string]any{
 			"attributes":  snap.Attributes,
 			"fetched_at":  time.Now().UTC(),
-			"modified_at": time.Now().UTC(),
+			colModifiedAt: time.Now().UTC(),
 		}).Error
 }

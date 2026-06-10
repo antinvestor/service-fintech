@@ -53,6 +53,16 @@ const (
 	VerbPolicyDeleted           = "limits.policy.deleted"
 )
 
+// Audit entity/actor labels and metadata keys shared by the records below.
+const (
+	auditEntityPolicy = "policy"
+	auditActorUser    = "user"
+	mdKeyActionKind   = "action_kind"
+	mdKeyMode         = "mode"
+	mdKeyAmountMinor  = "amount_minor"
+	mdKeyCurrency     = "currency"
+)
+
 // Auditing wraps audit.Writer with the limits-specific verbs and metadata
 // shape. Injected into business methods that emit gating events.
 type Auditing struct {
@@ -79,11 +89,11 @@ func (a *Auditing) RecordBreachHard(
 		primaryPolicyID = verdicts[0].GetPolicyId()
 	}
 	a.writer.RecordOrLog(ctx, audit.Record{
-		EntityType: "policy",
+		EntityType: auditEntityPolicy,
 		EntityID:   primaryPolicyID,
 		Action:     VerbBreachHard,
 		ActorID:    intent.GetMakerId(),
-		ActorType:  "user",
+		ActorType:  auditActorUser,
 		Reason:     reason,
 		Metadata:   intentMetadata(intent, verdicts),
 	}, logFailure(ctx))
@@ -95,11 +105,11 @@ func (a *Auditing) RecordBreachShadow(ctx context.Context, intent *limitsv1.Limi
 		return
 	}
 	a.writer.RecordOrLog(ctx, audit.Record{
-		EntityType: "policy",
+		EntityType: auditEntityPolicy,
 		EntityID:   v.GetPolicyId(),
 		Action:     VerbBreachShadow,
 		ActorID:    intent.GetMakerId(),
-		ActorType:  "user",
+		ActorType:  auditActorUser,
 		Reason:     v.GetReason(),
 		Metadata:   intentMetadata(intent, []*limitsv1.PolicyVerdict{v}),
 	}, logFailure(ctx))
@@ -142,7 +152,7 @@ func (a *Auditing) recordReservation(
 		EntityID:   r.ID,
 		Action:     verb,
 		ActorID:    r.MakerID,
-		ActorType:  "user",
+		ActorType:  auditActorUser,
 		Reason:     reason,
 		Metadata:   reservationMetadata(r),
 	}, logFailure(ctx))
@@ -186,7 +196,7 @@ func (a *Auditing) recordApproval(ctx context.Context, ar *models.ApprovalReques
 		EntityID:   ar.ID,
 		Action:     verb,
 		ActorID:    approverID,
-		ActorType:  "user",
+		ActorType:  auditActorUser,
 		Reason:     reason,
 		Metadata:   md,
 	}, logFailure(ctx))
@@ -242,7 +252,7 @@ func (a *Auditing) recordReservationTx(
 		EntityID:   r.ID,
 		Action:     verb,
 		ActorID:    r.MakerID,
-		ActorType:  "user",
+		ActorType:  auditActorUser,
 		Reason:     reason,
 		Metadata:   reservationMetadata(r),
 	})
@@ -313,7 +323,7 @@ func (a *Auditing) recordApprovalTx(
 		EntityID:   ar.ID,
 		Action:     verb,
 		ActorID:    approverID,
-		ActorType:  "user",
+		ActorType:  auditActorUser,
 		Reason:     reason,
 		Metadata:   md,
 	})
@@ -325,15 +335,15 @@ func (a *Auditing) RecordPolicySavedTx(ctx context.Context, tx *gorm.DB, pol *mo
 		return nil
 	}
 	return a.writer.RecordTx(ctx, tx, audit.Record{
-		EntityType: "policy",
+		EntityType: auditEntityPolicy,
 		EntityID:   pol.ID,
 		Action:     VerbPolicySaved,
 		Reason:     "policy saved",
 		Metadata: data.JSONMap{
-			"action_kind":  string(pol.Action),
-			"subject_type": string(pol.SubjectType),
-			"mode":         string(pol.Mode),
-			"limit_kind":   string(pol.LimitKind),
+			mdKeyActionKind: string(pol.Action),
+			"subject_type":  string(pol.SubjectType),
+			mdKeyMode:       string(pol.Mode),
+			"limit_kind":    string(pol.LimitKind),
 		},
 	})
 }
@@ -344,15 +354,15 @@ func (a *Auditing) RecordPolicyDeletedTx(ctx context.Context, tx *gorm.DB, pol *
 		return nil
 	}
 	return a.writer.RecordTx(ctx, tx, audit.Record{
-		EntityType: "policy",
+		EntityType: auditEntityPolicy,
 		EntityID:   pol.ID,
 		Action:     VerbPolicyDeleted,
 		Reason:     "policy deleted",
 		Metadata: data.JSONMap{
-			"action_kind":  string(pol.Action),
-			"subject_type": string(pol.SubjectType),
-			"mode":         string(pol.Mode),
-			"limit_kind":   string(pol.LimitKind),
+			mdKeyActionKind: string(pol.Action),
+			"subject_type":  string(pol.SubjectType),
+			mdKeyMode:       string(pol.Mode),
+			"limit_kind":    string(pol.LimitKind),
 		},
 	})
 }
@@ -366,11 +376,11 @@ func intentMetadata(intent *limitsv1.LimitIntent, verdicts []*limitsv1.PolicyVer
 	currency := intent.GetAmount().GetCurrencyCode()
 	amountMinor, _ := moneyx.ToMinorUnitsByCurrency(intent.GetAmount(), currency)
 	md := data.JSONMap{
-		"action_kind":  intent.GetAction().String(),
-		"amount_minor": amountMinor,
-		"currency":     currency,
-		"subjects":     subjectsAsMaps(intent.GetSubjects()),
-		"org_unit_id":  intent.GetOrgUnitId(),
+		mdKeyActionKind:  intent.GetAction().String(),
+		mdKeyAmountMinor: amountMinor,
+		mdKeyCurrency:    currency,
+		"subjects":       subjectsAsMaps(intent.GetSubjects()),
+		"org_unit_id":    intent.GetOrgUnitId(),
 	}
 	if len(verdicts) > 0 {
 		md["verdicts"] = verdictsAsMaps(verdicts)
@@ -380,9 +390,9 @@ func intentMetadata(intent *limitsv1.LimitIntent, verdicts []*limitsv1.PolicyVer
 
 func reservationMetadata(r *models.Reservation) data.JSONMap {
 	return data.JSONMap{
-		"action_kind":        string(r.Action),
-		"amount_minor":       r.Amount,
-		"currency":           r.CurrencyCode,
+		mdKeyActionKind:      string(r.Action),
+		mdKeyAmountMinor:     r.Amount,
+		mdKeyCurrency:        r.CurrencyCode,
 		"org_unit_id":        r.OrgUnitID,
 		"reservation_status": string(r.Status),
 	}
@@ -391,9 +401,9 @@ func reservationMetadata(r *models.Reservation) data.JSONMap {
 func approvalMetadata(ar *models.ApprovalRequest) data.JSONMap {
 	return data.JSONMap{
 		"reservation_id":       ar.ReservationID,
-		"action_kind":          string(ar.Action),
-		"amount_minor":         ar.Amount,
-		"currency":             ar.CurrencyCode,
+		mdKeyActionKind:        string(ar.Action),
+		mdKeyAmountMinor:       ar.Amount,
+		mdKeyCurrency:          ar.CurrencyCode,
 		"triggering_policy_id": ar.TriggeringPolicyID,
 		"policy_version":       ar.PolicyVersion,
 		"required_role":        ar.RequiredRole,
@@ -426,6 +436,8 @@ func subjectTypeJSONStr(t limitsv1.SubjectType) string {
 		return "org_unit"
 	case limitsv1.SubjectType_SUBJECT_TYPE_WORKFORCE_MEMBER:
 		return "workforce_member"
+	case limitsv1.SubjectType_SUBJECT_TYPE_UNSPECIFIED:
+		return ""
 	default:
 		return ""
 	}
@@ -440,7 +452,7 @@ func verdictsAsMaps(vs []*limitsv1.PolicyVerdict) []map[string]any {
 			"matched":                v.GetMatched(),
 			"breached":               v.GetBreached(),
 			"would_require_approval": v.GetWouldRequireApproval(),
-			"mode":                   v.GetMode().String(),
+			mdKeyMode:                v.GetMode().String(),
 			"reason":                 v.GetReason(),
 		}
 		if v.GetCurrentUsage() != nil {
@@ -473,14 +485,14 @@ func FormatBreachReason(v *limitsv1.PolicyVerdict, intentMinor int64) string {
 		return "policy=" + v.GetPolicyId() + " count=" + strconv.FormatInt(v.GetCurrentCount()+1, 10) +
 			">cap=" + strconv.FormatInt(v.GetCapCount(), 10)
 	}
-	cap := int64(0)
+	capMinor := int64(0)
 	if c := v.GetCapAmount(); c != nil {
-		cap, _ = moneyx.ToMinorUnitsByCurrency(c, c.GetCurrencyCode())
+		capMinor, _ = moneyx.ToMinorUnitsByCurrency(c, c.GetCurrencyCode())
 	}
 	curr := int64(0)
 	if u := v.GetCurrentUsage(); u != nil {
 		curr, _ = moneyx.ToMinorUnitsByCurrency(u, u.GetCurrencyCode())
 	}
 	return "policy=" + v.GetPolicyId() + " usage+amount=" +
-		strconv.FormatInt(curr+intentMinor, 10) + ">cap=" + strconv.FormatInt(cap, 10)
+		strconv.FormatInt(curr+intentMinor, 10) + ">cap=" + strconv.FormatInt(capMinor, 10)
 }

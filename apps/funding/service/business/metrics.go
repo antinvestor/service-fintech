@@ -64,35 +64,40 @@ type MetricInfo struct {
 // the funding business package.
 func RegisteredMetrics() []MetricInfo {
 	return []MetricInfo{
-		{Name: "funding_deposits_total", Type: "counter", Unit: "count", Description: "Investor capital deposits"},
+		{
+			Name:        "funding_deposits_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Investor capital deposits",
+		},
 		{
 			Name:        "funding_deposits_amount_total",
-			Type:        "counter",
-			Unit:        "currency_unit",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCurrency,
 			Description: "Total investor capital deposited",
 		},
 		{
 			Name:        "funding_withdrawals_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Investor capital withdrawals",
 		},
 		{
 			Name:        "funding_withdrawals_amount_total",
-			Type:        "counter",
-			Unit:        "currency_unit",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCurrency,
 			Description: "Total investor capital withdrawn",
 		},
 		{
 			Name:        "funding_allocations_total",
-			Type:        "counter",
-			Unit:        "count",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
 			Description: "Funding allocations completed for loan requests",
 		},
 		{
 			Name:        "funding_allocations_amount_total",
-			Type:        "counter",
-			Unit:        "currency_unit",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCurrency,
 			Description: "Total funding allocated to loan requests",
 		},
 	}

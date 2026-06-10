@@ -59,7 +59,7 @@ func (e *ApprovalCaseSave) Execute(ctx context.Context, payload any) error {
 	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"type":         e.Name(),
+		logFieldType:   e.Name(),
 		"approval_id":  approvalCase.GetID(),
 		"subject_type": approvalCase.SubjectType,
 		"subject_id":   approvalCase.SubjectID,

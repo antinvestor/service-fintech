@@ -34,12 +34,18 @@ type PolicyCache struct {
 	cache *expirable.LRU[string, []*models.Policy]
 }
 
-// NewPolicyCache constructs a cache wrapping inner. Cache capacity is 2048
-// entries; TTL is 30 seconds.
+const (
+	// policyCacheSize bounds the candidate-policy LRU.
+	policyCacheSize = 2048
+	// policyCacheTTL is how long cached candidate sets stay fresh.
+	policyCacheTTL = 30 * time.Second
+)
+
+// NewPolicyCache constructs a cache wrapping inner.
 func NewPolicyCache(inner repository.CandidatePolicyRepository) *PolicyCache {
 	return &PolicyCache{
 		inner: inner,
-		cache: expirable.NewLRU[string, []*models.Policy](2048, nil, 30*time.Second),
+		cache: expirable.NewLRU[string, []*models.Policy](policyCacheSize, nil, policyCacheTTL),
 	}
 }
 

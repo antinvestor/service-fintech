@@ -59,7 +59,7 @@ func TestTenantAssertionInterceptor_EmptyTenantOverwritten(t *testing.T) {
 	var nextCalled bool
 	next := func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 		nextCalled = true
-		return nil, nil
+		return nil, nil //nolint:nilnil // stub next handler: response is ignored by these tests
 	}
 
 	_, err := interceptor(next)(ctx, req)
@@ -85,7 +85,7 @@ func TestTenantAssertionInterceptor_MatchingTenantPasses(t *testing.T) {
 	var nextCalled bool
 	next := func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 		nextCalled = true
-		return nil, nil
+		return nil, nil //nolint:nilnil // stub next handler: response is ignored by these tests
 	}
 
 	_, err := interceptor(next)(ctx, req)
@@ -111,7 +111,7 @@ func TestTenantAssertionInterceptor_MismatchingTenantRejected(t *testing.T) {
 	var nextCalled bool
 	next := func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 		nextCalled = true
-		return nil, nil
+		return nil, nil //nolint:nilnil // stub next handler: response is ignored by these tests
 	}
 
 	_, err := interceptor(next)(ctx, req)
@@ -136,7 +136,7 @@ func TestTenantAssertionInterceptor_NilClaims_PassesThrough(t *testing.T) {
 	var nextCalled bool
 	next := func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 		nextCalled = true
-		return nil, nil
+		return nil, nil //nolint:nilnil // stub next handler: response is ignored by these tests
 	}
 
 	_, err := interceptor(next)(context.Background(), req)

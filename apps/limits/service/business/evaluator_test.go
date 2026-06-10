@@ -39,7 +39,7 @@ type stubResvRepo struct {
 }
 
 func (s *stubResvRepo) PendingSum(
-	ctx context.Context,
+	_ context.Context,
 	action models.Action,
 	currency string,
 	subject repository.SubjectFilter,
@@ -49,11 +49,11 @@ func (s *stubResvRepo) PendingSum(
 }
 
 func (s *stubResvRepo) PendingCount(
-	ctx context.Context,
+	_ context.Context,
 	action models.Action,
 	currency string,
 	subject repository.SubjectFilter,
-	since time.Time,
+	_ time.Time,
 ) (int64, error) {
 	k := string(action) + "|" + currency + "|" + string(subject.Type) + "|" + subject.ID
 	return s.countByKey[k], nil
@@ -83,12 +83,12 @@ func (s *stubResvRepo) PendingCountTx(
 }
 
 // All other ReservationRepository methods are unused by Evaluator; provide no-op stubs.
-func (s *stubResvRepo) Create(ctx context.Context, r *models.Reservation) error { return nil }
-func (s *stubResvRepo) GetByID(ctx context.Context, id string) (*models.Reservation, error) {
-	return nil, nil
+func (s *stubResvRepo) Create(_ context.Context, _ *models.Reservation) error { return nil }
+func (s *stubResvRepo) GetByID(_ context.Context, _ string) (*models.Reservation, error) {
+	return nil, nil //nolint:nilnil // no-op stub: Evaluator never calls this
 }
-func (s *stubResvRepo) GetByIdempotencyKey(ctx context.Context, key string) (*models.Reservation, error) {
-	return nil, nil
+func (s *stubResvRepo) GetByIdempotencyKey(_ context.Context, _ string) (*models.Reservation, error) {
+	return nil, nil //nolint:nilnil // no-op stub: Evaluator never calls this
 }
 func (s *stubResvRepo) SetCommitted(_ context.Context, _ string, _ time.Time) error { return nil }
 func (s *stubResvRepo) SetCommittedTx(_ context.Context, _ *gorm.DB, _ string, _ time.Time) error {
@@ -114,9 +114,9 @@ func (s *stubResvRepo) SetActive(_ context.Context, _ string) error             
 func (s *stubResvRepo) SetActiveTx(_ context.Context, _ *gorm.DB, _ string) error { return nil }
 
 func (s *stubResvRepo) ListExpiredActive(
-	ctx context.Context,
-	before time.Time,
-	limit int,
+	_ context.Context,
+	_ time.Time,
+	_ int,
 ) ([]*models.Reservation, error) {
 	return nil, nil
 }
@@ -127,11 +127,11 @@ type stubLedgerRepo struct {
 }
 
 func (s *stubLedgerRepo) WindowSum(
-	ctx context.Context,
+	_ context.Context,
 	action models.Action,
 	currency string,
 	subject repository.SubjectFilter,
-	since time.Time,
+	_ time.Time,
 ) (int64, error) {
 	k := string(action) + "|" + currency + "|" + string(subject.Type) + "|" + subject.ID
 	return s.sumByKey[k], nil
@@ -150,11 +150,11 @@ func (s *stubLedgerRepo) WindowSumTx(
 }
 
 func (s *stubLedgerRepo) WindowCount(
-	ctx context.Context,
+	_ context.Context,
 	action models.Action,
 	currency string,
 	subject repository.SubjectFilter,
-	since time.Time,
+	_ time.Time,
 ) (int64, error) {
 	k := string(action) + "|" + currency + "|" + string(subject.Type) + "|" + subject.ID
 	return s.countByKey[k], nil
@@ -172,20 +172,20 @@ func (s *stubLedgerRepo) WindowCountTx(
 	return s.countByKey[k], nil
 }
 
-func (s *stubLedgerRepo) CreateBatch(ctx context.Context, entries []*models.LedgerEntry) error {
+func (s *stubLedgerRepo) CreateBatch(_ context.Context, _ []*models.LedgerEntry) error {
 	return nil
 }
-func (s *stubLedgerRepo) MarkReversed(ctx context.Context, reservationID string, at time.Time) error {
+func (s *stubLedgerRepo) MarkReversed(_ context.Context, _ string, _ time.Time) error {
 	return nil
 }
 
 func (s *stubLedgerRepo) Search(
-	ctx context.Context,
-	f repository.LedgerSearchFilter,
-	limit int,
-	cursor string,
+	_ context.Context,
+	_ repository.LedgerSearchFilter,
+	_ int,
+	_ string,
 ) (*repository.LedgerSearchResult, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // no-op stub: Evaluator never calls this
 }
 
 func (s *stubLedgerRepo) HardDeleteBefore(_ context.Context, _ time.Time) (int, error) {
@@ -337,7 +337,7 @@ func TestEvaluator_ShadowMode(t *testing.T) {
 
 func TestPickTier_Catchall(t *testing.T) {
 	p := newPolicy(models.KindPerTxnMax, 100, models.ModeEnforce, true)
-	tier, ok := PickTier(p, 1_000_000)
+	tier, ok := pickTier(p, 1_000_000)
 	assert.True(t, ok)
 	assert.Equal(t, "branch_manager", tier.Role)
 	assert.Equal(t, int32(1), tier.Approvers)

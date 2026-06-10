@@ -55,7 +55,7 @@ func (e *ClientGroupSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.ClientGroup")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{"type": e.Name(), "group_id": group.GetID()})
+	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "group_id": group.GetID()})
 	defer logger.Release()
 
 	existing, getErr := e.clientGroupRepo.GetByID(ctx, group.GetID())

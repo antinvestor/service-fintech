@@ -320,7 +320,7 @@ func setupTenancyClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
-	dbPool pool.Pool,
+	_ pool.Pool,
 	organizationBusiness business.OrganizationBusiness,
 	orgUnitBusiness business.OrgUnitBusiness,
 	workforceBusiness business.WorkforceBusiness,
