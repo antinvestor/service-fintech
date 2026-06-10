@@ -2,7 +2,7 @@ name: antinvestor_ui_identity
 description: >
   Identity management UI library for Antinvestor. Organizations, workforce
   members, clients, access roles, audit log, and form template screens.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/antinvestor/service-fintech
 homepage: https://github.com/antinvestor/service-fintech/tree/main/ui/identity
 issue_tracker: https://github.com/antinvestor/service-fintech/issues
@@ -19,14 +19,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  antinvestor_ui_core: ^0.4.0
+  antinvestor_ui_core: ^0.5.0
   antinvestor_api_identity: ^0.4.0
   antinvestor_api_field: ^0.2.0
   antinvestor_api_common: ^1.52.0
   antinvestor_api_tenancy: ^1.54.0
   antinvestor_ui_audit: ^0.2.0
-  antinvestor_ui_profile: ^0.2.0
-  antinvestor_ui_geolocation: ^0.2.0
+  antinvestor_ui_profile: ^0.2.5
+  antinvestor_ui_geolocation: ^0.2.2
   connectrpc: ^1.0.0
   flutter_riverpod: ^3.3.1
   go_router: ^17.2.0
