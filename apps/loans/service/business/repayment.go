@@ -21,7 +21,6 @@ import (
 	"strconv"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
@@ -178,7 +177,7 @@ func (b *repaymentBusiness) Record(
 
 // recordInner is the pre-Gate body factored out so Gate's handler can wrap it.
 // The idempotency check lives in the outer Record.
-func (b *repaymentBusiness) recordInner( //nolint:funlen // sequential repayment pipeline
+func (b *repaymentBusiness) recordInner(
 	ctx context.Context,
 	req *loansv1.RepaymentRecordRequest,
 ) (*loansv1.RepaymentObject, error) {
@@ -293,16 +292,11 @@ func (b *repaymentBusiness) recordInner( //nolint:funlen // sequential repayment
 		logger.WithError(auErr).Warn("audit emission failed for repayment")
 	})
 
-	audit := constants.AuditTrailFromContext(ctx)
-	repAttrs := metric.WithAttributes(
-		attribute.String("tenant_id", audit.TenantID),
-		attribute.String("partition_id", audit.PartitionID),
-		attribute.String("currency", la.CurrencyCode),
-	)
-	LoansRepaid.Add(ctx, 1, repAttrs)
+	currencyAttr := attribute.String("currency", la.CurrencyCode)
+	LoansRepaid.Add(ctx, 1, currencyAttr)
 	LoansRepaidAmount.Add(ctx,
 		float64(amount)/minorUnitsPerMajor,
-		repAttrs)
+		currencyAttr)
 
 	return r.ToAPI(), nil
 }

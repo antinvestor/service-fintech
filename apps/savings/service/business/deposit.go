@@ -21,7 +21,6 @@ import (
 	"strconv"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
@@ -258,14 +257,9 @@ func (b *depositBusiness) recordInner(
 		logger.WithError(auErr).Warn("audit emission failed for savings deposit")
 	})
 
-	auditTrail := constants.AuditTrailFromContext(ctx)
-	depAttrs := metric.WithAttributes(
-		attribute.String("tenant_id", auditTrail.TenantID),
-		attribute.String("partition_id", auditTrail.PartitionID),
-		attribute.String("currency", sa.CurrencyCode),
-	)
-	SavingsDeposits.Add(ctx, 1, depAttrs)
-	SavingsDepositsAmount.Add(ctx, float64(amountMinor)/minorUnitsPerMajor, depAttrs)
+	currencyAttr := attribute.String("currency", sa.CurrencyCode)
+	SavingsDeposits.Add(ctx, 1, currencyAttr)
+	SavingsDepositsAmount.Add(ctx, float64(amountMinor)/minorUnitsPerMajor, currencyAttr)
 
 	return dep.ToAPI(), nil
 }

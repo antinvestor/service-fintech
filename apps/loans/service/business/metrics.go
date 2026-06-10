@@ -15,52 +15,57 @@
 package business
 
 import (
-	"go.opentelemetry.io/otel"
+	"github.com/pitabwire/frame/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
 
 // minorUnitsPerMajor converts minor currency units (e.g. cents) to major units (e.g. dollars).
 const minorUnitsPerMajor = 100.0
 
+// loansMetrics creates transparently tenant-scoped instruments: every
+// measurement automatically carries tenant_id/partition_id derived from
+// the context's security claims, so call sites cannot forget tenant
+// attribution.
+//
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
-var loansMeter = otel.Meter("service-loans")
+var loansMetrics = telemetry.NewBusinessMetrics("service-loans")
 
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
 var (
-	LoansCreated, _ = loansMeter.Int64Counter("loans_created_total",
-		metric.WithDescription("New loan accounts created"),
+	LoansCreated = loansMetrics.Counter("loans_created_total",
+		"New loan accounts created",
 		metric.WithUnit("{loan}"))
 
-	LoansDisbursed, _ = loansMeter.Int64Counter("loans_disbursed_total",
-		metric.WithDescription("Loan disbursements completed"),
+	LoansDisbursed = loansMetrics.Counter("loans_disbursed_total",
+		"Loan disbursements completed",
 		metric.WithUnit("{disbursement}"))
 
-	LoansDisbursedAmount, _ = loansMeter.Float64Counter("loans_disbursed_amount_total",
-		metric.WithDescription("Total amount disbursed"),
+	LoansDisbursedAmount = loansMetrics.FloatCounter("loans_disbursed_amount_total",
+		"Total amount disbursed",
 		metric.WithUnit("{currency_unit}"))
 
-	LoansRepaid, _ = loansMeter.Int64Counter("loans_repaid_total",
-		metric.WithDescription("Loan repayments recorded"),
+	LoansRepaid = loansMetrics.Counter("loans_repaid_total",
+		"Loan repayments recorded",
 		metric.WithUnit("{repayment}"))
 
-	LoansRepaidAmount, _ = loansMeter.Float64Counter("loans_repaid_amount_total",
-		metric.WithDescription("Total amount repaid"),
+	LoansRepaidAmount = loansMetrics.FloatCounter("loans_repaid_amount_total",
+		"Total amount repaid",
 		metric.WithUnit("{currency_unit}"))
 
-	LoansDefaulted, _ = loansMeter.Int64Counter("loans_defaulted_total",
-		metric.WithDescription("Loans transitioned to default status"),
+	LoansDefaulted = loansMetrics.Counter("loans_defaulted_total",
+		"Loans transitioned to default status",
 		metric.WithUnit("{loan}"))
 
-	LoansClosed, _ = loansMeter.Int64Counter("loans_closed_total",
-		metric.WithDescription("Loans closed"),
+	LoansClosed = loansMetrics.Counter("loans_closed_total",
+		"Loans closed",
 		metric.WithUnit("{loan}"))
 
-	LoansRestructured, _ = loansMeter.Int64Counter("loans_restructured_total",
-		metric.WithDescription("Loans restructured"),
+	LoansRestructured = loansMetrics.Counter("loans_restructured_total",
+		"Loans restructured",
 		metric.WithUnit("{loan}"))
 
-	LoansWrittenOff, _ = loansMeter.Int64Counter("loans_written_off_total",
-		metric.WithDescription("Loans written off"),
+	LoansWrittenOff = loansMetrics.Counter("loans_written_off_total",
+		"Loans written off",
 		metric.WithUnit("{loan}"))
 )
 

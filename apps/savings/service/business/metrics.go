@@ -15,40 +15,45 @@
 package business
 
 import (
-	"go.opentelemetry.io/otel"
+	"github.com/pitabwire/frame/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
 
 // minorUnitsPerMajor converts minor currency units (e.g. cents) to major units (e.g. dollars).
 const minorUnitsPerMajor = 100.0
 
+// savingsMetrics creates transparently tenant-scoped instruments: every
+// measurement automatically carries tenant_id/partition_id derived from
+// the context's security claims, so call sites cannot forget tenant
+// attribution.
+//
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
-var savingsMeter = otel.Meter("service-savings")
+var savingsMetrics = telemetry.NewBusinessMetrics("service-savings")
 
 //nolint:gochecknoglobals // OTel metric instruments are registered at package level per SDK convention.
 var (
-	SavingsAccountsOpened, _ = savingsMeter.Int64Counter("savings_accounts_opened_total",
-		metric.WithDescription("New savings accounts opened"),
+	SavingsAccountsOpened = savingsMetrics.Counter("savings_accounts_opened_total",
+		"New savings accounts opened",
 		metric.WithUnit("{account}"))
 
-	SavingsDeposits, _ = savingsMeter.Int64Counter("savings_deposits_total",
-		metric.WithDescription("Savings deposits completed"),
+	SavingsDeposits = savingsMetrics.Counter("savings_deposits_total",
+		"Savings deposits completed",
 		metric.WithUnit("{deposit}"))
 
-	SavingsDepositsAmount, _ = savingsMeter.Float64Counter("savings_deposits_amount_total",
-		metric.WithDescription("Total amount deposited into savings"),
+	SavingsDepositsAmount = savingsMetrics.FloatCounter("savings_deposits_amount_total",
+		"Total amount deposited into savings",
 		metric.WithUnit("{currency_unit}"))
 
-	SavingsWithdrawals, _ = savingsMeter.Int64Counter("savings_withdrawals_total",
-		metric.WithDescription("Savings withdrawals approved"),
+	SavingsWithdrawals = savingsMetrics.Counter("savings_withdrawals_total",
+		"Savings withdrawals approved",
 		metric.WithUnit("{withdrawal}"))
 
-	SavingsWithdrawalsAmount, _ = savingsMeter.Float64Counter("savings_withdrawals_amount_total",
-		metric.WithDescription("Total amount withdrawn from savings"),
+	SavingsWithdrawalsAmount = savingsMetrics.FloatCounter("savings_withdrawals_amount_total",
+		"Total amount withdrawn from savings",
 		metric.WithUnit("{currency_unit}"))
 
-	SavingsInterestAccruedAmount, _ = savingsMeter.Float64Counter("savings_interest_accrued_amount_total",
-		metric.WithDescription("Total interest accrued on savings accounts"),
+	SavingsInterestAccruedAmount = savingsMetrics.FloatCounter("savings_interest_accrued_amount_total",
+		"Total interest accrued on savings accounts",
 		metric.WithUnit("{currency_unit}"))
 )
 

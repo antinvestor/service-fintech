@@ -24,7 +24,6 @@ import (
 	"gorm.io/gorm"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
@@ -265,12 +264,8 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 		logger.WithError(auErr).Warn("audit emission failed for interest accrual")
 	})
 
-	audit := constants.AuditTrailFromContext(ctx)
-	SavingsInterestAccruedAmount.Add(ctx, float64(accrued)/minorUnitsPerMajor, metric.WithAttributes(
-		attribute.String("tenant_id", audit.TenantID),
-		attribute.String("partition_id", audit.PartitionID),
-		attribute.String("currency", sa.CurrencyCode),
-	))
+	SavingsInterestAccruedAmount.Add(ctx, float64(accrued)/minorUnitsPerMajor,
+		attribute.String("currency", sa.CurrencyCode))
 
 	logger.WithFields(map[string]any{
 		fieldAmount: accrued,
