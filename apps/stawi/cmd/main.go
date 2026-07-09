@@ -350,7 +350,7 @@ func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.StawiConfig) {
 	}
 	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  trustageURL,
-		ServiceID:             servicecatalog.ServiceTrustage,
+		ServiceID: servicecatalog.ServiceTrustage,
 	}, workflowv1connect.NewWorkflowServiceClient)
 	if cliErr != nil {
 		util.Log(ctx).WithError(cliErr).Warn("trustage workflow client init failed")
@@ -367,7 +367,7 @@ func setupIdentityClient(
 ) (identityv1connect.IdentityServiceClient, error) {
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:  cfg.IdentityServiceURI,
-		ServiceID:             servicecatalog.ServiceIdentity,
+		ServiceID: servicecatalog.ServiceIdentity,
 	}, identityv1connect.NewIdentityServiceClient)
 }
 

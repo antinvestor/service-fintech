@@ -81,7 +81,7 @@ func newAdminClient(ctx context.Context) (limitsv1connect.LimitsAdminServiceClie
 	// Production path: workload identity via platform auth helper.
 	return connection.NewServiceClient(ctx, nil, common.ServiceTarget{
 		Endpoint:  flagURI,
-		ServiceID:             servicecatalog.ServiceLimits,
+		ServiceID: servicecatalog.ServiceLimits,
 	}, limitsv1connect.NewLimitsAdminServiceClient)
 }
 

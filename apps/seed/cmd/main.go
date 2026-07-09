@@ -80,7 +80,7 @@ func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.SeedConfig, log *ut
 	}
 	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  trustageURL,
-		ServiceID:             servicecatalog.ServiceTrustage,
+		ServiceID: servicecatalog.ServiceTrustage,
 	}, workflowv1connect.NewWorkflowServiceClient)
 	if cliErr != nil {
 		log.WithError(cliErr).Warn("trustage workflow client init failed")

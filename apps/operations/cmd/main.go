@@ -26,8 +26,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/antinvestor/common/v2"
 	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/antinvestor/common/v2/permissions"
+	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/pitabwire/frame/v2"
 	"github.com/pitabwire/frame/v2/config"
 	"github.com/pitabwire/frame/v2/datastore"
@@ -246,7 +246,7 @@ func setupIdentityClient(
 ) (identityv1connect.IdentityServiceClient, error) {
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:  cfg.IdentityServiceURI,
-		ServiceID:             servicecatalog.ServiceIdentity,
+		ServiceID: servicecatalog.ServiceIdentity,
 	}, identityv1connect.NewIdentityServiceClient)
 }
 
