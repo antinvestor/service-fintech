@@ -19,8 +19,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/pitabwire/frame/data"
-	fevents "github.com/pitabwire/frame/events"
+	"github.com/pitabwire/frame/v2/data"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"gorm.io/gorm"
 )
 

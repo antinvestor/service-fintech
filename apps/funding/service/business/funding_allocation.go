@@ -21,7 +21,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 

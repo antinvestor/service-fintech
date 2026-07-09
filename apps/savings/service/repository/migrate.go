@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/v2/datastore"
 
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"

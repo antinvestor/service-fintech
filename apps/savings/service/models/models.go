@@ -20,7 +20,7 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/v2/data"
 )
 
 // SavingsProduct defines savings terms, rates, and rules for a bank.

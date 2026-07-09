@@ -18,10 +18,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/tenancy"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v2/tenancy"
+	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 

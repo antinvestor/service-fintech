@@ -17,7 +17,7 @@ package constants
 import (
 	"context"
 
-	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/v2/security"
 )
 
 // AuditTrail captures the full identity and device context of an authenticated

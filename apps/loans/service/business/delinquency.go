@@ -21,7 +21,7 @@ import (
 	"strconv"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"

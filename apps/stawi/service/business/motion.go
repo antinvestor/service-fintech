@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"

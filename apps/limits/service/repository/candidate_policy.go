@@ -18,7 +18,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/v2/datastore/pool"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 )

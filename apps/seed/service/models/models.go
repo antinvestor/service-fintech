@@ -38,7 +38,7 @@ package models
 import (
 	"time"
 
-	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/v2/data"
 )
 
 // CreditProfileStatus is the lifecycle of a client credit profile.

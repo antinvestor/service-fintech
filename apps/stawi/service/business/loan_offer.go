@@ -27,7 +27,7 @@ import (
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"connectrpc.com/connect"
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 

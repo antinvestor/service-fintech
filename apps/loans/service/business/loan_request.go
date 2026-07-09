@@ -24,8 +24,8 @@ import (
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/data"
-	fevents "github.com/pitabwire/frame/events"
+	"github.com/pitabwire/frame/v2/data"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 

@@ -19,11 +19,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/pitabwire/frame/data"
-	"github.com/pitabwire/frame/datastore/pool"
-	fevents "github.com/pitabwire/frame/events"
-	"github.com/pitabwire/frame/queue"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/queue"
+	"github.com/pitabwire/frame/v2/workerpool"
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/events"

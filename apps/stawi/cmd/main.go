@@ -22,15 +22,16 @@ import (
 
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"github.com/antinvestor/common"
-	"github.com/antinvestor/common/connection"
+	"github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
+	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/antinvestor/service-trustage/client/workflows"
 	"github.com/antinvestor/service-trustage/gen/go/workflow/v1/workflowv1connect"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/config"
-	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/frame/v2"
+	"github.com/pitabwire/frame/v2/config"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/stawi/config"
@@ -58,7 +59,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 )
 
 var errCurrentPeriodNotFound = errors.New("current period not found")
@@ -293,7 +294,7 @@ func setupLimitsClient(
 	return consumer.SetupClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.LimitsServiceURI,
 		WorkloadAPITargetPath: cfg.LimitsServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_limits"},
+		ServiceID:             servicecatalog.ServiceLimits,
 	})
 }
 
@@ -349,7 +350,7 @@ func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.StawiConfig) {
 	}
 	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  trustageURL,
-		Audiences: []string{"service_trustage"},
+		ServiceID: servicecatalog.ServiceTrustage,
 	}, workflowv1connect.NewWorkflowServiceClient)
 	if cliErr != nil {
 		util.Log(ctx).WithError(cliErr).Warn("trustage workflow client init failed")
@@ -366,7 +367,7 @@ func setupIdentityClient(
 ) (identityv1connect.IdentityServiceClient, error) {
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:  cfg.IdentityServiceURI,
-		Audiences: []string{"service_identity"},
+		ServiceID: servicecatalog.ServiceIdentity,
 	}, identityv1connect.NewIdentityServiceClient)
 }
 

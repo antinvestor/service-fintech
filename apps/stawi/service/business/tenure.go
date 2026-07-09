@@ -22,7 +22,7 @@ import (
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"connectrpc.com/connect"
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/events"

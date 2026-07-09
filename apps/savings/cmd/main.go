@@ -23,16 +23,17 @@ import (
 	"buf.build/gen/go/antinvestor/savings/connectrpc/go/savings/v1/savingsv1connect"
 	savingspb "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
 	"connectrpc.com/connect"
-	"github.com/antinvestor/common"
-	"github.com/antinvestor/common/connection"
-	"github.com/antinvestor/common/permissions"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/config"
-	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
-	"github.com/pitabwire/frame/security"
-	"github.com/pitabwire/frame/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/security/interceptors/connect"
+	"github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
+	"github.com/antinvestor/common/v2/permissions"
+	"github.com/antinvestor/common/v2/servicecatalog"
+	"github.com/pitabwire/frame/v2"
+	"github.com/pitabwire/frame/v2/config"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v2/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
 	"github.com/pitabwire/util"
 
 	auditmw "github.com/antinvestor/common/audit"
@@ -186,7 +187,7 @@ func setupOperationsClient(
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.OperationsServiceURI,
 		WorkloadAPITargetPath: cfg.OperationsServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_operations"},
+		ServiceID:             servicecatalog.ServiceOperations,
 	}, operationsv1connect.NewOperationsServiceClient)
 }
 
@@ -212,7 +213,7 @@ func setupLimitsClient(
 	return consumer.SetupClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.LimitsServiceURI,
 		WorkloadAPITargetPath: cfg.LimitsServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_limits"},
+		ServiceID:             servicecatalog.ServiceLimits,
 	})
 }
 

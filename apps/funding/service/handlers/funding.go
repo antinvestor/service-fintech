@@ -23,7 +23,7 @@ import (
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
 	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
-	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/v2/data"
 	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/business"

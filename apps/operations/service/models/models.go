@@ -17,7 +17,7 @@ package models
 import (
 	"time"
 
-	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/v2/data"
 )
 
 // Transfer type constants live in pkg/constants/transfer_types.go and are

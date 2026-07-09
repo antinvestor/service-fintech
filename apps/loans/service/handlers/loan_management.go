@@ -22,8 +22,8 @@ import (
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
-	"github.com/pitabwire/frame/data"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v2/workerpool"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/business"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"

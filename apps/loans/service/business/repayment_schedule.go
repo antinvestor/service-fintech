@@ -21,7 +21,7 @@ import (
 	"time"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 

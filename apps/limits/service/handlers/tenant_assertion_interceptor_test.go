@@ -20,7 +20,7 @@ import (
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
