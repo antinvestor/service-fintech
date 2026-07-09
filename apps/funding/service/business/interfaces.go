@@ -17,7 +17,7 @@ package business
 import (
 	"context"
 
-	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/v2/data"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
 )

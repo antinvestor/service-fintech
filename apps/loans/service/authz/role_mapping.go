@@ -14,7 +14,7 @@
 
 package authz
 
-import "github.com/pitabwire/frame/security"
+import "github.com/pitabwire/frame/v2/security"
 
 // BuildAccessTuple creates a tenancy_access#viewer tuple for a user.
 func BuildAccessTuple(tenancyPath, profileID string) security.RelationTuple {

@@ -23,8 +23,8 @@ import (
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
-	"github.com/pitabwire/frame/data"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v2/workerpool"
 	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/business"

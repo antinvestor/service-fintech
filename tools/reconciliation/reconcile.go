@@ -24,8 +24,8 @@ import (
 	"buf.build/gen/go/antinvestor/ledger/connectrpc/go/v1/ledgerv1connect"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
 	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/data"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 	utilmoney "github.com/pitabwire/util/moneyx"
 

@@ -32,12 +32,12 @@ require (
 	buf.build/gen/go/antinvestor/tenancy/connectrpc/go v1.20.0-20260629120315-dfdba54ae9d9.1
 	buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go v1.36.11-20260629120315-dfdba54ae9d9.1
 	connectrpc.com/connect v1.20.0
-	github.com/antinvestor/common v1.5.2
-	github.com/antinvestor/common/audit v0.0.0-20260427200632-833b5de926c7
+	github.com/antinvestor/common/audit v0.0.0-20260709203737-8d31a2fefc3a
+	github.com/antinvestor/common/v2 v2.0.0
 	github.com/antinvestor/service-trustage v0.3.59
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/pitabwire/frame v1.98.5
+	github.com/pitabwire/frame/v2 v2.0.3
 	github.com/pitabwire/util v0.9.1
 	github.com/pitabwire/util/decimalx v0.7.2
 	github.com/pitabwire/util/moneyx v0.9.0

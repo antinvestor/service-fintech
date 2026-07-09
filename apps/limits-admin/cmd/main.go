@@ -20,8 +20,9 @@ import (
 	"os"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"github.com/antinvestor/common"
-	"github.com/antinvestor/common/connection"
+	"github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
+	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/spf13/cobra"
 )
 
@@ -80,7 +81,7 @@ func newAdminClient(ctx context.Context) (limitsv1connect.LimitsAdminServiceClie
 	// Production path: workload identity via platform auth helper.
 	return connection.NewServiceClient(ctx, nil, common.ServiceTarget{
 		Endpoint:  flagURI,
-		Audiences: []string{"service_limits"},
+		ServiceID:             servicecatalog.ServiceLimits,
 	}, limitsv1connect.NewLimitsAdminServiceClient)
 }
 

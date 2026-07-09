@@ -30,9 +30,9 @@ import (
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/datastore/pool"
-	fevents "github.com/pitabwire/frame/events"
-	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"gorm.io/datatypes"

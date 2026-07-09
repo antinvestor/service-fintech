@@ -18,8 +18,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 

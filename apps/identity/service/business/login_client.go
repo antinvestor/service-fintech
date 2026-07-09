@@ -19,14 +19,16 @@ import (
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v2/tenancyv2connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
+	tenancyv2 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v2"
 	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
 
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 )
 
 // maxLoginTargets is the maximum number of child login targets returned per drill-down.
@@ -48,6 +50,7 @@ type loginClientBusiness struct {
 	organizationRepo repository.OrganizationRepository
 	branchRepo       repository.BranchRepository
 	partitionCli     tenancyv1connect.TenancyServiceClient
+	authContractCli  tenancyv2connect.AuthContractServiceClient
 	redirectURIs     []string
 	audiences        []string
 }
@@ -58,6 +61,7 @@ func NewLoginClientBusiness(
 	organizationRepo repository.OrganizationRepository,
 	branchRepo repository.BranchRepository,
 	partitionCli tenancyv1connect.TenancyServiceClient,
+	authContractCli tenancyv2connect.AuthContractServiceClient,
 	redirectURIs, audiences []string,
 ) LoginClientBusiness {
 	return &loginClientBusiness{
@@ -65,6 +69,7 @@ func NewLoginClientBusiness(
 		organizationRepo: organizationRepo,
 		branchRepo:       branchRepo,
 		partitionCli:     partitionCli,
+		authContractCli:  authContractCli,
 		redirectURIs:     redirectURIs,
 		audiences:        audiences,
 	}
@@ -134,21 +139,21 @@ func (b *loginClientBusiness) createClientForPartition(
 	logger *util.LogEntry,
 	partitionID, name string,
 ) (string, error) {
-	if b.partitionCli == nil {
+	if b.authContractCli == nil {
 		return "", ErrLoginClientCreationFailed
 	}
 
-	resp, err := b.partitionCli.CreateClient(ctx, connect.NewRequest(
-		&tenancyv1.CreateClientRequest{
-			Name:          name + " Login",
-			Type:          "public",
-			GrantTypes:    []string{"authorization_code", "refresh_token"},
-			ResponseTypes: []string{"code"},
-			RedirectUris:  b.redirectURIs,
-			Scopes:        "openid profile offline_access",
-			Audiences:     b.audiences,
-			Owner: &tenancyv1.CreateClientRequest_PartitionId{
-				PartitionId: partitionID,
+	resp, err := b.authContractCli.CreateOAuthClient(ctx, connect.NewRequest(
+		&tenancyv2.CreateOAuthClientRequest{
+			PartitionId: partitionID,
+			Name:        name + " Login",
+			Type:        "public",
+			Configuration: &tenancyv2.OAuthClientConfiguration{
+				GrantTypes:         []string{"authorization_code", "refresh_token"},
+				ResponseTypes:      []string{"code"},
+				RedirectUris:       b.redirectURIs,
+				Scopes:             "openid profile offline_access",
+				ResourceRecipients: b.audiences,
 			},
 		},
 	))
@@ -182,25 +187,44 @@ type LoginTargetsResponse struct {
 func (b *loginClientBusiness) GetLoginTargets(ctx context.Context, clientID string) (*LoginTargetsResponse, error) {
 	logger := util.Log(ctx).WithField("method", "LoginClientBusiness.GetLoginTargets")
 
-	if b.partitionCli == nil {
+	if b.authContractCli == nil || b.partitionCli == nil {
 		return nil, ErrLoginClientCreationFailed
 	}
 
-	// Resolve client_id → partition
-	clientResp, err := b.partitionCli.GetClient(ctx, connect.NewRequest(
-		&tenancyv1.GetClientRequest{ClientId: clientID},
+	// Resolve client_id → partition_id via AuthContract, then load partition details.
+	clientResp, err := b.authContractCli.GetOAuthClient(ctx, connect.NewRequest(
+		&tenancyv2.GetOAuthClientRequest{
+			Selector: &tenancyv2.GetOAuthClientRequest_ClientId{
+				ClientId: clientID,
+			},
+		},
 	))
 	if err != nil {
 		logger.WithError(err).Warn("failed to resolve client_id")
 		return nil, err
 	}
 
-	partition := clientResp.Msg.GetData().GetPartition()
+	oauthClient := clientResp.Msg.GetData()
+	if oauthClient == nil || oauthClient.GetPartitionId() == "" {
+		return nil, ErrLoginClientCreationFailed
+	}
+
+	partitionID := oauthClient.GetPartitionId()
+	partitionResp, err := b.partitionCli.GetPartition(ctx, connect.NewRequest(
+		&tenancyv1.GetPartitionRequest{
+			// Prefer ID lookup; field names differ slightly across generations so keep flexible.
+			Id: partitionID,
+		},
+	))
+	if err != nil {
+		logger.WithError(err).Warn("failed to resolve partition for oauth client")
+		return nil, err
+	}
+	partition := partitionResp.Msg.GetData()
 	if partition == nil {
 		return nil, ErrLoginClientCreationFailed
 	}
 
-	partitionID := partition.GetId()
 	partitionName := partition.GetName()
 
 	response := &LoginTargetsResponse{}

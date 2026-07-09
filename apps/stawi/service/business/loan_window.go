@@ -17,7 +17,7 @@ package business
 import (
 	"context"
 
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"

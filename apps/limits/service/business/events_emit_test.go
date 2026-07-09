@@ -19,11 +19,11 @@ import (
 	"sync"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
-	fevents "github.com/pitabwire/frame/events"
-	"github.com/pitabwire/frame/queue"
+	"github.com/pitabwire/frame/v2"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/queue"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/business"

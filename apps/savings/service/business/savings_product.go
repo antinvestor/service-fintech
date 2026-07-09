@@ -20,8 +20,8 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"github.com/pitabwire/frame/data"
-	fevents "github.com/pitabwire/frame/events"
+	"github.com/pitabwire/frame/v2/data"
+	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/savings/service/events"

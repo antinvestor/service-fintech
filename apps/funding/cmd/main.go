@@ -26,19 +26,20 @@ import (
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
 	"connectrpc.com/connect"
-	"github.com/antinvestor/common"
-	"github.com/antinvestor/common/connection"
-	"github.com/antinvestor/common/permissions"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/config"
-	"github.com/pitabwire/frame/data"
-	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
-	fevents "github.com/pitabwire/frame/events"
-	"github.com/pitabwire/frame/security"
-	"github.com/pitabwire/frame/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/security/interceptors/connect"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
+	"github.com/antinvestor/common/v2/servicecatalog"
+	"github.com/antinvestor/common/v2/permissions"
+	"github.com/pitabwire/frame/v2"
+	"github.com/pitabwire/frame/v2/config"
+	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v2/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
+	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 
 	auditmw "github.com/antinvestor/common/audit"
@@ -218,7 +219,7 @@ func setupOperationsClient(
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.OperationsServiceURI,
 		WorkloadAPITargetPath: cfg.OperationsServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_operations"},
+		ServiceID:             servicecatalog.ServiceOperations,
 	}, operationsv1connect.NewOperationsServiceClient)
 }
 
@@ -353,6 +354,6 @@ func setupLimitsClient(
 	return consumer.SetupClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.LimitsServiceURI,
 		WorkloadAPITargetPath: cfg.LimitsServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_limits"},
+		ServiceID:             servicecatalog.ServiceLimits,
 	})
 }

@@ -18,7 +18,7 @@ import (
 	"context"
 
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	fevents "github.com/pitabwire/frame/events"
+	fevents "github.com/pitabwire/frame/v2/events"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"

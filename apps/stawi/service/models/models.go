@@ -17,7 +17,7 @@ package models
 import (
 	"time"
 
-	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/v2/data"
 )
 
 // LoanOfferResponse defines a member's response to a loan offer.

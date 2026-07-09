@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	fevents "github.com/pitabwire/frame/events"
-	"github.com/pitabwire/frame/security"
+	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 

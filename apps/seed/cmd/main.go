@@ -48,13 +48,14 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/antinvestor/common"
-	"github.com/antinvestor/common/connection"
+	"github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
+	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/antinvestor/service-trustage/client/workflows"
 	"github.com/antinvestor/service-trustage/gen/go/workflow/v1/workflowv1connect"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/config"
-	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/v2"
+	"github.com/pitabwire/frame/v2/config"
+	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/util"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/seed/config"
@@ -79,7 +80,7 @@ func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.SeedConfig, log *ut
 	}
 	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  trustageURL,
-		Audiences: []string{"service_trustage"},
+		ServiceID:             servicecatalog.ServiceTrustage,
 	}, workflowv1connect.NewWorkflowServiceClient)
 	if cliErr != nil {
 		log.WithError(cliErr).Warn("trustage workflow client init failed")

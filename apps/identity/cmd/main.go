@@ -26,19 +26,21 @@ import (
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v2/tenancyv2connect"
 	"connectrpc.com/connect"
-	"github.com/antinvestor/common"
-	"github.com/antinvestor/common/connection"
-	"github.com/antinvestor/common/permissions"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/config"
-	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
-	fevents "github.com/pitabwire/frame/events"
-	"github.com/pitabwire/frame/security"
-	"github.com/pitabwire/frame/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/security/interceptors/connect"
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
+	"github.com/antinvestor/common/v2/servicecatalog"
+	"github.com/antinvestor/common/v2/permissions"
+	"github.com/pitabwire/frame/v2"
+	"github.com/pitabwire/frame/v2/config"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v2/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
+	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/common/audit"
@@ -93,6 +95,11 @@ func main() {
 		log.WithError(err).Fatal("main -- Could not setup partition client")
 	}
 
+	authContractCli, err := setupAuthContractClient(ctx, cfg)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup auth contract client")
+	}
+
 	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
 	if notifErr != nil {
 		log.WithError(notifErr).
@@ -117,6 +124,7 @@ func main() {
 		cfg,
 		agentNotifier,
 		partitionCli,
+		authContractCli,
 		profileCli,
 	)
 
@@ -137,6 +145,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	cfg aconfig.IdentityConfig,
 	agentNotifier *business.AgentNotifier,
 	partitionCli tenancyv1connect.TenancyServiceClient,
+	authContractCli tenancyv2connect.AuthContractServiceClient,
 	profileCli profilev1connect.ProfileServiceClient,
 ) []frame.Option {
 	organizationRepo := repository.NewOrganizationRepository(ctx, dbPool, workMan)
@@ -224,7 +233,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	oauthRedirectURIs := strings.Split(cfg.OAuthRedirectURIs, ",")
 	oauthAudiences := strings.Split(cfg.OAuthAudiences, ",")
 	loginClientBusiness := business.NewLoginClientBusiness(
-		ctx, evtsMan, organizationRepo, branchRepo, partitionCli, oauthRedirectURIs, oauthAudiences,
+		ctx, evtsMan, organizationRepo, branchRepo, partitionCli, authContractCli, oauthRedirectURIs, oauthAudiences,
 	)
 
 	connectHandler := setupConnectServer(
@@ -291,7 +300,7 @@ func setupProfileClient(
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.ProfileServiceURI,
 		WorkloadAPITargetPath: cfg.ProfileServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_profile"},
+		ServiceID:             servicecatalog.ServiceProfile,
 	}, profilev1connect.NewProfileServiceClient)
 }
 
@@ -302,7 +311,7 @@ func setupNotificationClient(
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.NotificationServiceURI,
 		WorkloadAPITargetPath: cfg.NotificationServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_notification"},
+		ServiceID:             servicecatalog.ServiceNotification,
 	}, notificationv1connect.NewNotificationServiceClient)
 }
 
@@ -313,8 +322,19 @@ func setupTenancyClient(
 	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
 		Endpoint:              cfg.TenancyServiceURI,
 		WorkloadAPITargetPath: cfg.TenancyServiceWorkloadAPITargetPath,
-		Audiences:             []string{"service_tenancy"},
+		ServiceID:             servicecatalog.ServiceTenancy,
 	}, tenancyv1connect.NewTenancyServiceClient)
+}
+
+func setupAuthContractClient(
+	ctx context.Context,
+	cfg aconfig.IdentityConfig,
+) (tenancyv2connect.AuthContractServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.TenancyServiceURI,
+		WorkloadAPITargetPath: cfg.TenancyServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceTenancy,
+	}, tenancyv2connect.NewAuthContractServiceClient)
 }
 
 func setupConnectServer(

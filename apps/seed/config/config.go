@@ -15,7 +15,7 @@
 package config
 
 import (
-	"github.com/pitabwire/frame/config"
+	"github.com/pitabwire/frame/v2/config"
 )
 
 // SeedConfig is the service configuration for the seed direct-to-client

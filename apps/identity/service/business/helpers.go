@@ -17,7 +17,7 @@ package business
 import (
 	"context"
 
-	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/frame/v2/workerpool"
 )
 
 // workerpoolConsumeStream wraps workerpool.ConsumeResultStream for use in business methods.

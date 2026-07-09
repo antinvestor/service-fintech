@@ -29,8 +29,9 @@ import (
 	"buf.build/gen/go/antinvestor/savings/connectrpc/go/savings/v1/savingsv1connect"
 	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
 	"connectrpc.com/connect"
-	"github.com/antinvestor/common"
-	"github.com/antinvestor/common/connection"
+	"github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
+	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/pitabwire/util"
 )
 
@@ -62,12 +63,49 @@ type PlatformClients struct {
 	TenancyClient      tenancyv1connect.TenancyServiceClient
 }
 
+// audienceToServiceID maps legacy service audience labels to catalog IDs.
+func audienceToServiceID(audience string) servicecatalog.ServiceID {
+	switch audience {
+	case "service_identity":
+		return servicecatalog.ServiceIdentity
+	case "service_fintech_loans", "service_loans":
+		return servicecatalog.ServiceLoans
+	case "service_savings":
+		return servicecatalog.ServiceSavings
+	case "service_ledger":
+		return servicecatalog.ServiceLedger
+	case "service_payment":
+		return servicecatalog.ServicePayment
+	case "service_notification":
+		return servicecatalog.ServiceNotification
+	case "service_file", "service_files":
+		return servicecatalog.ServiceFiles
+	case "service_profile":
+		return servicecatalog.ServiceProfile
+	case "service_tenancy", "service_partition":
+		return servicecatalog.ServiceTenancy
+	case "service_limits":
+		return servicecatalog.ServiceLimits
+	case "service_funding":
+		return servicecatalog.ServiceFunding
+	case "service_operations":
+		return servicecatalog.ServiceOperations
+	case "service_trustage":
+		return servicecatalog.ServiceTrustage
+	default:
+		return servicecatalog.ServiceID(audience)
+	}
+}
+
 // newClient creates one typed Connect RPC client for the given endpoint and audience.
 func newClient[T any](
 	ctx context.Context, cfg any, endpoint, audience string,
 	ctor func(connect.HTTPClient, string, ...connect.ClientOption) T,
 ) (T, error) {
-	target := common.ServiceTarget{Endpoint: endpoint, Audiences: []string{audience}}
+	target := common.ServiceTarget{
+		Endpoint:  endpoint,
+		ServiceID: audienceToServiceID(audience),
+	}
 	return connection.NewServiceClient(ctx, cfg, target, ctor)
 }
 
