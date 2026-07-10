@@ -32,10 +32,10 @@ buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260509052652-09e08f4f
 buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260509052652-09e08f4facc6.1/go.mod h1:ggLkSrvjGndvP6wrE1rhV+wkWE/CZ00ctm6nzfSm63s=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260509052652-09e08f4facc6.1 h1:SlEO+DiJCKdhmOshk/RFUoFGtdlXvKgVETig0bLYgzg=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260509052652-09e08f4facc6.1/go.mod h1:pe1wZyM9G0wH2skkqFoAnJlpJYkqs+bGptf+O/qO0Y4=
-buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260511135618-9b1ea0d95bd7.1 h1:qHTdnNNfkdq8NacyArvXMk4lNi2SqXCKa3r6dbGT/Fw=
-buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260511135618-9b1ea0d95bd7.1/go.mod h1:zkskJD98ZrHoqOV0XK/GqrGlwULJVNVOHrCsOHeXK4A=
-buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.11-20260511135618-9b1ea0d95bd7.1 h1:NcWRgOtL2A09cThVXGGwRXJMFaHJmOLVF8yJHE+BpiI=
-buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.11-20260511135618-9b1ea0d95bd7.1/go.mod h1:xfoYpWAeXI6QpEJp+0JQnjF/W/pKj/M2XeX1knWh2/M=
+buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260709214330-626c8192b906.1 h1:mOHHNlA4VLcWL0ZJKQDC7HjwALje8v322ewk+P0q3GU=
+buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260709214330-626c8192b906.1/go.mod h1:tLZXzWmKo9jknd03C0emTb20UeCu4rBzta+YBQtzii0=
+buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.11-20260709214330-626c8192b906.1 h1:yQtTKHHgNm0goL7NrxmxRvkBHcltmHRuKKUguTIBpt0=
+buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.11-20260709214330-626c8192b906.1/go.mod h1:X2v5MCprpDtHCQnPl/2JahcS/ecaBV9WJCW6WdRUZXc=
 buf.build/gen/go/antinvestor/operations/connectrpc/go v1.20.0-20260709214610-7dc983e854b8.1 h1:PLbPjMlKFWBAu1yNWI7S0UGWTPqkCksEMo/omPSDRks=
 buf.build/gen/go/antinvestor/operations/connectrpc/go v1.20.0-20260709214610-7dc983e854b8.1/go.mod h1:/gE2jsrMY3DXADyfo5QBE+gI/DW/dhz+ctholTx6QTQ=
 buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.11-20260709214610-7dc983e854b8.1 h1:UzT+778j+HJbI+gZwe0+t9qd7J6+Q9n1IfTOOPb3M28=
