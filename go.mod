@@ -9,8 +9,8 @@ require (
 	buf.build/gen/go/antinvestor/field/connectrpc/go v1.20.0-20260509052652-a3bbaa6e5d2d.1
 	buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.11-20260509052652-a3bbaa6e5d2d.1
 	buf.build/gen/go/antinvestor/files/connectrpc/go v1.20.0-20260511135453-ad06fa76a0de.1
-	buf.build/gen/go/antinvestor/funding/connectrpc/go v1.20.0-20260509052652-4e35b6d4cc63.1
-	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.11-20260509052652-4e35b6d4cc63.1
+	buf.build/gen/go/antinvestor/funding/connectrpc/go v1.20.0-20260709214610-e20408cc729f.1
+	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.11-20260709214610-e20408cc729f.1
 	buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260509052652-eee32850d77e.1
 	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.11-20260509052652-eee32850d77e.1
 	buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260511161419-a9463f1bcd2f.1
@@ -56,7 +56,7 @@ require (
 	buf.build/gen/go/antinvestor/audit/connectrpc/go v1.20.0-20260510082436-4bc1af8aa746.1 // indirect
 	buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.11-20260510082436-4bc1af8aa746.1 // indirect
 	buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.11-20260511135453-ad06fa76a0de.1 // indirect
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260415201107-50325440f8f2.1 // indirect
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260709200747-435963d16310.1 // indirect
 	buf.build/gen/go/gnostic/gnostic/protocolbuffers/go v1.36.11-20230414000709-087bc8072ce4.1 // indirect
 	buf.build/go/protovalidate v1.2.0 // indirect
 	cel.dev/expr v0.25.2 // indirect
