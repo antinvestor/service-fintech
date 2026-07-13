@@ -4,10 +4,10 @@ buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.11-20260709203043-d1
 buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.11-20260709203043-d15c1412493f.1/go.mod h1:so77wnAFYsLaX5yfCU3GteEevNLwTLNoPTJeYbl7xBU=
 buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.11-20260509050709-3f270876dbf3.1 h1:B8kYvDw/nWj5TLW9vrl95Q5jpD3sSsM/MZa9nViUc/I=
 buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.11-20260509050709-3f270876dbf3.1/go.mod h1:jRgXqWVsMsSV2ZDzo9s21a1fiAyyO68FibJVAGQzJoY=
-buf.build/gen/go/antinvestor/field/connectrpc/go v1.20.0-20260509052652-a3bbaa6e5d2d.1 h1:99/15eS4OOCyViNkjbN5dcH+dJfcvv0YiTAwmstgo6Y=
-buf.build/gen/go/antinvestor/field/connectrpc/go v1.20.0-20260509052652-a3bbaa6e5d2d.1/go.mod h1:aRabh0ZaVQnyZBHB41xKWU0UBSd6tzr7Mpo40mg4zxY=
-buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.11-20260509052652-a3bbaa6e5d2d.1 h1:9YsGZrMxj5KjrWK8FwM7Ei4Ux51bqebNs657jkjovIY=
-buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.11-20260509052652-a3bbaa6e5d2d.1/go.mod h1:0fli3AwqOA2A8Zk2J6ahqQFrxs618X/BtR7hSjsroc0=
+buf.build/gen/go/antinvestor/field/connectrpc/go v1.20.0-20260709214610-92f7f0a31d8b.1 h1:qeGqZajfHH7PA+Dh9Veq1WxuFvMWhNhA4aP7Z54Ou9Y=
+buf.build/gen/go/antinvestor/field/connectrpc/go v1.20.0-20260709214610-92f7f0a31d8b.1/go.mod h1:g5HE76vBnMjQUpWraLLBwT0TAbSnCZ4vEKzi6R26RVg=
+buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.11-20260709214610-92f7f0a31d8b.1 h1:2wd0m4y+PHApBl5yQyGihJ/BFXYecTPoFIZyUDRW5Kc=
+buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.11-20260709214610-92f7f0a31d8b.1/go.mod h1:67XIEVVSnMow+f1VEqdupJsBPd45lJ2zJbQKFKosEAI=
 buf.build/gen/go/antinvestor/files/connectrpc/go v1.20.0-20260709215054-48b5c99c48f3.1 h1:kvyVE33Y/FM7/Hhajtns+zs0BhNQq/6r+c+iBfaX2Dg=
 buf.build/gen/go/antinvestor/files/connectrpc/go v1.20.0-20260709215054-48b5c99c48f3.1/go.mod h1:X0olNBcyNIl0qT551+yg6KTdRRAW4RG89E3nlnvW/Fk=
 buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.11-20260709215054-48b5c99c48f3.1 h1:PXQZgZ2O7mVNtysJ22GQO9vwl1h6s4fSR5y29YB5zmQ=
