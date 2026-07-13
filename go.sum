@@ -97,8 +97,8 @@ github.com/antinvestor/common/audit v0.0.0-20260709203737-8d31a2fefc3a h1:YlDBz5
 github.com/antinvestor/common/audit v0.0.0-20260709203737-8d31a2fefc3a/go.mod h1:YQGV7cMWG1LqUmLjTjMsWiTVrfMSTu1q0rHUjeXPrUc=
 github.com/antinvestor/common/v2 v2.0.0 h1:ZGb5Zg3oA7s2sg0fcsnydgoaEnhs//gE8JaMwbV/1sE=
 github.com/antinvestor/common/v2 v2.0.0/go.mod h1:Be91T/fGXdU96sMZFB/usI2TUv711K6FTcj4cS/rltw=
-github.com/antinvestor/service-trustage v0.3.60 h1:oJHIS9pugKzYLmf8hVS5qDQxL0UvCnUwcI0NSSgNBvg=
-github.com/antinvestor/service-trustage v0.3.60/go.mod h1:kI+PCYB3irJid7AWcibq/eNKWavILL2O4j+1Jpf7xX4=
+github.com/antinvestor/service-trustage v0.3.61 h1:/TeDHxZ47eFTShFXhgi+PvL9aBNvlRPt1j8g60Sib9c=
+github.com/antinvestor/service-trustage v0.3.61/go.mod h1:Pbn4sjILET8KW6tdYqEEx1IExUKypggC1I5u5qrcf6c=
 github.com/antithesishq/antithesis-sdk-go v0.7.0-default-no-op h1:Z/MZK75wC/NSrkgqeNIa7jexam9uWzhLmFTSCPI/kn0=
 github.com/antithesishq/antithesis-sdk-go v0.7.0-default-no-op/go.mod h1:FQyySiasQQM8735Ddel3MRojmy4dA1IqCeyJ5jmPMbI=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
@@ -216,8 +216,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/lib/pq v1.12.3 h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ=
 github.com/lib/pq v1.12.3/go.mod h1:/p+8NSbOcwzAEI7wiMXFlgydTwcgTr3OSKMsD2BitpA=
-github.com/lmittmann/tint v1.1.3 h1:Hv4EaHWXQr+GTFnOU4VKf8UvAtZgn0VuKT+G0wFlO3I=
-github.com/lmittmann/tint v1.1.3/go.mod h1:HIS3gSy7qNwGCj+5oRjAutErFBl4BzdQP6cJZ0NfMwE=
+github.com/lmittmann/tint v1.2.0 h1:AogHRHy8HUJUnNJBHJlYa+fR4YY8mko2cnCp67xn9JY=
+github.com/lmittmann/tint v1.2.0/go.mod h1:HIS3gSy7qNwGCj+5oRjAutErFBl4BzdQP6cJZ0NfMwE=
 github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e h1:Q6MvJtQK/iRcRtzAscm/zF23XxJlbECiGPyRicsX+Ak=
 github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e/go.mod h1:autxFIvghDt3jPTLoqZ9OZ7s9qTGNAWmYCjVFWPX/zg=
 github.com/magiconair/properties v1.8.10 h1:s31yESBquKXCV9a/ScB3ESkOjUYYv+X0rg8SYxI99mE=
