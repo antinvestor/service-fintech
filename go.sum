@@ -28,10 +28,10 @@ buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260509052652-5c036ba
 buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260509052652-5c036ba4d23f.1/go.mod h1:/FXJzUscTXPp11fQ9LzBUhaRgOTxf1TGsTWqG8ABl0M=
 buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260509052652-5c036ba4d23f.1 h1:8HU34DjUi2Jw46kLzILN1Ezn8Wghhx3v2imTC63VWGU=
 buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260509052652-5c036ba4d23f.1/go.mod h1:p6XPlemAWZraJRT/TvIdiJYuMKc4Dx9ArMz8Z2kJYH8=
-buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260509052652-09e08f4facc6.1 h1:N8fB58d7yNuk7X8cnxKXk0KCKjFQBL88oMIttNFUZt4=
-buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260509052652-09e08f4facc6.1/go.mod h1:ggLkSrvjGndvP6wrE1rhV+wkWE/CZ00ctm6nzfSm63s=
-buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260509052652-09e08f4facc6.1 h1:SlEO+DiJCKdhmOshk/RFUoFGtdlXvKgVETig0bLYgzg=
-buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260509052652-09e08f4facc6.1/go.mod h1:pe1wZyM9G0wH2skkqFoAnJlpJYkqs+bGptf+O/qO0Y4=
+buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260709214610-5f3ebfd08539.1 h1:LWjCw/HbdnR14OiQ3F7nZOtmcbMqU7XmGrOGzcODjqc=
+buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260709214610-5f3ebfd08539.1/go.mod h1:4bOAmZFnDkqh/Nas0jcKazFVg9Qr/ffSQdYxXP6J1BA=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260709214610-5f3ebfd08539.1 h1:8XuZVvsmPEAdS4M1beSxO+Z6sa6Gv2f6PM+2v/EqK54=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260709214610-5f3ebfd08539.1/go.mod h1:jCkgv/fbkyd7unbTnAS7mZfcFAMZRn1GPohyWl5o7vs=
 buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260709214330-626c8192b906.1 h1:mOHHNlA4VLcWL0ZJKQDC7HjwALje8v322ewk+P0q3GU=
 buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260709214330-626c8192b906.1/go.mod h1:tLZXzWmKo9jknd03C0emTb20UeCu4rBzta+YBQtzii0=
 buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.11-20260709214330-626c8192b906.1 h1:yQtTKHHgNm0goL7NrxmxRvkBHcltmHRuKKUguTIBpt0=
