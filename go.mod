@@ -34,7 +34,7 @@ require (
 	connectrpc.com/connect v1.20.0
 	github.com/antinvestor/common/audit v0.0.0-20260709203737-8d31a2fefc3a
 	github.com/antinvestor/common/v2 v2.0.0
-	github.com/antinvestor/service-trustage v0.3.60
+	github.com/antinvestor/service-trustage v0.3.61
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/pitabwire/frame/v2 v2.0.5
@@ -105,7 +105,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.19.0 // indirect
-	github.com/lmittmann/tint v1.1.3 // indirect
+	github.com/lmittmann/tint v1.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
