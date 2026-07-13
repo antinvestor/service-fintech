@@ -16,10 +16,10 @@ buf.build/gen/go/antinvestor/funding/connectrpc/go v1.20.0-20260709214610-e20408
 buf.build/gen/go/antinvestor/funding/connectrpc/go v1.20.0-20260709214610-e20408cc729f.1/go.mod h1:USH76xpeIAuhJ15QYcJu9Hs2UuzdBZY9x5DnVwR1dNE=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.11-20260709214610-e20408cc729f.1 h1:By49m9pAUqu2OPCDKW8aBXdmIg8MnUjDCS4n6UGq6HI=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.11-20260709214610-e20408cc729f.1/go.mod h1:nF2RYgllAljX/KcWeExOHk415D2O0rxQCdN6//D649I=
-buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260509052652-eee32850d77e.1 h1:2qvl1h9voklqWfeOX3VRAMwgbgk9biQbCe4+CQtQER8=
-buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260509052652-eee32850d77e.1/go.mod h1:hbqTgLc9TJBBvcGC2QsCc9f6E1wEPwbaBdW4NZa1qro=
-buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.11-20260509052652-eee32850d77e.1 h1:m3JggjdEu5jSXL7pGm8u74y1hT6AQkycoDjWYpjZF64=
-buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.11-20260509052652-eee32850d77e.1/go.mod h1:Nl3b8KytkRyFO84dHpSENz+DPwslFBXjWHu0Bav2QNk=
+buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260709214610-010e57de534c.1 h1:dhbGIG7UGo1deIQVeEdze4Lgb9+W0hH/DEWXza0TfcM=
+buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260709214610-010e57de534c.1/go.mod h1:IaUYvkys5h5zviJdDSE12h4yFW56AZPQx0HJnYZUSE0=
+buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.11-20260709214610-010e57de534c.1 h1:+5q1n4WusY0X1+NF0glnyDVdj79TS2n2+Hnf4SfhzME=
+buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.11-20260709214610-010e57de534c.1/go.mod h1:POaD3A3UrYchnERIDGSe75lp9+ahCvLzZuO/SDRTtN4=
 buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260709214338-fcdd6e08a283.1 h1:SLMRegrjpvRMTTkT77mWjNqYU0IJ16gx4RTHqCP6GxU=
 buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260709214338-fcdd6e08a283.1/go.mod h1:2SNcHxnWRYJsyKLMz6WJv/Vt/MbvSPxvFtxp2bPXDBw=
 buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.11-20260709214338-fcdd6e08a283.1 h1:QeUt7kTt+ITcDXAv8JV/sIgE+i6ecSUIulwpyuVeEKg=
