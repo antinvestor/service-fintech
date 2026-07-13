@@ -15,8 +15,8 @@ require (
 	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.11-20260709214610-010e57de534c.1
 	buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260709214338-fcdd6e08a283.1
 	buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.11-20260709214338-fcdd6e08a283.1
-	buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260509052652-5c036ba4d23f.1
-	buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260509052652-5c036ba4d23f.1
+	buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260709214610-f7ed287d7dff.1
+	buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260709214610-f7ed287d7dff.1
 	buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260709214610-5f3ebfd08539.1
 	buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260709214610-5f3ebfd08539.1
 	buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260709214330-626c8192b906.1
