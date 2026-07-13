@@ -24,10 +24,10 @@ buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260709214338-fcdd6e0
 buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260709214338-fcdd6e08a283.1/go.mod h1:2SNcHxnWRYJsyKLMz6WJv/Vt/MbvSPxvFtxp2bPXDBw=
 buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.11-20260709214338-fcdd6e08a283.1 h1:QeUt7kTt+ITcDXAv8JV/sIgE+i6ecSUIulwpyuVeEKg=
 buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.11-20260709214338-fcdd6e08a283.1/go.mod h1:UDu80qQwySQ0jX58mWyTlpP0nyfgJGolKEc14cPQKwc=
-buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260509052652-5c036ba4d23f.1 h1:ucySJr62TT6c5B0lWj4gJZHqz01RS0XvyAVTDt8103s=
-buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260509052652-5c036ba4d23f.1/go.mod h1:/FXJzUscTXPp11fQ9LzBUhaRgOTxf1TGsTWqG8ABl0M=
-buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260509052652-5c036ba4d23f.1 h1:8HU34DjUi2Jw46kLzILN1Ezn8Wghhx3v2imTC63VWGU=
-buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260509052652-5c036ba4d23f.1/go.mod h1:p6XPlemAWZraJRT/TvIdiJYuMKc4Dx9ArMz8Z2kJYH8=
+buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260709214610-f7ed287d7dff.1 h1:h9dYBOx0BAKfadauMvNekWaWKzTZLcAGn1h497hgKuA=
+buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260709214610-f7ed287d7dff.1/go.mod h1:QveixoqyJeOFvw4szeZy8wEkBJdrKKVGXmVTv+JVmPw=
+buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260709214610-f7ed287d7dff.1 h1:SNTT6yKBuGbpG32Y77vG6tVJpuxVqBBfnhkg4hhJ+yU=
+buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.11-20260709214610-f7ed287d7dff.1/go.mod h1:1mAKyDllNNDHVdJXORk1hNChTkIOoCwrhpJMWMkDq4c=
 buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260709214610-5f3ebfd08539.1 h1:LWjCw/HbdnR14OiQ3F7nZOtmcbMqU7XmGrOGzcODjqc=
 buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260709214610-5f3ebfd08539.1/go.mod h1:4bOAmZFnDkqh/Nas0jcKazFVg9Qr/ffSQdYxXP6J1BA=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.11-20260709214610-5f3ebfd08539.1 h1:8XuZVvsmPEAdS4M1beSxO+Z6sa6Gv2f6PM+2v/EqK54=
