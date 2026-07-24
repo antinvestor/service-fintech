@@ -18,7 +18,7 @@ dependencies:
   antinvestor_api_profile: ^1.52.0
   antinvestor_api_notification: ^1.51.0
   antinvestor_api_tenancy: ^1.54.0
-  connectivity_plus: ^7.3.0
+  connectivity_plus: ^7.3.1
   antinvestor_ui_core: ^0.2.0
   antinvestor_ui_identity: ^0.1.0
   antinvestor_ui_loans: ^0.1.0
