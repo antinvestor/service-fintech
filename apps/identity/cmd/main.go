@@ -15,13 +15,9 @@
 package main
 
 import (
-	// Register GCP Pub/Sub driver so EVENTS_QUEUE_URL=gcppubsub://… works.
-	// Frame only blank-imports mem + NATS by default.
 	"context"
 	"net/http"
 	"strings"
-
-	_ "gocloud.dev/pubsub/gcppubsub"
 
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
 	fieldpb "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
