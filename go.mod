@@ -60,8 +60,12 @@ require (
 	buf.build/gen/go/gnostic/gnostic/protocolbuffers/go v1.36.11-20230414000709-087bc8072ce4.1 // indirect
 	buf.build/go/protovalidate v1.2.0 // indirect
 	cel.dev/expr v0.25.2 // indirect
+	cloud.google.com/go/auth v0.20.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/iam v1.11.0 // indirect
 	cloud.google.com/go/pubsub v1.51.0 // indirect
+	cloud.google.com/go/pubsub/v2 v2.6.0 // indirect
 	connectrpc.com/otelconnect v0.9.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -93,7 +97,10 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/google/cel-go v0.29.2 // indirect
+	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/google/wire v0.7.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.18 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -184,8 +191,10 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/api v0.290.0 // indirect
+	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260720211330-0afa2a65878a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260720211330-0afa2a65878a // indirect
 	google.golang.org/grpc v1.82.1 // indirect
