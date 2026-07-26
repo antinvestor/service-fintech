@@ -40,6 +40,7 @@ import (
 	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/frame/v2/security/authorizer"
 	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
+	"github.com/pitabwire/frame/v2/setup"
 	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 
@@ -71,6 +72,10 @@ func main() {
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
+
+	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
+		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
@@ -80,10 +85,6 @@ func main() {
 	evtsMan := svc.EventsManager()
 
 	// Handle database migration if requested
-	if handleDatabaseMigration(ctx, dbManager, cfg) {
-		return
-	}
-
 	// Setup external service clients
 	profileCli, err := setupProfileClient(ctx, cfg)
 	if err != nil {
@@ -129,6 +130,13 @@ func main() {
 	)
 
 	svc.Init(ctx, serviceOptions...)
+
+	if frame.ShouldRunSetup(&cfg) {
+		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
+			util.Log(ctx).WithError(setupErr).Fatal("setup plan failed")
+		}
+		return
+	}
 
 	err = svc.Run(ctx, "")
 	if err != nil {
