@@ -37,7 +37,7 @@ require (
 	github.com/antinvestor/service-trustage v0.3.62
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/pitabwire/frame/v2 v2.0.17
+	github.com/pitabwire/frame/v2 v2.1.0
 	github.com/pitabwire/util v0.9.1
 	github.com/pitabwire/util/decimalx v0.7.2
 	github.com/pitabwire/util/moneyx v0.9.0
