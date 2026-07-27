@@ -199,21 +199,6 @@ func setupOperationsClient(
 	}, operationsv1connect.NewOperationsServiceClient)
 }
 
-func handleDatabaseMigration(
-	ctx context.Context,
-	dbManager datastore.Manager,
-	cfg aconfig.SavingsConfig,
-) bool {
-	if cfg.DoDatabaseMigrate() {
-		err := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath())
-		if err != nil {
-			util.Log(ctx).WithError(err).Fatal("main -- Could not migrate successfully")
-		}
-		return true
-	}
-	return false
-}
-
 func setupLimitsClient(
 	ctx context.Context,
 	cfg aconfig.SavingsConfig,

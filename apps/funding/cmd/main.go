@@ -231,21 +231,6 @@ func setupOperationsClient(
 	}, operationsv1connect.NewOperationsServiceClient)
 }
 
-func handleDatabaseMigration(
-	ctx context.Context,
-	dbManager datastore.Manager,
-	cfg aconfig.FundingConfig,
-) bool {
-	if cfg.DoDatabaseMigrate() {
-		err := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath())
-		if err != nil {
-			util.Log(ctx).WithError(err).Fatal("main -- Could not migrate successfully")
-		}
-		return true
-	}
-	return false
-}
-
 var errLoanRequestNotFound = errors.New("loan request not found")
 
 // loanRequestAdapter bridges loan offer and loan request sources into a canonical loan-request view.
