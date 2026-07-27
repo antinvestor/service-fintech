@@ -58,7 +58,7 @@ abstract final class AppConfig {
   /// Platform services use a different default base (stawi gateway).
   static const String _platformBaseUrl = String.fromEnvironment(
     'PLATFORM_BASE_URL',
-    defaultValue: 'https://api.stawi.org',
+    defaultValue: 'https://stawi.org',
   );
 
   // ── Fintech service endpoints ───────────────────────────────────────────
