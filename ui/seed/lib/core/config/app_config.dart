@@ -17,13 +17,22 @@ abstract final class AppConfig {
     defaultValue: 'https://oauth2.stawi.org',
   );
 
-  // ── Shared base URL ─────────────────────────────────────────────────────
+  // ── Shared platform apex ────────────────────────────────────────────────
 
-  /// All services are behind the same gateway.
+  /// Platform apex (`https://stawi.org`) or legacy gateway (`https://api.stawi.org`).
+  /// Service endpoints resolve as `https://{service}.{apex}`.
   static const String _apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://api.stawi.org',
+    defaultValue: 'https://stawi.org',
   );
+
+  static String _serviceUrl(String service) {
+    final uri = Uri.parse(_apiBaseUrl);
+    var host = uri.host;
+    if (host.startsWith('api.')) host = host.substring(4);
+    if (host.isEmpty) host = 'stawi.org';
+    return 'https://$service.$host';
+  }
 
   // ── Identity service endpoint ───────────────────────────────────────────
 
@@ -32,29 +41,29 @@ abstract final class AppConfig {
   );
   static String get identityBaseUrl => _identityExplicit.isNotEmpty
       ? _identityExplicit
-      : '$_apiBaseUrl/identity';
+      : _serviceUrl('identity');
 
   // ── Platform service endpoints (profile, tenancy) ──────────────────────
 
   static const String _profileExplicit = String.fromEnvironment('PROFILE_URL');
   static String get profileBaseUrl =>
-      _profileExplicit.isNotEmpty ? _profileExplicit : '$_apiBaseUrl/profile';
+      _profileExplicit.isNotEmpty ? _profileExplicit : _serviceUrl('profile');
 
   static const String _tenancyExplicit = String.fromEnvironment('TENANCY_URL');
   static String get tenancyBaseUrl =>
-      _tenancyExplicit.isNotEmpty ? _tenancyExplicit : '$_apiBaseUrl/tenancy';
+      _tenancyExplicit.isNotEmpty ? _tenancyExplicit : _serviceUrl('tenancy');
 
   // ── Files service endpoint ─────────────────────────────────────────
 
   static const String _filesExplicit = String.fromEnvironment('FILES_URL');
   static String get filesBaseUrl =>
-      _filesExplicit.isNotEmpty ? _filesExplicit : '$_apiBaseUrl/files';
+      _filesExplicit.isNotEmpty ? _filesExplicit : _serviceUrl('files');
 
   // ── Audit service endpoint ─────────────────────────────────────────
 
   static const String _auditExplicit = String.fromEnvironment('AUDIT_URL');
   static String get auditBaseUrl =>
-      _auditExplicit.isNotEmpty ? _auditExplicit : '$_apiBaseUrl/audit';
+      _auditExplicit.isNotEmpty ? _auditExplicit : _serviceUrl('audit');
 
   // ── Geolocation service endpoint ──────────────────────────────────
 
@@ -63,13 +72,13 @@ abstract final class AppConfig {
   );
   static String get geolocationBaseUrl => _geolocationExplicit.isNotEmpty
       ? _geolocationExplicit
-      : '$_apiBaseUrl/geolocation';
+      : _serviceUrl('geolocation');
 
   // ── Thesa analytics service endpoint ────────────────────────────────────
 
   static const String _thesaExplicit = String.fromEnvironment('THESA_BASE_URL');
   static String get thesaBaseUrl =>
-      _thesaExplicit.isNotEmpty ? _thesaExplicit : '$_apiBaseUrl/thesa';
+      _thesaExplicit.isNotEmpty ? _thesaExplicit : _serviceUrl('thesa');
 
   // ── All endpoints (for diagnostics) ─────────────────────────────────────
 
