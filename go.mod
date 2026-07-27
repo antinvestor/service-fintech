@@ -37,7 +37,7 @@ require (
 	github.com/antinvestor/service-trustage v0.4.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/pitabwire/frame/v2 v2.1.0
+	github.com/pitabwire/frame/v2 v2.1.3
 	github.com/pitabwire/util v0.9.1
 	github.com/pitabwire/util/decimalx v0.7.2
 	github.com/pitabwire/util/moneyx v0.9.0
@@ -114,7 +114,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/lmittmann/tint v1.2.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
+	github.com/lufia/plan9stats v0.0.0-20260627054121-477a66015f15 // indirect
 	github.com/magiconair/properties v1.18.11 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
