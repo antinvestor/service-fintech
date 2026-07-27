@@ -48,7 +48,7 @@ class OrganizationsScreen extends ConsumerStatefulWidget {
   /// Callback to upload logo bytes. Passed through to [OrganizationFormWizard].
   final Future<String> Function(Uint8List bytes, String filename)? onPickLogo;
 
-  /// Base URL for the files service (e.g. https://api.stawi.org/files).
+  /// Base URL for the files service (e.g. https://files.stawi.org).
   /// Used to convert mxc:// URIs to HTTP download URLs for storage.
   final String? filesBaseUrl;
 
