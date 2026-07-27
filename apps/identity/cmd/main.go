@@ -286,21 +286,6 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	}
 }
 
-func handleDatabaseMigration(
-	ctx context.Context,
-	dbManager datastore.Manager,
-	cfg aconfig.IdentityConfig,
-) bool {
-	if cfg.DoDatabaseMigrate() {
-		err := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath())
-		if err != nil {
-			util.Log(ctx).WithError(err).Fatal("main -- Could not migrate successfully")
-		}
-		return true
-	}
-	return false
-}
-
 func setupProfileClient(
 	ctx context.Context,
 	cfg aconfig.IdentityConfig,

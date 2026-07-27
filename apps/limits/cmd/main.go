@@ -170,21 +170,6 @@ func main() {
 	}
 }
 
-func handleDatabaseMigration(
-	ctx context.Context,
-	dbManager datastore.Manager,
-	cfg aconfig.LimitsConfig,
-) bool {
-	if cfg.DoDatabaseMigrate() {
-		err := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath())
-		if err != nil {
-			util.Log(ctx).WithError(err).Fatal("main -- Could not migrate successfully")
-		}
-		return true
-	}
-	return false
-}
-
 // setupConnectServer mounts both LimitsService (runtime) and LimitsAdminService
 // (control plane) on the provided HTTP mux, each wrapped in the standard
 // authenticate + RBAC + audit interceptor stack. archivalH is mounted at
