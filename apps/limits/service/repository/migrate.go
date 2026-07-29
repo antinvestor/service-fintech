@@ -16,29 +16,23 @@ package repository
 
 import (
 	"context"
-	"errors"
 
 	"github.com/pitabwire/frame/v2/datastore"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
 // Migrate runs Frame's AutoMigrate over every limits-service model and applies
-// any SQL migrations dropped into migrationPath. Subsequent plans add the
-// Reservation/Ledger/Approval models to this slice.
+// any SQL migrations dropped into migrationPath.
 //
-// The migration pool (DefaultMigrationPoolName) is preferred when available —
-// it is registered by Frame only when the service config enables migrations.
-// In test environments (and any service that omits the migration pool) the
-// function falls back to the default read-write pool.
+// Prefer DefaultMigrationPoolName when Frame opened it for DO_SETUP; fall back
+// to the default pool (see pkg/dbmigrate.Pool).
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath string) error {
-	dbPool := dbManager.GetPool(ctx, datastore.DefaultMigrationPoolName)
-	if dbPool == nil {
-		dbPool = dbManager.GetPool(ctx, datastore.DefaultPoolName)
-	}
-	if dbPool == nil {
-		return errors.New("datastore pool is not initialised")
+	dbPool, err := dbmigrate.Pool(ctx, dbManager)
+	if err != nil {
+		return err
 	}
 	return dbManager.Migrate(ctx, dbPool, migrationPath,
 		&models.Policy{},

@@ -16,18 +16,18 @@ package repository
 
 import (
 	"context"
-	"errors"
 
 	"github.com/pitabwire/frame/v2/datastore"
 
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath string) error {
-	dbPool := dbManager.GetPool(ctx, datastore.DefaultMigrationPoolName)
-	if dbPool == nil {
-		return errors.New("datastore pool is not initialised")
+	dbPool, err := dbmigrate.Pool(ctx, dbManager)
+	if err != nil {
+		return err
 	}
 
 	return dbManager.Migrate(ctx, dbPool, migrationPath,

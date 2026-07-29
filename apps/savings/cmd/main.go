@@ -76,12 +76,22 @@ func main() {
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
+	// Frame setup job (DO_SETUP / argv setup): migrate + permissions only.
+	// Exit before peer clients / heavy runtime wiring (Cloud Run setup Job).
+	sd := savingspb.File_savings_v1_savings_proto.Services().ByName("SavingsService")
+	if frame.ShouldRunSetup(&cfg) {
+		svc.Init(ctx, frame.WithPermissionRegistration(sd))
+		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
+			log.WithError(setupErr).Fatal("setup plan failed")
+		}
+		return
+	}
+
 	sm := svc.SecurityManager()
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
 
-	// Handle database migration if requested
 	// Get database pool
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 	if dbPool == nil {
@@ -152,9 +162,6 @@ func main() {
 	connectHandler := setupConnectServer(ctx, sm, dbPool,
 		spBusiness, saBusiness, depBusiness, wdBusiness, iaBusiness)
 
-	// Initialise the service with all options
-	sd := savingspb.File_savings_v1_savings_proto.Services().ByName("SavingsService")
-
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
 		frame.WithPermissionRegistration(sd),
@@ -170,13 +177,6 @@ func main() {
 	}
 
 	svc.Init(ctx, serviceOptions...)
-
-	if frame.ShouldRunSetup(&cfg) {
-		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
-			util.Log(ctx).WithError(setupErr).Fatal("setup plan failed")
-		}
-		return
-	}
 
 	err = svc.Run(ctx, "")
 	if err != nil {

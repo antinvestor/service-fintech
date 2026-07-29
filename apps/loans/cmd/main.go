@@ -78,12 +78,21 @@ func main() {
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
+	// Frame setup job (DO_SETUP / argv setup): no peer clients required.
+	loansSD := loanspb.File_loans_v1_loans_proto.Services().ByName("LoanManagementService")
+	if frame.ShouldRunSetup(&cfg) {
+		svc.Init(ctx, frame.WithPermissionRegistration(loansSD))
+		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
+			log.WithError(setupErr).Fatal("setup plan failed")
+		}
+		return
+	}
+
 	sm := svc.SecurityManager()
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
 
-	// Handle database migration if requested
 	// Setup external service clients
 	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
 	if notifErr != nil {
@@ -136,13 +145,6 @@ func main() {
 	)
 
 	svc.Init(ctx, serviceOptions...)
-
-	if frame.ShouldRunSetup(&cfg) {
-		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
-			util.Log(ctx).WithError(setupErr).Fatal("setup plan failed")
-		}
-		return
-	}
 
 	err = svc.Run(ctx, "")
 	if err != nil {
