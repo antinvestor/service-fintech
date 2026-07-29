@@ -16,7 +16,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
@@ -25,13 +24,14 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
 // Migrate runs database migrations for all operations models.
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationsDirPath string) error {
-	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
-	if dbPool == nil {
-		return errors.New("datastore pool is not initialised")
+	dbPool, err := dbmigrate.Pool(ctx, dbManager)
+	if err != nil {
+		return err
 	}
 
 	if err := preMigrate(ctx, dbPool); err != nil {

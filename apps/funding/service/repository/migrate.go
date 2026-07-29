@@ -23,11 +23,15 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
 // Migrate runs database migrations for all funding models.
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationsDirPath string) error {
-	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
+	dbPool, err := dbmigrate.Pool(ctx, dbManager)
+	if err != nil {
+		return err
+	}
 	return migratePool(ctx, dbPool, migrationsDirPath)
 }
 

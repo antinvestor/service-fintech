@@ -16,7 +16,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
@@ -25,12 +24,13 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath string) error {
-	dbPool := dbManager.GetPool(ctx, datastore.DefaultMigrationPoolName)
-	if dbPool == nil {
-		return errors.New("datastore pool is not initialised")
+	dbPool, err := dbmigrate.Pool(ctx, dbManager)
+	if err != nil {
+		return err
 	}
 
 	// Run pre-migrations before AutoMigrate to handle column renames

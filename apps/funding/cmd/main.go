@@ -85,12 +85,21 @@ func main() {
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
+	// Frame setup job (DO_SETUP / argv setup): no peer clients required.
+	fundingSD := fundingpb.File_funding_v1_funding_proto.Services().ByName("FundingService")
+	if frame.ShouldRunSetup(&cfg) {
+		svc.Init(ctx, frame.WithPermissionRegistration(fundingSD))
+		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
+			log.WithError(setupErr).Fatal("setup plan failed")
+		}
+		return
+	}
+
 	sm := svc.SecurityManager()
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
 
-	// Handle database migration if requested
 	// Get database pool
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 	if dbPool == nil {
@@ -133,13 +142,6 @@ func main() {
 	)
 
 	svc.Init(ctx, serviceOptions...)
-
-	if frame.ShouldRunSetup(&cfg) {
-		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
-			util.Log(ctx).WithError(setupErr).Fatal("setup plan failed")
-		}
-		return
-	}
 
 	err = svc.Run(ctx, "")
 	if err != nil {

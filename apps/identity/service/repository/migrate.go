@@ -16,7 +16,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -26,12 +25,13 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath string) error {
-	dbPool := dbManager.GetPool(ctx, datastore.DefaultMigrationPoolName)
-	if dbPool == nil {
-		return errors.New("datastore pool is not initialised")
+	dbPool, err := dbmigrate.Pool(ctx, dbManager)
+	if err != nil {
+		return err
 	}
 
 	// Run pre-migrations before AutoMigrate to handle table renames

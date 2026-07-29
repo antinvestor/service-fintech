@@ -78,12 +78,25 @@ func main() {
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
+	// Frame setup job (DO_SETUP / argv setup): schema + permissions only.
+	limitsAdminSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsAdminService")
+	limitsRuntimeSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsService")
+	if frame.ShouldRunSetup(&cfg) {
+		svc.Init(ctx,
+			frame.WithPermissionRegistration(limitsAdminSD),
+			frame.WithPermissionRegistration(limitsRuntimeSD),
+		)
+		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
+			log.WithError(setupErr).Fatal("setup plan failed")
+		}
+		return
+	}
+
 	sm := svc.SecurityManager()
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
 
-	// Handle database migration if requested.
 	// Get database pool.
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 	if dbPool == nil {
@@ -145,9 +158,6 @@ func main() {
 	go runPeriodically(ctx, reaperInterval, approvalReaper.Run)
 
 	// ─── Permission registration + EventSave + Run ────────────────────
-	limitsAdminSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsAdminService")
-	limitsRuntimeSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsService")
-
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
 		frame.WithPermissionRegistration(limitsAdminSD),
@@ -156,13 +166,6 @@ func main() {
 	}
 
 	svc.Init(ctx, serviceOptions...)
-
-	if frame.ShouldRunSetup(&cfg) {
-		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
-			util.Log(ctx).WithError(setupErr).Fatal("setup plan failed")
-		}
-		return
-	}
 
 	err = svc.Run(ctx, "")
 	if err != nil {
