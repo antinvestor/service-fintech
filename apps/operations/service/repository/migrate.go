@@ -34,11 +34,11 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationsDirPath
 		return err
 	}
 
-	if err := preMigrate(ctx, dbPool); err != nil {
-		util.Log(ctx).WithError(err).Warn("preMigrate -- non-fatal pre-migration issue")
+	if preErr := preMigrate(ctx, dbPool); preErr != nil {
+		util.Log(ctx).WithError(preErr).Warn("preMigrate -- non-fatal pre-migration issue")
 	}
 
-	if err := dbManager.Migrate(ctx, dbPool, migrationsDirPath,
+	if migrateErr := dbManager.Migrate(ctx, dbPool, migrationsDirPath,
 		&models.TransferOrder{},
 		&models.Obligation{},
 		&models.IncomingPayment{},
@@ -49,13 +49,13 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationsDirPath
 		&models.TransactionCost{},
 		&models.ServiceFee{},
 		&audit.Event{},
-	); err != nil {
-		return err
+	); migrateErr != nil {
+		return migrateErr
 	}
 
-	if err := postMigrate(ctx, dbPool); err != nil {
-		util.Log(ctx).WithError(err).Error("postMigrate -- failed")
-		return err
+	if postErr := postMigrate(ctx, dbPool); postErr != nil {
+		util.Log(ctx).WithError(postErr).Error("postMigrate -- failed")
+		return postErr
 	}
 
 	return nil

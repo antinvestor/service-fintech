@@ -34,8 +34,8 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 	}
 
 	// Run pre-migrations before AutoMigrate to handle column renames
-	if err := preMigrate(ctx, dbPool); err != nil {
-		util.Log(ctx).WithError(err).Warn("preMigrate -- non-fatal pre-migration issue")
+	if preErr := preMigrate(ctx, dbPool); preErr != nil {
+		util.Log(ctx).WithError(preErr).Warn("preMigrate -- non-fatal pre-migration issue")
 	}
 
 	return dbManager.Migrate(ctx, dbPool, migrationPath,
