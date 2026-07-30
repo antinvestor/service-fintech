@@ -253,13 +253,15 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		clientRelationshipBusiness,
 	)
 
+	// Register only IdentityService permissions. FieldService owns
+	// service_field (separate SA service-field). A second
+	// WithPermissionRegistration overwrites the setup step and would try
+	// to register service_field under the service-identity JWT (403 owner).
 	identitySD := identitypb.File_identity_v1_identity_proto.Services().ByName("IdentityService")
-	fieldSD := fieldpb.File_field_v1_field_proto.Services().ByName("FieldService")
 
 	return []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
 		frame.WithPermissionRegistration(identitySD),
-		frame.WithPermissionRegistration(fieldSD),
 		frame.WithRegisterEvents(
 			identityevents.NewOrganizationSave(ctx, organizationRepo, profileCli),
 			identityevents.NewBranchSave(ctx, branchRepo),
