@@ -156,11 +156,10 @@ func main() {
 	go runPeriodically(ctx, reaperInterval, resvReaper.Run)
 	go runPeriodically(ctx, reaperInterval, approvalReaper.Run)
 
-	// ─── Permission registration + EventSave + Run ────────────────────
-	// Only LimitsAdminService carries service_permissions (service_limits).
+	// Runtime: HTTP + queue handlers only. Migrate/permissions run solely via
+	// the setup Job path above (ShouldRunSetup).
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithPermissionRegistration(limitsAdminSD),
 		frame.WithRegisterEvents(eventSave),
 	}
 

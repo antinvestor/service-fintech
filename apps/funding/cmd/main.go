@@ -203,11 +203,9 @@ func setupServiceOptions(
 	// ConnectRPC handler
 	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz)
 
-	sd := fundingpb.File_funding_v1_funding_proto.Services().ByName("FundingService")
-
+	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithPermissionRegistration(sd),
 		frame.WithRegisterEvents(
 			fundingevents.NewLoanFundingSave(ctx, lfRepo),
 			fundingevents.NewFundingAllocationSave(ctx, faRepo),

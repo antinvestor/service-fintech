@@ -219,11 +219,9 @@ func setupServiceOptions(
 	// ConnectRPC handler
 	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo)
 
-	sd := operationspb.File_operations_v1_operations_proto.Services().ByName("OperationsService")
-
+	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithPermissionRegistration(sd),
 		frame.WithRegisterEvents(
 			opsevents.NewTransferOrderSave(ctx, toRepo),
 			opsevents.NewObligationSave(ctx, obRepo),
