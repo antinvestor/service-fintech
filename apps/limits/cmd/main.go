@@ -157,10 +157,10 @@ func main() {
 	go runPeriodically(ctx, reaperInterval, approvalReaper.Run)
 
 	// ─── Permission registration + EventSave + Run ────────────────────
+	// Only LimitsAdminService carries service_permissions (service_limits).
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
 		frame.WithPermissionRegistration(limitsAdminSD),
-		frame.WithPermissionRegistration(limitsRuntimeSD),
 		frame.WithRegisterEvents(eventSave),
 	}
 
