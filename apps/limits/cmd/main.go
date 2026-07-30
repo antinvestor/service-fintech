@@ -79,13 +79,12 @@ func main() {
 	log := util.Log(ctx)
 
 	// Frame setup job (DO_SETUP / argv setup): schema + permissions only.
+	// Register only LimitsAdminService — it owns service_permissions for
+	// service_limits. LimitsService has method_permissions only; a second
+	// WithPermissionRegistration would overwrite the setup step and skip.
 	limitsAdminSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsAdminService")
-	limitsRuntimeSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsService")
 	if frame.ShouldRunSetup(&cfg) {
-		svc.Init(ctx,
-			frame.WithPermissionRegistration(limitsAdminSD),
-			frame.WithPermissionRegistration(limitsRuntimeSD),
-		)
+		svc.Init(ctx, frame.WithPermissionRegistration(limitsAdminSD))
 		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
 			log.WithError(setupErr).Fatal("setup plan failed")
 		}
