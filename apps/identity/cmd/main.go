@@ -79,13 +79,25 @@ func main() {
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
+	// Setup Job path only: migrate + permission manifest. No peer clients,
+	// HTTP handlers, or queue consumers — those belong to runtime.
+	// FieldService permissions are owned by the service-field SA; do not
+	// register them under service-identity (ownership 403).
+	identitySD := identitypb.File_identity_v1_identity_proto.Services().ByName("IdentityService")
+	if frame.ShouldRunSetup(&cfg) {
+		svc.Init(ctx, frame.WithPermissionRegistration(identitySD))
+		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
+			log.WithError(setupErr).Fatal("setup plan failed")
+		}
+		return
+	}
+
 	sm := svc.SecurityManager()
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
 
-	// Handle database migration if requested
-	// Setup external service clients
+	// Runtime: peer clients, handlers, queue consumers only.
 	profileCli, err := setupProfileClient(ctx, cfg)
 	if err != nil {
 		log.WithError(err).Fatal("main -- Could not setup profile client")
@@ -115,7 +127,6 @@ func main() {
 		return
 	}
 
-	// Initialise repositories, business logic, handlers, and events
 	serviceOptions := setupServiceOptions(
 		ctx,
 		sm,
@@ -130,13 +141,6 @@ func main() {
 	)
 
 	svc.Init(ctx, serviceOptions...)
-
-	if frame.ShouldRunSetup(&cfg) {
-		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
-			util.Log(ctx).WithError(setupErr).Fatal("setup plan failed")
-		}
-		return
-	}
 
 	err = svc.Run(ctx, "")
 	if err != nil {
@@ -253,13 +257,10 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		clientRelationshipBusiness,
 	)
 
-	identitySD := identitypb.File_identity_v1_identity_proto.Services().ByName("IdentityService")
-	fieldSD := fieldpb.File_field_v1_field_proto.Services().ByName("FieldService")
-
+	// Runtime options only — permissions are registered exclusively in the
+	// setup Job path (ShouldRunSetup) before this function is called.
 	return []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithPermissionRegistration(identitySD),
-		frame.WithPermissionRegistration(fieldSD),
 		frame.WithRegisterEvents(
 			identityevents.NewOrganizationSave(ctx, organizationRepo, profileCli),
 			identityevents.NewBranchSave(ctx, branchRepo),

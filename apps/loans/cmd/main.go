@@ -244,11 +244,9 @@ func setupServiceOptions(
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
 		penaltyBusiness, restructBusiness, reconBusiness, portfolioBusiness, disbBusiness, lscRepo)
 
-	sd := loanspb.File_loans_v1_loans_proto.Services().ByName("LoanManagementService")
-
+	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithPermissionRegistration(sd),
 		frame.WithRegisterEvents(
 			lmevents.NewLoanProductSave(ctx, lpRepo),
 			lmevents.NewLoanRequestSave(ctx, loanRequestRepo),

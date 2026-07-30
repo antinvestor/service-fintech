@@ -35,11 +35,11 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 	}
 
 	// Run pre-migrations before AutoMigrate to handle table renames
-	if err := preMigrate(ctx, dbPool); err != nil {
-		util.Log(ctx).WithError(err).Warn("preMigrate -- non-fatal pre-migration issue")
+	if preErr := preMigrate(ctx, dbPool); preErr != nil {
+		util.Log(ctx).WithError(preErr).Warn("preMigrate -- non-fatal pre-migration issue")
 	}
 
-	if err := dbManager.Migrate(ctx, dbPool, migrationPath,
+	if migrateErr := dbManager.Migrate(ctx, dbPool, migrationPath,
 		&models.Organization{}, &models.Branch{}, &models.Agent{}, &models.AgentBranch{},
 		&models.Client{}, &models.ClientAssignmentHistory{}, &models.ClientResponsibilityHistory{},
 		&models.CreditLimitChangeRequest{},
@@ -51,13 +51,13 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		&models.AccessRoleAssignment{},
 		&models.ClientDataEntry{}, &models.ClientDataEntryHistory{},
 		&models.FormTemplate{}, &models.FormSubmission{},
-		&models.ClientRelationship{}); err != nil {
-		return err
+		&models.ClientRelationship{}); migrateErr != nil {
+		return migrateErr
 	}
 
-	if err := postMigrate(ctx, dbPool); err != nil {
-		util.Log(ctx).WithError(err).Error("postMigrate -- failed")
-		return err
+	if postErr := postMigrate(ctx, dbPool); postErr != nil {
+		util.Log(ctx).WithError(postErr).Error("postMigrate -- failed")
+		return postErr
 	}
 
 	return nil

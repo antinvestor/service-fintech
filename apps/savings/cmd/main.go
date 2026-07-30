@@ -162,9 +162,9 @@ func main() {
 	connectHandler := setupConnectServer(ctx, sm, dbPool,
 		spBusiness, saBusiness, depBusiness, wdBusiness, iaBusiness)
 
+	// Runtime: HTTP + queue handlers only. Permissions/migrate are setup-only.
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithPermissionRegistration(sd),
 		frame.WithRegisterEvents(
 			savingsevents.NewSavingsProductSave(ctx, spRepo),
 			savingsevents.NewSavingsAccountSave(ctx, saRepo),
