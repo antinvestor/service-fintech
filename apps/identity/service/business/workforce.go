@@ -17,10 +17,12 @@ package business
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
 	"github.com/pitabwire/frame/v2/data"
 	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
@@ -112,6 +114,7 @@ type workforceBusiness struct {
 	internalTeamRepo       repository.InternalTeamRepository
 	teamMembershipRepo     repository.TeamMembershipRepository
 	accessRoleRepo         repository.AccessRoleAssignmentRepository
+	platformAccessCli      platformAccessClient
 }
 
 func NewWorkforceBusiness(
@@ -125,6 +128,7 @@ func NewWorkforceBusiness(
 	internalTeamRepo repository.InternalTeamRepository,
 	teamMembershipRepo repository.TeamMembershipRepository,
 	accessRoleRepo repository.AccessRoleAssignmentRepository,
+	partitionCli tenancyv1connect.TenancyServiceClient,
 ) WorkforceBusiness {
 	return &workforceBusiness{
 		eventsMan:              eventsMan,
@@ -137,6 +141,7 @@ func NewWorkforceBusiness(
 		internalTeamRepo:       internalTeamRepo,
 		teamMembershipRepo:     teamMembershipRepo,
 		accessRoleRepo:         accessRoleRepo,
+		platformAccessCli:      newTenancyPlatformAccessClient(partitionCli),
 	}
 }
 
@@ -157,6 +162,15 @@ func (b *workforceBusiness) WorkforceMemberSave(
 
 	isNew := obj.GetId() == ""
 
+	// The previous state decides whether this save is an activation; it has to
+	// be read before the save event overwrites the stored row.
+	previousState := int32(0)
+	if !isNew {
+		if existing, err := b.workforceRepo.GetByID(ctx, obj.GetId()); err == nil && existing != nil {
+			previousState = existing.State
+		}
+	}
+
 	if err := b.eventsMan.Emit(ctx, events.WorkforceMemberSaveEvent, member); err != nil {
 		util.Log(ctx).WithError(err).Error("could not emit workforce member save event")
 		return nil, err
@@ -166,6 +180,20 @@ func (b *workforceBusiness) WorkforceMemberSave(
 		IdentityWorkforceAdded.Add(ctx, 1)
 	} else if member.State == int32(commonv1.STATE_INACTIVE) || member.State == int32(commonv1.STATE_DELETED) {
 		IdentityWorkforceRemoved.Add(ctx, 1)
+	}
+
+	activated := member.State == int32(commonv1.STATE_ACTIVE) &&
+		(isNew || previousState != int32(commonv1.STATE_ACTIVE))
+	if activated {
+		if err := b.ensurePlatformAccess(ctx, member); err != nil {
+			util.Log(ctx).WithError(err).
+				WithField("workforce_member_id", member.GetID()).
+				Error("could not grant platform access for workforce member")
+			// The member is already persisted; surface the tenancy failure so
+			// the caller can retry the grant by saving again.
+			//nolint:errorlint // the tenancy cause is rendered for operators; callers match on ErrPlatformAccessFailed
+			return member.ToAPI(), fmt.Errorf("%w: %v", ErrPlatformAccessFailed, err)
+		}
 	}
 
 	return member.ToAPI(), nil

@@ -133,6 +133,11 @@ var (
 		"a phone number change case is already pending for this client",
 	)
 
+	ErrPlatformAccessFailed = apperrors.NewError(
+		apperrors.Unprocessable,
+		"failed to grant platform access for workforce member",
+	)
+
 	ErrLoginClientCreationFailed = apperrors.NewError(
 		apperrors.Unprocessable,
 		"failed to create login client for partition",
