@@ -21,6 +21,7 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
 	"github.com/pitabwire/frame/v2/data"
 	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
@@ -112,6 +113,7 @@ type workforceBusiness struct {
 	internalTeamRepo       repository.InternalTeamRepository
 	teamMembershipRepo     repository.TeamMembershipRepository
 	accessRoleRepo         repository.AccessRoleAssignmentRepository
+	platformAccessCli      platformAccessClient
 }
 
 func NewWorkforceBusiness(
@@ -125,6 +127,7 @@ func NewWorkforceBusiness(
 	internalTeamRepo repository.InternalTeamRepository,
 	teamMembershipRepo repository.TeamMembershipRepository,
 	accessRoleRepo repository.AccessRoleAssignmentRepository,
+	partitionCli tenancyv1connect.TenancyServiceClient,
 ) WorkforceBusiness {
 	return &workforceBusiness{
 		eventsMan:              eventsMan,
@@ -137,6 +140,7 @@ func NewWorkforceBusiness(
 		internalTeamRepo:       internalTeamRepo,
 		teamMembershipRepo:     teamMembershipRepo,
 		accessRoleRepo:         accessRoleRepo,
+		platformAccessCli:      newTenancyPlatformAccessClient(partitionCli),
 	}
 }
 
@@ -166,6 +170,22 @@ func (b *workforceBusiness) WorkforceMemberSave(
 		IdentityWorkforceAdded.Add(ctx, 1)
 	} else if member.State == int32(commonv1.STATE_INACTIVE) || member.State == int32(commonv1.STATE_DELETED) {
 		IdentityWorkforceRemoved.Add(ctx, 1)
+	}
+
+	// Platform access is reconciled on every save that lands on ACTIVE, not only
+	// on the transition into it: reconciliation is idempotent, so re-saving the
+	// member is all a caller needs both to retry a failed grant and to apply a
+	// role change such as a demotion. The failure is never fatal —
+	// the member is already enqueued for persistence, and failing the RPC would
+	// make a client retry of a create produce a duplicate member.
+	if member.State == int32(commonv1.STATE_ACTIVE) {
+		granted, err := b.ensurePlatformAccess(ctx, member)
+		switch {
+		case err != nil:
+			IdentityPlatformAccessFailed.Add(ctx, 1)
+		case granted:
+			IdentityPlatformAccessGranted.Add(ctx, 1)
+		}
 	}
 
 	return member.ToAPI(), nil

@@ -228,6 +228,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		internalTeamRepo,
 		teamMembershipRepo,
 		accessRoleAssignmentRepo,
+		partitionCli,
 	)
 	groupBusiness := business.NewClientGroupBusiness(ctx, evtsMan, agentRepo, groupRepo)
 	membershipBusiness := business.NewMembershipBusiness(ctx, evtsMan, groupRepo, membershipRepo)

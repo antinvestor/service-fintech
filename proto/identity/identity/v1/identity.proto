@@ -83,6 +83,11 @@ enum OrganizationType {
   ORGANIZATION_TYPE_NGO = 6; // Non-governmental organization
   ORGANIZATION_TYPE_GOVERNMENT = 7; // Government lending program
   ORGANIZATION_TYPE_OTHER = 8; // Other organization type
+  ORGANIZATION_TYPE_TRADING = 9; // Import/export and trading company
+  ORGANIZATION_TYPE_RETAIL = 10; // Retail and wholesale business
+  ORGANIZATION_TYPE_MANUFACTURING = 11; // Manufacturing and production company
+  ORGANIZATION_TYPE_LOGISTICS = 12; // Logistics, freight and warehousing company
+  ORGANIZATION_TYPE_SERVICES = 13; // Professional and business services company
 }
 
 // OrgUnitType defines the typed hierarchy under an organization.

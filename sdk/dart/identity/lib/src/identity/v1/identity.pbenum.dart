@@ -24,6 +24,11 @@ class OrganizationType extends $pb.ProtobufEnum {
   static const OrganizationType ORGANIZATION_TYPE_NGO = OrganizationType._(6, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_NGO');
   static const OrganizationType ORGANIZATION_TYPE_GOVERNMENT = OrganizationType._(7, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_GOVERNMENT');
   static const OrganizationType ORGANIZATION_TYPE_OTHER = OrganizationType._(8, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_OTHER');
+  static const OrganizationType ORGANIZATION_TYPE_TRADING = OrganizationType._(9, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_TRADING');
+  static const OrganizationType ORGANIZATION_TYPE_RETAIL = OrganizationType._(10, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_RETAIL');
+  static const OrganizationType ORGANIZATION_TYPE_MANUFACTURING = OrganizationType._(11, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_MANUFACTURING');
+  static const OrganizationType ORGANIZATION_TYPE_LOGISTICS = OrganizationType._(12, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_LOGISTICS');
+  static const OrganizationType ORGANIZATION_TYPE_SERVICES = OrganizationType._(13, _omitEnumNames ? '' : 'ORGANIZATION_TYPE_SERVICES');
 
   static const $core.List<OrganizationType> values = <OrganizationType> [
     ORGANIZATION_TYPE_UNSPECIFIED,
@@ -35,6 +40,11 @@ class OrganizationType extends $pb.ProtobufEnum {
     ORGANIZATION_TYPE_NGO,
     ORGANIZATION_TYPE_GOVERNMENT,
     ORGANIZATION_TYPE_OTHER,
+    ORGANIZATION_TYPE_TRADING,
+    ORGANIZATION_TYPE_RETAIL,
+    ORGANIZATION_TYPE_MANUFACTURING,
+    ORGANIZATION_TYPE_LOGISTICS,
+    ORGANIZATION_TYPE_SERVICES,
   ];
 
   static final $core.Map<$core.int, OrganizationType> _byValue = $pb.ProtobufEnum.initByValue(values);

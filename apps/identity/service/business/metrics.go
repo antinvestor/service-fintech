@@ -44,6 +44,18 @@ var (
 	IdentityWorkforceRemoved = identityMetrics.Counter("identity_workforce_removed_total",
 		"Workforce members removed (deactivated)",
 		metric.WithUnit("{member}"))
+
+	IdentityPlatformAccessGranted = identityMetrics.Counter("identity_platform_access_granted_total",
+		"Tenancy partition access or platform role granted to workforce members",
+		metric.WithUnit("{member}"))
+
+	IdentityPlatformAccessFailed = identityMetrics.Counter("identity_platform_access_failed_total",
+		"Failed attempts to grant tenancy access or a platform role to workforce members",
+		metric.WithUnit("{member}"))
+
+	IdentityPlatformAccessRevoked = identityMetrics.Counter("identity_platform_access_revoked_total",
+		"Superseded platform roles removed from workforce members",
+		metric.WithUnit("{role}"))
 )
 
 // MetricInfo describes a registered OTel counter for discoverability.
@@ -81,6 +93,24 @@ func RegisteredMetrics() []MetricInfo {
 			Type:        metricTypeCounter,
 			Unit:        metricUnitCount,
 			Description: "Workforce members removed (deactivated)",
+		},
+		{
+			Name:        "identity_platform_access_granted_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Tenancy partition access or platform role granted to workforce members",
+		},
+		{
+			Name:        "identity_platform_access_failed_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Failed attempts to grant tenancy access or a platform role to workforce members",
+		},
+		{
+			Name:        "identity_platform_access_revoked_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Superseded platform roles removed from workforce members",
 		},
 	}
 }
