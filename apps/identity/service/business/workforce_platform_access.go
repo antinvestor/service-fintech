@@ -38,10 +38,38 @@ const PropertyPlatformRole = "platform_role"
 // implementations when a profile holds no access on the partition yet.
 var ErrPlatformAccessNotFound = errors.New("tenancy access not found")
 
+const (
+	platformRoleAdmin    = "admin"
+	platformRoleOperator = "operator"
+	platformRoleViewer   = "viewer"
+	// platformRoleMember is the baseline role that carries plain tenancy
+	// access; it is kept when a member holds no platform_role at all.
+	platformRoleMember = "member"
+)
+
+// isPlatformRole reports whether a partition role name is one this service
+// owns. Reconciliation only ever removes assignments naming one of these; every
+// other partition role (business roles, for example) is left alone.
+func isPlatformRole(name string) bool {
+	switch name {
+	case platformRoleAdmin, platformRoleOperator, platformRoleViewer, platformRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+// platformAccessRole is one role assignment held by an access grant.
+type platformAccessRole struct {
+	AccessRoleID    string
+	PartitionRoleID string
+	Name            string
+}
+
 // platformAccessClient is the narrow port onto the tenancy service used when
 // granting workforce members access to their organization's partition. It
-// hides the server-streaming list RPCs behind plain maps so the business logic
-// stays testable.
+// hides the server-streaming list RPCs behind plain values so the business
+// logic stays testable.
 type platformAccessClient interface {
 	// GetAccess resolves the access a profile holds on a partition. It returns
 	// ErrPlatformAccessNotFound when no access exists yet.
@@ -50,9 +78,11 @@ type platformAccessClient interface {
 	// ListPartitionRoles returns the partition's roles keyed by role name.
 	ListPartitionRoles(ctx context.Context, partitionID string) (map[string]string, error)
 	CreatePartitionRole(ctx context.Context, partitionID, name, description string) (roleID string, err error)
-	// ListAccessRoles returns the roles assigned to an access keyed by partition role id.
-	ListAccessRoles(ctx context.Context, accessID string) (map[string]string, error)
+	// ListAccessRoles returns the role assignments held by an access.
+	ListAccessRoles(ctx context.Context, accessID string) ([]platformAccessRole, error)
 	CreateAccessRole(ctx context.Context, accessID, partitionRoleID string) error
+	// RemoveAccessRole unassigns a role from an access by access role id.
+	RemoveAccessRole(ctx context.Context, accessRoleID string) error
 }
 
 // tenancyPlatformAccessClient adapts the generated tenancy Connect client to
@@ -153,7 +183,7 @@ func (t *tenancyPlatformAccessClient) CreatePartitionRole(
 func (t *tenancyPlatformAccessClient) ListAccessRoles(
 	ctx context.Context,
 	accessID string,
-) (map[string]string, error) {
+) ([]platformAccessRole, error) {
 	stream, err := t.cli.ListAccessRole(ctx, connect.NewRequest(&tenancyv1.ListAccessRoleRequest{
 		AccessId: accessID,
 	}))
@@ -162,10 +192,14 @@ func (t *tenancyPlatformAccessClient) ListAccessRoles(
 	}
 	defer func() { _ = stream.Close() }()
 
-	assigned := make(map[string]string)
+	var assigned []platformAccessRole
 	for stream.Receive() {
 		for _, accessRole := range stream.Msg().GetData() {
-			assigned[accessRole.GetRole().GetId()] = accessRole.GetId()
+			assigned = append(assigned, platformAccessRole{
+				AccessRoleID:    accessRole.GetId(),
+				PartitionRoleID: accessRole.GetRole().GetId(),
+				Name:            accessRole.GetRole().GetName(),
+			})
 		}
 	}
 	if err = stream.Err(); err != nil {
@@ -185,12 +219,21 @@ func (t *tenancyPlatformAccessClient) CreateAccessRole(
 	return err
 }
 
-// ensurePlatformAccess grants tenancy access on the organization's partition
-// and assigns the platform role named in member.Properties["platform_role"].
-// It is idempotent and a no-op when the platform access client is nil.
+func (t *tenancyPlatformAccessClient) RemoveAccessRole(ctx context.Context, accessRoleID string) error {
+	_, err := t.cli.RemoveAccessRole(ctx, connect.NewRequest(&tenancyv1.RemoveAccessRoleRequest{
+		Id: accessRoleID,
+	}))
+	return err
+}
+
+// ensurePlatformAccess grants tenancy access on the organization's partition,
+// assigns the platform role named in member.Properties["platform_role"] and
+// removes any platform role the member should no longer hold, so a demotion or
+// a cleared role takes effect. It is idempotent and a no-op when the platform
+// access client is nil.
 //
-// It reports whether anything was actually created, so callers can tell a real
-// grant apart from a no-op re-save. Failures are logged here and returned
+// It reports whether anything actually changed, so callers can tell a real
+// reconciliation apart from a no-op re-save. Failures are logged here and returned
 // wrapped in ErrPlatformAccessFailed; callers decide whether to surface them.
 func (b *workforceBusiness) ensurePlatformAccess(
 	ctx context.Context,
@@ -221,27 +264,30 @@ func (b *workforceBusiness) ensurePlatformAccess(
 	}
 	logger = logger.WithField("partition_id", partitionID)
 
-	granted, err := b.grantPlatformAccess(ctx, partitionID, member.ProfileID, role)
+	changed, err := b.reconcilePlatformAccess(ctx, logger, partitionID, member.ProfileID, role)
 	if err != nil {
-		logger.WithError(err).Error("could not grant platform access for workforce member")
-		return false, fmt.Errorf("%w: %w", ErrPlatformAccessFailed, err)
+		logger.WithError(err).Error("could not reconcile platform access for workforce member")
+		return changed, fmt.Errorf("%w: %w", ErrPlatformAccessFailed, err)
 	}
 
-	if granted {
-		logger.Info("granted platform access to workforce member")
+	if changed {
+		logger.Info("reconciled platform access for workforce member")
 	} else {
-		logger.Debug("workforce member already holds platform access")
+		logger.Debug("workforce member platform access already up to date")
 	}
-	return granted, nil
+	return changed, nil
 }
 
-// grantPlatformAccess performs the idempotent tenancy calls and reports whether
-// access or a role assignment was actually created.
-func (b *workforceBusiness) grantPlatformAccess(
+// reconcilePlatformAccess performs the idempotent tenancy calls that bring the
+// member's assignments in line with the desired role: it ensures the access
+// grant and the desired role assignment exist, then removes every other
+// platform role the member still holds. It reports whether anything changed.
+func (b *workforceBusiness) reconcilePlatformAccess(
 	ctx context.Context,
+	logger *util.LogEntry,
 	partitionID, profileID, role string,
 ) (bool, error) {
-	created := false
+	changed := false
 
 	accessID, err := b.platformAccessCli.GetAccess(ctx, partitionID, profileID)
 	if err != nil {
@@ -252,30 +298,70 @@ func (b *workforceBusiness) grantPlatformAccess(
 		if err != nil {
 			return false, err
 		}
-		created = true
+		changed = true
 	}
 
-	if role == "" {
-		return created, nil
-	}
-
-	roleID, err := b.ensurePartitionRole(ctx, partitionID, role)
-	if err != nil {
-		return created, err
+	desiredRoleID := ""
+	if role != "" {
+		desiredRoleID, err = b.ensurePartitionRole(ctx, partitionID, role)
+		if err != nil {
+			return changed, err
+		}
 	}
 
 	assigned, err := b.platformAccessCli.ListAccessRoles(ctx, accessID)
 	if err != nil {
-		return created, err
-	}
-	if _, ok := assigned[roleID]; ok {
-		return created, nil
+		return changed, err
 	}
 
-	if err = b.platformAccessCli.CreateAccessRole(ctx, accessID, roleID); err != nil {
-		return created, err
+	// The desired assignment is created before the superseded ones are removed
+	// so the member never loses access mid-reconciliation.
+	if desiredRoleID != "" && !holdsRole(assigned, desiredRoleID) {
+		if err = b.platformAccessCli.CreateAccessRole(ctx, accessID, desiredRoleID); err != nil {
+			return changed, err
+		}
+		changed = true
 	}
-	return true, nil
+
+	for _, current := range assigned {
+		if !supersededPlatformRole(current, role, desiredRoleID) {
+			continue
+		}
+		if err = b.platformAccessCli.RemoveAccessRole(ctx, current.AccessRoleID); err != nil {
+			return changed, err
+		}
+		IdentityPlatformAccessRevoked.Add(ctx, 1)
+		logger.WithField("removed_platform_role", current.Name).
+			WithField("access_role_id", current.AccessRoleID).
+			Info("removed superseded platform role from workforce member")
+		changed = true
+	}
+
+	return changed, nil
+}
+
+// holdsRole reports whether the partition role is already assigned.
+func holdsRole(assigned []platformAccessRole, partitionRoleID string) bool {
+	for _, current := range assigned {
+		if current.PartitionRoleID == partitionRoleID {
+			return true
+		}
+	}
+	return false
+}
+
+// supersededPlatformRole reports whether an existing assignment is a platform
+// role the member should no longer hold. Roles outside the platform set are
+// never touched, and with no desired role the baseline "member" role is kept so
+// the member retains plain tenancy access.
+func supersededPlatformRole(current platformAccessRole, role, desiredRoleID string) bool {
+	if current.AccessRoleID == "" || !isPlatformRole(current.Name) {
+		return false
+	}
+	if current.PartitionRoleID == desiredRoleID || current.Name == role {
+		return false
+	}
+	return role != "" || current.Name != platformRoleMember
 }
 
 // platformPartitionID resolves the partition the member should be granted

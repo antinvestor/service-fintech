@@ -52,6 +52,10 @@ var (
 	IdentityPlatformAccessFailed = identityMetrics.Counter("identity_platform_access_failed_total",
 		"Failed attempts to grant tenancy access or a platform role to workforce members",
 		metric.WithUnit("{member}"))
+
+	IdentityPlatformAccessRevoked = identityMetrics.Counter("identity_platform_access_revoked_total",
+		"Superseded platform roles removed from workforce members",
+		metric.WithUnit("{role}"))
 )
 
 // MetricInfo describes a registered OTel counter for discoverability.
@@ -101,6 +105,12 @@ func RegisteredMetrics() []MetricInfo {
 			Type:        metricTypeCounter,
 			Unit:        metricUnitCount,
 			Description: "Failed attempts to grant tenancy access or a platform role to workforce members",
+		},
+		{
+			Name:        "identity_platform_access_revoked_total",
+			Type:        metricTypeCounter,
+			Unit:        metricUnitCount,
+			Description: "Superseded platform roles removed from workforce members",
 		},
 	}
 }

@@ -172,9 +172,10 @@ func (b *workforceBusiness) WorkforceMemberSave(
 		IdentityWorkforceRemoved.Add(ctx, 1)
 	}
 
-	// Platform access is granted on every save that lands on ACTIVE, not only on
-	// the transition into it: the grant is idempotent, so re-saving the member is
-	// all a caller needs to retry a failed grant. The failure is never fatal —
+	// Platform access is reconciled on every save that lands on ACTIVE, not only
+	// on the transition into it: reconciliation is idempotent, so re-saving the
+	// member is all a caller needs both to retry a failed grant and to apply a
+	// role change such as a demotion. The failure is never fatal —
 	// the member is already enqueued for persistence, and failing the RPC would
 	// make a client retry of a create produce a duplicate member.
 	if member.State == int32(commonv1.STATE_ACTIVE) {

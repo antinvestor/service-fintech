@@ -48,8 +48,8 @@ type fakePlatformAccessClient struct {
 	newAccessID string
 	// partitionRoles is the name -> id map returned by ListPartitionRoles.
 	partitionRoles map[string]string
-	// accessRoles is the partitionRoleID -> accessRoleID map returned by ListAccessRoles.
-	accessRoles map[string]string
+	// accessRoles is the list returned by ListAccessRoles.
+	accessRoles []platformAccessRole
 	// newRoleID is returned by CreatePartitionRole.
 	newRoleID string
 	// failOn names the method that should return errTenancyBoom.
@@ -59,6 +59,8 @@ type fakePlatformAccessClient struct {
 	// createPartitionRoleArgs captures (name, description) of the last call.
 	createPartitionRoleArgs []string
 	createAccessRoleArgs    []string
+	// removedAccessRoles captures every access role id passed to RemoveAccessRole.
+	removedAccessRoles []string
 }
 
 func (f *fakePlatformAccessClient) record(name string) error {
@@ -113,11 +115,16 @@ func (f *fakePlatformAccessClient) CreatePartitionRole(
 	return f.newRoleID, nil
 }
 
-func (f *fakePlatformAccessClient) ListAccessRoles(_ context.Context, _ string) (map[string]string, error) {
+func (f *fakePlatformAccessClient) ListAccessRoles(_ context.Context, _ string) ([]platformAccessRole, error) {
 	if err := f.record("ListAccessRoles"); err != nil {
 		return nil, err
 	}
 	return f.accessRoles, nil
+}
+
+func (f *fakePlatformAccessClient) RemoveAccessRole(_ context.Context, accessRoleID string) error {
+	f.removedAccessRoles = append(f.removedAccessRoles, accessRoleID)
+	return f.record("RemoveAccessRole")
 }
 
 func (f *fakePlatformAccessClient) CreateAccessRole(_ context.Context, accessID, partitionRoleID string) error {
@@ -164,6 +171,23 @@ func platformAccessTestContext(t *testing.T) context.Context {
 	}).ClaimsToContext(t.Context())
 }
 
+// adminAccessRole is the assigned "admin" platform role fixture.
+func adminAccessRole() platformAccessRole {
+	return platformAccessRole{AccessRoleID: "ar-admin", PartitionRoleID: "role-admin", Name: "admin"}
+}
+
+// allPlatformAccessRoles lists one assignment per platform role plus a
+// business role that reconciliation must never touch.
+func allPlatformAccessRoles() []platformAccessRole {
+	return []platformAccessRole{
+		adminAccessRole(),
+		{AccessRoleID: "ar-operator", PartitionRoleID: "role-operator", Name: "operator"},
+		{AccessRoleID: "ar-viewer", PartitionRoleID: "role-viewer", Name: "viewer"},
+		{AccessRoleID: "ar-member", PartitionRoleID: "role-member", Name: "member"},
+		{AccessRoleID: "ar-finance", PartitionRoleID: "role-finance", Name: "finance_approver"},
+	}
+}
+
 func activeOrganization() *models.Organization {
 	org := &models.Organization{Name: "Acme"}
 	org.ID = "org-1"
@@ -190,6 +214,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 		wantCalls      []string
 		wantRoleName   string
 		wantAccessRole []string
+		wantRemoved    []string
 	}{
 		{
 			name:      "nil client is a no-op",
@@ -206,7 +231,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 				newAccessID:    "access-new",
 				partitionRoles: map[string]string{},
 				newRoleID:      "role-new",
-				accessRoles:    map[string]string{},
+				accessRoles:    nil,
 			},
 			org:        activeOrganization(),
 			profileID:  "profile-1",
@@ -228,7 +253,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			client: &fakePlatformAccessClient{
 				existingAccessID: "access-1",
 				partitionRoles:   map[string]string{"admin": "role-admin"},
-				accessRoles:      map[string]string{"role-admin": "access-role-1"},
+				accessRoles:      []platformAccessRole{adminAccessRole()},
 			},
 			org:        activeOrganization(),
 			profileID:  "profile-1",
@@ -240,7 +265,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			client: &fakePlatformAccessClient{
 				existingAccessID: "access-1",
 				partitionRoles:   map[string]string{"viewer": "role-viewer"},
-				accessRoles:      map[string]string{},
+				accessRoles:      nil,
 			},
 			org:            activeOrganization(),
 			profileID:      "profile-1",
@@ -258,7 +283,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			profileID:   "profile-1",
 			properties:  data.JSONMap{},
 			wantGranted: true,
-			wantCalls:   []string{"GetAccess", "CreateAccess"},
+			wantCalls:   []string{"GetAccess", "CreateAccess", "ListAccessRoles"},
 		},
 		{
 			name: "member without a profile is skipped",
@@ -275,12 +300,102 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			client: &fakePlatformAccessClient{
 				existingAccessID: "access-1",
 				partitionRoles:   map[string]string{"admin": "role-admin"},
-				accessRoles:      map[string]string{"role-admin": "access-role-1"},
+				accessRoles:      []platformAccessRole{adminAccessRole()},
 			},
 			org:        activeOrganization(),
 			profileID:  "profile-1",
 			properties: data.JSONMap{PropertyPlatformRole: "  Admin "},
 			wantCalls:  []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles"},
+		},
+		{
+			name: "demotion removes the superseded platform role",
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"admin": "role-admin", "viewer": "role-viewer"},
+				accessRoles:      []platformAccessRole{adminAccessRole()},
+			},
+			org:        activeOrganization(),
+			profileID:  "profile-1",
+			properties: data.JSONMap{PropertyPlatformRole: "viewer"},
+			wantCalls: []string{
+				"GetAccess", "ListPartitionRoles", "ListAccessRoles",
+				"CreateAccessRole", "RemoveAccessRole",
+			},
+			wantGranted:    true,
+			wantAccessRole: []string{"access-1", "role-viewer"},
+			wantRemoved:    []string{"ar-admin"},
+		},
+		{
+			name: "promotion removes the superseded member role",
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"member": "role-member", "operator": "role-operator"},
+				accessRoles: []platformAccessRole{
+					{AccessRoleID: "ar-member", PartitionRoleID: "role-member", Name: "member"},
+				},
+			},
+			org:        activeOrganization(),
+			profileID:  "profile-1",
+			properties: data.JSONMap{PropertyPlatformRole: "operator"},
+			wantCalls: []string{
+				"GetAccess", "ListPartitionRoles", "ListAccessRoles",
+				"CreateAccessRole", "RemoveAccessRole",
+			},
+			wantGranted:    true,
+			wantAccessRole: []string{"access-1", "role-operator"},
+			wantRemoved:    []string{"ar-member"},
+		},
+		{
+			name: "clearing the platform role keeps member and business roles",
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				accessRoles:      allPlatformAccessRoles(),
+			},
+			org:        activeOrganization(),
+			profileID:  "profile-1",
+			properties: data.JSONMap{},
+			wantCalls: []string{
+				"GetAccess", "ListAccessRoles",
+				"RemoveAccessRole", "RemoveAccessRole", "RemoveAccessRole",
+			},
+			wantGranted: true,
+			wantRemoved: []string{"ar-admin", "ar-operator", "ar-viewer"},
+		},
+		{
+			name: "reconciliation never touches non platform roles",
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"viewer": "role-viewer"},
+				accessRoles: []platformAccessRole{
+					{AccessRoleID: "ar-finance", PartitionRoleID: "role-finance", Name: "finance_approver"},
+					{AccessRoleID: "ar-viewer", PartitionRoleID: "role-viewer", Name: "viewer"},
+				},
+			},
+			org:        activeOrganization(),
+			profileID:  "profile-1",
+			properties: data.JSONMap{PropertyPlatformRole: "viewer"},
+			wantCalls:  []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles"},
+		},
+		{
+			name: "removal failure is wrapped in ErrPlatformAccessFailed",
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"admin": "role-admin", "viewer": "role-viewer"},
+				accessRoles:      []platformAccessRole{adminAccessRole()},
+				failOn:           "RemoveAccessRole",
+			},
+			org:        activeOrganization(),
+			profileID:  "profile-1",
+			properties: data.JSONMap{PropertyPlatformRole: "viewer"},
+			wantErr:    errTenancyBoom,
+			wantCalls: []string{
+				"GetAccess", "ListPartitionRoles", "ListAccessRoles",
+				"CreateAccessRole", "RemoveAccessRole",
+			},
+			// The new assignment landed before the removal failed, so the
+			// partial change is still reported to the caller.
+			wantGranted: true,
+			wantRemoved: []string{"ar-admin"},
 		},
 		{
 			name: "tenancy failure is wrapped in ErrPlatformAccessFailed",
@@ -337,6 +452,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			if tt.wantAccessRole != nil {
 				require.Equal(t, tt.wantAccessRole, tt.client.createAccessRoleArgs)
 			}
+			require.Equal(t, tt.wantRemoved, tt.client.removedAccessRoles)
 		})
 	}
 }
@@ -383,7 +499,8 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 		state  commonv1.STATE
 		client *fakePlatformAccessClient
 		// wantCalls is the exact call sequence expected on the tenancy port.
-		wantCalls []string
+		wantCalls   []string
+		wantRemoved []string
 	}{
 		{
 			name:  "new active member grants platform access",
@@ -392,7 +509,7 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 				newAccessID:    "access-new",
 				partitionRoles: map[string]string{},
 				newRoleID:      "role-new",
-				accessRoles:    map[string]string{},
+				accessRoles:    nil,
 			},
 			wantCalls: []string{
 				"GetAccess", "CreateAccess", "ListPartitionRoles",
@@ -412,7 +529,9 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 			client: &fakePlatformAccessClient{
 				existingAccessID: "access-1",
 				partitionRoles:   map[string]string{"operator": "role-operator"},
-				accessRoles:      map[string]string{"role-operator": "access-role-1"},
+				accessRoles: []platformAccessRole{
+					{AccessRoleID: "ar-operator", PartitionRoleID: "role-operator", Name: "operator"},
+				},
 			},
 			wantCalls: []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles"},
 		},
@@ -423,15 +542,46 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 			client: &fakePlatformAccessClient{
 				existingAccessID: "access-1",
 				partitionRoles:   map[string]string{"operator": "role-operator"},
-				accessRoles:      map[string]string{},
+				accessRoles:      nil,
 			},
 			wantCalls: []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles", "CreateAccessRole"},
+		},
+		{
+			name:  "demotion removes the superseded role on re-save",
+			id:    "member-1",
+			state: commonv1.STATE_ACTIVE,
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"admin": "role-admin", "operator": "role-operator"},
+				accessRoles:      []platformAccessRole{adminAccessRole()},
+			},
+			wantCalls: []string{
+				"GetAccess", "ListPartitionRoles", "ListAccessRoles",
+				"CreateAccessRole", "RemoveAccessRole",
+			},
+			wantRemoved: []string{"ar-admin"},
 		},
 		{
 			name:      "tenancy failure never fails the save",
 			state:     commonv1.STATE_ACTIVE,
 			client:    &fakePlatformAccessClient{failOn: "GetAccess"},
 			wantCalls: []string{"GetAccess"},
+		},
+		{
+			name:  "a removal failure never fails the save",
+			id:    "member-1",
+			state: commonv1.STATE_ACTIVE,
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"admin": "role-admin", "operator": "role-operator"},
+				accessRoles:      []platformAccessRole{adminAccessRole()},
+				failOn:           "RemoveAccessRole",
+			},
+			wantCalls: []string{
+				"GetAccess", "ListPartitionRoles", "ListAccessRoles",
+				"CreateAccessRole", "RemoveAccessRole",
+			},
+			wantRemoved: []string{"ar-admin"},
 		},
 	}
 
@@ -462,6 +612,7 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 			require.NotNil(t, saved)
 			require.Len(t, evts.emitted, 1, "member must be enqueued for persistence exactly once")
 			require.Equal(t, tt.wantCalls, tt.client.calls)
+			require.Equal(t, tt.wantRemoved, tt.client.removedAccessRoles)
 		})
 	}
 }

@@ -43,6 +43,10 @@ type stubTenancyServer struct {
 	listPartitionRoleErr error
 
 	createdRole *tenancyv1.CreatePartitionRoleRequest
+	// removedAccessRoleIDs records every RemoveAccessRole request id.
+	removedAccessRoleIDs []string
+	// removeAccessRoleErr is returned by RemoveAccessRole when set.
+	removeAccessRoleErr error
 }
 
 func (s *stubTenancyServer) GetAccess(
@@ -113,6 +117,17 @@ func (s *stubTenancyServer) CreateAccessRole(
 	return connect.NewResponse(&tenancyv1.CreateAccessRoleResponse{
 		Data: &tenancyv1.AccessRoleObject{Id: "access-role-created", AccessId: req.Msg.GetAccessId()},
 	}), nil
+}
+
+func (s *stubTenancyServer) RemoveAccessRole(
+	_ context.Context,
+	req *connect.Request[tenancyv1.RemoveAccessRoleRequest],
+) (*connect.Response[tenancyv1.RemoveAccessRoleResponse], error) {
+	s.removedAccessRoleIDs = append(s.removedAccessRoleIDs, req.Msg.GetId())
+	if s.removeAccessRoleErr != nil {
+		return nil, s.removeAccessRoleErr
+	}
+	return connect.NewResponse(&tenancyv1.RemoveAccessRoleResponse{}), nil
 }
 
 // newStubTenancyAdapter serves stub over an httptest server and returns the
@@ -267,16 +282,26 @@ func TestTenancyPlatformAccessClientListAccessRoles(t *testing.T) {
 
 	adapter := newStubTenancyAdapter(t, &stubTenancyServer{
 		accessRoles: []*tenancyv1.AccessRoleObject{
-			{Id: "access-role-1", AccessId: "access-1", Role: &tenancyv1.PartitionRoleObject{Id: "role-admin"}},
-			{Id: "access-role-2", AccessId: "access-1", Role: &tenancyv1.PartitionRoleObject{Id: "role-viewer"}},
+			{
+				Id:       "access-role-1",
+				AccessId: "access-1",
+				Role:     &tenancyv1.PartitionRoleObject{Id: "role-admin", Name: "admin"},
+			},
+			{
+				Id:       "access-role-2",
+				AccessId: "access-1",
+				Role:     &tenancyv1.PartitionRoleObject{Id: "role-viewer", Name: "viewer"},
+			},
 		},
 	})
 
 	assigned, err := adapter.ListAccessRoles(t.Context(), "access-1")
 	require.NoError(t, err)
-	require.Equal(t, map[string]string{
-		"role-admin":  "access-role-1",
-		"role-viewer": "access-role-2",
+	// The role name travels with the assignment so reconciliation can tell a
+	// platform role apart from a business role.
+	require.Equal(t, []platformAccessRole{
+		{AccessRoleID: "access-role-1", PartitionRoleID: "role-admin", Name: "admin"},
+		{AccessRoleID: "access-role-2", PartitionRoleID: "role-viewer", Name: "viewer"},
 	}, assigned)
 }
 
@@ -285,4 +310,28 @@ func TestTenancyPlatformAccessClientCreateAccessRole(t *testing.T) {
 
 	adapter := newStubTenancyAdapter(t, &stubTenancyServer{})
 	require.NoError(t, adapter.CreateAccessRole(t.Context(), "access-1", "role-admin"))
+}
+
+func TestTenancyPlatformAccessClientRemoveAccessRole(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the access role id is sent as the request id", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &stubTenancyServer{}
+		adapter := newStubTenancyAdapter(t, stub)
+		require.NoError(t, adapter.RemoveAccessRole(t.Context(), "access-role-1"))
+		require.Equal(t, []string{"access-role-1"}, stub.removedAccessRoleIDs)
+	})
+
+	t.Run("a tenancy error is surfaced", func(t *testing.T) {
+		t.Parallel()
+
+		adapter := newStubTenancyAdapter(t, &stubTenancyServer{
+			removeAccessRoleErr: connect.NewError(connect.CodeUnavailable, errors.New("down")),
+		})
+		err := adapter.RemoveAccessRole(t.Context(), "access-role-1")
+		require.Error(t, err)
+		require.Equal(t, connect.CodeUnavailable, connect.CodeOf(err))
+	})
 }
