@@ -166,7 +166,15 @@ func (b *workforceBusiness) WorkforceMemberSave(
 	// be read before the save event overwrites the stored row.
 	previousState := int32(0)
 	if !isNew {
-		if existing, err := b.workforceRepo.GetByID(ctx, obj.GetId()); err == nil && existing != nil {
+		existing, err := b.workforceRepo.GetByID(ctx, obj.GetId())
+		switch {
+		case err != nil:
+			// Non-fatal: an unreadable previous state biases towards re-granting
+			// platform access, which is idempotent, but it must stay visible.
+			util.Log(ctx).WithError(err).
+				WithField("workforce_member_id", obj.GetId()).
+				Warn("could not read previous workforce member state, assuming activation")
+		case existing != nil:
 			previousState = existing.State
 		}
 	}
@@ -190,9 +198,9 @@ func (b *workforceBusiness) WorkforceMemberSave(
 				WithField("workforce_member_id", member.GetID()).
 				Error("could not grant platform access for workforce member")
 			// The member is already persisted; surface the tenancy failure so
-			// the caller can retry the grant by saving again.
-			//nolint:errorlint // the tenancy cause is rendered for operators; callers match on ErrPlatformAccessFailed
-			return member.ToAPI(), fmt.Errorf("%w: %v", ErrPlatformAccessFailed, err)
+			// the caller can retry the grant by saving again. Both the sentinel
+			// and the underlying cause stay errors.Is-matchable.
+			return member.ToAPI(), fmt.Errorf("%w: %w", ErrPlatformAccessFailed, err)
 		}
 	}
 

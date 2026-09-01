@@ -37,7 +37,10 @@ import (
 // fakes
 // ---------------------------------------------------------------------------
 
-var errTenancyBoom = errors.New("tenancy unavailable")
+var (
+	errTenancyBoom = errors.New("tenancy unavailable")
+	errRepoBoom    = errors.New("workforce member lookup failed")
+)
 
 // fakePlatformAccessClient records every call made against the narrow
 // platform access port and replays canned tenancy state.
@@ -376,6 +379,7 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 		id            string
 		state         commonv1.STATE
 		previousState commonv1.STATE
+		repoErr       error
 		failOn        string
 		wantAccess    bool
 		wantErr       bool
@@ -405,6 +409,13 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 			wantAccess:    false,
 		},
 		{
+			name:       "unreadable previous state still saves and re-attempts the grant",
+			id:         "member-1",
+			state:      commonv1.STATE_ACTIVE,
+			repoErr:    errRepoBoom,
+			wantAccess: true,
+		},
+		{
 			name:       "tenancy failure surfaces ErrPlatformAccessFailed but persists member",
 			state:      commonv1.STATE_ACTIVE,
 			failOn:     "GetAccess",
@@ -432,7 +443,7 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 			biz := &workforceBusiness{
 				eventsMan:         evts,
 				organizationRepo:  &fakeOrganizationRepo{org: activeOrganization()},
-				workforceRepo:     &fakeWorkforceRepo{member: previous},
+				workforceRepo:     &fakeWorkforceRepo{member: previous, err: tt.repoErr},
 				platformAccessCli: cli,
 			}
 
@@ -447,6 +458,9 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 			require.Len(t, evts.emitted, 1, "member must be persisted regardless of tenancy outcome")
 			if tt.wantErr {
 				require.ErrorIs(t, err, ErrPlatformAccessFailed)
+				// The double-%w wrapper keeps the underlying tenancy cause
+				// matchable so callers can distinguish transient failures.
+				require.ErrorIs(t, err, errTenancyBoom)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, saved)
