@@ -37,10 +37,7 @@ import (
 // fakes
 // ---------------------------------------------------------------------------
 
-var (
-	errTenancyBoom = errors.New("tenancy unavailable")
-	errRepoBoom    = errors.New("workforce member lookup failed")
-)
+var errTenancyBoom = errors.New("tenancy unavailable")
 
 // fakePlatformAccessClient records every call made against the narrow
 // platform access port and replays canned tenancy state.
@@ -140,20 +137,6 @@ func (f *fakeOrganizationRepo) GetByID(_ context.Context, _ string) (*models.Org
 	return f.org, f.err
 }
 
-// fakeWorkforceRepo returns a canned previous state for GetByID.
-type fakeWorkforceRepo struct {
-	repository.WorkforceMemberRepository
-	member *models.WorkforceMember
-	err    error
-}
-
-func (f *fakeWorkforceRepo) GetByID(_ context.Context, _ string) (*models.WorkforceMember, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.member, nil
-}
-
 // recordingEventsManager stands in for the frame events manager: it accepts
 // every emission and keeps the payloads so tests can assert persistence.
 type recordingEventsManager struct {
@@ -203,6 +186,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 		properties     data.JSONMap
 		profileID      string
 		wantErr        error
+		wantGranted    bool
 		wantCalls      []string
 		wantRoleName   string
 		wantAccessRole []string
@@ -235,6 +219,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 				"ListAccessRoles",
 				"CreateAccessRole",
 			},
+			wantGranted:    true,
 			wantRoleName:   "operator",
 			wantAccessRole: []string{"access-new", "role-new"},
 		},
@@ -260,6 +245,7 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			org:            activeOrganization(),
 			profileID:      "profile-1",
 			properties:     data.JSONMap{PropertyPlatformRole: "viewer"},
+			wantGranted:    true,
 			wantCalls:      []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles", "CreateAccessRole"},
 			wantAccessRole: []string{"access-1", "role-viewer"},
 		},
@@ -268,10 +254,11 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			client: &fakePlatformAccessClient{
 				newAccessID: "access-new",
 			},
-			org:        activeOrganization(),
-			profileID:  "profile-1",
-			properties: data.JSONMap{},
-			wantCalls:  []string{"GetAccess", "CreateAccess"},
+			org:         activeOrganization(),
+			profileID:   "profile-1",
+			properties:  data.JSONMap{},
+			wantGranted: true,
+			wantCalls:   []string{"GetAccess", "CreateAccess"},
 		},
 		{
 			name: "member without a profile is skipped",
@@ -284,7 +271,19 @@ func TestEnsurePlatformAccess(t *testing.T) {
 			wantCalls:  nil,
 		},
 		{
-			name: "tenancy failure is surfaced",
+			name: "platform role is normalised before matching",
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"admin": "role-admin"},
+				accessRoles:      map[string]string{"role-admin": "access-role-1"},
+			},
+			org:        activeOrganization(),
+			profileID:  "profile-1",
+			properties: data.JSONMap{PropertyPlatformRole: "  Admin "},
+			wantCalls:  []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles"},
+		},
+		{
+			name: "tenancy failure is wrapped in ErrPlatformAccessFailed",
 			client: &fakePlatformAccessClient{
 				failOn: "GetAccess",
 			},
@@ -315,12 +314,14 @@ func TestEnsurePlatformAccess(t *testing.T) {
 				Properties:     tt.properties,
 			}
 
-			err := biz.ensurePlatformAccess(ctx, member)
+			granted, err := biz.ensurePlatformAccess(ctx, member)
 			if tt.wantErr != nil {
+				require.ErrorIs(t, err, ErrPlatformAccessFailed)
 				require.ErrorIs(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}
+			require.Equal(t, tt.wantGranted, granted)
 
 			if tt.nilClient {
 				return
@@ -357,7 +358,9 @@ func TestEnsurePlatformAccessFallsBackToClaimsPartition(t *testing.T) {
 		ProfileID:      "profile-1",
 		State:          int32(commonv1.STATE_ACTIVE),
 	}
-	require.NoError(t, biz.ensurePlatformAccess(ctx, member))
+	granted, err := biz.ensurePlatformAccess(ctx, member)
+	require.NoError(t, err)
+	require.True(t, granted)
 	require.True(t, cli.called("CreateAccess"))
 }
 
@@ -375,52 +378,60 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		id            string
-		state         commonv1.STATE
-		previousState commonv1.STATE
-		repoErr       error
-		failOn        string
-		wantAccess    bool
-		wantErr       bool
+		name   string
+		id     string
+		state  commonv1.STATE
+		client *fakePlatformAccessClient
+		// wantCalls is the exact call sequence expected on the tenancy port.
+		wantCalls []string
 	}{
 		{
-			name:       "new active member grants platform access",
-			state:      commonv1.STATE_ACTIVE,
-			wantAccess: true,
+			name:  "new active member grants platform access",
+			state: commonv1.STATE_ACTIVE,
+			client: &fakePlatformAccessClient{
+				newAccessID:    "access-new",
+				partitionRoles: map[string]string{},
+				newRoleID:      "role-new",
+				accessRoles:    map[string]string{},
+			},
+			wantCalls: []string{
+				"GetAccess", "CreateAccess", "ListPartitionRoles",
+				"CreatePartitionRole", "ListAccessRoles", "CreateAccessRole",
+			},
 		},
 		{
-			name:       "new created member grants nothing",
-			state:      commonv1.STATE_CREATED,
-			wantAccess: false,
+			name:      "new created member grants nothing",
+			state:     commonv1.STATE_CREATED,
+			client:    &fakePlatformAccessClient{newAccessID: "access-new"},
+			wantCalls: nil,
 		},
 		{
-			name:          "transition to active grants platform access",
-			id:            "member-1",
-			state:         commonv1.STATE_ACTIVE,
-			previousState: commonv1.STATE_CREATED,
-			wantAccess:    true,
+			name:  "re-saving an already provisioned active member is a no-op",
+			id:    "member-1",
+			state: commonv1.STATE_ACTIVE,
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"operator": "role-operator"},
+				accessRoles:      map[string]string{"role-operator": "access-role-1"},
+			},
+			wantCalls: []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles"},
 		},
 		{
-			name:          "already active member is not re-granted",
-			id:            "member-1",
-			state:         commonv1.STATE_ACTIVE,
-			previousState: commonv1.STATE_ACTIVE,
-			wantAccess:    false,
+			name:  "re-saving an active member retries a missing grant",
+			id:    "member-1",
+			state: commonv1.STATE_ACTIVE,
+			client: &fakePlatformAccessClient{
+				existingAccessID: "access-1",
+				partitionRoles:   map[string]string{"operator": "role-operator"},
+				accessRoles:      map[string]string{},
+			},
+			wantCalls: []string{"GetAccess", "ListPartitionRoles", "ListAccessRoles", "CreateAccessRole"},
 		},
 		{
-			name:       "unreadable previous state still saves and re-attempts the grant",
-			id:         "member-1",
-			state:      commonv1.STATE_ACTIVE,
-			repoErr:    errRepoBoom,
-			wantAccess: true,
-		},
-		{
-			name:       "tenancy failure surfaces ErrPlatformAccessFailed but persists member",
-			state:      commonv1.STATE_ACTIVE,
-			failOn:     "GetAccess",
-			wantAccess: true,
-			wantErr:    true,
+			name:      "tenancy failure never fails the save",
+			state:     commonv1.STATE_ACTIVE,
+			client:    &fakePlatformAccessClient{failOn: "GetAccess"},
+			wantCalls: []string{"GetAccess"},
 		},
 	}
 
@@ -429,22 +440,11 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 			t.Parallel()
 
 			ctx := platformAccessTestContext(t)
-			cli := &fakePlatformAccessClient{
-				newAccessID:    "access-new",
-				partitionRoles: map[string]string{},
-				newRoleID:      "role-new",
-				accessRoles:    map[string]string{},
-				failOn:         tt.failOn,
-			}
 			evts := &recordingEventsManager{}
-			previous := &models.WorkforceMember{State: int32(tt.previousState)}
-			previous.ID = tt.id
-
 			biz := &workforceBusiness{
 				eventsMan:         evts,
 				organizationRepo:  &fakeOrganizationRepo{org: activeOrganization()},
-				workforceRepo:     &fakeWorkforceRepo{member: previous, err: tt.repoErr},
-				platformAccessCli: cli,
+				platformAccessCli: tt.client,
 			}
 
 			saved, err := biz.WorkforceMemberSave(ctx, &identityv1.WorkforceMemberObject{
@@ -455,17 +455,13 @@ func TestWorkforceMemberSavePlatformAccessTrigger(t *testing.T) {
 				Properties:     newProperties("operator"),
 			})
 
-			require.Len(t, evts.emitted, 1, "member must be persisted regardless of tenancy outcome")
-			if tt.wantErr {
-				require.ErrorIs(t, err, ErrPlatformAccessFailed)
-				// The double-%w wrapper keeps the underlying tenancy cause
-				// matchable so callers can distinguish transient failures.
-				require.ErrorIs(t, err, errTenancyBoom)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, saved)
-			}
-			require.Equal(t, tt.wantAccess, cli.called("GetAccess"))
+			// A platform access failure must never fail the RPC: the save event
+			// has already been enqueued, so an error would make a client retry
+			// of a create produce a duplicate member.
+			require.NoError(t, err)
+			require.NotNil(t, saved)
+			require.Len(t, evts.emitted, 1, "member must be enqueued for persistence exactly once")
+			require.Equal(t, tt.wantCalls, tt.client.calls)
 		})
 	}
 }

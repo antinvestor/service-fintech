@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
@@ -187,61 +188,94 @@ func (t *tenancyPlatformAccessClient) CreateAccessRole(
 // ensurePlatformAccess grants tenancy access on the organization's partition
 // and assigns the platform role named in member.Properties["platform_role"].
 // It is idempotent and a no-op when the platform access client is nil.
-func (b *workforceBusiness) ensurePlatformAccess(ctx context.Context, member *models.WorkforceMember) error {
+//
+// It reports whether anything was actually created, so callers can tell a real
+// grant apart from a no-op re-save. Failures are logged here and returned
+// wrapped in ErrPlatformAccessFailed; callers decide whether to surface them.
+func (b *workforceBusiness) ensurePlatformAccess(
+	ctx context.Context,
+	member *models.WorkforceMember,
+) (bool, error) {
 	if b.platformAccessCli == nil || member == nil {
-		return nil
+		return false, nil
 	}
 
 	logger := util.Log(ctx).
 		WithField("method", "WorkforceBusiness.ensurePlatformAccess").
 		WithField("workforce_member_id", member.GetID()).
+		WithField("organization_id", member.OrganizationID).
 		WithField("profile_id", member.ProfileID)
 
 	if member.ProfileID == "" {
 		logger.Warn("workforce member has no profile, skipping platform access")
-		return nil
-	}
-
-	partitionID, err := b.platformPartitionID(ctx, member)
-	if err != nil {
-		return err
-	}
-
-	accessID, err := b.platformAccessCli.GetAccess(ctx, partitionID, member.ProfileID)
-	if err != nil {
-		if !errors.Is(err, ErrPlatformAccessNotFound) {
-			return err
-		}
-		accessID, err = b.platformAccessCli.CreateAccess(ctx, partitionID, member.ProfileID)
-		if err != nil {
-			return err
-		}
-		logger.WithField("access_id", accessID).Debug("granted tenancy access to workforce member")
+		return false, nil
 	}
 
 	role := platformRoleOf(member)
+	logger = logger.WithField("platform_role", role)
+
+	partitionID, err := b.platformPartitionID(ctx, member)
+	if err != nil {
+		logger.WithError(err).Error("could not resolve partition for platform access")
+		return false, fmt.Errorf("%w: %w", ErrPlatformAccessFailed, err)
+	}
+	logger = logger.WithField("partition_id", partitionID)
+
+	granted, err := b.grantPlatformAccess(ctx, partitionID, member.ProfileID, role)
+	if err != nil {
+		logger.WithError(err).Error("could not grant platform access for workforce member")
+		return false, fmt.Errorf("%w: %w", ErrPlatformAccessFailed, err)
+	}
+
+	if granted {
+		logger.Info("granted platform access to workforce member")
+	} else {
+		logger.Debug("workforce member already holds platform access")
+	}
+	return granted, nil
+}
+
+// grantPlatformAccess performs the idempotent tenancy calls and reports whether
+// access or a role assignment was actually created.
+func (b *workforceBusiness) grantPlatformAccess(
+	ctx context.Context,
+	partitionID, profileID, role string,
+) (bool, error) {
+	created := false
+
+	accessID, err := b.platformAccessCli.GetAccess(ctx, partitionID, profileID)
+	if err != nil {
+		if !errors.Is(err, ErrPlatformAccessNotFound) {
+			return false, err
+		}
+		accessID, err = b.platformAccessCli.CreateAccess(ctx, partitionID, profileID)
+		if err != nil {
+			return false, err
+		}
+		created = true
+	}
+
 	if role == "" {
-		return nil
+		return created, nil
 	}
 
 	roleID, err := b.ensurePartitionRole(ctx, partitionID, role)
 	if err != nil {
-		return err
+		return created, err
 	}
 
 	assigned, err := b.platformAccessCli.ListAccessRoles(ctx, accessID)
 	if err != nil {
-		return err
+		return created, err
 	}
 	if _, ok := assigned[roleID]; ok {
-		return nil
+		return created, nil
 	}
 
 	if err = b.platformAccessCli.CreateAccessRole(ctx, accessID, roleID); err != nil {
-		return err
+		return created, err
 	}
-	logger.WithField("platform_role", role).Debug("assigned platform role to workforce member")
-	return nil
+	return true, nil
 }
 
 // platformPartitionID resolves the partition the member should be granted
@@ -286,6 +320,8 @@ func (b *workforceBusiness) ensurePartitionRole(
 	return b.platformAccessCli.CreatePartitionRole(ctx, partitionID, role, "Platform role "+role)
 }
 
+// platformRoleOf reads the member's platform role, normalised to the lower-case
+// form tenancy partition roles are keyed by.
 func platformRoleOf(member *models.WorkforceMember) string {
 	value, ok := member.Properties[PropertyPlatformRole]
 	if !ok {
@@ -295,5 +331,5 @@ func platformRoleOf(member *models.WorkforceMember) string {
 	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(role)
+	return strings.ToLower(strings.TrimSpace(role))
 }

@@ -17,7 +17,6 @@ package business
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -162,23 +161,6 @@ func (b *workforceBusiness) WorkforceMemberSave(
 
 	isNew := obj.GetId() == ""
 
-	// The previous state decides whether this save is an activation; it has to
-	// be read before the save event overwrites the stored row.
-	previousState := int32(0)
-	if !isNew {
-		existing, err := b.workforceRepo.GetByID(ctx, obj.GetId())
-		switch {
-		case err != nil:
-			// Non-fatal: an unreadable previous state biases towards re-granting
-			// platform access, which is idempotent, but it must stay visible.
-			util.Log(ctx).WithError(err).
-				WithField("workforce_member_id", obj.GetId()).
-				Warn("could not read previous workforce member state, assuming activation")
-		case existing != nil:
-			previousState = existing.State
-		}
-	}
-
 	if err := b.eventsMan.Emit(ctx, events.WorkforceMemberSaveEvent, member); err != nil {
 		util.Log(ctx).WithError(err).Error("could not emit workforce member save event")
 		return nil, err
@@ -190,17 +172,18 @@ func (b *workforceBusiness) WorkforceMemberSave(
 		IdentityWorkforceRemoved.Add(ctx, 1)
 	}
 
-	activated := member.State == int32(commonv1.STATE_ACTIVE) &&
-		(isNew || previousState != int32(commonv1.STATE_ACTIVE))
-	if activated {
-		if err := b.ensurePlatformAccess(ctx, member); err != nil {
-			util.Log(ctx).WithError(err).
-				WithField("workforce_member_id", member.GetID()).
-				Error("could not grant platform access for workforce member")
-			// The member is already persisted; surface the tenancy failure so
-			// the caller can retry the grant by saving again. Both the sentinel
-			// and the underlying cause stay errors.Is-matchable.
-			return member.ToAPI(), fmt.Errorf("%w: %w", ErrPlatformAccessFailed, err)
+	// Platform access is granted on every save that lands on ACTIVE, not only on
+	// the transition into it: the grant is idempotent, so re-saving the member is
+	// all a caller needs to retry a failed grant. The failure is never fatal —
+	// the member is already enqueued for persistence, and failing the RPC would
+	// make a client retry of a create produce a duplicate member.
+	if member.State == int32(commonv1.STATE_ACTIVE) {
+		granted, err := b.ensurePlatformAccess(ctx, member)
+		switch {
+		case err != nil:
+			IdentityPlatformAccessFailed.Add(ctx, 1)
+		case granted:
+			IdentityPlatformAccessGranted.Add(ctx, 1)
 		}
 	}
 
