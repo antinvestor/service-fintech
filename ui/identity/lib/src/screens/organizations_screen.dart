@@ -26,6 +26,11 @@ String orgTypeLabel(OrganizationType type) => switch (type) {
       OrganizationType.ORGANIZATION_TYPE_NGO => 'NGO',
       OrganizationType.ORGANIZATION_TYPE_GOVERNMENT => 'Government',
       OrganizationType.ORGANIZATION_TYPE_OTHER => 'Other',
+      OrganizationType.ORGANIZATION_TYPE_TRADING => 'Trading',
+      OrganizationType.ORGANIZATION_TYPE_RETAIL => 'Retail',
+      OrganizationType.ORGANIZATION_TYPE_MANUFACTURING => 'Manufacturing',
+      OrganizationType.ORGANIZATION_TYPE_LOGISTICS => 'Logistics',
+      OrganizationType.ORGANIZATION_TYPE_SERVICES => 'Services',
       _ => type.name,
     };
 
