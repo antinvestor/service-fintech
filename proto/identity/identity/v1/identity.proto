@@ -180,9 +180,12 @@ message OrganizationObject {
     (buf.validate.field).string.pattern = "[0-9a-z_-]{3,40}"
   ];
   string partition_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
-  ]; // Partition this organization maps to
+  ]; // Partition this organization maps to. Server-minted on create
+  // (child partition from the caller's claims), so a create request
+  // may omit it; required shape only applies when a value is present.
   string name = 3 [(buf.validate.field).string.min_len = 1]; // Display name
   string code = 4 [(buf.validate.field).string.min_len = 1]; // Unique short code
   string profile_id = 5 [
