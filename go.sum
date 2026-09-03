@@ -16,12 +16,8 @@ buf.build/gen/go/antinvestor/funding/connectrpc/go v1.20.0-20260709214610-e20408
 buf.build/gen/go/antinvestor/funding/connectrpc/go v1.20.0-20260709214610-e20408cc729f.1/go.mod h1:USH76xpeIAuhJ15QYcJu9Hs2UuzdBZY9x5DnVwR1dNE=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20260709214610-e20408cc729f.1 h1:rXbjwXhzofYwQXWUdU/Xno4rW/0JLYaMuLn52szWFBE=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20260709214610-e20408cc729f.1/go.mod h1:D2yBRjTnYVQ/CF6A2es6raeyKnaozVZQjnOXa4Ax5AQ=
-buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260709214610-010e57de534c.1 h1:dhbGIG7UGo1deIQVeEdze4Lgb9+W0hH/DEWXza0TfcM=
-buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260709214610-010e57de534c.1/go.mod h1:IaUYvkys5h5zviJdDSE12h4yFW56AZPQx0HJnYZUSE0=
 buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260901172608-a5d51140fb76.1 h1:QfP2OZcYd1Ow6NAdRfi2Nl6xeQcxHH+xSlywyEv9xgA=
 buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260901172608-a5d51140fb76.1/go.mod h1:FWAhmPpcCdu3ebDThX1atsKmOu/D7BCjADYRKmD60Cs=
-buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20260709214610-010e57de534c.1 h1:FMIPwubfnP2JREygCj8mqa8PM/yqfVsbQUwMeMFAqMU=
-buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20260709214610-010e57de534c.1/go.mod h1:GLaAHIqV8OgafVSsyyHvfDNhWvAECTSZiiIkPIN7GWk=
 buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20260901172608-a5d51140fb76.1 h1:vCNapGu0mmHo1DXenJLCbySAB9hx0t7GP8+wlOvxESQ=
 buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20260901172608-a5d51140fb76.1/go.mod h1:MbaQbIoY4QsGY2zBOoxVNx3KNwJQXdswfcNOKcRDhbE=
 buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260709214338-fcdd6e08a283.1 h1:SLMRegrjpvRMTTkT77mWjNqYU0IJ16gx4RTHqCP6GxU=
@@ -339,10 +335,10 @@ github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 h1:o4JXh1EVt
 github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55/go.mod h1:OmDBASR4679mdNQnz2pUhc2G8CO2JrUAVFDRBDP/hJE=
 github.com/prometheus/client_golang v1.24.1 h1:JnJkREXzWxUdCuPFpIWZiPispT9xVV59uiuyR2bPlnU=
 github.com/prometheus/client_golang v1.24.1/go.mod h1:F+oSRECHg4sse5ucfYpYDeIv/hu68Zo0uoHKetWnzcE=
-github.com/prometheus/client_model v0.6.2 h1:oBsgwpGs7iVziMvrGhE53c/GrLUsZdHnqNwqPLxwZyk=
-github.com/prometheus/client_model v0.6.2/go.mod h1:y3m2F6Gdpfy6Ut/GBsUqTWZqCUvMVzSfMLjcu6wAwpE=
-github.com/prometheus/common v0.70.1 h1:1HvjP4D5oL3t8RsPlwxA9onvvStjtIHYE5XuuwOi/PY=
-github.com/prometheus/common v0.70.1/go.mod h1:VdFUQDMZK3VLkurFUVhia6uys/0suUp86TJz5qbJRhc=
+github.com/prometheus/client_model v0.6.3 h1:O0jaTVAYNxTHYInEPFJt5I3+sN8zqBtVMPTB1qyxiEo=
+github.com/prometheus/client_model v0.6.3/go.mod h1:gpN5P9S7Rr6Yr92PiQ+Ixvhf6JZEkF1dnxsYL2aPBEM=
+github.com/prometheus/common v0.71.0 h1:9KDAKb7Mj3HEVKyFCK6Dc/HIwlBzZIN2l7/lrHl3KK8=
+github.com/prometheus/common v0.71.0/go.mod h1:CLJ5H8TEsGX8bl31BdMkfhIZ+QmZ9tBPPotUxUbfcmk=
 github.com/prometheus/otlptranslator v1.0.0 h1:s0LJW/iN9dkIH+EnhiD3BlkkP5QVIUVEoIwkU+A6qos=
 github.com/prometheus/otlptranslator v1.0.0/go.mod h1:vRYWnXvI6aWGpsdY/mOT/cbeVRBlPWtBNDb7kGR3uKM=
 github.com/prometheus/procfs v0.22.0 h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0oics=
