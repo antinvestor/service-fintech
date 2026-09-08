@@ -34,10 +34,10 @@ require (
 	connectrpc.com/connect v1.20.0
 	github.com/antinvestor/common/audit v0.0.0-20260831232917-ab9b90c2a549
 	github.com/antinvestor/common/v2 v2.0.7
-	github.com/antinvestor/service-trustage v0.4.7
+	github.com/antinvestor/service-trustage v0.4.8
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/pitabwire/frame/v2 v2.1.7
+	github.com/pitabwire/frame/v2 v2.1.8
 	github.com/pitabwire/util v0.9.1
 	github.com/pitabwire/util/decimalx v0.7.2
 	github.com/pitabwire/util/moneyx v0.9.0
