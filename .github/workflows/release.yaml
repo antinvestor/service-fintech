@@ -38,7 +38,7 @@ jobs:
     secrets:
       deploy_token: ${{ secrets.DEPLOY_REPO_TOKEN }}
 
-  # Identity Cloud Run app only (other fintech apps may ship elsewhere later).
+  # Cloud Run apps: identity on stawi-identity; finance-* on stawi-finance.
   ship-identity:
     needs: [docker]
     if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
@@ -54,4 +54,123 @@ jobs:
       region: europe-west1
       ship_service_account: cloudrun-ship@stawi-identity.iam.gserviceaccount.com
       workload_identity_provider: projects/721554040672/locations/global/workloadIdentityPools/github/providers/github-ship
+      skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
+
+  ship-finance-funding:
+    needs: [docker]
+    if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    permissions:
+      contents: read
+      id-token: write
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      image: ghcr.io/antinvestor/service-fintech-funding:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+      service: finance-funding
+      migrate_job: finance-funding-migrate
+      project_id: stawi-finance
+      region: europe-west1
+      ship_service_account: cloudrun-ship@stawi-finance.iam.gserviceaccount.com
+      workload_identity_provider: projects/696335580111/locations/global/workloadIdentityPools/github/providers/github-ship
+      skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
+
+  ship-finance-limits:
+    needs: [docker]
+    if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    permissions:
+      contents: read
+      id-token: write
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      image: ghcr.io/antinvestor/service-fintech-limits:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+      service: finance-limits
+      migrate_job: finance-limits-migrate
+      project_id: stawi-finance
+      region: europe-west1
+      ship_service_account: cloudrun-ship@stawi-finance.iam.gserviceaccount.com
+      workload_identity_provider: projects/696335580111/locations/global/workloadIdentityPools/github/providers/github-ship
+      skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
+
+  ship-finance-loans:
+    needs: [docker]
+    if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    permissions:
+      contents: read
+      id-token: write
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      image: ghcr.io/antinvestor/service-fintech-loans:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+      service: finance-loans
+      migrate_job: finance-loans-migrate
+      project_id: stawi-finance
+      region: europe-west1
+      ship_service_account: cloudrun-ship@stawi-finance.iam.gserviceaccount.com
+      workload_identity_provider: projects/696335580111/locations/global/workloadIdentityPools/github/providers/github-ship
+      skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
+
+  ship-finance-operations:
+    needs: [docker]
+    if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    permissions:
+      contents: read
+      id-token: write
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      image: ghcr.io/antinvestor/service-fintech-operations:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+      service: finance-operations
+      migrate_job: finance-operations-migrate
+      project_id: stawi-finance
+      region: europe-west1
+      ship_service_account: cloudrun-ship@stawi-finance.iam.gserviceaccount.com
+      workload_identity_provider: projects/696335580111/locations/global/workloadIdentityPools/github/providers/github-ship
+      skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
+
+  ship-finance-savings:
+    needs: [docker]
+    if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    permissions:
+      contents: read
+      id-token: write
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      image: ghcr.io/antinvestor/service-fintech-savings:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+      service: finance-savings
+      migrate_job: finance-savings-migrate
+      project_id: stawi-finance
+      region: europe-west1
+      ship_service_account: cloudrun-ship@stawi-finance.iam.gserviceaccount.com
+      workload_identity_provider: projects/696335580111/locations/global/workloadIdentityPools/github/providers/github-ship
+      skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
+
+  ship-finance-stawi:
+    needs: [docker]
+    if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    permissions:
+      contents: read
+      id-token: write
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      image: ghcr.io/antinvestor/service-fintech-stawi:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+      service: finance-stawi
+      migrate_job: finance-stawi-migrate
+      project_id: stawi-finance
+      region: europe-west1
+      ship_service_account: cloudrun-ship@stawi-finance.iam.gserviceaccount.com
+      workload_identity_provider: projects/696335580111/locations/global/workloadIdentityPools/github/providers/github-ship
+      skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
+
+  ship-finance-seed:
+    needs: [docker]
+    if: always() && (needs.docker.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
+    permissions:
+      contents: read
+      id-token: write
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      image: ghcr.io/antinvestor/service-fintech-seed:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+      service: finance-seed
+      migrate_job: finance-seed-migrate
+      project_id: stawi-finance
+      region: europe-west1
+      ship_service_account: cloudrun-ship@stawi-finance.iam.gserviceaccount.com
+      workload_identity_provider: projects/696335580111/locations/global/workloadIdentityPools/github/providers/github-ship
       skip_migrate: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrate == true }}
