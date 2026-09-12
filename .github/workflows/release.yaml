@@ -66,6 +66,7 @@ jobs:
     with:
       image: ghcr.io/antinvestor/service-fintech-funding:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-funding
+      allowed_services: finance-funding
       migrate_job: finance-funding-migrate
       project_id: stawi-finance
       region: europe-west1
@@ -83,6 +84,7 @@ jobs:
     with:
       image: ghcr.io/antinvestor/service-fintech-limits:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-limits
+      allowed_services: finance-limits
       migrate_job: finance-limits-migrate
       project_id: stawi-finance
       region: europe-west1
@@ -100,6 +102,7 @@ jobs:
     with:
       image: ghcr.io/antinvestor/service-fintech-loans:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-loans
+      allowed_services: finance-loans
       migrate_job: finance-loans-migrate
       project_id: stawi-finance
       region: europe-west1
@@ -117,6 +120,7 @@ jobs:
     with:
       image: ghcr.io/antinvestor/service-fintech-operations:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-operations
+      allowed_services: finance-operations
       migrate_job: finance-operations-migrate
       project_id: stawi-finance
       region: europe-west1
@@ -134,6 +138,7 @@ jobs:
     with:
       image: ghcr.io/antinvestor/service-fintech-savings:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-savings
+      allowed_services: finance-savings
       migrate_job: finance-savings-migrate
       project_id: stawi-finance
       region: europe-west1
@@ -151,6 +156,7 @@ jobs:
     with:
       image: ghcr.io/antinvestor/service-fintech-stawi:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-stawi
+      allowed_services: finance-stawi
       migrate_job: finance-stawi-migrate
       project_id: stawi-finance
       region: europe-west1
@@ -168,6 +174,7 @@ jobs:
     with:
       image: ghcr.io/antinvestor/service-fintech-seed:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-seed
+      allowed_services: finance-seed
       migrate_job: finance-seed-migrate
       project_id: stawi-finance
       region: europe-west1
