@@ -62,7 +62,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@2aff23886e33f8c1ac1751c4dac75ac58ae2d002 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-funding:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-funding
@@ -80,7 +80,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@2aff23886e33f8c1ac1751c4dac75ac58ae2d002 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-limits:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-limits
@@ -98,7 +98,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@2aff23886e33f8c1ac1751c4dac75ac58ae2d002 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-loans:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-loans
@@ -116,7 +116,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@2aff23886e33f8c1ac1751c4dac75ac58ae2d002 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-operations:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-operations
@@ -134,7 +134,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@2aff23886e33f8c1ac1751c4dac75ac58ae2d002 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-savings:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-savings
@@ -152,7 +152,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@2aff23886e33f8c1ac1751c4dac75ac58ae2d002 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-stawi:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-stawi
@@ -170,7 +170,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@2aff23886e33f8c1ac1751c4dac75ac58ae2d002 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-seed:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: finance-seed
