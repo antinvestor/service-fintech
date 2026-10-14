@@ -33,8 +33,8 @@ require (
 	buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go v1.36.12-20260831112830-2b2240b00a45.2
 	connectrpc.com/connect v1.21.0
 	github.com/antinvestor/common/audit v0.0.0-20260831232917-ab9b90c2a549
-	github.com/antinvestor/common/v2 v2.0.7
-	github.com/antinvestor/service-trustage v0.4.9
+	github.com/antinvestor/common/v2 v2.0.8
+	github.com/antinvestor/service-trustage v0.5.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/pitabwire/frame/v2 v2.1.8
@@ -140,7 +140,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.72.0 // indirect
+	github.com/prometheus/common v0.72.1 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rs/dnscache v0.0.0-20230804202142-fc85eb664529 // indirect
@@ -186,7 +186,7 @@ require (
 	gocloud.dev v0.46.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
-	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
