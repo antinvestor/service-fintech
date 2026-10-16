@@ -93,10 +93,10 @@ packages:
     dependency: "direct main"
     description:
       name: antinvestor_api_profile
-      sha256: fb540379b01a5c2b899a74a4ef0c8ceec96ff43846d9b18488a628cf0ab734c5
+      sha256: fc239934a25ceebcf8cf77ed09e250db668477f775d77bedf15121c6463a8e9e
       url: "https://pub.dev"
     source: hosted
-    version: "1.53.0"
+    version: "1.55.0"
   antinvestor_api_savings:
     dependency: transitive
     description:
