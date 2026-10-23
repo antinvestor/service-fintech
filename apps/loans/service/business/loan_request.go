@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -107,26 +108,17 @@ func (b *loanRequestBusiness) Save(
 		return nil, ErrLoanRequestStatusNotSettable
 	}
 
-	existing, existErr := b.loanRequestRepo.GetByID(ctx, lr.GetID())
-	if existErr == nil && existing != nil {
-		if isTerminalLoanRequestStatus(existing.Status) ||
-			existing.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED) {
-			return nil, ErrLoanRequestTerminal
-		}
-		if lr.Status < existing.Status {
-			return nil, ErrLoanRequestStatusRegression
-		}
-		// Decision fields belong to the reviewer, not to the submitter.
-		lr.ApprovedAmount = existing.ApprovedAmount
-		lr.ApprovedTermDays = existing.ApprovedTermDays
-		lr.RejectionReason = existing.RejectionReason
-		lr.DecidedAt = existing.DecidedAt
-		lr.LoanAccountID = existing.LoanAccountID
-	} else {
-		lr.ApprovedAmount = 0
-		lr.ApprovedTermDays = 0
-		lr.DecidedAt = nil
-		lr.LoanAccountID = ""
+	// Whoever writes an application must be allowed to act for its client:
+	// staff and field agents (configured staff roles) for anyone, a client
+	// caller only for themselves. Checked before anything is persisted or
+	// anyone is messaged.
+	if scopeErr := b.scope.AuthorizeClient(ctx, lr.ClientID); scopeErr != nil {
+		return nil, scopeErr
+	}
+
+	existing, reconcileErr := b.reconcileWithStored(ctx, lr)
+	if reconcileErr != nil {
+		return nil, reconcileErr
 	}
 
 	if lr.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED) && lr.SubmittedAt == nil {
@@ -163,6 +155,48 @@ func isClientSettableRequestStatus(status int32) bool {
 // validateAgainstProduct rejects a request whose amount or term falls outside
 // the product's configured envelope. A request that cannot become a legal loan
 // should never reach an approver's queue.
+// reconcileWithStored applies the rules a re-save of an existing request must
+// obey and copies the reviewer-owned and identity fields from the stored row.
+// It returns the stored row (nil for a new request).
+func (b *loanRequestBusiness) reconcileWithStored(
+	ctx context.Context,
+	lr *models.LoanRequest,
+) (*models.LoanRequest, error) {
+	existing, existErr := b.loanRequestRepo.GetByID(ctx, lr.GetID())
+	if existErr != nil && !data.ErrorIsNoRows(existErr) {
+		return nil, fmt.Errorf("load loan request %s: %w", lr.GetID(), existErr)
+	}
+	if existing == nil {
+		lr.ApprovedAmount = 0
+		lr.ApprovedTermDays = 0
+		lr.DecidedAt = nil
+		lr.LoanAccountID = ""
+		return nil, nil //nolint:nilnil // a new request has no stored row
+	}
+	if isTerminalLoanRequestStatus(existing.Status) ||
+		existing.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED) {
+		return nil, ErrLoanRequestTerminal
+	}
+	if lr.Status < existing.Status {
+		return nil, ErrLoanRequestStatusRegression
+	}
+	// Who the application is for and who brought it in are fixed at
+	// creation. A re-save cannot move it to another client or agent.
+	if existing.ClientID != lr.ClientID {
+		return nil, ErrLoanRequestClientImmutable
+	}
+	lr.AgentID = existing.AgentID
+	lr.OrganizationID = existing.OrganizationID
+	lr.BranchID = existing.BranchID
+	// Decision fields belong to the reviewer, not to the submitter.
+	lr.ApprovedAmount = existing.ApprovedAmount
+	lr.ApprovedTermDays = existing.ApprovedTermDays
+	lr.RejectionReason = existing.RejectionReason
+	lr.DecidedAt = existing.DecidedAt
+	lr.LoanAccountID = existing.LoanAccountID
+	return existing, nil
+}
+
 func (b *loanRequestBusiness) validateAgainstProduct(ctx context.Context, lr *models.LoanRequest) error {
 	if lr.RequestedAmount <= 0 {
 		return ErrLoanRequestAmountInvalid

@@ -177,6 +177,10 @@ var (
 		apperrors.ServiceUnavailable,
 		"the disbursement could not be settled; retry with the same idempotency key",
 	)
+	ErrLoanRequestClientImmutable = apperrors.NewError(
+		apperrors.Conflict,
+		"a loan request cannot be moved to a different client",
+	)
 	ErrDisbursementRejected = apperrors.NewError(
 		apperrors.Unprocessable,
 		"the disbursement was rejected by the payment path and will not be retried under this key",
