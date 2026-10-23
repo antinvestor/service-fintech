@@ -67,6 +67,13 @@ type LoanBalanceRepository interface {
 	ApplyPenaltyDelta(ctx context.Context, loanAccountID string, amount int64) (*models.LoanBalance, error)
 }
 
+// Balance columns touched by conditional deltas.
+const (
+	colPenaltiesOutstanding = "penalties_outstanding"
+	colTotalOutstanding     = "total_outstanding"
+	colLastCalculatedAt     = "last_calculated_at"
+)
+
 type loanBalanceRepository struct {
 	entityRepository[*models.LoanBalance]
 	dbPool pool.Pool
@@ -108,10 +115,10 @@ func (repo *loanBalanceRepository) ApplyRepaymentDelta(
 			"principal_outstanding": gorm.Expr("GREATEST(principal_outstanding - ?, 0)", delta.PrincipalApplied),
 			"interest_accrued":      gorm.Expr("GREATEST(interest_accrued - ?, 0)", delta.InterestApplied),
 			"fees_outstanding":      gorm.Expr("GREATEST(fees_outstanding - ?, 0)", delta.FeesApplied),
-			"penalties_outstanding": gorm.Expr("GREATEST(penalties_outstanding - ?, 0)", delta.PenaltiesApplied),
+			colPenaltiesOutstanding: gorm.Expr("GREATEST(penalties_outstanding - ?, 0)", delta.PenaltiesApplied),
 			"total_paid":            gorm.Expr("total_paid + ?", totalPaidDelta),
-			"total_outstanding":     gorm.Expr("GREATEST(total_outstanding - ?, 0)", totalOutstandingDelta),
-			"last_calculated_at":    &now,
+			colTotalOutstanding:     gorm.Expr("GREATEST(total_outstanding - ?, 0)", totalOutstandingDelta),
+			colLastCalculatedAt:     &now,
 			colModifiedAt:           now,
 			colVersion:              gorm.Expr(colVersion + " + 1"),
 		})
@@ -142,9 +149,9 @@ func (repo *loanBalanceRepository) ApplyPenaltyDelta(
 	result := db.Table("loan_balances").
 		Where("loan_account_id = ? AND deleted_at IS NULL", loanAccountID).
 		Updates(map[string]any{
-			"penalties_outstanding": gorm.Expr("GREATEST(penalties_outstanding + ?, 0)", amount),
-			"total_outstanding":     gorm.Expr("GREATEST(total_outstanding + ?, 0)", amount),
-			"last_calculated_at":    &now,
+			colPenaltiesOutstanding: gorm.Expr("GREATEST(penalties_outstanding + ?, 0)", amount),
+			colTotalOutstanding:     gorm.Expr("GREATEST(total_outstanding + ?, 0)", amount),
+			colLastCalculatedAt:     &now,
 			colModifiedAt:           now,
 			colVersion:              gorm.Expr(colVersion + " + 1"),
 		})

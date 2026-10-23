@@ -23,6 +23,7 @@ import (
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
 	loanspb "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
@@ -64,11 +65,14 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/audit"
 )
 
-// delinquencyScanInterval is how often overdue loans are re-assessed. Daily
-// granularity is what the thresholds are expressed in; scanning more often
-// keeps the transition prompt without charging anything twice, because each
-// penalty is claimed against its own installment.
-const delinquencyScanInterval = time.Hour
+// backgroundJobs carries what the periodic loan jobs need beyond the
+// businesses: their cadence and the database manager for the advisory lock.
+type backgroundJobs struct {
+	dbManager               datastore.Manager
+	delinquencyScanInterval time.Duration
+	dueReminderInterval     time.Duration
+	dueReminderDays         int
+}
 
 func main() {
 	tmpCtx := context.Background()
@@ -163,6 +167,13 @@ func main() {
 		cfg.LimitsGateModeLoanRepayment,
 		cfg.DelinquencyThresholdDays,
 		cfg.DefaultThresholdDays,
+		peers.agentProfiles,
+		backgroundJobs{
+			dbManager:               svc.DatastoreManager(),
+			delinquencyScanInterval: cfg.DelinquencyScanInterval,
+			dueReminderInterval:     cfg.DueReminderInterval,
+			dueReminderDays:         cfg.DueReminderDays,
+		},
 		auditCli,
 	)
 
@@ -195,6 +206,8 @@ func setupServiceOptions(
 	limitsGateModeLoanRepayment string,
 	delinquencyThresholdDays int,
 	defaultThresholdDays int,
+	agentProfiles business.AgentProfileResolver,
+	jobs backgroundJobs,
 	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	lpRepo := repository.NewLoanProductRepository(ctx, dbPool, workMan)
@@ -290,8 +303,18 @@ func setupServiceOptions(
 	scanner := business.NewDelinquencyScanner(
 		laRepo, seRepo, penaltyBusiness, laBusiness, lpRepo,
 		delinquencyThresholdDays, defaultThresholdDays,
+		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
 	)
-	go runPeriodically(ctx, delinquencyScanInterval, scanner.Run)
+	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, jobs.dueReminderDays)
+	// Both jobs run on every replica but under a database advisory lock, so
+	// a scan is never duplicated and each reminder is claimed on its own
+	// installment regardless.
+	go runPeriodically(ctx, jobs.delinquencyScanInterval, func(ctx context.Context) error {
+		return dbmigrate.Locked(ctx, jobs.dbManager, "loans:delinquency-scan", scanner.Run)
+	})
+	go runPeriodically(ctx, jobs.dueReminderInterval, func(ctx context.Context) error {
+		return dbmigrate.Locked(ctx, jobs.dbManager, "loans:due-reminders", reminders.Run)
+	})
 
 	connectHandler := setupConnectServer(ctx, sm,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
@@ -346,6 +369,7 @@ func setupOperationsClient(
 type peerClients struct {
 	loanNotifier  *business.LoanNotifier
 	payoutChecker business.PayoutDestinationChecker
+	agentProfiles business.AgentProfileResolver
 	operations    operationsv1connect.OperationsServiceClient
 	funding       fundingv1connect.FundingServiceClient
 	limits        limitsv1connect.LimitsServiceClient
@@ -396,8 +420,16 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 	}
 	clientProfiles := business.NewFieldClientProfileResolver(fieldCli)
 
+	// Field agents are workforce members on the identity service; the
+	// arrears notice to an agent needs their profile.
+	identityCli, identityErr := setupIdentityClient(ctx, cfg)
+	if identityErr != nil {
+		log.WithError(identityErr).Warn("main -- Could not setup identity client, agent notifications will be disabled")
+	}
+
 	return peerClients{
 		payoutChecker: business.NewProfilePayoutChecker(clientProfiles, profileCli),
+		agentProfiles: business.NewIdentityAgentProfileResolver(identityCli),
 		loanNotifier: business.NewLoanNotifier(
 			notify.New(notificationCli, messages.Registry()),
 			clientProfiles,
@@ -434,6 +466,17 @@ func setupFieldClient(
 		WorkloadAPITargetPath: cfg.FieldServiceWorkloadAPITargetPath,
 		ServiceID:             servicecatalog.ServiceIdentity,
 	}, fieldv1connect.NewFieldServiceClient)
+}
+
+func setupIdentityClient(
+	ctx context.Context,
+	cfg aconfig.LoanManagementConfig,
+) (identityv1connect.IdentityServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.IdentityServiceURI,
+		WorkloadAPITargetPath: cfg.IdentityServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceIdentity,
+	}, identityv1connect.NewIdentityServiceClient)
 }
 
 func setupProfileClient(

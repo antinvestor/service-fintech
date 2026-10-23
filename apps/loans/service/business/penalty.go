@@ -116,17 +116,21 @@ func (b *penaltyBusiness) Save(ctx context.Context, obj *loansv1.PenaltyObject) 
 		return nil, ErrPenaltyCurrencyMismatch
 	}
 
-	if err := b.penaltyRepo.Create(ctx, penalty); err != nil {
-		logger.WithError(err).Error("could not persist penalty")
+	// A penalty tied to an installment is claimed by its (installment, type)
+	// slot: a retried or racing scan that lost the race resumes the winner's
+	// row instead of charging twice. Each step that costs the borrower money
+	// is recorded on the row once it has landed, so a resume does only what
+	// is still owed.
+	penalty, err := b.claimPenaltyRow(ctx, logger, penalty)
+	if err != nil {
 		return nil, err
 	}
-
-	if err := b.postPenaltyAccrual(ctx, logger, penalty, la); err != nil {
-		return nil, err
+	if penaltyBalanceApplied(penalty) || penalty.IsWaived {
+		// Nothing left to do: an earlier run completed the charge, or an
+		// operator has since waived it and a resume must not revive it.
+		return penalty.ToAPI(), nil
 	}
-
-	if _, err := b.loanBalanceRepo.ApplyPenaltyDelta(ctx, penalty.LoanAccountID, penalty.Amount); err != nil {
-		logger.WithError(err).Error("could not charge the penalty to the loan balance")
+	if err = b.settlePenalty(ctx, logger, penalty, la); err != nil {
 		return nil, err
 	}
 
@@ -160,6 +164,78 @@ func (b *penaltyBusiness) Save(ctx context.Context, obj *loansv1.PenaltyObject) 
 // Requires the penalty's loan account to carry both a client id and a
 // configured penalty income ledger account id; missing either is a hard
 // error because it would silently drop a money-movement record.
+// claimPenaltyRow persists the penalty, or hands back the row that already
+// owns its installment slot so the charge is resumed rather than repeated.
+func (b *penaltyBusiness) claimPenaltyRow(
+	ctx context.Context,
+	logger *util.LogEntry,
+	penalty *models.Penalty,
+) (*models.Penalty, error) {
+	if penalty.ScheduleEntryID == "" {
+		if err := b.penaltyRepo.Create(ctx, penalty); err != nil {
+			logger.WithError(err).Error("could not persist penalty")
+			return nil, err
+		}
+		return penalty, nil
+	}
+	stored, created, claimErr := b.penaltyRepo.ClaimForEntry(ctx, penalty)
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not persist penalty")
+		return nil, claimErr
+	}
+	if !created {
+		if stored.LoanAccountID != penalty.LoanAccountID || stored.Amount != penalty.Amount {
+			// The slot belongs to another loan or a different charge: never
+			// resume somebody else's penalty under this request.
+			return nil, ErrPenaltyEntryConflict
+		}
+		logger.WithField("penalty_id", stored.GetID()).Info("penalty already charged for this installment; resuming")
+	}
+	return stored, nil
+}
+
+// settlePenalty posts the accrual (once) and charges the balance (once),
+// recording each step on the row so a resume does only what is still owed.
+func (b *penaltyBusiness) settlePenalty(
+	ctx context.Context,
+	logger *util.LogEntry,
+	penalty *models.Penalty,
+	la *models.LoanAccount,
+) error {
+	if penalty.LedgerTransactionID == "" {
+		if err := b.postPenaltyAccrual(ctx, logger, penalty, la); err != nil {
+			return err
+		}
+	}
+	// The charge and its marker are one transaction: a crash between them
+	// can neither charge twice nor lose the charge.
+	charged, err := b.penaltyRepo.ChargeBalanceOnce(ctx, penalty)
+	if err != nil {
+		logger.WithError(err).Error("could not charge the penalty to the loan balance")
+		return err
+	}
+	if !charged {
+		logger.WithField("penalty_id", penalty.GetID()).Info("penalty already charged to the balance")
+	}
+	if penalty.Properties == nil {
+		penalty.Properties = data.JSONMap{}
+	}
+	penalty.Properties[penaltyBalanceAppliedKey] = true
+	return nil
+}
+
+// penaltyBalanceAppliedKey marks on the penalty row that its amount has been
+// charged to the loan balance.
+const penaltyBalanceAppliedKey = "balance_applied"
+
+func penaltyBalanceApplied(p *models.Penalty) bool {
+	if p == nil || p.Properties == nil {
+		return false
+	}
+	applied, _ := p.Properties[penaltyBalanceAppliedKey].(bool)
+	return applied
+}
+
 func (b *penaltyBusiness) postPenaltyAccrual(
 	ctx context.Context,
 	logger *util.LogEntry,

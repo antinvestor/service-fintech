@@ -310,3 +310,81 @@ func (s *migrateSuite) TestOneLiveDisbursementPerLoan() {
 	s.Require().NoError(err)
 	s.Require().True(created)
 }
+
+// One late penalty per installment: a second claim for the same installment
+// and type hands back the first row instead of inserting another.
+func (s *migrateSuite) TestOnePenaltyPerInstallmentAndType() {
+	e := s.newEnv()
+	repo := repository.NewPenaltyRepository(e.ctx, e.dbPool, nil)
+
+	newPenalty := func(amount int64) *models.Penalty {
+		p := &models.Penalty{
+			LoanAccountID: "loan-pen-1", ScheduleEntryID: "entry-1", Amount: amount, CurrencyCode: "KES",
+			PenaltyType: int32(loansv1.PenaltyType_PENALTY_TYPE_LATE_PAYMENT),
+		}
+		p.GenID(e.ctx)
+		p.PartitionID = "partition-1"
+		p.TenantID = "tenant-1"
+		return p
+	}
+
+	first := newPenalty(500)
+	stored, created, err := repo.ClaimForEntry(e.ctx, first)
+	s.Require().NoError(err)
+	s.Require().True(created)
+	s.Require().Equal(first.GetID(), stored.GetID())
+
+	second := newPenalty(500)
+	stored, created, err = repo.ClaimForEntry(e.ctx, second)
+	s.Require().NoError(err)
+	s.Require().False(created, "the installment is already penalised")
+	s.Require().Equal(first.GetID(), stored.GetID())
+
+	// A different type on the same installment is a different slot.
+	other := newPenalty(100)
+	other.PenaltyType = int32(loansv1.PenaltyType_PENALTY_TYPE_DEFAULT)
+	_, created, err = repo.ClaimForEntry(e.ctx, other)
+	s.Require().NoError(err)
+	s.Require().True(created)
+}
+
+// Charging a penalty to the balance happens once, however many times the
+// charge is attempted, and the marker lives in the same transaction.
+func (s *migrateSuite) TestPenaltyBalanceChargeIsOnce() {
+	e := s.newEnv()
+	penalties := repository.NewPenaltyRepository(e.ctx, e.dbPool, nil)
+	balances := repository.NewLoanBalanceRepository(e.ctx, e.dbPool, nil)
+
+	balance := &models.LoanBalance{LoanAccountID: "loan-charge-1", CurrencyCode: "KES", TotalOutstanding: 10_000}
+	balance.GenID(e.ctx)
+	s.Require().NoError(balances.Create(e.ctx, balance))
+
+	penalty := &models.Penalty{LoanAccountID: "loan-charge-1", Amount: 500, CurrencyCode: "KES",
+		PenaltyType: int32(loansv1.PenaltyType_PENALTY_TYPE_LATE_PAYMENT)}
+	penalty.GenID(e.ctx)
+	s.Require().NoError(penalties.Create(e.ctx, penalty))
+
+	charged, err := penalties.ChargeBalanceOnce(e.ctx, penalty)
+	s.Require().NoError(err)
+	s.Require().True(charged)
+	again, err := penalties.ChargeBalanceOnce(e.ctx, penalty)
+	s.Require().NoError(err)
+	s.Require().False(again, "a second attempt must not charge again")
+
+	stored, err := balances.GetByLoanAccountID(e.ctx, "loan-charge-1")
+	s.Require().NoError(err)
+	s.Require().Equal(int64(500), stored.PenaltiesOutstanding)
+	s.Require().Equal(int64(10_500), stored.TotalOutstanding)
+
+	// No balance row: nothing is charged and the marker does not stick.
+	orphan := &models.Penalty{LoanAccountID: "loan-no-balance", Amount: 500, CurrencyCode: "KES",
+		PenaltyType: int32(loansv1.PenaltyType_PENALTY_TYPE_LATE_PAYMENT)}
+	orphan.GenID(e.ctx)
+	s.Require().NoError(penalties.Create(e.ctx, orphan))
+	_, err = penalties.ChargeBalanceOnce(e.ctx, orphan)
+	s.Require().Error(err)
+	reloaded, err := penalties.GetByID(e.ctx, orphan.GetID())
+	s.Require().NoError(err)
+	_, marked := reloaded.Properties["balance_applied"]
+	s.Require().False(marked, "the marker rolls back with the failed charge")
+}

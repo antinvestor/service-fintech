@@ -260,6 +260,25 @@ func (r *stubScheduleEntryRepo) MarkPenaltyApplied(_ context.Context, _ string) 
 	return true, nil
 }
 
+func (r *stubScheduleEntryRepo) ClearPenaltyApplied(_ context.Context, _ string) error { return nil }
+
+func (r *stubScheduleEntryRepo) ListDueBetween(
+	_ context.Context,
+	_, _ time.Time,
+	_ string,
+	_ int,
+) ([]*loansmodels.ScheduleEntry, error) {
+	return nil, nil
+}
+
+func (r *stubScheduleEntryRepo) MarkReminded(_ context.Context, _, _ string) (bool, error) {
+	return true, nil
+}
+
+func (r *stubScheduleEntryRepo) CountActiveEntries(_ context.Context, _ string) (int64, error) {
+	return 1, nil
+}
+
 var _ repository.ScheduleEntryRepository = (*stubScheduleEntryRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.ScheduleEntry] = (*stubScheduleEntryRepo)(nil)
 

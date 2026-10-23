@@ -177,6 +177,10 @@ var (
 		apperrors.ServiceUnavailable,
 		"the disbursement could not be settled; retry with the same idempotency key",
 	)
+	ErrPenaltyEntryConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"a different penalty already exists for this installment",
+	)
 	ErrCashRepaymentNeedsCollector = apperrors.NewError(
 		apperrors.BadRequest,
 		"a cash repayment must be recorded by the staff member or field agent who holds the cash",

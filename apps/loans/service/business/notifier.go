@@ -23,6 +23,8 @@ import (
 
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	notificationv1 "buf.build/gen/go/antinvestor/notification/protocolbuffers/go/notification/v1"
 	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
@@ -69,6 +71,45 @@ func (r *fieldClientProfileResolver) ProfileIDForClient(ctx context.Context, cli
 	profileID := strings.TrimSpace(resp.Msg.GetData().GetProfileId())
 	if profileID == "" {
 		return "", ErrClientProfileUnknown
+	}
+	return profileID, nil
+}
+
+// AgentProfileResolver maps a loan's agent id (a workforce member on the
+// identity service) onto the profile that member signs in with, so the agent
+// can be messaged.
+type AgentProfileResolver interface {
+	ProfileIDForAgent(ctx context.Context, agentID string) (string, error)
+}
+
+// ErrAgentProfileUnknown is returned when an agent cannot be mapped to a profile.
+var ErrAgentProfileUnknown = errors.New("loans: agent has no profile to notify")
+
+// identityAgentProfileResolver asks the identity service for the workforce member.
+type identityAgentProfileResolver struct {
+	identityCli identityv1connect.IdentityServiceClient
+}
+
+// NewIdentityAgentProfileResolver builds the production agent resolver.
+func NewIdentityAgentProfileResolver(identityCli identityv1connect.IdentityServiceClient) AgentProfileResolver {
+	return &identityAgentProfileResolver{identityCli: identityCli}
+}
+
+func (r *identityAgentProfileResolver) ProfileIDForAgent(ctx context.Context, agentID string) (string, error) {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" || r == nil || r.identityCli == nil {
+		return "", ErrAgentProfileUnknown
+	}
+	resp, err := r.identityCli.WorkforceMemberGet(
+		ctx,
+		connect.NewRequest(&identityv1.WorkforceMemberGetRequest{Id: agentID}),
+	)
+	if err != nil {
+		return "", fmt.Errorf("workforce member get %s: %w", agentID, err)
+	}
+	profileID := strings.TrimSpace(resp.Msg.GetData().GetProfileId())
+	if profileID == "" {
+		return "", ErrAgentProfileUnknown
 	}
 	return profileID, nil
 }
@@ -203,6 +244,40 @@ func (n *LoanNotifier) NotifyCollectionRequested(
 		return
 	}
 	n.toClient(ctx, la.ClientID, messages.LoanCollectionRequested, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyPaymentDue reminds the borrower of an installment falling due.
+func (n *LoanNotifier) NotifyPaymentDue(
+	ctx context.Context,
+	la *models.LoanAccount,
+	amountMinor int64,
+	due *time.Time,
+) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
+	vars[messages.VarDueDate] = messages.FormatDate(due)
+	n.toClient(ctx, la.ClientID, messages.LoanPaymentDue, vars, notificationv1.PRIORITY_LOW)
+}
+
+// NotifyPaymentOverdue tells the borrower an installment was missed.
+func (n *LoanNotifier) NotifyPaymentOverdue(
+	ctx context.Context,
+	la *models.LoanAccount,
+	amountMinor int64,
+	due *time.Time,
+	daysOverdue int,
+) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
+	vars[messages.VarDueDate] = messages.FormatDate(due)
+	vars[messages.VarDaysOverdue] = daysOverdue
+	n.toClient(ctx, la.ClientID, messages.LoanPaymentOverdue, vars, notificationv1.PRIORITY_HIGH)
 }
 
 // --- arrears and servicing ---
