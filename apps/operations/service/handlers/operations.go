@@ -210,6 +210,9 @@ func transferOrderFromAPI(ctx context.Context, obj *operationsv1.TransferOrderOb
 	}
 	if obj.GetExtraData() != nil {
 		m.ExtraData = (&data.JSONMap{}).FromProtoStruct(obj.GetExtraData())
+		// The allocation path marks the orders it raises itself; a caller
+		// cannot claim that provenance through the API.
+		delete(m.ExtraData, "source")
 	}
 	m.GenID(ctx)
 	if obj.GetId() != "" {

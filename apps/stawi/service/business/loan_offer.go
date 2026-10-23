@@ -18,9 +18,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
+
+	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
@@ -387,14 +393,39 @@ func (b *loanOfferBusiness) createLoanFromOffer(
 			"loan management service is required to originate a loan")
 	}
 
+	// The loans service needs the whole application: who the borrower is,
+	// the currency, the term and rate, and where the money goes. A request
+	// missing any of them is refused there, and the group's loan never exists.
+	clientID, payout, err := b.borrowerForOffer(ctx, offer)
+	if err != nil {
+		return err
+	}
+	// Stawi does not verify KYC itself, so it does not assert it: the loans
+	// service keeps its own verification gate for products that require it.
+	props, propErr := structpb.NewStruct(map[string]any{
+		"payment_account_ref": payout,
+		"payment_channel":     "mobile_money",
+		"group_offer_id":      offerID,
+	})
+	if propErr != nil {
+		return fmt.Errorf("loan request properties: %w", propErr)
+	}
 	offerMoney := minorUnitsToMoney(offer.Amount, offer.Currency)
 	lrObj := &loansv1.LoanRequestObject{
-		RequestedAmount: offerMoney,
-		ApprovedAmount:  offerMoney,
-		Purpose:         fmt.Sprintf("Group loan offer %s", offerID),
-		SourceService:   "stawi",
-		SourceRequestId: offerID,
-		Status:          loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED,
+		ClientId:          clientID,
+		ProductId:         b.product.LoanProductID,
+		RequestedAmount:   offerMoney,
+		ApprovedAmount:    offerMoney,
+		RequestedTermDays: b.product.LoanTermDays(),
+		ApprovedTermDays:  b.product.LoanTermDays(),
+		InterestRate:      basisPointsToPercent(b.product.LoanInterestRatePA),
+		CurrencyCode:      offer.Currency,
+		Purpose:           fmt.Sprintf("Group loan offer %s", offerID),
+		SourceService:     "stawi",
+		SourceRequestId:   offerID,
+		IdempotencyKey:    "stawi:" + offerID,
+		Status:            loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED,
+		Properties:        props,
 	}
 	lrResp, lrErr := b.clients.LenderLoanMgmt.LoanRequestSave(ctx, connect.NewRequest(
 		&loansv1.LoanRequestSaveRequest{Data: lrObj},
@@ -509,4 +540,88 @@ func (b *loanOfferBusiness) getMembersByGroupID(
 	}
 
 	return members, nil
+}
+
+// borrowerForOffer resolves the member behind an offer to the lender's client
+// id and the member's payout phone number.
+func (b *loanOfferBusiness) borrowerForOffer(ctx context.Context, offer *models.LoanOffer) (string, string, error) {
+	if b.identityCli == nil || b.clients == nil || b.clients.ProfileClient == nil || b.clients.LenderIdentity == nil {
+		return "", "", apperrors.NewError(apperrors.ServiceUnavailable,
+			"identity, lender identity and profile services are required to originate a loan")
+	}
+	resp, err := b.identityCli.MembershipGet(ctx,
+		connect.NewRequest(&identityv1.MembershipGetRequest{Id: offer.MembershipID}))
+	if err != nil {
+		return "", "", fmt.Errorf("membership get: %w", err)
+	}
+	membership := resp.Msg.GetData()
+	clientID := ""
+	if props := membership.GetProperties(); props != nil {
+		if v, ok := props.AsMap()["client_id"].(string); ok {
+			clientID = v
+		}
+	}
+	if clientID == "" {
+		return "", "", apperrors.NewError(apperrors.Unprocessable,
+			"member is not registered as a client with the lender; run group registration first")
+	}
+	// The membership property is a hint, not an identity: the lender's client
+	// row must belong to this member's profile before money is lent on it.
+	client, err := b.clients.LenderIdentity.ClientGet(ctx, connect.NewRequest(&fieldv1.ClientGetRequest{Id: clientID}))
+	if err != nil {
+		return "", "", fmt.Errorf("client get: %w", err)
+	}
+	if client.Msg.GetData().GetProfileId() == "" || client.Msg.GetData().GetProfileId() != membership.GetProfileId() {
+		return "", "", apperrors.NewError(apperrors.Unprocessable,
+			"the client recorded on the membership belongs to a different person")
+	}
+	profile, err := b.clients.ProfileClient.GetById(ctx,
+		connect.NewRequest(&profilev1.GetByIdRequest{Id: membership.GetProfileId()}))
+	if err != nil {
+		return "", "", fmt.Errorf("profile get: %w", err)
+	}
+	payout := verifiedPhoneContact(profile.Msg.GetData())
+	if payout == "" {
+		return "", "", apperrors.NewError(apperrors.Unprocessable,
+			"member has no verified phone number to disburse to")
+	}
+	return clientID, payout, nil
+}
+
+// verifiedPhoneContact returns the profile's first active, verified phone
+// contact. Money is never sent to a number nobody has confirmed.
+func verifiedPhoneContact(profile *profilev1.ProfileObject) string {
+	for _, contact := range profile.GetContacts() {
+		if contact == nil || !contact.GetVerified() {
+			continue
+		}
+		if contact.GetState() == commonv1.STATE_DELETED || contact.GetState() == commonv1.STATE_INACTIVE {
+			continue
+		}
+		detail := strings.TrimSpace(contact.GetDetail())
+		if detail == "" || strings.Contains(detail, "@") {
+			continue
+		}
+		digits := 0
+		for _, r := range detail {
+			if r >= '0' && r <= '9' {
+				digits++
+			}
+		}
+		if digits >= minPayoutPhoneDigits {
+			return detail
+		}
+	}
+	return ""
+}
+
+// minPayoutPhoneDigits is the shortest run of digits a payout number has.
+const minPayoutPhoneDigits = 8
+
+// basisPointsPerPercent is how many basis points make one percent.
+const basisPointsPerPercent = 100
+
+// basisPointsToPercent renders 2400 basis points as "24.00".
+func basisPointsToPercent(bp int64) string {
+	return fmt.Sprintf("%d.%02d", bp/basisPointsPerPercent, bp%basisPointsPerPercent)
 }

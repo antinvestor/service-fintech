@@ -27,6 +27,7 @@ import (
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
+	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v1/paymentv1connect"
 	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
 	"connectrpc.com/connect"
@@ -1272,6 +1273,34 @@ func (b *transferOrderBusiness) handleLoanDisbursement(ctx context.Context, orde
 	return nil
 }
 
+// recordRepaymentWithLender records an allocated group payment as a repayment
+// on the loans service. Best-effort: the ledger leg has posted; a failure
+// here is logged loudly for reconciliation and the order still completes.
+func (b *transferOrderBusiness) recordRepaymentWithLender(
+	ctx context.Context,
+	logger *util.LogEntry,
+	order *models.TransferOrder,
+	loanID string,
+) {
+	if b.clients == nil || b.clients.LenderLoanMgmt == nil {
+		logger.Error("loan repayment not recorded with the lender: loans client not configured")
+		return
+	}
+	_, err := b.clients.LenderLoanMgmt.RepaymentRecord(ctx, connect.NewRequest(&loansv1.RepaymentRecordRequest{
+		LoanAccountId:    loanID,
+		Amount:           minorToMoney(order.Currency, order.Amount),
+		PaymentReference: order.Reference,
+		Channel:          "savings",
+		IdempotencyKey:   order.Reference,
+	}))
+	if err != nil {
+		logger.WithError(err).WithField("loan_id", loanID).
+			Error("loan repayment posted to the ledger but not recorded with the lender; needs reconciliation")
+		return
+	}
+	logger.WithField("loan_id", loanID).Info("loan repayment recorded with the lender")
+}
+
 // handleLoanRepayment processes a loan principal repayment transfer.
 // Debit: member suspense -> Credit: subscription loans account.
 // Side effect: records the repayment in Lender loans.
@@ -1297,6 +1326,18 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 		WithField("interest", interestPortion).
 		WithField("fees", feesPortion).
 		Info("recording loan repayment in lender system")
+
+	// A group member's payment allocated to their loan must reach the loans
+	// service, or the loan never shows the repayment. Only orders this
+	// service raised from a payment allocation (server-set source marker) are
+	// fed back; the order reference is the idempotency key, so a replayed
+	// order records one repayment. The loans service then raises its own
+	// repayment orders, which redistribute to investors below, so a forwarded
+	// order must not redistribute as well.
+	if loanID != "" && extraDataString(order, extraKeySource) == allocationSourceMarker {
+		b.recordRepaymentWithLender(ctx, logger, order, loanID)
+		return
+	}
 
 	// Loan repayment recording is handled by the loans app via its own event
 	// pipeline. The operations app only manages ledger postings and redistribution.

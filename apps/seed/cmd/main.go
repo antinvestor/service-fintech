@@ -43,6 +43,7 @@ import (
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"github.com/antinvestor/common/v2"
 	"github.com/antinvestor/common/v2/connection"
 	"github.com/antinvestor/common/v2/permissions"
@@ -153,7 +154,15 @@ func main() {
 
 	auditWriter := audit.NewWriter(evtsMan)
 
-	kycVerifier, loanCreator, clientResolver := buildPeers(ctx, &cfg, log)
+	if cfg.IsRunSecurely() && strings.TrimSpace(cfg.SeedKYCRequiredFields) == "" {
+		// Without named fields any single verified entry passes KYC. That is
+		// a local-development shortcut, never a production policy.
+		log.Error(
+			"main -- SEED_KYC_REQUIRED_FIELDS must name the KYC fields a borrower needs verified; refusing to start",
+		)
+		return
+	}
+	kycVerifier, loanCreator, clientResolver, payouts := buildPeers(ctx, &cfg, log)
 
 	cpBusiness := business.NewCreditProfileBusiness(ctx, cpRepo, tierRepo, evtsMan, auditWriter)
 	lrBusiness := business.NewLoanRequestBusiness(
@@ -165,6 +174,7 @@ func main() {
 		kycVerifier,
 		loanCreator,
 		auditWriter,
+		business.WithPayoutResolver(payouts),
 	)
 
 	serviceOptions := []frame.Option{
@@ -192,7 +202,7 @@ func buildPeers(
 	ctx context.Context,
 	cfg *aconfig.SeedConfig,
 	log *util.LogEntry,
-) (business.KYCVerifier, business.LoanCreator, business.ClientResolver) {
+) (business.KYCVerifier, business.LoanCreator, business.ClientResolver, business.PayoutDestinationResolver) {
 	identityCli, idErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  cfg.IdentityServiceURI,
 		ServiceID: servicecatalog.ServiceIdentity,
@@ -216,9 +226,19 @@ func buildPeers(
 		log.WithError(loanErr).Fatal("main -- loans client is required but could not be created")
 	}
 
+	profileCli, profileErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
+		Endpoint:              cfg.ProfileServiceURI,
+		WorkloadAPITargetPath: cfg.ProfileServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceProfile,
+	}, profilev1connect.NewProfileServiceClient)
+	if profileErr != nil {
+		log.WithError(profileErr).Fatal("main -- profile client is required but could not be created")
+	}
+
 	return business.NewIdentityKYCVerifier(identityCli, splitCSV(cfg.SeedKYCRequiredFields)),
 		business.NewLoansLoanCreator(loansCli),
-		business.NewIdentityClientResolver(fieldCli)
+		business.NewIdentityClientResolver(fieldCli),
+		business.NewProfilePayoutResolver(fieldCli, profileCli)
 }
 
 // runSetup migrates the schema and provisions the default credit ladder. Any

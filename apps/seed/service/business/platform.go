@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
@@ -123,8 +125,20 @@ func (c *loansLoanCreator) CreateApplication(
 	req LoanCreationRequest,
 ) (string, error) {
 	amount := moneyx.FromMinorUnitsByCurrency(req.CurrencyCode, req.Amount)
+	// Seed is a service principal: it has verified the borrower's KYC itself
+	// and names the payout destination; the loans service keeps these only
+	// from staff and services.
+	props, propErr := structpb.NewStruct(map[string]any{
+		"data_verification_confirmed": true,
+		"payment_account_ref":         req.PayoutAccountRef,
+		"payment_channel":             "mobile_money",
+	})
+	if propErr != nil {
+		return "", fmt.Errorf("loan request properties: %w", propErr)
+	}
 	resp, err := c.loansCli.LoanRequestSave(ctx, connect.NewRequest(&loansv1.LoanRequestSaveRequest{
 		Data: &loansv1.LoanRequestObject{
+			Properties:        props,
 			ProductId:         req.ProductID,
 			ClientId:          req.ClientID,
 			Status:            loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED,

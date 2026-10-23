@@ -40,6 +40,13 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
+// extraKeySource and allocationSourceMarker mark orders this service raised
+// from a payment allocation; downstream trusts the marker, not the caller.
+const (
+	extraKeySource         = "source"
+	allocationSourceMarker = "payment_allocation"
+)
+
 // allocationLeaseStaleAfter is how long an allocation run may hold a payment
 // before another run treats it as crashed and takes over.
 const allocationLeaseStaleAfter = 2 * time.Minute
@@ -957,6 +964,19 @@ func (b *paymentRoutingBusiness) allocateObligation(
 	paymentID, membershipID string,
 	allocAmount int64,
 ) (*models.TransferOrder, allocationOutcome) {
+	// ExtraData is written by this allocation path only: the loans feedback
+	// in the transfer-order side effect trusts the server-set source marker,
+	// never a loan id a caller put on an order.
+	extra := data.JSONMap{
+		extraKeySource:     allocationSourceMarker,
+		"payment_id":       paymentID,
+		"obligation_id":    obl.GetID(),
+		"membership_id":    membershipID,
+		"obligation_cause": obl.CauseType,
+	}
+	if strings.HasPrefix(obl.CauseType, "loan_") && obl.CauseID != "" {
+		extra["loan_id"] = obl.CauseID
+	}
 	to := &models.TransferOrder{
 		DebitAccountRef:  constants.MemberSuspenseAccount(membershipID),
 		CreditAccountRef: b.creditAccountForBucket(bkt.name, membershipID, obl),
@@ -966,6 +986,7 @@ func (b *paymentRoutingBusiness) allocateObligation(
 		Reference:        fmt.Sprintf("payment:%s:obligation:%s", paymentID, obl.GetID()),
 		Description:      fmt.Sprintf("Auto-allocation of %s from payment %s", bkt.name, paymentID),
 		State:            int32(constants.StateJustCreated),
+		ExtraData:        extra,
 	}
 	to.GenID(ctx)
 	to.CopyPartitionInfo(&payment.BaseModel)

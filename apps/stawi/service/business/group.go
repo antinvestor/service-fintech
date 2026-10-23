@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
@@ -302,10 +304,34 @@ func (b *groupBusiness) registerMembers(
 			logger.WithField("membership_id", m.GetId()).
 				WithField("client_id", clientID).
 				Info("member registered as client")
+			// Remember the client on the membership, so a retried welcome
+			// does not register the member a second time and loan
+			// origination knows which client to lend to.
+			if err := b.rememberClientID(ctx, m, clientID); err != nil {
+				logger.WithError(err).WithField("membership_id", m.GetId()).
+					Error("could not record client id on membership")
+				failures = append(failures, fmt.Errorf("membership %s: %w", m.GetId(), err))
+			}
 		}
 	}
 	if len(failures) > 0 {
 		return errors.Join(failures...)
 	}
 	return nil
+}
+
+// rememberClientID stores the lender's client id on the membership.
+func (b *groupBusiness) rememberClientID(ctx context.Context, m *identityv1.MembershipObject, clientID string) error {
+	props := map[string]any{}
+	if m.GetProperties() != nil {
+		props = m.GetProperties().AsMap()
+	}
+	props["client_id"] = clientID
+	updated, err := structpb.NewStruct(props)
+	if err != nil {
+		return err
+	}
+	m.Properties = updated
+	_, err = b.identityCli.MembershipSave(ctx, connect.NewRequest(&identityv1.MembershipSaveRequest{Data: m}))
+	return err
 }

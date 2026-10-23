@@ -106,6 +106,9 @@ type LoanCreationRequest struct {
 	InterestRateBP int64 // basis points
 	TermDays       int32
 	IdempotencyKey string
+	// PayoutAccountRef is where the loan is paid out: the borrower's mobile
+	// money number. The loans service refuses to disburse without one.
+	PayoutAccountRef string
 }
 
 // ErrClientNotKYCVerified is returned when a loan request cannot proceed
@@ -161,6 +164,15 @@ type loanRequestBusiness struct {
 	kycVerifier KYCVerifier
 	loanCreator LoanCreator
 	auditWriter *audit.Writer
+	payouts     PayoutDestinationResolver
+}
+
+// Option configures optional collaborators of the loan request business.
+type Option func(*loanRequestBusiness)
+
+// WithPayoutResolver installs the resolver of the borrower's payout destination.
+func WithPayoutResolver(r PayoutDestinationResolver) Option {
+	return func(b *loanRequestBusiness) { b.payouts = r }
 }
 
 // NewLoanRequestBusiness builds the business bound to its dependencies.
@@ -176,8 +188,9 @@ func NewLoanRequestBusiness(
 	kycVerifier KYCVerifier,
 	loanCreator LoanCreator,
 	auditWriter *audit.Writer,
+	opts ...Option,
 ) LoanRequestBusiness {
-	return &loanRequestBusiness{
+	b := &loanRequestBusiness{
 		cpBusiness:  cpBusiness,
 		cpRepo:      cpRepo,
 		lrRepo:      lrRepo,
@@ -186,6 +199,12 @@ func NewLoanRequestBusiness(
 		loanCreator: loanCreator,
 		auditWriter: auditWriter,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(b)
+		}
+	}
+	return b
 }
 
 // RequestLoan is the complete customer-initiated loan pipeline. The
@@ -349,15 +368,27 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 	}
 
 	// Downstream application.
+	// The loan is paid out to the borrower's own phone; without a destination
+	// the loans service would create an account nothing can disburse.
+	payout := ""
+	if b.payouts != nil {
+		resolved, payoutErr := b.payouts.PayoutDestination(ctx, req.ClientID)
+		if payoutErr != nil {
+			return nil, b.persistRequestFailure(ctx, profile.GetID(), lr, payoutErr, "resolve payout destination")
+		}
+		payout = resolved
+	}
+
 	appID, appErr := b.loanCreator.CreateApplication(ctx, LoanCreationRequest{
-		ClientID:       req.ClientID,
-		ProductID:      req.ProductID,
-		Amount:         req.Amount,
-		CurrencyCode:   req.CurrencyCode,
-		Purpose:        req.Purpose,
-		InterestRateBP: tier.InterestRate,
-		TermDays:       tier.TermDays,
-		IdempotencyKey: "seed:" + lr.GetID(),
+		ClientID:         req.ClientID,
+		ProductID:        req.ProductID,
+		Amount:           req.Amount,
+		CurrencyCode:     req.CurrencyCode,
+		Purpose:          req.Purpose,
+		InterestRateBP:   tier.InterestRate,
+		TermDays:         tier.TermDays,
+		IdempotencyKey:   "seed:" + lr.GetID(),
+		PayoutAccountRef: payout,
 	})
 	if appErr != nil {
 		return nil, b.persistRequestFailure(ctx, profile.GetID(), lr, appErr, "create application")
