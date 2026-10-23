@@ -24,6 +24,7 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
@@ -119,6 +120,17 @@ func postMigrate(ctx context.Context, dbPool pool.Pool) error {
 		"transaction_id",
 		"transaction_id <> ''",
 	); err != nil {
+		return err
+	}
+
+	// Allocation orders written before obligation_consumed existed had their
+	// obligation consumed right after being written; mark them so a retry
+	// does not try to consume again. Idempotent.
+	if err := db.Exec(
+		"UPDATE transfer_orders SET obligation_consumed = true "+
+			"WHERE reference LIKE 'payment:%:obligation:%' AND obligation_consumed = false AND state <> ?",
+		int32(constants.StateShutdown),
+	).Error; err != nil {
 		return err
 	}
 

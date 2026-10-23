@@ -85,24 +85,43 @@ func (c *profilePayoutChecker) Allowed(ctx context.Context, la *models.LoanAccou
 }
 
 // contactMatchesDestination compares a profile contact with a payout
-// destination: emails case-insensitively, phone numbers on their trailing
-// digits so "+256701000000", "0701000000" and "256701000000" agree.
+// destination of the same kind. Emails match case-insensitively, and only
+// against an email contact. Phone numbers match on the full number: exactly,
+// or a national form ("0701000000") against the contact's international form
+// ("+256701000000") when the whole national number agrees. Digits are never
+// compared across kinds or on an arbitrary suffix.
 func contactMatchesDestination(contact, destination string) bool {
 	contact = strings.TrimSpace(contact)
 	destination = strings.TrimSpace(destination)
 	if contact == "" || destination == "" {
 		return false
 	}
-	if strings.EqualFold(contact, destination) {
-		return true
+	contactIsEmail, destinationIsEmail := strings.Contains(contact, "@"), strings.Contains(destination, "@")
+	if contactIsEmail || destinationIsEmail {
+		return contactIsEmail && destinationIsEmail && strings.EqualFold(contact, destination)
 	}
+
 	cd, dd := digitsOf(contact), digitsOf(destination)
 	if len(cd) < minMSISDNDigits || len(dd) < minMSISDNDigits {
 		return false
 	}
-	n := min(len(cd), len(dd), minMSISDNDigits)
-	return cd[len(cd)-n:] == dd[len(dd)-n:]
+	if cd == dd {
+		return true
+	}
+	// National form against an international contact: "0" + national number
+	// must be the whole tail of the contact after its country code.
+	if strings.HasPrefix(contact, "+") && strings.HasPrefix(dd, "0") {
+		national := dd[1:]
+		return len(national) >= minMSISDNDigits &&
+			strings.HasSuffix(cd, national) &&
+			len(cd)-len(national) <= maxCountryCodeDigits
+	}
+	return false
 }
+
+// maxCountryCodeDigits bounds how much of an international contact may be
+// country code when matching a national-form destination against it.
+const maxCountryCodeDigits = 3
 
 func digitsOf(s string) string {
 	var b strings.Builder

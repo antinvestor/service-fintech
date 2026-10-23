@@ -177,6 +177,10 @@ var (
 		apperrors.ServiceUnavailable,
 		"the disbursement could not be settled; retry with the same idempotency key",
 	)
+	ErrCashRepaymentNeedsCollector = apperrors.NewError(
+		apperrors.BadRequest,
+		"a cash repayment must be recorded by the staff member or field agent who holds the cash",
+	)
 	ErrLoanRequestSelfDecision = apperrors.NewError(
 		apperrors.Forbidden,
 		"the person who submitted a loan request cannot decide it",

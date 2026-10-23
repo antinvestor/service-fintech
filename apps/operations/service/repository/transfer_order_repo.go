@@ -16,6 +16,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/pitabwire/frame/v2/data"
@@ -81,9 +82,13 @@ type TransferOrderRepository interface {
 	// never touches a claim that recorded a payment id.
 	RetakePaymentInitiation(ctx context.Context, orderID string, observed time.Time) (bool, error)
 
-	// MarkObligationConsumed records that the obligation behind an allocation
-	// order has been consumed.
-	MarkObligationConsumed(ctx context.Context, orderID string) error
+	// ConsumeObligationForOrder consumes amount from the obligation and marks
+	// the allocation order consumed in one transaction, so there is never an
+	// order whose obligation was consumed without the order saying so, nor an
+	// order marked consumed whose obligation was not. It reports false when
+	// the obligation could not be consumed (nothing is changed) and errors
+	// when the order could not be marked (nothing is committed).
+	ConsumeObligationForOrder(ctx context.Context, orderID, obligationID string, amount int64) (bool, error)
 
 	// MarkFailedIfUnposted moves an order to StateShutdown only while neither
 	// its ledger leg nor its payout has progressed. An order that has posted
@@ -305,13 +310,57 @@ func (r *transferOrderRepository) MarkPayoutFailed(ctx context.Context, orderID,
 		}).Error
 }
 
-func (r *transferOrderRepository) MarkObligationConsumed(ctx context.Context, orderID string) error {
-	return r.dbPool.DB(ctx, false).
-		Table("transfer_orders").
-		Where("deleted_at IS NULL AND id = ?", orderID).
-		Updates(map[string]any{
-			"obligation_consumed": true,
-			colModifiedAt:         time.Now().UTC(),
-			colVersion:            gorm.Expr("version + 1"),
-		}).Error
+func (r *transferOrderRepository) ConsumeObligationForOrder(
+	ctx context.Context,
+	orderID, obligationID string,
+	amount int64,
+) (bool, error) {
+	if amount <= 0 {
+		return false, nil
+	}
+	consumed := false
+	err := r.dbPool.DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		obl := tx.Table("obligations").
+			Where("deleted_at IS NULL AND id = ? AND state = ? AND amount >= ?",
+				obligationID, int32(constants.StateActive), amount).
+			Updates(map[string]any{
+				"amount": gorm.Expr("amount - ?", amount),
+				colState: gorm.Expr(
+					"CASE WHEN amount - ? <= 0 THEN ? ELSE state END",
+					amount,
+					int32(constants.StateInactive),
+				),
+				colModifiedAt: time.Now().UTC(),
+				colVersion:    gorm.Expr("version + 1"),
+			})
+		if obl.Error != nil {
+			return obl.Error
+		}
+		if obl.RowsAffected == 0 {
+			return nil
+		}
+		mark := tx.Table("transfer_orders").
+			Where("deleted_at IS NULL AND id = ? AND obligation_consumed = false", orderID).
+			Updates(map[string]any{
+				"obligation_consumed": true,
+				colModifiedAt:         time.Now().UTC(),
+				colVersion:            gorm.Expr("version + 1"),
+			})
+		if mark.Error != nil {
+			return mark.Error
+		}
+		if mark.RowsAffected == 0 {
+			return errOrderAlreadyConsumed
+		}
+		consumed = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return consumed, nil
 }
+
+// errOrderAlreadyConsumed aborts the consume transaction when the order was
+// already marked: the obligation debit above is rolled back with it.
+var errOrderAlreadyConsumed = errors.New("transfer order already marked consumed")

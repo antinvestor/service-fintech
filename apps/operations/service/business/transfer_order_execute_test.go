@@ -168,6 +168,10 @@ func (r *memOrderRepo) MarkFailedIfUnposted(_ context.Context, _ string) (bool, 
 	return true, nil
 }
 
+func (r *memOrderRepo) ConsumeObligationForOrder(_ context.Context, _, _ string, _ int64) (bool, error) {
+	return true, nil
+}
+
 func (r *memOrderRepo) snapshot() models.TransferOrder {
 	r.mu.Lock()
 	defer r.mu.Unlock()

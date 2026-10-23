@@ -527,3 +527,49 @@ func (s *claimsSuite) TestClaimAllocationIsExclusiveAndStaleAware() {
 	s.Require().NoError(err)
 	s.Require().True(takeover, "a stale lease is taken over")
 }
+
+// Consuming an obligation and marking its allocation order are one
+// transaction: a second attempt for the same order changes nothing, and an
+// obligation too small for the amount leaves both rows untouched.
+func (s *claimsSuite) TestConsumeObligationForOrderIsAtomic() {
+	e := s.newEnv()
+
+	obligation := &models.Obligation{
+		MembershipID: "member-atomic", CauseType: "loan_principal", Amount: 50_000,
+		State: int32(constants.StateActive),
+	}
+	obligation.GenID(e.ctx)
+	s.Require().NoError(e.obs.Create(e.ctx, obligation))
+
+	order := s.newOrder(e.ctx, "payment:p1:obligation:"+obligation.GetID())
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+
+	consumed, err := e.orders.ConsumeObligationForOrder(e.ctx, order.GetID(), obligation.GetID(), 30_000)
+	s.Require().NoError(err)
+	s.Require().True(consumed)
+
+	storedOrder, err := e.orders.GetByID(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().True(storedOrder.ObligationConsumed)
+	storedObl, err := e.obs.GetByID(e.ctx, obligation.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(int64(20_000), storedObl.Amount)
+
+	// Same order again: the mark refuses and the obligation debit rolls back.
+	again, err := e.orders.ConsumeObligationForOrder(e.ctx, order.GetID(), obligation.GetID(), 20_000)
+	s.Require().Error(err)
+	s.Require().False(again)
+	storedObl, err = e.obs.GetByID(e.ctx, obligation.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(int64(20_000), storedObl.Amount, "the rolled-back debit must not land")
+
+	// A fresh order for more than remains: nothing consumed, nothing marked.
+	other := s.newOrder(e.ctx, "payment:p2:obligation:"+obligation.GetID())
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, other))
+	consumed, err = e.orders.ConsumeObligationForOrder(e.ctx, other.GetID(), obligation.GetID(), 25_000)
+	s.Require().NoError(err)
+	s.Require().False(consumed)
+	storedOther, err := e.orders.GetByID(e.ctx, other.GetID())
+	s.Require().NoError(err)
+	s.Require().False(storedOther.ObligationConsumed)
+}

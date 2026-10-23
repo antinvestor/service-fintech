@@ -170,10 +170,18 @@ func TestFrequencyToPeriodTypeRefusesUnsupported(t *testing.T) {
 }
 
 func TestContactMatchesDestination(t *testing.T) {
-	assert.True(t, contactMatchesDestination("+254700000001", "0700000001"))
-	assert.True(t, contactMatchesDestination("254700000001", "+254 700 000 001"))
+	assert.True(
+		t,
+		contactMatchesDestination("+254700000001", "0700000001"),
+		"national form against the international contact",
+	)
+	assert.True(t, contactMatchesDestination("254700000001", "+254 700 000 001"), "same number, different punctuation")
 	assert.True(t, contactMatchesDestination("Amina@Example.com", "amina@example.com"))
 	assert.False(t, contactMatchesDestination("+254700000001", "+254700000002"))
+	assert.False(t, contactMatchesDestination("+254700000001", "+255700000001"), "same national number, other country")
+	assert.False(t, contactMatchesDestination("0700000001", "0700000001999"), "no suffix matching across lengths")
+	assert.False(t, contactMatchesDestination("amina@example.com", "0700000001"), "kinds never cross")
+	assert.False(t, contactMatchesDestination("+254700000001", "x@example.com"))
 	assert.False(t, contactMatchesDestination("12345", "12345678"))
 	assert.False(t, contactMatchesDestination("", "+254700000001"))
 }

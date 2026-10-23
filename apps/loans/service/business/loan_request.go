@@ -494,12 +494,10 @@ func requireSeparationOfDuties(lr *models.LoanRequest, decider string) error {
 	if decider == "" {
 		return nil
 	}
-	maker := lr.SubmittedBy
-	if maker == "" {
-		maker = lr.CreatedBy
-	}
-	if maker != "" && maker == decider {
-		return ErrLoanRequestSelfDecision
+	for _, maker := range []string{lr.SubmittedBy, lr.CreatedBy, lr.AgentID} {
+		if maker != "" && maker == decider {
+			return ErrLoanRequestSelfDecision
+		}
 	}
 	return nil
 }

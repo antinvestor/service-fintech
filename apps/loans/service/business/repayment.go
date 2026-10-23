@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -217,14 +218,23 @@ func (b *repaymentBusiness) recordInner(
 
 	alloc := b.waterfallAllocate(ctx, req.GetLoanAccountId(), amount, balance)
 
+	channel := NormalizeRepaymentChannel(req.GetChannel())
+	collector := b.collectorFor(ctx, la)
+	if channel == RepaymentChannelCash && collector == "" {
+		// Cash exists only in someone's hands. A cash repayment nobody is
+		// accountable for cannot be booked.
+		return nil, ErrCashRepaymentNeedsCollector
+	}
+
 	r := &models.Repayment{
 		LoanAccountID:    req.GetLoanAccountId(),
 		Amount:           amount,
 		CurrencyCode:     la.CurrencyCode,
 		Status:           int32(alloc.status),
 		PaymentReference: req.GetPaymentReference(),
-		Channel:          req.GetChannel(),
+		Channel:          channel,
 		PayerReference:   req.GetPayerReference(),
+		CollectedBy:      collector,
 		PrincipalApplied: alloc.principalApplied,
 		InterestApplied:  alloc.interestApplied,
 		FeesApplied:      alloc.feesApplied,
@@ -264,13 +274,16 @@ func (b *repaymentBusiness) recordInner(
 		logger,
 		la,
 		alloc,
-		req.GetChannel(),
+		channel,
 		req.GetPaymentReference(),
 	); applyErr != nil {
 		return nil, applyErr
 	}
 
 	b.auditRepayment(ctx, logger, la, r, alloc, req)
+	if collector != "" {
+		b.notifier.NotifyAgentCollectionRecorded(ctx, la, collector, amount, channel, req.GetPaymentReference())
+	}
 
 	currencyAttr := attribute.String("currency", la.CurrencyCode)
 	LoansRepaid.Add(ctx, 1, currencyAttr)
@@ -313,7 +326,8 @@ func (b *repaymentBusiness) auditRepayment(
 			fieldClientID:       la.ClientID,
 			fieldAmount:         r.Amount,
 			fieldCurrency:       la.CurrencyCode,
-			"channel":           req.GetChannel(),
+			"channel":           r.Channel,
+			"collected_by":      r.CollectedBy,
 			"payment_reference": req.GetPaymentReference(),
 			"payer_reference":   req.GetPayerReference(),
 			fieldIdempotencyKey: req.GetIdempotencyKey(),
@@ -479,7 +493,14 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 	// retry mints a new row, so a row-keyed reference would let components
 	// that already posted post a second time.
 	repRef := repayment.IdempotencyKey
+	// Where the money comes from depends on how it arrived. Cash collected in
+	// the field sits with the agent until remitted, so it is debited from the
+	// agent's cash-in-hand account, which is what the agent then owes the
+	// till. Every other channel reached the borrower's own account first.
 	memberAccount := constants.MemberLoansAccount(la.ClientID)
+	if repayment.Channel == RepaymentChannelCash && repayment.CollectedBy != "" {
+		memberAccount = constants.AgentCashAccount(repayment.CollectedBy)
+	}
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 	baseExtraData := data.JSONMap{
 		"loan_id":          la.GetID(),
@@ -812,4 +833,52 @@ func (b *repaymentBusiness) Search(
 		}
 		return consumer(ctx, apiResults)
 	})
+}
+
+// Repayment channels as stored. Callers send free text; it is folded onto
+// these so reports, ledger legs and messages agree on what happened.
+const (
+	RepaymentChannelCash        = "cash"
+	RepaymentChannelMobileMoney = "mobile_money"
+	RepaymentChannelBank        = "bank"
+	RepaymentChannelSavings     = "savings"
+	RepaymentChannelOther       = "other"
+)
+
+// NormalizeRepaymentChannel folds the channel a caller typed onto the stored
+// vocabulary. Unknown values become "other" rather than a new spelling.
+func NormalizeRepaymentChannel(raw string) string {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	v = strings.NewReplacer("-", "_", " ", "_").Replace(v)
+	switch v {
+	case "cash", "agent_cash", "cash_agent", "field_cash", "field":
+		return RepaymentChannelCash
+	case "mobile_money", "mobile", "momo", "mpesa", "m_pesa", "airtel_money", "mtn_momo", "ussd":
+		return RepaymentChannelMobileMoney
+	case "bank", "bank_transfer", "eft", "rtgs", "cheque", "check":
+		return RepaymentChannelBank
+	case "savings", "wallet", "savings_account":
+		return RepaymentChannelSavings
+	case "":
+		return RepaymentChannelOther
+	default:
+		return RepaymentChannelOther
+	}
+}
+
+// collectorFor names the staff member or field agent recording the repayment
+// on the borrower's behalf: the caller, unless the caller is the borrower.
+func (b *repaymentBusiness) collectorFor(ctx context.Context, la *models.LoanAccount) string {
+	subject := callerSubject(ctx)
+	if subject == "" {
+		return ""
+	}
+	if b.scope != nil && !b.scope.IsStaff(ctx) {
+		// A client caller is the borrower (AuthorizeClient has already
+		// established they own the loan); they are not collecting.
+		if err := b.scope.AuthorizeClient(ctx, la.ClientID); err == nil {
+			return ""
+		}
+	}
+	return subject
 }

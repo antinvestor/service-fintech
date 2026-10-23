@@ -486,6 +486,27 @@ type allocOrderRepoStub struct {
 	stubTransferOrderRepo
 	byReference map[string]*models.TransferOrder
 	parked      []string
+	obligations *allocObligationRepoStub
+}
+
+func (r *allocOrderRepoStub) ConsumeObligationForOrder(
+	ctx context.Context,
+	orderID, obligationID string,
+	amount int64,
+) (bool, error) {
+	if r.obligations == nil {
+		return false, nil
+	}
+	consumed, err := r.obligations.ConsumeAmount(ctx, obligationID, amount)
+	if err != nil || !consumed {
+		return consumed, err
+	}
+	for _, o := range r.byReference {
+		if o.GetID() == orderID {
+			o.ObligationConsumed = true
+		}
+	}
+	return true, nil
 }
 
 func (r *allocOrderRepoStub) CreateIfAbsent(_ context.Context, order *models.TransferOrder) error {
@@ -501,15 +522,6 @@ func (r *allocOrderRepoStub) CreateIfAbsent(_ context.Context, order *models.Tra
 	}
 	cp := *order
 	r.byReference[order.Reference] = &cp
-	return nil
-}
-
-func (r *allocOrderRepoStub) MarkObligationConsumed(_ context.Context, id string) error {
-	for _, o := range r.byReference {
-		if o.GetID() == id {
-			o.ObligationConsumed = true
-		}
-	}
 	return nil
 }
 
@@ -546,7 +558,7 @@ func TestAllocatePayment_ReplayNeverReallocatesAndLeaseIsExclusive(t *testing.T)
 		newSavingsObligation("ob-1", 50_000),
 		newSavingsObligation("ob-2", 50_000),
 	}}
-	orders := &allocOrderRepoStub{}
+	orders := &allocOrderRepoStub{obligations: obligations}
 	business := &paymentRoutingBusiness{
 		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
 		ipRepo:    paymentRepo,
@@ -597,7 +609,7 @@ func TestAllocatePayment_StartsFromThePersistedRemainder(t *testing.T) {
 	paymentRepo.store(payment)
 
 	obligations := &allocObligationRepoStub{obligations: []*models.Obligation{newSavingsObligation("ob-9", 50_000)}}
-	orders := &allocOrderRepoStub{}
+	orders := &allocOrderRepoStub{obligations: obligations}
 	business := &paymentRoutingBusiness{
 		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
 		ipRepo:    paymentRepo,
@@ -636,7 +648,10 @@ func TestAllocatePayment_ExistingOrderIsNotCountedTwice(t *testing.T) {
 	prior := &models.TransferOrder{Reference: "payment:" + payment.GetID() + ":obligation:ob-5",
 		Amount: 30_000, Currency: "UGX", ObligationConsumed: true}
 	prior.GenID(context.Background())
-	orders := &allocOrderRepoStub{byReference: map[string]*models.TransferOrder{prior.Reference: prior}}
+	orders := &allocOrderRepoStub{
+		byReference: map[string]*models.TransferOrder{prior.Reference: prior},
+		obligations: obligations,
+	}
 	business := &paymentRoutingBusiness{
 		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
 		ipRepo:    paymentRepo,
@@ -663,7 +678,10 @@ func TestAllocatePayment_ExistingOrderIsNotCountedTwice(t *testing.T) {
 	unfinished := &models.TransferOrder{Reference: "payment:" + payment2.GetID() + ":obligation:ob-6",
 		Amount: 30_000, Currency: "UGX"}
 	unfinished.GenID(context.Background())
-	orders2 := &allocOrderRepoStub{byReference: map[string]*models.TransferOrder{unfinished.Reference: unfinished}}
+	orders2 := &allocOrderRepoStub{
+		byReference: map[string]*models.TransferOrder{unfinished.Reference: unfinished},
+		obligations: obligations2,
+	}
 	business2 := &paymentRoutingBusiness{
 		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
 		ipRepo:    paymentRepo,
@@ -693,7 +711,7 @@ func TestAllocatePayment_UnknownRemainderFailsClosed(t *testing.T) {
 		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
 		ipRepo:    paymentRepo,
 		obRepo:    obligations,
-		toRepo:    &allocOrderRepoStub{},
+		toRepo:    &allocOrderRepoStub{obligations: obligations},
 	}
 
 	result, err := business.AllocatePayment(context.Background(), payment.GetID())

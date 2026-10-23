@@ -18,6 +18,8 @@ import (
 	"context"
 	"time"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"github.com/pitabwire/frame/v2/data"
@@ -450,9 +452,27 @@ type Repayment struct {
 	ExcessAmount        int64
 	IdempotencyKey      string `gorm:"type:varchar(100);index:idx_rep_idem"`
 	Properties          data.JSONMap
+	// CollectedBy is the profile of the staff member or field agent who
+	// recorded the repayment, from the caller's claims. Empty when the
+	// borrower paid directly. Cash collected in the field is reconciled
+	// against this person.
+	CollectedBy string `gorm:"type:varchar(50);index:idx_rep_collector"`
 }
 
 func (m *Repayment) TableName() string { return "repayments" }
+
+// apiPropertiesStruct exposes the collector on the wire until the proto
+// carries a field for it, without mutating the stored properties.
+func (m *Repayment) apiPropertiesStruct() *structpb.Struct {
+	out := data.JSONMap{}
+	for k, v := range m.Properties {
+		out[k] = v
+	}
+	if m.CollectedBy != "" {
+		out["collected_by"] = m.CollectedBy
+	}
+	return out.ToProtoStruct()
+}
 
 func (m *Repayment) ToAPI() *loansv1.RepaymentObject {
 	cc := m.CurrencyCode
@@ -472,7 +492,7 @@ func (m *Repayment) ToAPI() *loansv1.RepaymentObject {
 		PenaltiesApplied:    MinorUnitsToMoney(m.PenaltiesApplied, cc),
 		ExcessAmount:        MinorUnitsToMoney(m.ExcessAmount, cc),
 		IdempotencyKey:      m.IdempotencyKey,
-		Properties:          m.Properties.ToProtoStruct(),
+		Properties:          m.apiPropertiesStruct(),
 	}
 }
 

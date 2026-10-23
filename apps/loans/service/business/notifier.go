@@ -242,6 +242,26 @@ func (n *LoanNotifier) NotifyAgentClientDelinquent(
 	n.send(ctx, notify.ToProfile(agentProfileID), messages.AgentClientDelinquent, vars, notificationv1.PRIORITY_HIGH)
 }
 
+// NotifyAgentCollectionRecorded confirms to the field agent what they just
+// recorded, and reminds them cash must be remitted.
+func (n *LoanNotifier) NotifyAgentCollectionRecorded(
+	ctx context.Context,
+	la *models.LoanAccount,
+	agentProfileID string,
+	amountMinor int64,
+	channel, reference string,
+) {
+	if !n.Enabled() || la == nil || strings.TrimSpace(agentProfileID) == "" {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAgentName] = "field officer"
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
+	vars[messages.VarChannel] = orDefault(channel, "payment")
+	vars[messages.VarReference] = orDefault(reference, "-")
+	n.send(ctx, notify.ToProfile(agentProfileID), messages.AgentCollectionRecorded, vars, notificationv1.PRIORITY_LOW)
+}
+
 // NotifyPenaltyApplied tells the borrower a penalty was charged.
 func (n *LoanNotifier) NotifyPenaltyApplied(
 	ctx context.Context,

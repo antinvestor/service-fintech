@@ -995,7 +995,9 @@ func (b *paymentRoutingBusiness) allocateObligation(
 		}
 	}
 
-	consumed, consumeErr := b.obRepo.ConsumeAmount(ctx, obl.GetID(), allocAmount)
+	// Consuming the obligation and marking the order are one transaction:
+	// either both land or neither does.
+	consumed, consumeErr := b.toRepo.ConsumeObligationForOrder(ctx, to.GetID(), obl.GetID(), allocAmount)
 	if consumeErr != nil {
 		logger.WithError(consumeErr).WithField("obligation_id", obl.GetID()).Error("could not consume obligation")
 	}
@@ -1005,13 +1007,6 @@ func (b *paymentRoutingBusiness) allocateObligation(
 				Error("could not park the transfer order of an unconsumed obligation")
 		}
 		return nil, allocationSkipped
-	}
-	if markErr := b.toRepo.MarkObligationConsumed(ctx, to.GetID()); markErr != nil {
-		// The obligation is consumed and the order exists; a retry that finds
-		// the mark missing re-runs ConsumeAmount, which then fails and parks
-		// the order. Loud, not silent.
-		logger.WithError(markErr).WithField("transfer_order_id", to.GetID()).
-			Error("could not mark obligation consumed on the transfer order")
 	}
 	to.ObligationConsumed = true
 	return to, allocationDone
