@@ -19,8 +19,10 @@ import (
 	"strings"
 
 	notificationv1 "buf.build/gen/go/antinvestor/notification/protocolbuffers/go/notification/v1"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
+	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/messages"
 	"github.com/antinvestor/service-fintech/pkg/notify"
 )
@@ -36,9 +38,40 @@ const (
 type Option func(*options)
 
 type options struct {
-	clientNotifier    *ClientNotifier
-	workforceNotifier *WorkforceNotifier
-	clientLookup      clientLookup
+	clientNotifier     *ClientNotifier
+	workforceNotifier  *WorkforceNotifier
+	clientLookup       clientLookup
+	profiles           profilev1connect.ProfileServiceClient
+	relationshipRepo   repository.ClientRelationshipRepository
+	clientRepo         repository.ClientRepository
+	workforceRepo      repository.WorkforceMemberRepository
+	teamMembershipRepo repository.TeamMembershipRepository
+}
+
+// WithProfiles lets client registration find or create the borrower's
+// profile from the captured phone number.
+func WithProfiles(cli profilev1connect.ProfileServiceClient) Option {
+	return func(o *options) { o.profiles = cli }
+}
+
+// WithRelationships lets client registration attach the registering agent
+// and scope a field agent's view to their relationships.
+func WithRelationships(repo repository.ClientRelationshipRepository) Option {
+	return func(o *options) { o.relationshipRepo = repo }
+}
+
+// WithRelationshipValidation gives the relationship flow the look-ups it
+// needs to check the client, the member and the member's team membership.
+func WithRelationshipValidation(
+	clientRepo repository.ClientRepository,
+	workforceRepo repository.WorkforceMemberRepository,
+	teamMembershipRepo repository.TeamMembershipRepository,
+) Option {
+	return func(o *options) {
+		o.clientRepo = clientRepo
+		o.workforceRepo = workforceRepo
+		o.teamMembershipRepo = teamMembershipRepo
+	}
 }
 
 // clientLookup is the slice of the client repository the KYC flow needs to

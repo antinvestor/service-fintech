@@ -17,6 +17,8 @@ package repository
 import (
 	"context"
 
+	"github.com/pitabwire/frame/v2/data"
+
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
 	"github.com/pitabwire/frame/v2/workerpool"
@@ -29,6 +31,12 @@ type ClientRepository interface {
 	GetByAgentID(ctx context.Context, agentID string, offset, limit int) ([]*models.Client, error)
 	GetByOwningTeamID(ctx context.Context, teamID string, offset, limit int) ([]*models.Client, error)
 	GetByProfileID(ctx context.Context, profileID string) (*models.Client, error)
+	// CreateIfAbsent inserts the client, or hands back the client that already
+	// holds the profile in this partition. Registering a borrower twice (two
+	// agents, a retry) converges on one row instead of a duplicate or a 500.
+	CreateIfAbsent(ctx context.Context, client *models.Client) (stored *models.Client, created bool, err error)
+	// IDsOwnedByTeams lists the clients owned by any of the teams.
+	IDsOwnedByTeams(ctx context.Context, teamIDs []string) ([]string, error)
 }
 
 type clientRepository struct {
@@ -105,4 +113,44 @@ func NewClientResponsibilityHistoryRepository(
 			func() *models.ClientResponsibilityHistory { return &models.ClientResponsibilityHistory{} },
 		),
 	}
+}
+
+func (repo *clientRepository) CreateIfAbsent(
+	ctx context.Context,
+	client *models.Client,
+) (*models.Client, bool, error) {
+	// The unique index is the guarantee; this read only spares the common
+	// re-registration the round trip through a failed insert.
+	if client.ProfileID != "" {
+		if existing, err := repo.GetByProfileID(ctx, client.ProfileID); err == nil && existing != nil {
+			return existing, false, nil
+		}
+	}
+	err := repo.Create(ctx, client)
+	if err == nil {
+		return client, true, nil
+	}
+	if !data.ErrorIsDuplicateKey(err) || client.ProfileID == "" {
+		return nil, false, err
+	}
+	existing, getErr := repo.GetByProfileID(ctx, client.ProfileID)
+	if getErr != nil {
+		return nil, false, err
+	}
+	return existing, false, nil
+}
+
+func (repo *clientRepository) IDsOwnedByTeams(ctx context.Context, teamIDs []string) ([]string, error) {
+	if len(teamIDs) == 0 {
+		return nil, nil
+	}
+	var ids []string
+	err := repo.Pool().DB(ctx, true).
+		Model(&models.Client{}).
+		Where("owning_team_id IN ? AND deleted_at IS NULL", teamIDs).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }

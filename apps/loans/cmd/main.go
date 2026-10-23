@@ -270,7 +270,7 @@ func setupServiceOptions(
 		business.WithReadScope(readScope),
 	)
 	penaltyBusiness := business.NewPenaltyBusiness(ctx, penRepo, laRepo, lbRepo, operationsCli, auditWriter,
-		business.WithNotifier(loanNotifier))
+		business.WithNotifier(loanNotifier), business.WithScheduleEntries(seRepo))
 	restructBusiness := business.NewLoanRestructureBusiness(
 		ctx, evtsMan, lrRepo, laRepo, lbRepo, rsRepo, laBusiness, scheduleBusiness,
 		business.WithNotifier(loanNotifier),

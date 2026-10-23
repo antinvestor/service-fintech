@@ -17,11 +17,33 @@ package business
 import "github.com/antinvestor/service-fintech/pkg/apperrors"
 
 var (
-	ErrOrganizationNotFound         = apperrors.NewError(apperrors.NotFound, "organization not found")
-	ErrOrgUnitNotFound              = apperrors.NewError(apperrors.NotFound, "org unit not found")
-	ErrBranchNotFound               = apperrors.NewError(apperrors.NotFound, "branch not found")
-	ErrAgentNotFound                = apperrors.NewError(apperrors.NotFound, "agent not found")
-	ErrClientNotFound               = apperrors.NewError(apperrors.NotFound, "client not found")
+	ErrOrganizationNotFound = apperrors.NewError(apperrors.NotFound, "organization not found")
+	ErrOrgUnitNotFound      = apperrors.NewError(apperrors.NotFound, "org unit not found")
+	ErrBranchNotFound       = apperrors.NewError(apperrors.NotFound, "branch not found")
+	ErrAgentNotFound        = apperrors.NewError(apperrors.NotFound, "agent not found")
+	ErrClientNotFound       = apperrors.NewError(apperrors.NotFound, "client not found")
+	ErrClientPhoneIsStaff   = apperrors.NewError(
+		apperrors.BadRequest, "the phone number belongs to a member of staff and cannot be registered as a client")
+	ErrCallerNotWorkforceMember = apperrors.NewError(
+		apperrors.Forbidden,
+		"the caller is not a registered workforce member",
+	)
+	ErrClientOutsideCallerScope = apperrors.NewError(
+		apperrors.Forbidden,
+		"the client is not in the caller's teams or relationships",
+	)
+	ErrClientPhoneInvalid = apperrors.NewError(
+		apperrors.BadRequest,
+		"phone number must be a valid international number",
+	)
+	ErrClientProfileUnavailable = apperrors.NewError(
+		apperrors.ServiceUnavailable,
+		"the borrower's profile could not be created or found; retry later",
+	)
+	ErrTeamOutsideOrganization = apperrors.NewError(
+		apperrors.BadRequest,
+		"the new owning team belongs to a different organization",
+	)
 	ErrGroupNotFound                = apperrors.NewError(apperrors.NotFound, "group not found")
 	ErrMembershipNotFound           = apperrors.NewError(apperrors.NotFound, "membership not found")
 	ErrInvestorNotFound             = apperrors.NewError(apperrors.NotFound, "investor not found")

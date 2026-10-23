@@ -163,6 +163,12 @@ type options struct {
 	payoutChecker     PayoutDestinationChecker
 }
 
+// WithScheduleEntries supplies the schedule entry repository to flows that
+// must check an installment belongs to a loan.
+func WithScheduleEntries(repo repository.ScheduleEntryRepository) Option {
+	return func(o *options) { o.scheduleEntryRepo = repo }
+}
+
 // WithAuditWriter installs the domain audit writer for flows that do not
 // take it as a constructor argument.
 func WithAuditWriter(w *audit.Writer) Option {

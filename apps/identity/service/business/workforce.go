@@ -35,6 +35,9 @@ const (
 	AccessRoleKeyApprovalVerifier      = "approval_verifier"
 	AccessRoleKeyApprovalApprover      = "approval_approver"
 	AccessRoleKeyIdentityAdministrator = "identity_administrator"
+	// AccessRoleKeyFieldAgent marks a workforce member who onboards and
+	// serves borrowers in the field.
+	AccessRoleKeyFieldAgent = "field_agent"
 )
 
 type WorkforceBusiness interface {
@@ -909,7 +912,8 @@ func validateRoleKey(roleKey string) error {
 	switch roleKey {
 	case AccessRoleKeyApprovalVerifier,
 		AccessRoleKeyApprovalApprover,
-		AccessRoleKeyIdentityAdministrator:
+		AccessRoleKeyIdentityAdministrator,
+		AccessRoleKeyFieldAgent:
 		return nil
 	default:
 		return ErrInvalidRoleKey

@@ -49,6 +49,7 @@ type penaltyBusiness struct {
 	operationsCli   operationsv1connect.OperationsServiceClient
 	auditWriter     *audit.Writer
 	notifier        *LoanNotifier
+	scheduleEntries repository.ScheduleEntryRepository
 }
 
 func NewPenaltyBusiness(
@@ -67,6 +68,7 @@ func NewPenaltyBusiness(
 		operationsCli:   operationsCli,
 		auditWriter:     auditWriter,
 		notifier:        applyOptions(opts).notifier,
+		scheduleEntries: applyOptions(opts).scheduleEntryRepo,
 	}
 }
 
@@ -114,6 +116,14 @@ func (b *penaltyBusiness) Save(ctx context.Context, obj *loansv1.PenaltyObject) 
 	}
 	if penalty.CurrencyCode != la.CurrencyCode {
 		return nil, ErrPenaltyCurrencyMismatch
+	}
+	if penalty.ScheduleEntryID != "" && b.scheduleEntries != nil {
+		// The installment must be one of this loan's: a penalty cannot be
+		// hung on another borrower's schedule.
+		entry, entryErr := b.scheduleEntries.GetByID(ctx, penalty.ScheduleEntryID)
+		if entryErr != nil || entry == nil || entry.LoanAccountID != penalty.LoanAccountID {
+			return nil, ErrPenaltyEntryConflict
+		}
 	}
 
 	// A penalty tied to an installment is claimed by its (installment, type)
@@ -184,11 +194,13 @@ func (b *penaltyBusiness) claimPenaltyRow(
 		return nil, claimErr
 	}
 	if !created {
-		if stored.LoanAccountID != penalty.LoanAccountID || stored.Amount != penalty.Amount {
-			// The slot belongs to another loan or a different charge: never
-			// resume somebody else's penalty under this request.
+		if stored.LoanAccountID != penalty.LoanAccountID {
+			// The slot belongs to another loan: never resume somebody else's
+			// penalty under this request.
 			return nil, ErrPenaltyEntryConflict
 		}
+		// Resume with the amount that was claimed, not a recomputed one: the
+		// outstanding figure the rate was applied to may have moved since.
 		logger.WithField("penalty_id", stored.GetID()).Info("penalty already charged for this installment; resuming")
 	}
 	return stored, nil

@@ -319,7 +319,7 @@ type Client struct {
 	data.BaseModel
 	AgentID           string `gorm:"column:agent_id;type:varchar(50);index:idx_client_agent"`
 	OwningTeamID      string `gorm:"type:varchar(50);index:idx_client_owning_team;not null;default:''"`
-	ProfileID         string `gorm:"type:varchar(50);uniqueIndex:uq_client_profile"`
+	ProfileID         string `gorm:"type:varchar(50);index:idx_client_profile"`
 	Name              string `gorm:"type:varchar(255)"`
 	CurrencyCode      string `gorm:"type:varchar(3)"`
 	SystemCreditLimit int64

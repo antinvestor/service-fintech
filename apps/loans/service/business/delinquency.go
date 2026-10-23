@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strconv"
 	"time"
@@ -471,8 +472,16 @@ func (s *DelinquencyScanner) applyLatePenalties(
 		if penErr != nil {
 			logger.WithError(penErr).WithField("entry_id", entry.GetID()).
 				Warn("could not apply late penalty")
+			if errors.Is(penErr, ErrPenaltyEntryConflict) {
+				// Another penalty owns this installment; retrying would not
+				// change that. Leave the mark and let the error be seen.
+				logger.WithField("entry_id", entry.GetID()).
+					Error("late penalty conflicts with an existing penalty; needs review")
+				continue
+			}
 			// Give the installment back to the next scan: a penalty that
-			// failed to save must not count as applied.
+			// failed to save must not count as applied. Save is idempotent
+			// per installment, so a partial save is resumed, not repeated.
 			if clearErr := s.scheduleRepo.ClearPenaltyApplied(ctx, entry.GetID()); clearErr != nil {
 				logger.WithError(clearErr).WithField("entry_id", entry.GetID()).
 					Error("could not clear the penalty mark after a failed save")

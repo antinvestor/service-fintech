@@ -70,7 +70,12 @@ type approvalWorkflowEnv struct {
 	orgUnitBusiness  OrgUnitBusiness
 	clientBusiness   ClientBusiness
 
-	workforceBusiness WorkforceBusiness
+	workforceBusiness    WorkforceBusiness
+	workforceMemberRepo  repository.WorkforceMemberRepository
+	teamMembershipRepo   repository.TeamMembershipRepository
+	crRepo               repository.ClientRelationshipRepository
+	profiles             *fakeProfileService
+	relationshipBusiness ClientRelationshipBusiness
 }
 
 func TestApprovalWorkflowSuite(t *testing.T) {
@@ -348,9 +353,12 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 	s.T().Helper()
 
 	ctx := s.T().Context()
+	// The requestor acts as staff (operator): field-agent scoping is covered
+	// by its own tests.
 	ctx = (&security.AuthenticationClaims{
 		TenantID:    "tenant-test",
 		PartitionID: "partition-test",
+		Roles:       []string{"operator"},
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject: "profile-requestor",
 		},
@@ -393,6 +401,7 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		&models.Agent{},
 		&models.AgentBranch{},
 		&models.Client{},
+		&models.ClientRelationship{},
 		&models.ClientAssignmentHistory{},
 		&models.ClientResponsibilityHistory{},
 		&models.CreditLimitChangeRequest{},
@@ -425,6 +434,13 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 	// Raw AutoMigrate does not run frame's tenancy install, so install
 	// the RLS policies explicitly, grant the test role access, then
 	// flip queries onto the unprivileged role.
+	// Mirrors migration 004: one client per borrower profile per partition.
+	s.Require().NoError(superDB.Exec(
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_client_partition_profile
+		   ON clients (partition_id, profile_id)
+		   WHERE profile_id <> '' AND deleted_at IS NULL`,
+	).Error)
+
 	enrolled, err := tenancy.EnrolledModels(superDB, migrationModels)
 	s.Require().NoError(err)
 	s.Require().NoError(rlsProv.Install(ctx, superDB, enrolled))
@@ -473,6 +489,8 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		nil,
 		approvalCaseBusiness,
 	)
+	crRepo := repository.NewClientRelationshipRepository(ctx, dbPool, workMan)
+	profiles := &fakeProfileService{}
 	clientBusiness := NewClientBusiness(
 		ctx,
 		evtsMan,
@@ -483,9 +501,17 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		workforceMemberRepo,
 		internalTeamRepo,
 		teamMembershipRepo,
+		WithRelationships(crRepo),
+		WithProfiles(profiles),
 	)
 
 	return &approvalWorkflowEnv{
+		workforceMemberRepo: workforceMemberRepo,
+		teamMembershipRepo:  teamMembershipRepo,
+		crRepo:              crRepo,
+		profiles:            profiles,
+		relationshipBusiness: NewClientRelationshipBusiness(ctx, evtsMan, crRepo,
+			WithRelationshipValidation(clientRepo, workforceMemberRepo, teamMembershipRepo)),
 		t:                s.T(),
 		ctx:              ctx,
 		eventsMan:        evtsMan,
@@ -585,6 +611,7 @@ func (e *approvalWorkflowEnv) asProfile(profileID string) context.Context {
 	return (&security.AuthenticationClaims{
 		TenantID:    claims.GetTenantID(),
 		PartitionID: claims.GetPartitionID(),
+		Roles:       claims.GetRoles(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject: profileID,
 		},

@@ -257,6 +257,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		agentRepo,
 		agentBranchRepo,
 	)
+	clientRelationshipRepo := repository.NewClientRelationshipRepository(ctx, dbPool, workMan)
 	clientBusiness := business.NewClientBusiness(
 		ctx,
 		evtsMan,
@@ -268,6 +269,8 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		internalTeamRepo,
 		teamMembershipRepo,
 		business.WithClientNotifier(notifiers.client),
+		business.WithProfiles(profileCli),
+		business.WithRelationships(clientRelationshipRepo),
 	)
 	workforceBusiness := business.NewWorkforceBusiness(
 		evtsMan,
@@ -294,8 +297,8 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	formTemplateBusiness := business.NewFormTemplateBusiness(ctx, evtsMan, formTemplateRepo)
 	formSubmissionBusiness := business.NewFormSubmissionBusiness(ctx, evtsMan, formSubmissionRepo, formTemplateRepo)
 
-	clientRelationshipRepo := repository.NewClientRelationshipRepository(ctx, dbPool, workMan)
-	clientRelationshipBusiness := business.NewClientRelationshipBusiness(ctx, evtsMan, clientRelationshipRepo)
+	clientRelationshipBusiness := business.NewClientRelationshipBusiness(ctx, evtsMan, clientRelationshipRepo,
+		business.WithRelationshipValidation(clientRepo, workforceMemberRepo, teamMembershipRepo))
 
 	if cfg.IsRunSecurely() && strings.TrimSpace(cfg.OAuthRedirectURIs) == "" {
 		util.Log(ctx).Fatal("main -- OAUTH_REDIRECT_URIS must be set when RUN_SERVICE_SECURELY=true")

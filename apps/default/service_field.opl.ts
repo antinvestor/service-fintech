@@ -77,6 +77,7 @@ class service_field implements Namespace {
 
     client_manage: (ctx: Context): boolean =>
       this.related.admin.includes(ctx.subject) ||
+      this.related.member.includes(ctx.subject) ||
       this.related.operator.includes(ctx.subject) ||
       this.related.owner.includes(ctx.subject) ||
       this.related.service.includes(ctx.subject) ||
@@ -93,6 +94,7 @@ class service_field implements Namespace {
 
     client_relationship_manage: (ctx: Context): boolean =>
       this.related.admin.includes(ctx.subject) ||
+      this.related.member.includes(ctx.subject) ||
       this.related.operator.includes(ctx.subject) ||
       this.related.owner.includes(ctx.subject) ||
       this.related.service.includes(ctx.subject) ||

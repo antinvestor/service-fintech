@@ -18,6 +18,11 @@ import (
 	"context"
 	"fmt"
 
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
+	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/structpb"
+
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	"github.com/pitabwire/frame/v2/data"
@@ -27,6 +32,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
 type ClientBusiness interface {
@@ -64,6 +70,8 @@ type clientBusiness struct {
 	internalTeamRepo   repository.InternalTeamRepository
 	teamMembershipRepo repository.TeamMembershipRepository
 	notifier           *ClientNotifier
+	profiles           profilev1connect.ProfileServiceClient
+	crRepo             repository.ClientRelationshipRepository
 }
 
 func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -76,8 +84,11 @@ func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
 	teamMembershipRepo repository.TeamMembershipRepository,
 	opts ...Option,
 ) ClientBusiness {
+	o := applyOptions(opts)
 	return &clientBusiness{
-		notifier:           applyOptions(opts).clientNotifier,
+		notifier:           o.clientNotifier,
+		profiles:           o.profiles,
+		crRepo:             o.relationshipRepo,
 		eventsMan:          eventsMan,
 		clientRepo:         clientRepo,
 		clientHistoryRepo:  clientHistoryRepo,
@@ -96,12 +107,26 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 	isNew := obj.GetId() == ""
 	client := models.ClientFromAPI(ctx, obj)
 	client.Properties = normalizeClientPhoneProperties(entityProperties(client.Properties))
-	if client.OwningTeamID == "" {
-		return nil, ErrOwningTeamRequired
+	if phone := clientPhoneNumber(client.Properties); phone != "" && !validPhoneNumber(phone) {
+		return nil, ErrClientPhoneInvalid
 	}
-	if errOwn := b.validateOwnership(ctx, client.OwningTeamID, ""); errOwn != nil {
-		logger.WithError(errOwn).Warn("invalid client ownership")
-		return nil, errOwn
+
+	// A field agent (member role) works inside their own teams: the client
+	// they register is owned by one of those teams (their primary team when
+	// none is named), and they become its primary relationship so they can
+	// see it afterwards. Staff may place a client in any team.
+	scope, err := b.scopeForSave(ctx, client, isNew)
+	if err != nil {
+		return nil, err
+	}
+	if isNew || scope == nil {
+		if client.OwningTeamID == "" {
+			return nil, ErrOwningTeamRequired
+		}
+		if errOwn := b.validateOwnership(ctx, client.OwningTeamID, ""); errOwn != nil {
+			logger.WithError(errOwn).Warn("invalid client ownership")
+			return nil, errOwn
+		}
 	}
 
 	if isNew && client.State == 0 {
@@ -109,48 +134,311 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 	}
 
 	if action := caseAction(client.Properties); action != "" {
+		if scope != nil {
+			// Verifying and approving are staff acts; a field agent cannot
+			// progress a case, least of all one they raised.
+			return nil, ErrClientOutsideCallerScope
+		}
 		return b.handleApprovalAction(ctx, logger, client, action)
 	}
 
 	if !isNew {
-		existing, getErr := b.clientRepo.GetByID(ctx, client.GetID())
-		if getErr != nil {
-			return nil, ErrClientNotFound
-		}
-
-		if desiredPhone, currentPhone := clientPhoneNumber(
-			client.Properties,
-		), clientPhoneNumber(
-			existing.Properties,
-		); desiredPhone != currentPhone {
-			return b.submitPhoneChangeCase(ctx, logger, existing, client, desiredPhone)
-		}
-
-		applyStoredTenancy(client, existing)
-		if client.AgentID == "" {
-			client.AgentID = existing.AgentID
-		}
-		client.CurrencyCode = existing.CurrencyCode
-		client.SystemCreditLimit = existing.SystemCreditLimit
-		client.AgentCreditLimit = existing.AgentCreditLimit
-		mergedProps := entityProperties(existing.Properties)
-		for k, v := range client.Properties {
-			mergedProps[k] = v
-		}
-		stripCaseCommand(mergedProps)
-		client.Properties = normalizeClientPhoneProperties(mergedProps)
+		return b.saveExisting(ctx, logger, client, scope)
 	}
 
-	if err = b.eventsMan.Emit(ctx, events.ClientSaveEvent, client); err != nil {
-		logger.WithError(err).Error("could not emit client save event")
+	return b.registerNew(ctx, logger, client, scope)
+}
+
+// registerNew creates a client for a borrower: profile first, then the row,
+// then the registering agent's relationship and the welcome message.
+func (b *clientBusiness) registerNew(
+	ctx context.Context,
+	logger *util.LogEntry,
+	client *models.Client,
+	scope *callerScope,
+) (*fieldv1.ClientObject, error) {
+	// Profile first: a borrower is a person on the profile service, found by
+	// the phone they gave or created from it. Only then does a client row
+	// hang off that profile. A field agent cannot name a profile directly:
+	// that would let them attach themselves to an arbitrary person.
+	if scope != nil {
+		client.ProfileID = ""
+	}
+	if client.ProfileID == "" {
+		profileID, profileErr := b.ensureProfile(ctx, client)
+		if profileErr != nil {
+			return nil, profileErr
+		}
+		client.ProfileID = profileID
+	}
+
+	stored, created, createErr := b.clientRepo.CreateIfAbsent(ctx, client)
+	if createErr != nil {
+		logger.WithError(createErr).Error("could not create client")
+		return nil, createErr
+	}
+	if !created {
+		// Already a client of this lender. An agent may only re-register a
+		// borrower already in their scope; anyone else's client is refused
+		// without revealing it, and staff reassign it if that is wanted.
+		if !b.clientInScope(ctx, stored, scope) {
+			return nil, ErrClientOutsideCallerScope
+		}
+		logger.WithField("client_id", stored.GetID()).Info("client already registered for this profile")
+		return stored.ToAPI(), nil
+	}
+
+	b.attachCaller(ctx, logger, stored, scope)
+	b.notifier.NotifyClientOnboarded(ctx, stored, "")
+	return stored.ToAPI(), nil
+}
+
+// relatedClientIDs lists the clients memberID holds a relationship with; a
+// never-matching sentinel keeps "IN ?" valid when there are none.
+func (b *clientBusiness) relatedClientIDs(ctx context.Context, memberID string) ([]string, error) {
+	if b.crRepo == nil {
+		return []string{""}, nil
+	}
+	ids, err := b.crRepo.ClientIDsForMember(ctx, memberID)
+	if err != nil {
 		return nil, err
 	}
+	if len(ids) == 0 {
+		ids = []string{""}
+	}
+	return ids, nil
+}
 
-	if isNew {
-		b.notifier.NotifyClientOnboarded(ctx, client, "")
+// scopedClientIDs lists every client a non-staff caller may see: those owned
+// by their teams plus those they hold a relationship with. The sentinel keeps
+// "IN ?" valid when there are none.
+func (b *clientBusiness) scopedClientIDs(ctx context.Context) ([]string, error) {
+	scope, err := resolveCallerScope(ctx, b.workforceRepo, b.teamMembershipRepo)
+	if err != nil {
+		return nil, err
+	}
+	owned, err := b.clientRepo.IDsOwnedByTeams(ctx, scope.teamIDs)
+	if err != nil {
+		return nil, err
+	}
+	related, err := b.relatedClientIDs(ctx, scope.member.GetID())
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(owned)+len(related))
+	for _, id := range append(owned, related...) {
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		out = []string{""}
+	}
+	return out, nil
+}
+
+func intersectIDs(a, b []string) []string {
+	in := make(map[string]struct{}, len(b))
+	for _, id := range b {
+		in[id] = struct{}{}
+	}
+	out := []string{}
+	for _, id := range a {
+		if _, ok := in[id]; ok {
+			out = append(out, id)
+		}
+	}
+	if len(out) == 0 {
+		out = []string{""}
+	}
+	return out
+}
+
+// scopeForSave resolves the field agent's scope for a registration and
+// places the client in one of the agent's teams. Staff get no scope.
+func (b *clientBusiness) scopeForSave(ctx context.Context, client *models.Client, isNew bool) (*callerScope, error) {
+	if callerIsStaff(ctx) {
+		return nil, nil //nolint:nilnil // staff are unscoped
+	}
+	scope, err := resolveCallerScope(ctx, b.workforceRepo, b.teamMembershipRepo)
+	if err != nil {
+		return nil, err
+	}
+	if !isNew {
+		// An edit keeps the stored team (saveExisting enforces it); the
+		// payload's team is not a decision the agent gets to make.
+		return scope, nil
+	}
+	if client.OwningTeamID == "" && len(scope.teamIDs) > 0 {
+		client.OwningTeamID = scope.teamIDs[0]
+	}
+	if !scope.inTeam(client.OwningTeamID) {
+		return nil, ErrClientOutsideCallerScope
+	}
+	return scope, nil
+}
+
+// saveExisting applies an edit to a stored client synchronously, carrying
+// the stored tenancy, limits and currency, and routing a phone change
+// through its approval case.
+func (b *clientBusiness) saveExisting(
+	ctx context.Context,
+	logger *util.LogEntry,
+	client *models.Client,
+	scope *callerScope,
+) (*fieldv1.ClientObject, error) {
+	existing, getErr := b.clientRepo.GetByID(ctx, client.GetID())
+	if getErr != nil {
+		return nil, ErrClientNotFound
+	}
+	if scope != nil && !b.clientInScope(ctx, existing, scope) {
+		return nil, ErrClientOutsideCallerScope
 	}
 
+	if desiredPhone, currentPhone := clientPhoneNumber(
+		client.Properties,
+	), clientPhoneNumber(
+		existing.Properties,
+	); desiredPhone != currentPhone {
+		return b.submitPhoneChangeCase(ctx, logger, existing, client, desiredPhone)
+	}
+
+	applyStoredTenancy(client, existing)
+	if client.AgentID == "" {
+		client.AgentID = existing.AgentID
+	}
+	// Who the client is never changes on an edit; the profile is bound once,
+	// at registration. Ownership moves only through TransferOwnership, which
+	// is a staff act, so an agent's edit keeps the stored team.
+	client.ProfileID = existing.ProfileID
+	if scope != nil {
+		client.OwningTeamID = existing.OwningTeamID
+	}
+	client.CurrencyCode = existing.CurrencyCode
+	client.SystemCreditLimit = existing.SystemCreditLimit
+	client.AgentCreditLimit = existing.AgentCreditLimit
+	mergedProps := entityProperties(existing.Properties)
+	for k, v := range client.Properties {
+		mergedProps[k] = v
+	}
+	stripCaseCommand(mergedProps)
+	client.Properties = normalizeClientPhoneProperties(mergedProps)
+	client.Version = existing.Version
+
+	rows, err := b.clientRepo.Update(ctx, client)
+	if err != nil {
+		logger.WithError(err).Error("could not update client")
+		return nil, err
+	}
+	if rows == 0 {
+		return nil, apperrors.NewError(apperrors.Conflict, "the client changed while being edited; reload and retry")
+	}
 	return client.ToAPI(), nil
+}
+
+// ensureProfile finds the borrower's profile by the captured phone or creates
+// one. Without a phone there is nothing to find a person by.
+func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Client) (string, error) {
+	phone := clientPhoneNumber(client.Properties)
+	if phone == "" {
+		return "", ErrClientPhoneInvalid
+	}
+	if b.profiles == nil {
+		return "", ErrClientProfileUnavailable
+	}
+	found, err := b.profiles.GetByContact(ctx, connect.NewRequest(&profilev1.GetByContactRequest{Contact: phone}))
+	if err == nil && found.Msg.GetData().GetId() != "" {
+		profileID := found.Msg.GetData().GetId()
+		// A borrower is never a member of staff: a phone that resolves to a
+		// workforce member's profile (the registering agent's own, say) is
+		// refused rather than bound to a client.
+		if profileID == actorFromClaims(ctx) {
+			return "", ErrClientPhoneIsStaff
+		}
+		if b.workforceRepo != nil {
+			if member, memberErr := b.workforceRepo.GetByProfileID(ctx, profileID); memberErr == nil && member != nil {
+				return "", ErrClientPhoneIsStaff
+			}
+		}
+		return profileID, nil
+	}
+	if err != nil && connect.CodeOf(err) != connect.CodeNotFound {
+		util.Log(ctx).WithError(err).Warn("could not look up the borrower's profile by contact")
+		return "", ErrClientProfileUnavailable
+	}
+	props, propErr := structpb.NewStruct(map[string]any{"name": client.Name})
+	if propErr != nil {
+		return "", propErr
+	}
+	created, err := b.profiles.Create(ctx, connect.NewRequest(&profilev1.CreateRequest{
+		Type:       profilev1.ProfileType_PERSON,
+		Contact:    phone,
+		Properties: props,
+	}))
+	if err != nil {
+		util.Log(ctx).WithError(err).Error("could not create the borrower's profile")
+		return "", ErrClientProfileUnavailable
+	}
+	return created.Msg.GetData().GetId(), nil
+}
+
+// attachCaller makes the registering field agent the client's primary
+// relationship, so their own view of "my clients" includes the borrower they
+// just brought in. Staff registrations attach nobody.
+func (b *clientBusiness) attachCaller(
+	ctx context.Context,
+	logger *util.LogEntry,
+	client *models.Client,
+	scope *callerScope,
+) {
+	if scope == nil || scope.member == nil || b.crRepo == nil {
+		return
+	}
+	if existing, err := b.crRepo.GetByClientAndMember(ctx, client.GetID(), scope.member.GetID()); err == nil &&
+		existing != nil {
+		return
+	}
+	primary, primaryErr := b.crRepo.GetPrimaryForClient(ctx, client.GetID())
+	rel := &models.ClientRelationship{
+		ClientID:  client.GetID(),
+		MemberID:  scope.member.GetID(),
+		Name:      "field_agent",
+		IsPrimary: primaryErr != nil || primary == nil,
+		State:     int32(commonv1.STATE_ACTIVE),
+	}
+	rel.GenID(ctx)
+	rel.CopyPartitionInfo(&client.BaseModel)
+	if err := b.crRepo.Create(ctx, rel); err != nil {
+		logger.WithError(err).WithField("client_id", client.GetID()).
+			Warn("could not attach the registering agent to the client")
+	}
+}
+
+// clientInScope reports whether a non-staff caller may act on the client.
+func (b *clientBusiness) clientInScope(ctx context.Context, client *models.Client, scope *callerScope) bool {
+	return clientInCallerScope(ctx, client, scope, b.crRepo)
+}
+
+// validPhoneNumber accepts an international or national number: optional
+// "+", 8 to 15 digits, with spaces or dashes tolerated.
+func validPhoneNumber(phone string) bool {
+	digits := 0
+	for i, r := range phone {
+		switch {
+		case r >= '0' && r <= '9':
+			digits++
+		case r == '+' && i == 0, r == ' ', r == '-':
+		default:
+			return false
+		}
+	}
+	return digits >= 8 && digits <= 15
 }
 
 func (b *clientBusiness) submitPhoneChangeCase(
@@ -269,6 +557,15 @@ func (b *clientBusiness) Get(ctx context.Context, id string) (*fieldv1.ClientObj
 	if err != nil {
 		return nil, err
 	}
+	if !callerIsStaff(ctx) {
+		scope, scopeErr := resolveCallerScope(ctx, b.workforceRepo, b.teamMembershipRepo)
+		if scopeErr != nil {
+			return nil, scopeErr
+		}
+		if !b.clientInScope(ctx, client, scope) {
+			return nil, ErrClientOutsideCallerScope
+		}
+	}
 	return client.ToAPI(), nil
 }
 
@@ -295,7 +592,27 @@ func (b *clientBusiness) Search(
 		andQueryVal["owning_team_id = ?"] = req.GetOwningTeamId()
 	}
 	if req.GetMemberId() != "" {
-		andQueryVal["member_id = ?"] = req.GetMemberId()
+		// Relationships live in their own table, so a member filter is
+		// resolved to client ids first.
+		ids, idsErr := b.relatedClientIDs(ctx, req.GetMemberId())
+		if idsErr != nil {
+			return idsErr
+		}
+		andQueryVal["id IN ?"] = ids
+	}
+
+	// A field agent sees the clients their teams own or they are related to.
+	// The scope is resolved to client ids and AND-ed with every other filter,
+	// so a text query can never widen it.
+	if !callerIsStaff(ctx) {
+		scoped, scopeErr := b.scopedClientIDs(ctx)
+		if scopeErr != nil {
+			return scopeErr
+		}
+		if existing, ok := andQueryVal["id IN ?"].([]string); ok {
+			scoped = intersectIDs(scoped, existing)
+		}
+		andQueryVal["id IN ?"] = scoped
 	}
 
 	if len(andQueryVal) > 0 {
@@ -337,6 +654,11 @@ func (b *clientBusiness) TransferOwnership(
 	ctx context.Context,
 	req *fieldv1.ClientOwnershipTransferRequest,
 ) (*fieldv1.ClientObject, error) {
+	// Moving a borrower between teams is a staff decision, not a field
+	// agent's: an agent could otherwise pull any client into their own team.
+	if !callerIsStaff(ctx) {
+		return nil, ErrClientOutsideCallerScope
+	}
 	client, err := b.clientRepo.GetByID(ctx, req.GetClientId())
 	if err != nil {
 		return nil, ErrClientNotFound
@@ -344,12 +666,32 @@ func (b *clientBusiness) TransferOwnership(
 	if errOwn := b.validateOwnership(ctx, req.GetNewOwningTeamId(), ""); errOwn != nil {
 		return nil, errOwn
 	}
+	// Ownership moves within one lender: the new team must belong to the
+	// organization the current team does. A team that cannot be loaded
+	// refuses the transfer rather than letting it through.
+	if client.OwningTeamID != "" {
+		current, curErr := b.internalTeamRepo.GetByID(ctx, client.OwningTeamID)
+		if curErr != nil {
+			return nil, ErrInternalTeamNotFound
+		}
+		next, nextErr := b.internalTeamRepo.GetByID(ctx, req.GetNewOwningTeamId())
+		if nextErr != nil {
+			return nil, ErrInternalTeamNotFound
+		}
+		if current.OrganizationID != next.OrganizationID {
+			return nil, ErrTeamOutsideOrganization
+		}
+	}
 
 	previousTeamID := client.OwningTeamID
 	client.OwningTeamID = req.GetNewOwningTeamId()
 
-	if errEmit := b.eventsMan.Emit(ctx, events.ClientSaveEvent, client); errEmit != nil {
-		return nil, errEmit
+	rows, updErr := b.clientRepo.Update(ctx, client, "owning_team_id")
+	if updErr != nil {
+		return nil, updErr
+	}
+	if rows == 0 {
+		return nil, apperrors.NewError(apperrors.Conflict, "the client changed while ownership was being transferred")
 	}
 	b.recordResponsibilityHistory(
 		ctx,
