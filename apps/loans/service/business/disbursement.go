@@ -65,6 +65,14 @@ type disbursementBusiness struct {
 	limitsGateMode    string
 	scheduleBusiness  RepaymentScheduleBusiness
 	notifier          *LoanNotifier
+	payoutChecker     PayoutDestinationChecker
+}
+
+// PayoutDestinationChecker decides whether a loan's payment account ref is
+// a destination that belongs to the borrower. Money must never leave to a
+// destination nobody verified.
+type PayoutDestinationChecker interface {
+	Allowed(ctx context.Context, la *models.LoanAccount) error
 }
 
 func NewDisbursementBusiness(
@@ -85,6 +93,7 @@ func NewDisbursementBusiness(
 		scope:             o.scope,
 		scheduleBusiness:  o.scheduleBusiness,
 		notifier:          o.notifier,
+		payoutChecker:     o.payoutChecker,
 		eventsMan:         eventsMan,
 		disbRepo:          disbRepo,
 		loanAccountRepo:   loanAccountRepo,
@@ -331,6 +340,11 @@ func (b *disbursementBusiness) loadDisbursableLoan(
 	}
 	if !loanFundingReady(la.Properties) {
 		return nil, ErrLoanFundingNotReady
+	}
+	if b.payoutChecker != nil {
+		if err = b.payoutChecker.Allowed(ctx, la); err != nil {
+			return nil, err
+		}
 	}
 	return la, nil
 }

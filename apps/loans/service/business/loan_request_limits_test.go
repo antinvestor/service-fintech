@@ -100,6 +100,28 @@ func (r *stubLoanRequestRepo) Search(
 }
 
 // Compile-time checks.
+func (r *stubLoanRequestRepo) ClaimStatus(
+	_ context.Context,
+	_ string,
+	fromStatuses []int32,
+	toStatus int32,
+	values map[string]any,
+) (bool, error) {
+	if r.request == nil {
+		return false, nil
+	}
+	for _, from := range fromStatuses {
+		if r.request.Status == from {
+			r.request.Status = toStatus
+			if v, ok := values["decided_by"].(string); ok {
+				r.request.DecidedBy = v
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *stubLoanRequestRepo) ClaimForLoanCreation(_ context.Context, _, _ string) (bool, error) {
 	return true, nil
 }

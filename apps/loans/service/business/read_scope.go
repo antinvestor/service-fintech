@@ -28,6 +28,7 @@ import (
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/audit"
 )
 
 // ErrNoClientForProfile is returned by a ClientResolver when the identity
@@ -102,6 +103,16 @@ func (s *ReadScope) callerClient(ctx context.Context) (string, bool, error) {
 	return clientID, false, nil
 }
 
+// IsStaff reports whether the caller is an internal principal or holds a
+// configured staff role. It never errs: an unresolvable caller is not staff.
+func (s *ReadScope) IsStaff(ctx context.Context) bool {
+	if s == nil {
+		return false
+	}
+	_, staff, err := s.callerClient(ctx)
+	return err == nil && staff
+}
+
 // AuthorizeClient returns nil when the caller may read a record owned by
 // ownerClientID, and ErrLoanNotOwned when a client caller asks for somebody
 // else's record.
@@ -148,6 +159,20 @@ type options struct {
 	scheduleEntryRepo repository.ScheduleEntryRepository
 	scheduleBusiness  RepaymentScheduleBusiness
 	notifier          *LoanNotifier
+	auditWriter       *audit.Writer
+	payoutChecker     PayoutDestinationChecker
+}
+
+// WithAuditWriter installs the domain audit writer for flows that do not
+// take it as a constructor argument.
+func WithAuditWriter(w *audit.Writer) Option {
+	return func(o *options) { o.auditWriter = w }
+}
+
+// WithPayoutDestinationChecker installs the check that a disbursement's
+// destination belongs to the borrower.
+func WithPayoutDestinationChecker(c PayoutDestinationChecker) Option {
+	return func(o *options) { o.payoutChecker = c }
 }
 
 // WithNotifier installs the borrower/agent notifier. Without it the business

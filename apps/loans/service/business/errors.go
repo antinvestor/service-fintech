@@ -177,6 +177,26 @@ var (
 		apperrors.ServiceUnavailable,
 		"the disbursement could not be settled; retry with the same idempotency key",
 	)
+	ErrLoanRequestSelfDecision = apperrors.NewError(
+		apperrors.Forbidden,
+		"the person who submitted a loan request cannot decide it",
+	)
+	ErrLoanRequestDecisionConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"the loan request changed while the decision was being recorded; reload and retry",
+	)
+	ErrPayoutDestinationNotClient = apperrors.NewError(
+		apperrors.Unprocessable,
+		"the disbursement destination is not a registered contact of the borrower",
+	)
+	ErrPayoutDestinationUnverifiable = apperrors.NewError(
+		apperrors.ServiceUnavailable,
+		"the disbursement destination could not be verified against the borrower's profile; retry later",
+	)
+	ErrUnsupportedRepaymentFrequency = apperrors.NewError(
+		apperrors.Unprocessable,
+		"repayment frequency is not supported: use weekly, biweekly or monthly",
+	)
 	ErrLoanRequestClientImmutable = apperrors.NewError(
 		apperrors.Conflict,
 		"a loan request cannot be moved to a different client",

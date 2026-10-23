@@ -237,6 +237,28 @@ func (b *loanAccountBusiness) Create(ctx context.Context, loanRequestID string) 
 	}
 
 	LoansCreated.Add(ctx, 1, attribute.String("currency", la.CurrencyCode))
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: "loan_account",
+		EntityID:   la.GetID(),
+		Action:     "loan.created",
+		Reason:     "loan account opened from approved request",
+		After: data.JSONMap{
+			fieldStatus:        loansv1.LoanStatus(la.Status).String(),
+			fieldAmount:        la.PrincipalAmount,
+			fieldCurrency:      la.CurrencyCode,
+			"term_days":        la.TermDays,
+			"interest_rate":    la.InterestRate,
+			fieldLoanRequestID: la.LoanRequestID,
+		},
+		Metadata: data.JSONMap{
+			fieldClientID:  la.ClientID,
+			fieldAgentID:   la.AgentID,
+			fieldProductID: la.ProductID,
+		},
+		Parent: &la.BaseModel,
+	}, func(auErr error) {
+		logger.WithError(auErr).Warn("audit emission failed for loan creation")
+	})
 
 	return account, nil
 }

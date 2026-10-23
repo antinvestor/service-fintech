@@ -34,6 +34,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
+	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
@@ -60,6 +61,38 @@ type loanRequestBusiness struct {
 	limitsGateEnabled bool
 	limitsGateMode    string
 	notifier          *LoanNotifier
+	auditWriter       *audit.Writer
+}
+
+// reservedRequestProperties are keys only staff or a service principal may
+// write on a request: they steer verification and where the money goes.
+func reservedRequestProperties() []string {
+	return []string{
+		"data_verification_confirmed",
+		"payment_account_ref",
+		"payment_channel",
+		"loan_request_id",
+		"funding_fully_funded",
+		"funding_allocations",
+	}
+}
+
+const (
+	colDecidedAt   = "decided_at"
+	colDecidedBy   = "decided_by"
+	fieldProductID = "product_id"
+	fieldAgentID   = "agent_id"
+)
+
+// sanitizeRequestProperties strips the reserved keys from a request written
+// by a client caller. Staff and service principals keep them.
+func (b *loanRequestBusiness) sanitizeRequestProperties(ctx context.Context, lr *models.LoanRequest) {
+	if lr.Properties == nil || b.scope.IsStaff(ctx) {
+		return
+	}
+	for _, key := range reservedRequestProperties() {
+		delete(lr.Properties, key)
+	}
 }
 
 func NewLoanRequestBusiness(
@@ -76,6 +109,7 @@ func NewLoanRequestBusiness(
 	return &loanRequestBusiness{
 		scope:             o.scope,
 		notifier:          o.notifier,
+		auditWriter:       o.auditWriter,
 		eventsMan:         eventsMan,
 		loanRequestRepo:   loanRequestRepo,
 		loanProductRepo:   loanProductRepo,
@@ -115,15 +149,19 @@ func (b *loanRequestBusiness) Save(
 	if scopeErr := b.scope.AuthorizeClient(ctx, lr.ClientID); scopeErr != nil {
 		return nil, scopeErr
 	}
+	b.sanitizeRequestProperties(ctx, lr)
 
 	existing, reconcileErr := b.reconcileWithStored(ctx, lr)
 	if reconcileErr != nil {
 		return nil, reconcileErr
 	}
 
-	if lr.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED) && lr.SubmittedAt == nil {
+	submittedNow := lr.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED) &&
+		(existing == nil || existing.Status != lr.Status)
+	if submittedNow {
 		now := time.Now().UTC()
 		lr.SubmittedAt = &now
+		lr.SubmittedBy = callerSubject(ctx)
 	}
 
 	if err := b.validateAgainstProduct(ctx, lr); err != nil {
@@ -137,8 +175,8 @@ func (b *loanRequestBusiness) Save(
 
 	// The borrower hears about the submission once: the first save that
 	// lands on SUBMITTED. Re-saves of a submitted request stay silent.
-	if lr.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED) &&
-		(existing == nil || existing.Status != lr.Status) {
+	if submittedNow {
+		b.recordRequestAudit(ctx, lr, "loan_request.submitted", "", nil)
 		b.notifier.NotifyApplicationSubmitted(ctx, lr)
 	}
 
@@ -163,7 +201,7 @@ func (b *loanRequestBusiness) reconcileWithStored(
 	lr *models.LoanRequest,
 ) (*models.LoanRequest, error) {
 	existing, existErr := b.loanRequestRepo.GetByID(ctx, lr.GetID())
-	if existErr != nil && !data.ErrorIsNoRows(existErr) {
+	if existErr != nil && !data.ErrorIsNoRows(existErr) && !errors.Is(existErr, ErrLoanRequestNotFound) {
 		return nil, fmt.Errorf("load loan request %s: %w", lr.GetID(), existErr)
 	}
 	if existing == nil {
@@ -188,6 +226,9 @@ func (b *loanRequestBusiness) reconcileWithStored(
 	lr.AgentID = existing.AgentID
 	lr.OrganizationID = existing.OrganizationID
 	lr.BranchID = existing.BranchID
+	lr.SubmittedAt = existing.SubmittedAt
+	lr.SubmittedBy = existing.SubmittedBy
+	lr.DecidedBy = existing.DecidedBy
 	// Decision fields belong to the reviewer, not to the submitter.
 	lr.ApprovedAmount = existing.ApprovedAmount
 	lr.ApprovedTermDays = existing.ApprovedTermDays
@@ -405,17 +446,109 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 		return nil, err
 	}
 
+	decider := callerSubject(ctx)
+	if err = requireSeparationOfDuties(lr, decider); err != nil {
+		return nil, err
+	}
+
+	// The decision is a conditional write on the status that was read, so an
+	// approve racing a reject (or a second approve) converges on one winner.
+	// The in-memory copy is updated only once the row has moved.
+	claimed, claimErr := b.loanRequestRepo.ClaimStatus(ctx, lr.GetID(),
+		[]int32{int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED)},
+		int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED),
+		map[string]any{
+			"approved_amount":    lr.ApprovedAmount,
+			"approved_term_days": lr.ApprovedTermDays,
+			colDecidedAt:         now,
+			colDecidedBy:         decider,
+		})
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not record loan request approval")
+		return nil, claimErr
+	}
+	if !claimed {
+		return nil, ErrLoanRequestDecisionConflict
+	}
 	lr.Status = int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED)
 	lr.DecidedAt = &now
+	lr.DecidedBy = decider
 
 	if errEmit := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); errEmit != nil {
 		logger.WithError(errEmit).Error("could not emit loan request approve event")
-		return nil, errEmit
 	}
 
+	b.recordRequestAudit(ctx, lr, "loan_request.approved", "", data.JSONMap{
+		"approved_amount":    lr.ApprovedAmount,
+		"approved_term_days": lr.ApprovedTermDays,
+	})
 	b.notifier.NotifyApplicationApproved(ctx, lr)
 
 	return lr.ToAPI(), nil
+}
+
+// requireSeparationOfDuties refuses a decision by the person who submitted
+// the application (or created it, for requests submitted before submitters
+// were recorded). A field agent cannot approve their own client's loan.
+func requireSeparationOfDuties(lr *models.LoanRequest, decider string) error {
+	if decider == "" {
+		return nil
+	}
+	maker := lr.SubmittedBy
+	if maker == "" {
+		maker = lr.CreatedBy
+	}
+	if maker != "" && maker == decider {
+		return ErrLoanRequestSelfDecision
+	}
+	return nil
+}
+
+// recordRequestAudit writes one descriptive audit record for a request
+// lifecycle action, with the actor from the caller's claims.
+func (b *loanRequestBusiness) recordRequestAudit(
+	ctx context.Context,
+	lr *models.LoanRequest,
+	action, reason string,
+	after data.JSONMap,
+) {
+	if b.auditWriter == nil {
+		return
+	}
+	if after == nil {
+		after = data.JSONMap{}
+	}
+	after[fieldStatus] = loansv1.LoanRequestStatus(lr.Status).String()
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: "loan_request",
+		EntityID:   lr.GetID(),
+		Action:     action,
+		Reason:     reason,
+		After:      after,
+		Metadata: data.JSONMap{
+			fieldClientID:      lr.ClientID,
+			fieldAgentID:       lr.AgentID,
+			fieldProductID:     lr.ProductID,
+			"requested_amount": lr.RequestedAmount,
+			fieldCurrency:      lr.CurrencyCode,
+		},
+		Parent: &lr.BaseModel,
+	}, func(err error) {
+		util.Log(ctx).WithError(err).Warn("audit emission failed for loan request")
+	})
+}
+
+// nonTerminalRequestStatuses lists the statuses a decision may still be
+// taken from.
+func nonTerminalRequestStatuses() []int32 {
+	out := make([]int32, 0, len(loansv1.LoanRequestStatus_name))
+	for v := range loansv1.LoanRequestStatus_name {
+		if v == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_UNSPECIFIED) || isTerminalLoanRequestStatus(v) {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // validateApprovedTerms checks the terms a loan will actually be written on
@@ -466,16 +599,32 @@ func (b *loanRequestBusiness) Reject(
 		return nil, ErrLoanRequestTerminal
 	}
 
-	now := time.Now()
+	decider := callerSubject(ctx)
+	if err = requireSeparationOfDuties(lr, decider); err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	claimed, claimErr := b.loanRequestRepo.ClaimStatus(ctx, lr.GetID(), nonTerminalRequestStatuses(),
+		int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_REJECTED),
+		map[string]any{"rejection_reason": reason, colDecidedAt: now, colDecidedBy: decider})
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not record loan request rejection")
+		return nil, claimErr
+	}
+	if !claimed {
+		return nil, ErrLoanRequestDecisionConflict
+	}
 	lr.Status = int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_REJECTED)
 	lr.RejectionReason = reason
 	lr.DecidedAt = &now
+	lr.DecidedBy = decider
 
 	if errEmit := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); errEmit != nil {
 		logger.WithError(errEmit).Error("could not emit loan request reject event")
-		return nil, errEmit
 	}
 
+	b.recordRequestAudit(ctx, lr, "loan_request.rejected", reason, nil)
 	b.notifier.NotifyApplicationRejected(ctx, lr)
 
 	return lr.ToAPI(), nil
@@ -497,14 +646,34 @@ func (b *loanRequestBusiness) Cancel(
 		return nil, ErrLoanRequestTerminal
 	}
 
+	// Cancelling is the applicant's (or their agent's) act, so the caller
+	// must be allowed to act for the client; no separation of duties applies.
+	if scopeErr := b.scope.AuthorizeClient(ctx, lr.ClientID); scopeErr != nil {
+		return nil, scopeErr
+	}
+
+	now := time.Now().UTC()
+	actor := callerSubject(ctx)
+	claimed, claimErr := b.loanRequestRepo.ClaimStatus(ctx, lr.GetID(), nonTerminalRequestStatuses(),
+		int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_CANCELLED),
+		map[string]any{"rejection_reason": reason, colDecidedAt: now, colDecidedBy: actor})
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not record loan request cancellation")
+		return nil, claimErr
+	}
+	if !claimed {
+		return nil, ErrLoanRequestDecisionConflict
+	}
 	lr.Status = int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_CANCELLED)
 	lr.RejectionReason = reason
+	lr.DecidedAt = &now
+	lr.DecidedBy = actor
 
 	if errEmit := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); errEmit != nil {
 		logger.WithError(errEmit).Error("could not emit loan request cancel event")
-		return nil, errEmit
 	}
 
+	b.recordRequestAudit(ctx, lr, "loan_request.cancelled", reason, nil)
 	b.notifier.NotifyApplicationCancelled(ctx, lr)
 
 	return lr.ToAPI(), nil

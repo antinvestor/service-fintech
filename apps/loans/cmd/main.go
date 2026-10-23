@@ -28,6 +28,7 @@ import (
 	loanspb "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"connectrpc.com/connect"
 	"github.com/antinvestor/common/v2"
 	"github.com/antinvestor/common/v2/connection"
@@ -150,6 +151,7 @@ func main() {
 		workMan,
 		peers.funding,
 		peers.loanNotifier,
+		peers.payoutChecker,
 		peers.operations,
 		peers.limits,
 		peers.readScope,
@@ -181,6 +183,7 @@ func setupServiceOptions(
 	workMan workerpool.Manager,
 	fundingCli fundingv1connect.FundingServiceClient,
 	loanNotifier *business.LoanNotifier,
+	payoutChecker business.PayoutDestinationChecker,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	limitsCli limitsv1connect.LimitsServiceClient,
 	readScope *business.ReadScope,
@@ -221,6 +224,7 @@ func setupServiceOptions(
 		limitsGateModeLoanRequestApproval,
 		business.WithReadScope(readScope),
 		business.WithNotifier(loanNotifier),
+		business.WithAuditWriter(auditWriter),
 	)
 	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo)
 	laBusiness := business.NewLoanAccountBusiness(
@@ -273,6 +277,7 @@ func setupServiceOptions(
 		business.WithReadScope(readScope),
 		business.WithScheduleBusiness(scheduleBusiness),
 		business.WithNotifier(loanNotifier),
+		business.WithPayoutDestinationChecker(payoutChecker),
 	)
 
 	portfolioBusiness := business.NewPortfolioBusiness(ctx, dbPool)
@@ -339,11 +344,12 @@ func setupOperationsClient(
 
 // peerClients are the outbound service clients the runtime process needs.
 type peerClients struct {
-	loanNotifier *business.LoanNotifier
-	operations   operationsv1connect.OperationsServiceClient
-	funding      fundingv1connect.FundingServiceClient
-	limits       limitsv1connect.LimitsServiceClient
-	readScope    *business.ReadScope
+	loanNotifier  *business.LoanNotifier
+	payoutChecker business.PayoutDestinationChecker
+	operations    operationsv1connect.OperationsServiceClient
+	funding       fundingv1connect.FundingServiceClient
+	limits        limitsv1connect.LimitsServiceClient
+	readScope     *business.ReadScope
 }
 
 // setupPeerClients builds every peer client. Optional peers degrade with a
@@ -381,10 +387,20 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 		log.WithError(fieldErr).Fatal("main -- Could not setup field client")
 	}
 
+	// Money leaves only to a destination that belongs to the borrower; the
+	// borrower's contacts live on the profile service. Without it no
+	// disbursement can be verified, which is the right failure.
+	profileCli, profileErr := setupProfileClient(ctx, cfg)
+	if profileErr != nil {
+		log.WithError(profileErr).Fatal("main -- Could not setup profile client")
+	}
+	clientProfiles := business.NewFieldClientProfileResolver(fieldCli)
+
 	return peerClients{
+		payoutChecker: business.NewProfilePayoutChecker(clientProfiles, profileCli),
 		loanNotifier: business.NewLoanNotifier(
 			notify.New(notificationCli, messages.Registry()),
-			business.NewFieldClientProfileResolver(fieldCli),
+			clientProfiles,
 			cfg.LenderDisplayName,
 		),
 		operations: operationsCli,
@@ -418,6 +434,17 @@ func setupFieldClient(
 		WorkloadAPITargetPath: cfg.FieldServiceWorkloadAPITargetPath,
 		ServiceID:             servicecatalog.ServiceIdentity,
 	}, fieldv1connect.NewFieldServiceClient)
+}
+
+func setupProfileClient(
+	ctx context.Context,
+	cfg aconfig.LoanManagementConfig,
+) (profilev1connect.ProfileServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.ProfileServiceURI,
+		WorkloadAPITargetPath: cfg.ProfileServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceProfile,
+	}, profilev1connect.NewProfileServiceClient)
 }
 
 func setupFundingClient(

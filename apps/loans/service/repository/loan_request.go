@@ -42,6 +42,14 @@ type LoanRequestRepository interface {
 	// retried instead of being stranded pointing at an account that does not
 	// exist.
 	ReleaseLoanCreationClaim(ctx context.Context, requestID, loanAccountID string) error
+	// ClaimStatus is the conditional write behind every request decision.
+	ClaimStatus(
+		ctx context.Context,
+		requestID string,
+		fromStatuses []int32,
+		toStatus int32,
+		values map[string]any,
+	) (bool, error)
 }
 
 type loanRequestRepository struct {
@@ -80,6 +88,34 @@ func (repo *loanRequestRepository) GetByLoanAccountID(
 		return nil, err
 	}
 	return &lr, nil
+}
+
+// ClaimStatus moves a request out of one of fromStatuses into toStatus and
+// writes values in the same conditional UPDATE. It reports whether this
+// caller won; a loser read a status that has since changed.
+func (repo *loanRequestRepository) ClaimStatus(
+	ctx context.Context,
+	requestID string,
+	fromStatuses []int32,
+	toStatus int32,
+	values map[string]any,
+) (bool, error) {
+	payload := map[string]any{
+		colStatus:     toStatus,
+		colModifiedAt: time.Now().UTC(),
+		colVersion:    gorm.Expr(colVersion + " + 1"),
+	}
+	for k, v := range values {
+		payload[k] = v
+	}
+	result := repo.Pool().DB(ctx, false).
+		Table("loan_requests").
+		Where("id = ? AND status IN ? AND deleted_at IS NULL", requestID, fromStatuses).
+		Updates(payload)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (repo *loanRequestRepository) ClaimForLoanCreation(

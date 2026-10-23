@@ -704,9 +704,14 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	lease := leaseOf(payment)
 
 	// Allocate only what an earlier run left: the persisted remainder, or the
-	// whole amount for a payment never allocated before.
-	startAmount := paymentRemainder(payment)
-	if startAmount <= 0 || payment.State == int32(constants.StateInactive) {
+	// whole amount for a payment never allocated before. A payment past its
+	// initial state with no recorded remainder is not guessed at.
+	startAmount, known := allocatableRemainder(payment)
+	if !known || startAmount <= 0 || payment.State == int32(constants.StateInactive) {
+		if !known {
+			logger.WithField(fieldPaymentID, paymentID).WithField(fieldState, payment.State).
+				Warn("payment has no recorded remainder in a non-initial state; refusing to guess")
+		}
 		b.releaseAllocationLease(ctx, logger, paymentID, lease)
 		return allocationAlreadyProcessed(paymentID, payment.State), nil
 	}
@@ -972,14 +977,22 @@ func (b *paymentRoutingBusiness) allocateObligation(
 		return nil, allocationSkipped
 	}
 	if to.GetID() != freshID {
-		if to.State == int32(constants.StateShutdown) {
+		switch {
+		case to.State == int32(constants.StateShutdown):
 			// Parked by an earlier run whose obligation consumption failed:
 			// nothing was allocated for this pair.
 			return nil, allocationSkipped
+		case to.ObligationConsumed:
+			// An earlier run completed this pair but did not get to record
+			// its outcome. The money is spoken for; count the stored amount.
+			logger.WithField("transfer_order_id", to.GetID()).WithField("obligation_id", obl.GetID()).
+				Info("allocation already recorded by an earlier run; counting it, not consuming again")
+			return to, allocationRecordedEarlier
+		default:
+			// Written but never completed: finish what the earlier run
+			// started, with its stored amount, under the same rules.
+			allocAmount = to.Amount
 		}
-		logger.WithField("transfer_order_id", to.GetID()).WithField("obligation_id", obl.GetID()).
-			Info("allocation already recorded by an earlier run; counting it, not consuming again")
-		return to, allocationRecordedEarlier
 	}
 
 	consumed, consumeErr := b.obRepo.ConsumeAmount(ctx, obl.GetID(), allocAmount)
@@ -993,7 +1006,36 @@ func (b *paymentRoutingBusiness) allocateObligation(
 		}
 		return nil, allocationSkipped
 	}
+	if markErr := b.toRepo.MarkObligationConsumed(ctx, to.GetID()); markErr != nil {
+		// The obligation is consumed and the order exists; a retry that finds
+		// the mark missing re-runs ConsumeAmount, which then fails and parks
+		// the order. Loud, not silent.
+		logger.WithError(markErr).WithField("transfer_order_id", to.GetID()).
+			Error("could not mark obligation consumed on the transfer order")
+	}
+	to.ObligationConsumed = true
 	return to, allocationDone
+}
+
+// allocatableRemainder is the amount an allocation run may still allocate.
+// A payment never allocated (still JustCreated) has its whole amount; any
+// other state must carry the remainder an earlier run recorded, otherwise
+// the answer is unknown and the caller refuses rather than guesses.
+func allocatableRemainder(payment *models.IncomingPayment) (int64, bool) {
+	if payment.Properties != nil {
+		if raw, ok := payment.Properties[fieldRemainingAmount]; ok {
+			switch typed := raw.(type) {
+			case float64:
+				return int64(typed), true
+			case int64:
+				return typed, true
+			}
+		}
+	}
+	if payment.State == int32(constants.StateJustCreated) {
+		return payment.Amount, true
+	}
+	return 0, false
 }
 
 // allocationOutcome says what allocateObligation did for one pair.

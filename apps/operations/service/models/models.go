@@ -59,6 +59,10 @@ type TransferOrder struct {
 	PayoutStatus string `gorm:"type:varchar(20)"`
 	// FailureReason records why the last execution attempt released the order.
 	FailureReason string `gorm:"type:text"`
+	// ObligationConsumed is set once the obligation this allocation order
+	// pays has been consumed. An allocation order without it was written but
+	// never completed; it is finished or parked, never assumed.
+	ObligationConsumed bool
 
 	payout payoutTarget `gorm:"-"`
 }

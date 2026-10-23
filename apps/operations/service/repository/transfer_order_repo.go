@@ -81,6 +81,10 @@ type TransferOrderRepository interface {
 	// never touches a claim that recorded a payment id.
 	RetakePaymentInitiation(ctx context.Context, orderID string, observed time.Time) (bool, error)
 
+	// MarkObligationConsumed records that the obligation behind an allocation
+	// order has been consumed.
+	MarkObligationConsumed(ctx context.Context, orderID string) error
+
 	// MarkFailedIfUnposted moves an order to StateShutdown only while neither
 	// its ledger leg nor its payout has progressed. An order that has posted
 	// or reached the rail cannot be declared failed; it must be reversed.
@@ -128,6 +132,10 @@ func (r *transferOrderRepository) CreateIfAbsent(ctx context.Context, order *mod
 func copyStoredOrder(order, existing *models.TransferOrder) {
 	order.ID = existing.ID
 	order.State = existing.State
+	order.Amount = existing.Amount
+	order.Currency = existing.Currency
+	order.ObligationConsumed = existing.ObligationConsumed
+	order.LedgerTransactionID = existing.LedgerTransactionID
 	order.CreatedAt = existing.CreatedAt
 	order.ModifiedAt = existing.ModifiedAt
 	order.Version = existing.Version
@@ -294,5 +302,16 @@ func (r *transferOrderRepository) MarkPayoutFailed(ctx context.Context, orderID,
 			colFailureReason: reason,
 			colModifiedAt:    time.Now().UTC(),
 			colVersion:       gorm.Expr("version + 1"),
+		}).Error
+}
+
+func (r *transferOrderRepository) MarkObligationConsumed(ctx context.Context, orderID string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ?", orderID).
+		Updates(map[string]any{
+			"obligation_consumed": true,
+			colModifiedAt:         time.Now().UTC(),
+			colVersion:            gorm.Expr("version + 1"),
 		}).Error
 }

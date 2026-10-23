@@ -119,3 +119,36 @@ func TestMinorScheduleZeroInstallments(t *testing.T) {
 		100000, 1800, 0, 0, methodFlat, 0, time.Now(), periodMonthly, 2,
 	))
 }
+
+// Fees are a one-off percentage of the principal, collected in full over the
+// schedule whatever the installment count or interest method.
+func TestMinorScheduleFeesAreChargedOnce(t *testing.T) {
+	const principal = int64(1_000_000) // 10,000.00
+	for _, method := range []int32{1, 2} {
+		for _, installments := range []int32{1, 3, 12} {
+			entries := calculation.GenerateMinorScheduleFromProduct(principal, 2400, 100, 200, method, installments,
+				time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC), 3, 2)
+			var insurance, fees int64
+			for _, e := range entries {
+				insurance += e.InsuranceDue
+				fees += e.FeesDue
+			}
+			if insurance != 10_000 {
+				t.Fatalf(
+					"method %d, %d installments: insurance fee %d, want 1%% of principal = 10000",
+					method,
+					installments,
+					insurance,
+				)
+			}
+			if fees != 20_000 {
+				t.Fatalf(
+					"method %d, %d installments: processing fee %d, want 2%% of principal = 20000",
+					method,
+					installments,
+					fees,
+				)
+			}
+		}
+	}
+}

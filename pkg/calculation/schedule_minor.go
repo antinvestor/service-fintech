@@ -84,11 +84,14 @@ func flatMinorSchedule(
 	principal := decimalx.FromMinorUnits(principalMinor, decimals)
 	periodsPerYear := PeriodsPerYear(periodType)
 
+	// Fees are a one-off percentage of the principal spread over the
+	// installments, not an annual rate: a 2% processing fee on a three-month
+	// loan collects 2%, not 0.5%.
 	totals := [4]int64{
 		principalMinor,
 		FlatRateInterest(principal, annualInterestRateBP, installments, periodsPerYear).ToMinorUnits(decimals),
-		FlatRateInterest(principal, insuranceFeePercentBP, installments, periodsPerYear).ToMinorUnits(decimals),
-		FlatRateInterest(principal, processingFeePercentBP, installments, periodsPerYear).ToMinorUnits(decimals),
+		decimalx.ApplyBasisPoints(principal, insuranceFeePercentBP).ToMinorUnits(decimals),
+		decimalx.ApplyBasisPoints(principal, processingFeePercentBP).ToMinorUnits(decimals),
 	}
 
 	entries := make([]MinorScheduleEntry, installments)
@@ -123,6 +126,12 @@ func reducingBalanceMinorSchedule(
 	remaining := principalMinor
 	dueDate := firstDueDate
 
+	// Fees are a one-off percentage of the principal spread over the
+	// installments, the same as on a flat schedule.
+	principal := decimalx.FromMinorUnits(principalMinor, decimals)
+	insuranceTotal := decimalx.ApplyBasisPoints(principal, insuranceFeePercentBP).ToMinorUnits(decimals)
+	feesTotal := decimalx.ApplyBasisPoints(principal, processingFeePercentBP).ToMinorUnits(decimals)
+
 	for i := range installments {
 		last := i == installments-1
 		outstanding := decimalx.FromMinorUnits(remaining, decimals)
@@ -138,10 +147,8 @@ func reducingBalanceMinorSchedule(
 			PrincipalDue:      principalDue,
 			InterestDue: decimalx.ApplyBasisPoints(outstanding, annualInterestRateBP).
 				Div(ppy).ToMinorUnits(decimals),
-			InsuranceDue: decimalx.ApplyBasisPoints(outstanding, insuranceFeePercentBP).
-				Div(ppy).ToMinorUnits(decimals),
-			FeesDue: decimalx.ApplyBasisPoints(outstanding, processingFeePercentBP).
-				Div(ppy).ToMinorUnits(decimals),
+			InsuranceDue: installmentShare(insuranceTotal, installments, i == installments-1),
+			FeesDue:      installmentShare(feesTotal, installments, i == installments-1),
 		}
 		entries[i].TotalDue = entries[i].PrincipalDue + entries[i].InterestDue +
 			entries[i].InsuranceDue + entries[i].FeesDue

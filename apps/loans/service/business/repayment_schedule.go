@@ -240,6 +240,10 @@ func (b *repaymentScheduleBusiness) generateScheduleEntries(
 	}
 
 	decimals := moneyx.Decimals(la.CurrencyCode)
+	periodType, freqErr := frequencyToPeriodType(loansv1.RepaymentFrequency(la.RepaymentFrequency))
+	if freqErr != nil {
+		return nil, freqErr
+	}
 	entries := calculation.GenerateMinorScheduleFromProduct(
 		principalMinor,
 		interestRate,
@@ -248,7 +252,7 @@ func (b *repaymentScheduleBusiness) generateScheduleEntries(
 		interestMethod,
 		numInstallments,
 		firstDueDate,
-		frequencyToPeriodType(loansv1.RepaymentFrequency(la.RepaymentFrequency)),
+		periodType,
 		decimals,
 	)
 
@@ -322,17 +326,19 @@ const (
 )
 
 // frequencyToPeriodType maps RepaymentFrequency enum to the period type int
-// used by the calculation package (1=WEEKLY, 2=BIWEEKLY, 3=MONTHLY).
-func frequencyToPeriodType(freq loansv1.RepaymentFrequency) int32 {
-	switch freq { //nolint:exhaustive // unspecified and unsupported frequencies default to monthly
+// used by the calculation package (1=WEEKLY, 2=BIWEEKLY, 3=MONTHLY). The
+// calculation package has no daily or quarterly period, so those are refused
+// rather than silently billed as monthly.
+func frequencyToPeriodType(freq loansv1.RepaymentFrequency) (int32, error) {
+	switch freq { //nolint:exhaustive // every other frequency is unsupported
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_WEEKLY:
-		return periodTypeWeeklyRS
+		return periodTypeWeeklyRS, nil
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_BIWEEKLY:
-		return periodTypeBiweeklyRS
+		return periodTypeBiweeklyRS, nil
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_MONTHLY:
-		return periodTypeMonthlyRS
+		return periodTypeMonthlyRS, nil
 	default:
-		return periodTypeMonthlyRS
+		return 0, ErrUnsupportedRepaymentFrequency
 	}
 }
 

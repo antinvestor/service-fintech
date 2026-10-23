@@ -52,6 +52,11 @@ type LoanRequest struct {
 	SourceRequestID   string `gorm:"type:varchar(50)"`
 	IdempotencyKey    string `gorm:"type:varchar(255);index:idx_lr_idempotency"`
 	Properties        data.JSONMap
+	// SubmittedBy and DecidedBy are the profiles that moved the request to
+	// SUBMITTED and to its decision. They come from the caller's claims only,
+	// never from the payload, and are what separation of duties is checked on.
+	SubmittedBy string `gorm:"type:varchar(50)"`
+	DecidedBy   string `gorm:"type:varchar(50)"`
 }
 
 func (m *LoanRequest) TableName() string { return "loan_requests" }

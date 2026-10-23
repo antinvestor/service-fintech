@@ -281,7 +281,12 @@ func (b *paymentRoutingBusiness) applySuspensePayment(
 
 	// Work from the row and the obligations as they are under the lease; the
 	// list read before claiming may have been consumed by another run.
-	available = min(available, paymentRemainder(fresh))
+	freshRemainder, known := allocatableRemainder(fresh)
+	if !known {
+		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
+		return 0, nil
+	}
+	available = min(available, freshRemainder)
 	if available <= 0 {
 		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
 		return 0, nil
@@ -301,7 +306,7 @@ func (b *paymentRoutingBusiness) applySuspensePayment(
 		return 0, nil
 	}
 
-	remaining := paymentRemainder(fresh) - consumed
+	remaining := freshRemainder - consumed
 	state := resolvePaymentState(remaining, fresh.Amount-remaining)
 	landed, outcomeErr := b.ipRepo.SetAllocationOutcome(ctx, fresh.GetID(), lease, state, remaining)
 	if outcomeErr != nil {

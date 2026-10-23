@@ -172,13 +172,13 @@ type writtenRecords struct {
 func (b *fundingAllocationBusiness) voidRecords(ctx context.Context, logger *util.LogEntry, written writtenRecords) {
 	for _, f := range written.fundings {
 		f.State = int32(constants.StateInactive)
-		if err := b.eventsMan.Emit(ctx, events.LoanFundingSaveEvent, f); err != nil {
+		if _, err := b.lfRepo.Update(ctx, f, "state"); err != nil {
 			logger.WithError(err).WithField("loan_funding_id", f.GetID()).Error("could not void loan funding record")
 		}
 	}
 	for _, t := range written.tranches {
 		t.State = int32(constants.StateInactive)
-		if err := b.eventsMan.Emit(ctx, events.FundingTrancheSaveEvent, t); err != nil {
+		if _, err := b.ftRepo.Update(ctx, t, "state"); err != nil {
 			logger.WithError(err).
 				WithField("funding_tranche_id", t.GetID()).
 				Error("could not void funding tranche record")
@@ -288,19 +288,21 @@ func (b *fundingAllocationBusiness) persistAllocations(
 		allocAmount := alloc.Amount.ToMinorUnits(precision)
 
 		funding := buildLoanFundingRecord(ctx, loanRequestID, currency, alloc, proportion, allocAmount)
-		if emitErr := b.eventsMan.Emit(ctx, events.LoanFundingSaveEvent, funding); emitErr != nil {
+		// Written synchronously: a record a later run or a rollback acts on
+		// must exist by the time this call returns.
+		if createErr := b.lfRepo.Create(ctx, funding); createErr != nil {
 			b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
 			b.voidRecords(ctx, util.Log(ctx), run.written)
-			return nil, allocationRun{}, fmt.Errorf("persist loan funding: %w", emitErr)
+			return nil, allocationRun{}, fmt.Errorf("persist loan funding: %w", createErr)
 		}
 		run.written.fundings = append(run.written.fundings, funding)
 
 		investorAccountID := investorAccountIDForAlloc(alloc)
 		tranche := buildFundingTrancheRecord(ctx, funding.GetID(), investorAccountID, alloc, allocAmount, currency)
-		if emitErr := b.eventsMan.Emit(ctx, events.FundingTrancheSaveEvent, tranche); emitErr != nil {
+		if createErr := b.ftRepo.Create(ctx, tranche); createErr != nil {
 			b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
 			b.voidRecords(ctx, util.Log(ctx), run.written)
-			return nil, allocationRun{}, fmt.Errorf("persist funding tranche: %w", emitErr)
+			return nil, allocationRun{}, fmt.Errorf("persist funding tranche: %w", createErr)
 		}
 		run.written.tranches = append(run.written.tranches, tranche)
 
