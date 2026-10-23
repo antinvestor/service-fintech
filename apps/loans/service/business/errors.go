@@ -177,6 +177,18 @@ var (
 		apperrors.ServiceUnavailable,
 		"the disbursement could not be settled; retry with the same idempotency key",
 	)
+	ErrDisbursementRejected = apperrors.NewError(
+		apperrors.Unprocessable,
+		"the disbursement was rejected by the payment path and will not be retried under this key",
+	)
+	ErrDisbursementInFlight = apperrors.NewError(
+		apperrors.Conflict,
+		"another disbursement is already in flight for this loan",
+	)
+	ErrDisbursementNotSettled = apperrors.NewError(
+		apperrors.ServiceUnavailable,
+		"the transfer order did not reach a settled state; retry with the same idempotency key",
+	)
 	ErrOperationsClientUnavailable = apperrors.NewError(
 		apperrors.ServiceUnavailable,
 		"the ledger is not reachable; no money movement can be recorded",

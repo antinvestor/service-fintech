@@ -146,6 +146,14 @@ type options struct {
 	scope             *ReadScope
 	disbRepo          repository.DisbursementRepository
 	scheduleEntryRepo repository.ScheduleEntryRepository
+	scheduleBusiness  RepaymentScheduleBusiness
+}
+
+// WithScheduleBusiness lets the disbursement flow re-anchor the repayment
+// schedule to the date the money actually left. Without it the schedule
+// generated at account creation stands.
+func WithScheduleBusiness(sb RepaymentScheduleBusiness) Option {
+	return func(o *options) { o.scheduleBusiness = sb }
 }
 
 // WithReadScope installs the caller scope used by client-facing reads. When

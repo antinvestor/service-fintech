@@ -23,6 +23,8 @@ import (
 	"errors"
 	"testing"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
@@ -72,6 +74,8 @@ type stubDisbursementRepo struct {
 	stored   []*loansmodels.Disbursement
 	findResp *loansmodels.Disbursement
 	findErr  error
+	claimErr error
+	updates  []map[string]any
 }
 
 func (r *stubDisbursementRepo) Pool() pool.Pool                 { return nil }
@@ -129,6 +133,9 @@ func (r *stubDisbursementRepo) ClaimIdempotencyKey(
 	ctx context.Context,
 	disb *loansmodels.Disbursement,
 ) (*loansmodels.Disbursement, bool, error) {
+	if r.claimErr != nil {
+		return r.findResp, false, r.claimErr
+	}
 	if r.findResp != nil && r.findErr == nil {
 		return r.findResp, false, nil
 	}
@@ -138,7 +145,13 @@ func (r *stubDisbursementRepo) ClaimIdempotencyKey(
 	return disb, true, nil
 }
 
-func (r *stubDisbursementRepo) UpdateColumns(_ context.Context, _ string, _ map[string]any) (int64, error) {
+func (r *stubDisbursementRepo) UpdateColumns(_ context.Context, _ string, values map[string]any) (int64, error) {
+	r.updates = append(r.updates, values)
+	for _, d := range r.stored {
+		if st, ok := values[fieldStatus].(int32); ok {
+			d.Status = st
+		}
+	}
 	return 1, nil
 }
 
@@ -148,6 +161,13 @@ func (r *stubDisbursementRepo) ListByLoanAccountID(
 	_ int,
 ) ([]*loansmodels.Disbursement, error) {
 	return r.stored, nil
+}
+
+func (r *stubDisbursementRepo) GetLiveByLoanAccountID(
+	_ context.Context,
+	_ string,
+) (*loansmodels.Disbursement, error) {
+	return nil, errors.New("stub: not found")
 }
 
 // Compile-time checks.
@@ -460,7 +480,7 @@ func TestCreate_GateDisabled_BehavesAsBefore(t *testing.T) {
 	laRepo := &stubLoanAccountRepo{account: la}
 	opsCli := &stubOperationsClient{
 		transferResp: &operationsv1.TransferOrderExecuteResponse{
-			Data: &operationsv1.TransferOrderObject{Id: "txn-1"},
+			Data: &operationsv1.TransferOrderObject{Id: "txn-1", State: commonv1.STATE_INACTIVE},
 		},
 	}
 
@@ -483,7 +503,7 @@ func TestCreate_GateAllowed(t *testing.T) {
 	laRepo := &stubLoanAccountRepo{account: la}
 	opsCli := &stubOperationsClient{
 		transferResp: &operationsv1.TransferOrderExecuteResponse{
-			Data: &operationsv1.TransferOrderObject{Id: "txn-gate-allowed"},
+			Data: &operationsv1.TransferOrderObject{Id: "txn-gate-allowed", State: commonv1.STATE_INACTIVE},
 		},
 	}
 	limitsCli := &stubLimitsClient{
@@ -598,4 +618,98 @@ func TestCreate_IdempotencyShortCircuit(t *testing.T) {
 	assert.NotNil(t, result)
 	// Gate not called because we short-circuited on idempotency.
 	assert.Equal(t, 0, limitsCli.reserveCalls)
+}
+
+// A rail error that may clear on retry leaves the row PROCESSING under its
+// own key; the retry with that key resumes the same order and completes.
+func TestCreate_TransientFailureKeepsProcessingAndSameKeyResumes(t *testing.T) {
+	la := pendingDisbursementLA()
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{
+		transferErr: connect.NewError(connect.CodeUnavailable, errors.New("ledger down")),
+	}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	req := &loansv1.DisbursementCreateRequest{LoanAccountId: la.GetID(), IdempotencyKey: "idem-resume", Channel: "BANK"}
+	_, err := b.Create(context.Background(), req)
+	require.ErrorIs(t, err, ErrDisbursementNotSettled)
+	require.Len(t, disbRepo.stored, 1)
+	stored := disbRepo.stored[0]
+	assert.Equal(t, int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING), stored.Status,
+		"a transient failure must not mark the disbursement failed")
+	assert.Equal(t, "idem-resume", stored.IdempotencyKey, "the idempotency key must never be rewritten")
+	require.NotEmpty(t, disbRepo.updates)
+	assert.Contains(t, disbRepo.updates[len(disbRepo.updates)-1]["failure_reason"], "ledger down")
+
+	// Retry with the same key: the stored row is found and resumed.
+	disbRepo.findResp, disbRepo.findErr = stored, nil
+	opsCli.transferErr = nil
+	opsCli.transferResp = &operationsv1.TransferOrderExecuteResponse{
+		Data: &operationsv1.TransferOrderObject{Id: "txn-resumed", State: commonv1.STATE_INACTIVE},
+	}
+	result, err := b.Create(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED, result.GetStatus())
+	assert.Len(t, disbRepo.stored, 1, "the resume must not create a second disbursement row")
+}
+
+// A rejection the payment path will never accept marks the row FAILED and
+// keeps its key, so the same key is answered with the failure.
+func TestCreate_PermanentRejectionMarksFailed(t *testing.T) {
+	la := pendingDisbursementLA()
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{
+		transferErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("order marked failed")),
+	}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-reject", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDisbursementRejected)
+	require.Len(t, disbRepo.stored, 1)
+	assert.Equal(t, int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED), disbRepo.stored[0].Status)
+	assert.Equal(t, "idem-reject", disbRepo.stored[0].IdempotencyKey)
+}
+
+// An order the operations service returns in any state other than inactive
+// has not moved money; it must not be recorded as completed.
+func TestCreate_UnsettledOrderStateIsNotCompleted(t *testing.T) {
+	la := pendingDisbursementLA()
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{
+		transferResp: &operationsv1.TransferOrderExecuteResponse{
+			Data: &operationsv1.TransferOrderObject{Id: "txn-open", State: commonv1.STATE_CREATED},
+		},
+	}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-open", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDisbursementNotSettled)
+	assert.Equal(t, int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING), disbRepo.stored[0].Status)
+}
+
+// A second request with a different key for a loan that already has a live
+// disbursement is refused before it reaches the payment rail.
+func TestCreate_SecondKeyForLiveLoanIsRefused(t *testing.T) {
+	la := pendingDisbursementLA()
+	live := &loansmodels.Disbursement{LoanAccountID: la.GetID(), IdempotencyKey: "idem-first",
+		Status: int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING)}
+	live.GenID(context.Background())
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found"), findResp: live,
+		claimErr: repository.ErrLiveDisbursementExists}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-second", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDisbursementInFlight)
+	assert.Empty(t, disbRepo.stored)
 }

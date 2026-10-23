@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -173,6 +174,110 @@ func (b *transferOrderBusiness) Execute(ctx context.Context, orderID string) err
 		})
 }
 
+// postLedgerOnce posts the ledger leg unless an earlier attempt already did,
+// recording the transaction id on the order so no retry posts twice. On
+// failure the execution claim is released and the error returned.
+func (b *transferOrderBusiness) postLedgerOnce(
+	ctx context.Context,
+	logger *util.LogEntry,
+	order *models.TransferOrder,
+) (string, error) {
+	orderID := order.GetID()
+	if order.LedgerTransactionID != "" {
+		logger.WithField("ledger_transaction_id", order.LedgerTransactionID).
+			Info("ledger already posted by an earlier attempt, resuming side effects")
+		return order.LedgerTransactionID, nil
+	}
+
+	debitRef, creditRef := b.resolveAccountRefs(ctx, order)
+	ledgerTxnID, err := b.executeBaseLedgerTransfer(ctx, order, debitRef, creditRef)
+	if err != nil {
+		logger.WithError(err).Error("base ledger transfer failed")
+		b.releaseExecution(ctx, logger, orderID, "ledger: "+err.Error())
+		return "", err
+	}
+	if markErr := b.toRepo.MarkLedgerPosted(ctx, orderID, ledgerTxnID); markErr != nil {
+		// The ledger dedupes on the order id, so a retry that re-posts
+		// converges on the same transaction; the release below is safe.
+		logger.WithError(markErr).Error("could not record ledger transaction id")
+		b.releaseExecution(ctx, logger, orderID, "record ledger id: "+markErr.Error())
+		return "", markErr
+	}
+	order.LedgerTransactionID = ledgerTxnID
+	return ledgerTxnID, nil
+}
+
+// claimForExecution takes the order into StateCheckCreated. A fresh order is
+// claimed from JustCreated/Active. An order another execution left in
+// CheckCreated is resumed only once that execution is stale; while it is
+// fresh the caller gets ErrTransferOrderInProgress so it retries later rather
+// than racing a live posting.
+func (b *transferOrderBusiness) claimForExecution(ctx context.Context, order *models.TransferOrder) error {
+	claimed, err := b.toRepo.ClaimState(
+		ctx,
+		order.GetID(),
+		[]int32{int32(constants.StateJustCreated), int32(constants.StateActive)},
+		int32(constants.StateCheckCreated),
+	)
+	if err != nil {
+		return fmt.Errorf("could not claim transfer order for execution: %w", err)
+	}
+	if claimed {
+		return nil
+	}
+
+	current, err := b.toRepo.GetByID(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("transfer order not found: %w", err)
+	}
+	switch current.State {
+	case int32(constants.StateInactive), int32(constants.StateDeleted):
+		// Finished between our read and our claim: report success through
+		// the caller's normal path by re-running the completed guard.
+		*order = *current
+		return errAlreadyCompleted
+	case int32(constants.StateShutdown):
+		return ErrTransferOrderFailed
+	case int32(constants.StateCheckCreated):
+		staleBefore := time.Now().Add(-staleExecutionAfter)
+		if current.ModifiedAt.After(staleBefore) {
+			return ErrTransferOrderInProgress
+		}
+		resumed, resumeErr := b.toRepo.ClaimStaleExecution(ctx, order.GetID(), staleBefore)
+		if resumeErr != nil {
+			return fmt.Errorf("could not resume stale transfer order: %w", resumeErr)
+		}
+		if !resumed {
+			return ErrTransferOrderInProgress
+		}
+		*order = *current
+		util.Log(ctx).WithField("order_id", order.GetID()).
+			WithField("stale_since", current.ModifiedAt).
+			Warn("resuming transfer order abandoned by an earlier execution")
+		return nil
+	default:
+		return ErrTransferOrderInProgress
+	}
+}
+
+// errAlreadyCompleted is an internal signal that the order finished while
+// this execution was claiming it; Execute maps it to success.
+var errAlreadyCompleted = errors.New("transfer order completed by another execution")
+
+// releaseExecution hands the order back to JustCreated after a failed
+// attempt. It is best-effort: if the release itself fails the row stays in
+// CheckCreated and the stale-execution path resumes it later.
+func (b *transferOrderBusiness) releaseExecution(ctx context.Context, logger *util.LogEntry, orderID, reason string) {
+	released, err := b.toRepo.ReleaseExecution(ctx, orderID, reason)
+	if err != nil {
+		logger.WithError(err).Error("could not release transfer order after failure")
+		return
+	}
+	if !released {
+		logger.Warn("transfer order was not in the executing state when released")
+	}
+}
+
 // RecordFailure marks the transfer order behind a reference as failed and
 // records why. The workflow compensation step calls it when a ledger transfer
 // comes back non-2xx, so the order stops looking executable and an operator
@@ -230,7 +335,38 @@ func (b *transferOrderBusiness) RecordFailure(
 	}, nil
 }
 
+// staleExecutionAfter is how long an order may sit in StateCheckCreated before
+// a retry treats the previous execution as dead and resumes it. Live
+// executions finish in seconds; anything older was interrupted mid-flight.
+const staleExecutionAfter = 2 * time.Minute
+
+var (
+	// ErrTransferOrderInProgress is returned when another execution currently
+	// holds the order. The caller must retry later; it must not treat the
+	// order as settled.
+	ErrTransferOrderInProgress = apperrors.NewError(apperrors.ServiceUnavailable,
+		"transfer order execution is in progress; retry later")
+	// ErrTransferOrderFailed is returned for an order an operator or the
+	// workflow marked failed through RecordFailure. It will not execute again.
+	ErrTransferOrderFailed = apperrors.NewError(apperrors.Unprocessable,
+		"transfer order was marked failed and cannot be executed")
+)
+
 // executeInner runs the core transfer order execution logic after any gate check.
+//
+// The order is a small state machine the caller may drive any number of
+// times with the same reference:
+//
+//	JustCreated/Active ──claim──▶ CheckCreated ──ledger, side effects──▶ Inactive
+//	        ▲                          │
+//	        └──────release on error────┘
+//
+// Every failure releases the claim and returns the error, so a retry
+// re-enters instead of being told the order is done. Progress that already
+// cost money is remembered on the row: a posted ledger transaction id means
+// the ledger leg is skipped on resume, and a claimed payment initiation means
+// the payout is never sent twice. Only reaching StateInactive is success;
+// callers must treat every returned error as "not settled".
 func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string) error {
 	logger := util.Log(ctx).WithField("method", "TransferOrderBusiness.Execute").
 		WithField("order_id", orderID)
@@ -244,41 +380,33 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	typeName := constants.TransferTypeName(orderType)
 	logger = logger.WithField("order_type", typeName)
 
-	if order.State == int32(constants.StateInactive) || order.State == int32(constants.StateDeleted) {
+	switch order.State {
+	case int32(constants.StateInactive), int32(constants.StateDeleted):
 		logger.Info("transfer order already completed, skipping")
 		return nil
+	case int32(constants.StateShutdown):
+		return ErrTransferOrderFailed
 	}
 
-	// Claim the order with a conditional UPDATE. Two concurrent executions of
-	// the same order both read StateJustCreated, but only one row update
-	// matches, so only one caller moves money.
-	claimed, claimErr := b.toRepo.ClaimState(
-		ctx,
-		orderID,
-		[]int32{int32(constants.StateJustCreated), int32(constants.StateActive)},
-		int32(constants.StateCheckCreated),
-	)
-	if claimErr != nil {
-		return fmt.Errorf("could not claim transfer order for execution: %w", claimErr)
-	}
-	if !claimed {
-		logger.Info("transfer order already claimed by another execution, skipping")
-		return nil
+	if err = b.claimForExecution(ctx, order); err != nil {
+		if errors.Is(err, errAlreadyCompleted) {
+			logger.Info("transfer order completed by another execution")
+			return nil
+		}
+		return err
 	}
 	order.State = int32(constants.StateCheckCreated)
 
 	logger.Info("executing transfer order")
 
-	debitRef, creditRef := b.resolveAccountRefs(ctx, order)
-
-	ledgerTxnID, execErr := b.executeBaseLedgerTransfer(ctx, order, debitRef, creditRef)
-	if execErr != nil {
-		logger.WithError(execErr).Error("base ledger transfer failed")
-		return execErr
+	ledgerTxnID, err := b.postLedgerOnce(ctx, logger, order)
+	if err != nil {
+		return err
 	}
 
 	if sideEffectErr := b.dispatchSideEffect(ctx, logger, orderType, order); sideEffectErr != nil {
 		logger.WithError(sideEffectErr).Error("side effect failed")
+		b.releaseExecution(ctx, logger, orderID, "side effect: "+sideEffectErr.Error())
 		return sideEffectErr
 	}
 
@@ -291,14 +419,21 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	}
 
 	// Step 6: Mark the transfer order as completed
-	if _, doneErr := b.toRepo.ClaimState(
+	done, doneErr := b.toRepo.ClaimState(
 		ctx,
 		orderID,
 		[]int32{int32(constants.StateCheckCreated)},
 		int32(constants.StateInactive),
-	); doneErr != nil {
+	)
+	if doneErr != nil {
 		logger.WithError(doneErr).Error("could not update transfer order state")
 		return doneErr
+	}
+	if !done {
+		// Someone else moved the row while we held it. The ledger id is
+		// persisted, so whichever execution finishes converges on one posting.
+		logger.Warn("transfer order left the executing state during completion")
+		return ErrTransferOrderInProgress
 	}
 	order.State = int32(constants.StateInactive)
 
@@ -571,8 +706,21 @@ func (b *transferOrderBusiness) sendPayment(
 	recipientID string,
 	route string,
 ) error {
-	if b.clients.PaymentClient == nil {
-		util.Log(ctx).Warn("PaymentClient not configured, skipping payment send")
+	if b.clients == nil || b.clients.PaymentClient == nil {
+		return errPaymentClientUnavailable
+	}
+
+	// Claim the payout exactly once. The payment service does not dedupe on
+	// our reference, so a resumed execution that finds the claim taken must
+	// not send again: the earlier attempt reached the rail and its outcome
+	// is settled through the payment status path, not by a second Send.
+	claimed, err := b.toRepo.ClaimPaymentInitiation(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("claim payment initiation: %w", err)
+	}
+	if !claimed {
+		util.Log(ctx).WithField("order_id", order.GetID()).
+			Warn("payout already initiated by an earlier execution, not sending again")
 		return nil
 	}
 
@@ -588,12 +736,23 @@ func (b *transferOrderBusiness) sendPayment(
 		}).Build(),
 	}).Build()
 
-	_, err := b.clients.PaymentClient.Send(ctx, connect.NewRequest(req))
+	resp, err := b.clients.PaymentClient.Send(ctx, connect.NewRequest(req))
 	if err != nil {
+		// The claim stays: we cannot tell whether the rail accepted the
+		// request before the error. Reconciliation against the payment
+		// service by reference settles it; a blind resend could pay twice.
 		return fmt.Errorf("payment send failed: %w", err)
+	}
+	if status := resp.Msg.GetData(); status != nil && status.GetId() != "" {
+		if recErr := b.toRepo.RecordPaymentID(ctx, order.GetID(), status.GetId()); recErr != nil {
+			util.Log(ctx).WithError(recErr).WithField("order_id", order.GetID()).
+				Warn("could not record payment id on transfer order")
+		}
 	}
 	return nil
 }
+
+var errPaymentClientUnavailable = errors.New("payment client is not configured; refusing to execute a payout order")
 
 // extraDataString safely extracts a string value from the order's ExtraData map.
 func extraDataString(order *models.TransferOrder, key string) string {

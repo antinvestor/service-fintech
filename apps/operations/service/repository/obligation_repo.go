@@ -56,9 +56,13 @@ const (
 	stateActive   = 3
 	stateInactive = 4
 
-	colState      = "state"
-	colModifiedAt = "modified_at"
-	colVersion    = "version"
+	colState              = "state"
+	colModifiedAt         = "modified_at"
+	colVersion            = "version"
+	colFailureReason      = "failure_reason"
+	colLedgerTxnID        = "ledger_transaction_id"
+	colPaymentInitiatedAt = "payment_initiated_at"
+	colPaymentID          = "payment_id"
 )
 
 type obligationRepository struct {

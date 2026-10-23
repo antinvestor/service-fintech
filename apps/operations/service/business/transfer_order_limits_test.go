@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
@@ -133,6 +134,26 @@ func (r *stubTransferOrderRepo) ClaimState(
 	}
 	return true, nil
 }
+
+func (r *stubTransferOrderRepo) ClaimStaleExecution(_ context.Context, _ string, _ time.Time) (bool, error) {
+	return false, nil
+}
+func (r *stubTransferOrderRepo) ReleaseExecution(_ context.Context, _, _ string) (bool, error) {
+	if r.order != nil {
+		r.order.State = int32(constants.StateJustCreated)
+	}
+	return true, nil
+}
+func (r *stubTransferOrderRepo) MarkLedgerPosted(_ context.Context, _, txnID string) error {
+	if r.order != nil {
+		r.order.LedgerTransactionID = txnID
+	}
+	return nil
+}
+func (r *stubTransferOrderRepo) ClaimPaymentInitiation(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+func (r *stubTransferOrderRepo) RecordPaymentID(_ context.Context, _, _ string) error { return nil }
 
 var _ repository.TransferOrderRepository = (*stubTransferOrderRepo)(nil)
 

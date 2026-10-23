@@ -45,9 +45,23 @@ type TransferOrder struct {
 	ExtraData        data.JSONMap
 	State            int32
 	Properties       data.JSONMap
+	// LedgerTransactionID is the id the ledger returned when the posting
+	// landed. A retry of an order that carries one skips the ledger call: the
+	// money has moved, only the side effects or the completion mark are owed.
+	LedgerTransactionID string `gorm:"type:varchar(50);index:idx_to_ledger_txn"`
+	// PaymentInitiatedAt is claimed once, immediately before the first call to
+	// the payment rail. A retry that finds it set does not send a second payout.
+	PaymentInitiatedAt *time.Time
+	// PaymentID is the payment service's id for the payout, when one was sent.
+	PaymentID string `gorm:"type:varchar(50)"`
+	// FailureReason records why the last execution attempt released the order.
+	FailureReason string `gorm:"type:text"`
 }
 
 func (m *TransferOrder) TableName() string { return "transfer_orders" }
+
+// LedgerPosted reports whether the ledger leg of this order has landed.
+func (m *TransferOrder) LedgerPosted() bool { return m.LedgerTransactionID != "" }
 
 // Obligation represents a financial obligation for a member.
 type Obligation struct {

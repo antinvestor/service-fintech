@@ -259,3 +259,54 @@ func (s *migrateSuite) TestPenaltyMarkIsClaimedOnce() {
 	s.Require().NoError(err)
 	s.Require().Equal(true, stored.Properties["penalty_applied"])
 }
+
+// Two disbursements with different idempotency keys for one loan cannot both
+// be live: the second insert is answered with the first row and
+// ErrLiveDisbursementExists, before any money moves.
+func (s *migrateSuite) TestOneLiveDisbursementPerLoan() {
+	e := s.newEnv()
+	repo := repository.NewDisbursementRepository(e.ctx, e.dbPool, nil)
+
+	newDisb := func(key string) *models.Disbursement {
+		d := &models.Disbursement{
+			LoanAccountID:  "loan-live-1",
+			Amount:         50_000,
+			CurrencyCode:   "KES",
+			Status:         int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING),
+			IdempotencyKey: key,
+		}
+		d.GenID(e.ctx)
+		d.PartitionID = "partition-1"
+		d.TenantID = "tenant-1"
+		return d
+	}
+
+	first := newDisb("key-a")
+	stored, created, err := repo.ClaimIdempotencyKey(e.ctx, first)
+	s.Require().NoError(err)
+	s.Require().True(created)
+	s.Require().Equal(first.GetID(), stored.GetID())
+
+	second := newDisb("key-b")
+	live, created, err := repo.ClaimIdempotencyKey(e.ctx, second)
+	s.Require().ErrorIs(err, repository.ErrLiveDisbursementExists)
+	s.Require().False(created)
+	s.Require().Equal(first.GetID(), live.GetID(), "the loser is told which row owns the payout")
+
+	// The same key is a retry, not a second payout.
+	again := newDisb("key-a")
+	stored, created, err = repo.ClaimIdempotencyKey(e.ctx, again)
+	s.Require().NoError(err)
+	s.Require().False(created)
+	s.Require().Equal(first.GetID(), stored.GetID())
+
+	// Once the live row is failed, a fresh key may try again.
+	_, err = repo.UpdateColumns(e.ctx, first.GetID(), map[string]any{
+		"status": int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED),
+	})
+	s.Require().NoError(err)
+	third := newDisb("key-c")
+	_, created, err = repo.ClaimIdempotencyKey(e.ctx, third)
+	s.Require().NoError(err)
+	s.Require().True(created)
+}

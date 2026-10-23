@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -62,6 +63,7 @@ type disbursementBusiness struct {
 	limitsCli         limitsv1connect.LimitsServiceClient
 	limitsGateEnabled bool
 	limitsGateMode    string
+	scheduleBusiness  RepaymentScheduleBusiness
 }
 
 func NewDisbursementBusiness(
@@ -77,8 +79,10 @@ func NewDisbursementBusiness(
 	limitsGateMode string,
 	opts ...Option,
 ) DisbursementBusiness {
+	o := applyOptions(opts)
 	return &disbursementBusiness{
-		scope:             applyOptions(opts).scope,
+		scope:             o.scope,
+		scheduleBusiness:  o.scheduleBusiness,
 		eventsMan:         eventsMan,
 		disbRepo:          disbRepo,
 		loanAccountRepo:   loanAccountRepo,
@@ -103,8 +107,11 @@ func (b *disbursementBusiness) Create(
 		return nil, ErrIdempotencyKeyRequired
 	}
 
+	// A settled row answers the retry outright. A row still PROCESSING is
+	// not an answer: the previous attempt did not reach a settled state and
+	// this call drives the same transfer order again so it converges.
 	if existing, idErr := b.disbRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); idErr == nil &&
-		existing != nil {
+		existing != nil && !disbursementResumable(existing) {
 		return existing.ToAPI(), nil
 	}
 
@@ -169,42 +176,93 @@ func (b *disbursementBusiness) createInner(
 	}
 	disb.GenID(ctx)
 
-	// The row is inserted before the money moves, and the unique index on the
-	// idempotency key is what serialises concurrent requests: the loser of the
-	// race never reaches the payment rail, it just reads the winner's row.
+	// The row is inserted before the money moves. Two unique indexes
+	// serialise concurrent requests: the idempotency key (same key, same
+	// row) and the single live disbursement per loan (different keys, one
+	// winner). The loser never reaches the payment rail.
 	stored, created, claimErr := b.disbRepo.ClaimIdempotencyKey(ctx, disb)
+	if errors.Is(claimErr, repository.ErrLiveDisbursementExists) {
+		logger.WithField("live_disbursement_id", stored.GetID()).
+			Warn("refusing second disbursement for a loan that already has a live one")
+		return nil, ErrDisbursementInFlight
+	}
 	if claimErr != nil {
 		logger.WithError(claimErr).Error("could not claim disbursement idempotency key")
 		return nil, claimErr
 	}
 	if !created {
-		return stored.ToAPI(), nil
+		if !disbursementResumable(stored) {
+			return stored.ToAPI(), nil
+		}
+		// Same key, earlier attempt still processing: resume it. The
+		// transfer order on the operations side is keyed on this row's
+		// idempotency key, so driving it again converges on one posting.
+		logger.WithField("disbursement_id", stored.GetID()).Info("resuming processing disbursement")
+		disb = stored
 	}
 
 	toResp, toErr := b.executeDisbursementTransfer(ctx, req, la, disb)
 	if toErr != nil {
-		logger.WithError(toErr).Error("transfer order execution failed")
-		b.releaseFailedDisbursement(ctx, logger, disb, toErr)
-		return nil, ErrDisbursementTransferFailed
+		return nil, b.handleTransferFailure(ctx, logger, disb, toErr)
+	}
+	order := toResp.Msg.GetData()
+	if order.GetState() != commonv1.STATE_INACTIVE {
+		// The operations service only reports money as moved once the order
+		// is inactive. Anything else is "not yet": keep the row processing
+		// so the same key can drive the order to completion.
+		err = fmt.Errorf("transfer order %s returned in state %s", order.GetId(), order.GetState())
+		return nil, b.handleTransferFailure(ctx, logger, disb, err)
 	}
 
-	disb.LedgerTransactionID = toResp.Msg.GetData().GetId()
+	if err = b.completeDisbursement(ctx, logger, req, la, disb, order.GetId()); err != nil {
+		return nil, err
+	}
+
+	currencyAttr := attribute.String("currency", la.CurrencyCode)
+	LoansDisbursed.Add(ctx, 1, currencyAttr)
+	LoansDisbursedAmount.Add(ctx,
+		float64(la.PrincipalAmount)/minorUnitsPerMajor,
+		currencyAttr)
+
+	return disb.ToAPI(), nil
+}
+
+// completeDisbursement records a settled transfer order on the disbursement
+// and the loan: the row is marked completed, the loan is stamped and its
+// schedule re-anchored, the loan goes active, and the movement is audited.
+func (b *disbursementBusiness) completeDisbursement(
+	ctx context.Context,
+	logger *util.LogEntry,
+	req *loansv1.DisbursementCreateRequest,
+	la *models.LoanAccount,
+	disb *models.Disbursement,
+	orderID string,
+) error {
+	disb.LedgerTransactionID = orderID
 	disb.Status = int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED)
 	if _, updErr := b.disbRepo.UpdateColumns(ctx, disb.GetID(), map[string]any{
 		fieldStatus:      disb.Status,
 		fieldLedgerTxnID: disb.LedgerTransactionID,
+		"failure_reason": "",
 	}); updErr != nil {
 		logger.WithError(updErr).Error("could not mark disbursement completed")
-		return nil, updErr
+		return updErr
 	}
 
 	b.recordDisbursementOnLoan(ctx, logger, la)
 
+	actor := callerSubject(ctx)
+	if actor == "" {
+		actor = "system"
+	}
 	if _, transErr := b.laBusiness.TransitionStatus(
 		ctx, la.GetID(),
 		loansv1.LoanStatus_LOAN_STATUS_ACTIVE,
-		"system", "disbursement completed",
+		actor, "disbursement completed",
 	); transErr != nil {
+		// The money has moved and the disbursement row says so; a loan that
+		// did not become active is visible to the reconciliation sweep via
+		// COMPLETED disbursements on PENDING_DISBURSEMENT loans.
 		logger.WithError(transErr).Error("could not transition loan to active after disbursement")
 	}
 
@@ -235,13 +293,7 @@ func (b *disbursementBusiness) createInner(
 		logger.WithError(auErr).Warn("audit emission failed for disbursement")
 	})
 
-	currencyAttr := attribute.String("currency", la.CurrencyCode)
-	LoansDisbursed.Add(ctx, 1, currencyAttr)
-	LoansDisbursedAmount.Add(ctx,
-		float64(la.PrincipalAmount)/minorUnitsPerMajor,
-		currencyAttr)
-
-	return disb.ToAPI(), nil
+	return nil
 }
 
 // loadDisbursableLoan resolves the loan account and checks everything that
@@ -269,48 +321,89 @@ func (b *disbursementBusiness) loadDisbursableLoan(
 	return la, nil
 }
 
-// releaseFailedDisbursement records the failure and hands the idempotency key
-// back. A failed attempt keeps its audit row, but the key it reserved is
-// renamed so the caller can retry the same payment with the same key instead
-// of being answered with the failure for ever.
-func (b *disbursementBusiness) releaseFailedDisbursement(
+// disbursementResumable reports whether a stored row is still waiting on the
+// payment path, so a retry with its key should drive it rather than read it.
+func disbursementResumable(d *models.Disbursement) bool {
+	return d != nil && d.Status == int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING)
+}
+
+// handleTransferFailure decides what a failed transfer attempt means for the
+// disbursement row. A rejection the payment path will never accept marks the
+// row FAILED under its own key, so a retry with that key is answered with the
+// failure and a fresh key may try again. Anything else is "not settled yet":
+// the row stays PROCESSING with the reason recorded, and the same key resumes
+// the same transfer order. The idempotency key is never rewritten: the audit
+// trail keeps the caller's key, and the operations reference derived from it
+// stays stable across attempts.
+func (b *disbursementBusiness) handleTransferFailure(
 	ctx context.Context,
 	logger *util.LogEntry,
 	disb *models.Disbursement,
 	cause error,
-) {
-	if _, err := b.disbRepo.UpdateColumns(ctx, disb.GetID(), map[string]any{
-		fieldStatus:         int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED),
-		"failure_reason":    cause.Error(),
-		fieldIdempotencyKey: "failed:" + disb.GetID(),
-	}); err != nil {
-		logger.WithError(err).Error("could not release the idempotency key of a failed disbursement")
+) error {
+	logger = logger.WithError(cause).WithField("disbursement_id", disb.GetID())
+	values := map[string]any{"failure_reason": cause.Error()}
+
+	if transferPermanentlyRejected(cause) {
+		logger.Error("disbursement rejected by the payment path")
+		values[fieldStatus] = int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED)
+		if _, err := b.disbRepo.UpdateColumns(ctx, disb.GetID(), values); err != nil {
+			logger.WithError(err).Error("could not mark disbursement failed")
+		}
+		return ErrDisbursementRejected
 	}
+
+	logger.Warn("disbursement not settled; the same idempotency key resumes it")
+	if _, err := b.disbRepo.UpdateColumns(ctx, disb.GetID(), values); err != nil {
+		logger.WithError(err).Error("could not record disbursement failure reason")
+	}
+	return ErrDisbursementNotSettled
 }
 
-// recordDisbursementOnLoan stamps the disbursement date, and the first
-// repayment date it implies, onto the loan. Only those columns are written:
-// the loan row may have moved on since it was read.
+// transferPermanentlyRejected classifies an operations error. Validation and
+// precondition failures will not pass on a retry of the same order; everything
+// else (unavailable, deadline, internal, in-progress) may.
+func transferPermanentlyRejected(err error) bool {
+	code := connect.CodeOf(err)
+	return code == connect.CodeInvalidArgument ||
+		code == connect.CodeFailedPrecondition ||
+		code == connect.CodePermissionDenied ||
+		code == connect.CodeNotFound
+}
+
+// recordDisbursementOnLoan stamps the disbursement date on the loan and
+// re-anchors the repayment schedule to it. The schedule generated at account
+// creation assumed the money would leave immediately; a loan disbursed days
+// later would otherwise start life with an installment already overdue.
+// Only the touched columns are written: the loan row may have moved on since
+// it was read.
 func (b *disbursementBusiness) recordDisbursementOnLoan(
 	ctx context.Context,
 	logger *util.LogEntry,
 	la *models.LoanAccount,
 ) {
 	now := time.Now().UTC()
-	values := map[string]any{"disbursed_at": now}
-	if la.FirstRepaymentDate == nil {
-		firstRepayment := now.AddDate(
-			0,
-			0,
-			computeFirstRepaymentDays(loansv1.RepaymentFrequency(la.RepaymentFrequency)),
-		)
-		values["first_repayment_date"] = firstRepayment
-		la.FirstRepaymentDate = &firstRepayment
-	}
+	firstRepayment := now.AddDate(
+		0,
+		0,
+		computeFirstRepaymentDays(loansv1.RepaymentFrequency(la.RepaymentFrequency)),
+	)
 	la.DisbursedAt = &now
+	la.FirstRepaymentDate = &firstRepayment
 
+	values := map[string]any{
+		"disbursed_at":         now,
+		"first_repayment_date": firstRepayment,
+	}
 	if _, err := b.loanAccountRepo.UpdateColumns(ctx, la.GetID(), values); err != nil {
 		logger.WithError(err).Error("could not record the disbursement date on the loan account")
+	}
+
+	if b.scheduleBusiness == nil {
+		return
+	}
+	if _, err := b.scheduleBusiness.GenerateFor(ctx, la, la.PrincipalAmount); err != nil {
+		logger.WithError(err).Error("could not re-anchor the repayment schedule to the disbursement date")
 	}
 }
 

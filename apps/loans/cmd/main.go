@@ -256,6 +256,7 @@ func setupServiceOptions(
 		limitsGateEnabledDisbursement,
 		limitsGateModeDisbursement,
 		business.WithReadScope(readScope),
+		business.WithScheduleBusiness(scheduleBusiness),
 	)
 
 	portfolioBusiness := business.NewPortfolioBusiness(ctx, dbPool)

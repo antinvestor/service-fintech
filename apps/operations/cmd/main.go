@@ -231,6 +231,8 @@ func setupServiceOptions(
 var (
 	errIdentityClientRequired = errors.New("identity client is required but was not configured")
 	errLedgerClientRequired   = errors.New("ledger client is required but was not configured")
+	errPaymentClientRequired  = errors.New("payment client is required but was not configured: " +
+		"payout orders would post to the ledger with no cash leaving")
 )
 
 // peerClients are the outbound service clients the runtime process needs.
@@ -261,6 +263,9 @@ func setupPeerClients(ctx context.Context, cfg aconfig.OperationsConfig) (peerCl
 	}
 	if platformClients == nil || platformClients.LedgerClient == nil {
 		return peerClients{}, errLedgerClientRequired
+	}
+	if platformClients.PaymentClient == nil {
+		return peerClients{}, errPaymentClientRequired
 	}
 
 	limitsCli, err := setupLimitsClient(ctx, cfg)

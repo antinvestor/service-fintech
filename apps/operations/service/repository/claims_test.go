@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v2"
@@ -294,4 +295,101 @@ func (s *claimsSuite) TestConsumeAmountDeactivatesWhenFullyPaid() {
 	consumed, err = e.obs.ConsumeAmount(e.ctx, obligation.GetID(), 1)
 	s.Require().NoError(err)
 	s.Require().False(consumed)
+}
+
+// A released order goes back to JustCreated with its failure reason, and only
+// an order that is actually executing can be released.
+func (s *claimsSuite) TestReleaseExecutionReturnsOrderToJustCreated() {
+	e := s.newEnv()
+
+	order := s.newOrder(e.ctx, "disbursement:release")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+
+	released, err := e.orders.ReleaseExecution(e.ctx, order.GetID(), "ledger down")
+	s.Require().NoError(err)
+	s.Require().False(released, "an unclaimed order has nothing to release")
+
+	claimed, err := e.orders.ClaimState(e.ctx, order.GetID(),
+		[]int32{int32(constants.StateJustCreated)}, int32(constants.StateCheckCreated))
+	s.Require().NoError(err)
+	s.Require().True(claimed)
+
+	released, err = e.orders.ReleaseExecution(e.ctx, order.GetID(), "ledger down")
+	s.Require().NoError(err)
+	s.Require().True(released)
+
+	stored, err := e.orders.GetByID(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(int32(constants.StateJustCreated), stored.State)
+	s.Require().Equal("ledger down", stored.FailureReason)
+}
+
+// Only one of many resumers may take over a stale execution, and a fresh
+// execution is never taken over.
+func (s *claimsSuite) TestClaimStaleExecutionIsExclusiveAndRespectsFreshness() {
+	e := s.newEnv()
+
+	order := s.newOrder(e.ctx, "disbursement:stale")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+	claimed, err := e.orders.ClaimState(e.ctx, order.GetID(),
+		[]int32{int32(constants.StateJustCreated)}, int32(constants.StateCheckCreated))
+	s.Require().NoError(err)
+	s.Require().True(claimed)
+
+	resumed, err := e.orders.ClaimStaleExecution(e.ctx, order.GetID(), time.Now().Add(-time.Hour))
+	s.Require().NoError(err)
+	s.Require().False(resumed, "a fresh execution must not be resumed")
+
+	// Age the execution the way a crashed replica would leave it.
+	s.Require().NoError(e.orders.Pool().DB(e.ctx, false).
+		Table("transfer_orders").
+		Where("id = ?", order.GetID()).
+		Update("modified_at", time.Now().Add(-time.Hour)).Error)
+	staleBefore := time.Now().Add(-2 * time.Minute)
+
+	const racers = 8
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		wins int
+	)
+	for range racers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ok, cErr := e.orders.ClaimStaleExecution(e.ctx, order.GetID(), staleBefore)
+			if cErr == nil && ok {
+				mu.Lock()
+				wins++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	s.Require().Equal(1, wins, "exactly one resumer may take over a stale execution")
+}
+
+// The payout claim is taken once for the life of the order.
+func (s *claimsSuite) TestClaimPaymentInitiationIsOnce() {
+	e := s.newEnv()
+
+	order := s.newOrder(e.ctx, "disbursement:payout")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+
+	first, err := e.orders.ClaimPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().True(first)
+
+	second, err := e.orders.ClaimPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().False(second, "a second attempt must not send another payout")
+
+	s.Require().NoError(e.orders.MarkLedgerPosted(e.ctx, order.GetID(), "ledger-1"))
+	s.Require().NoError(e.orders.RecordPaymentID(e.ctx, order.GetID(), "pay-1"))
+
+	stored, err := e.orders.GetByID(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().NotNil(stored.PaymentInitiatedAt)
+	s.Require().Equal("ledger-1", stored.LedgerTransactionID)
+	s.Require().Equal("pay-1", stored.PaymentID)
 }
