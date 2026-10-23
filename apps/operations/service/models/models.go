@@ -54,6 +54,9 @@ type TransferOrder struct {
 	PaymentInitiatedAt *time.Time
 	// PaymentID is the payment service's id for the payout, when one was sent.
 	PaymentID string `gorm:"type:varchar(50)"`
+	// PayoutStatus is PayoutStatusFailed once the payment rail reported the
+	// payout as failed. Such an order never completes; it needs a reversal.
+	PayoutStatus string `gorm:"type:varchar(20)"`
 	// FailureReason records why the last execution attempt released the order.
 	FailureReason string `gorm:"type:text"`
 
@@ -64,6 +67,12 @@ func (m *TransferOrder) TableName() string { return "transfer_orders" }
 
 // LedgerPosted reports whether the ledger leg of this order has landed.
 func (m *TransferOrder) LedgerPosted() bool { return m.LedgerTransactionID != "" }
+
+// PayoutStatusFailed marks an order whose payout the rail rejected.
+const PayoutStatusFailed = "failed"
+
+// PayoutFailed reports whether the payment rail rejected this order's payout.
+func (m *TransferOrder) PayoutFailed() bool { return m.PayoutStatus == PayoutStatusFailed }
 
 // payoutTarget is the transient payout destination, set by the side-effect
 // handler for the execution in progress; never persisted.

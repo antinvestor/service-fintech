@@ -63,6 +63,7 @@ const (
 	colLedgerTxnID        = "ledger_transaction_id"
 	colPaymentInitiatedAt = "payment_initiated_at"
 	colPaymentID          = "payment_id"
+	colPayoutStatus       = "payout_status"
 )
 
 type obligationRepository struct {

@@ -70,10 +70,16 @@ type TransferOrderRepository interface {
 	// RecordPaymentID stores the payment service's id for the payout.
 	RecordPaymentID(ctx context.Context, orderID, paymentID string) error
 
-	// ClearPaymentInitiation releases a payout claim once the payment service
-	// has confirmed it holds no payment for the order, so the payout may be
-	// sent. It only clears a claim that never recorded a payment id.
-	ClearPaymentInitiation(ctx context.Context, orderID string) (bool, error)
+	// MarkPayoutFailed records that the payment rail rejected the payout.
+	// The order keeps its claim and payment id so it cannot be paid twice,
+	// and executeInner refuses to complete it until it is reversed.
+	MarkPayoutFailed(ctx context.Context, orderID, paymentID, reason string) error
+
+	// RetakePaymentInitiation swaps a stale payout claim for a fresh one in a
+	// single compare-and-swap on the observed claim time, so of several
+	// resumers that all saw the same stale claim exactly one may send. It
+	// never touches a claim that recorded a payment id.
+	RetakePaymentInitiation(ctx context.Context, orderID string, observed time.Time) (bool, error)
 
 	// MarkFailedIfUnposted moves an order to StateShutdown only while neither
 	// its ledger leg nor its payout has progressed. An order that has posted
@@ -236,13 +242,17 @@ func (r *transferOrderRepository) RecordPaymentID(ctx context.Context, orderID, 
 		}).Error
 }
 
-func (r *transferOrderRepository) ClearPaymentInitiation(ctx context.Context, orderID string) (bool, error) {
+func (r *transferOrderRepository) RetakePaymentInitiation(
+	ctx context.Context,
+	orderID string,
+	observed time.Time,
+) (bool, error) {
 	result := r.dbPool.DB(ctx, false).
 		Table("transfer_orders").
-		Where("deleted_at IS NULL AND id = ? AND payment_initiated_at IS NOT NULL AND (payment_id IS NULL OR payment_id = '')",
-			orderID).
+		Where("deleted_at IS NULL AND id = ? AND payment_initiated_at = ? AND (payment_id IS NULL OR payment_id = '')",
+			orderID, observed.UTC()).
 		Updates(map[string]any{
-			colPaymentInitiatedAt: nil,
+			colPaymentInitiatedAt: time.Now().UTC(),
 			colModifiedAt:         time.Now().UTC(),
 			colVersion:            gorm.Expr("version + 1"),
 		})
@@ -271,4 +281,17 @@ func (r *transferOrderRepository) MarkFailedIfUnposted(ctx context.Context, orde
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+func (r *transferOrderRepository) MarkPayoutFailed(ctx context.Context, orderID, paymentID, reason string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ?", orderID).
+		Updates(map[string]any{
+			colPayoutStatus:  models.PayoutStatusFailed,
+			colPaymentID:     paymentID,
+			colFailureReason: reason,
+			colModifiedAt:    time.Now().UTC(),
+			colVersion:       gorm.Expr("version + 1"),
+		}).Error
 }

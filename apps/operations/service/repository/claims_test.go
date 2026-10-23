@@ -422,28 +422,46 @@ func (s *claimsSuite) TestMarkFailedIfUnpostedGuardsProgressedOrders() {
 	s.Require().False(marked, "an order whose payout reached the rail cannot be declared failed")
 }
 
-// A payout claim is cleared only while no payment id was recorded.
-func (s *claimsSuite) TestClearPaymentInitiationOnlyWithoutPaymentID() {
+// A stale payout claim is retaken by exactly one of the resumers that
+// observed it, and never once a payment id was recorded.
+func (s *claimsSuite) TestRetakePaymentInitiationIsCompareAndSwap() {
 	e := s.newEnv()
 
-	order := s.newOrder(e.ctx, "disbursement:clear")
+	order := s.newOrder(e.ctx, "disbursement:retake")
 	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+	_, err := e.orders.ClaimPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
 
-	cleared, err := e.orders.ClearPaymentInitiation(e.ctx, order.GetID())
+	stored, err := e.orders.GetByID(e.ctx, order.GetID())
 	s.Require().NoError(err)
-	s.Require().False(cleared, "nothing to clear before a claim")
+	s.Require().NotNil(stored.PaymentInitiatedAt)
+	observed := *stored.PaymentInitiatedAt
 
-	_, err = e.orders.ClaimPaymentInitiation(e.ctx, order.GetID())
-	s.Require().NoError(err)
-	cleared, err = e.orders.ClearPaymentInitiation(e.ctx, order.GetID())
-	s.Require().NoError(err)
-	s.Require().True(cleared)
+	const racers = 8
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		wins int
+	)
+	for range racers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ok, rErr := e.orders.RetakePaymentInitiation(e.ctx, order.GetID(), observed)
+			if rErr == nil && ok {
+				mu.Lock()
+				wins++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	s.Require().Equal(1, wins, "exactly one resumer may retake a stale payout claim")
 
-	again, err := e.orders.ClaimPaymentInitiation(e.ctx, order.GetID())
+	stored, err = e.orders.GetByID(e.ctx, order.GetID())
 	s.Require().NoError(err)
-	s.Require().True(again, "a cleared claim may be taken again")
 	s.Require().NoError(e.orders.RecordPaymentID(e.ctx, order.GetID(), "pay-9"))
-	cleared, err = e.orders.ClearPaymentInitiation(e.ctx, order.GetID())
+	retaken, err := e.orders.RetakePaymentInitiation(e.ctx, order.GetID(), *stored.PaymentInitiatedAt)
 	s.Require().NoError(err)
-	s.Require().False(cleared, "a confirmed payout is never cleared")
+	s.Require().False(retaken, "a confirmed payout is never retaken")
 }

@@ -137,13 +137,23 @@ func (r *memOrderRepo) RecordPaymentID(_ context.Context, _ string, paymentID st
 	return nil
 }
 
-func (r *memOrderRepo) ClearPaymentInitiation(_ context.Context, _ string) (bool, error) {
+func (r *memOrderRepo) MarkPayoutFailed(_ context.Context, _ string, paymentID, reason string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order.PaymentInitiatedAt == nil || r.order.PaymentID != "" {
+	r.order.PayoutStatus = models.PayoutStatusFailed
+	r.order.PaymentID = paymentID
+	r.order.FailureReason = reason
+	return nil
+}
+
+func (r *memOrderRepo) RetakePaymentInitiation(_ context.Context, _ string, observed time.Time) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.order.PaymentInitiatedAt == nil || r.order.PaymentID != "" || !r.order.PaymentInitiatedAt.Equal(observed) {
 		return false, nil
 	}
-	r.order.PaymentInitiatedAt = nil
+	now := time.Now().UTC()
+	r.order.PaymentInitiatedAt = &now
 	return true, nil
 }
 
@@ -199,9 +209,10 @@ func (f *fakeLedger) CreateTransaction(
 
 type fakePayment struct {
 	paymentv1connect.PaymentServiceClient
-	mu    sync.Mutex
-	sends int
-	fail  error
+	mu     sync.Mutex
+	sends  int
+	fail   error
+	reject bool
 }
 
 func (f *fakePayment) Send(
@@ -214,7 +225,11 @@ func (f *fakePayment) Send(
 	if f.fail != nil {
 		return nil, f.fail
 	}
-	status := (&commonv1.StatusResponse_builder{Id: "pay-1", Status: commonv1.STATUS_QUEUED}).Build()
+	st := commonv1.STATUS_QUEUED
+	if f.reject {
+		st = commonv1.STATUS_FAILED
+	}
+	status := (&commonv1.StatusResponse_builder{Id: "pay-1", Status: st}).Build()
 	return connect.NewResponse((&paymentv1.SendResponse_builder{Data: status}).Build()), nil
 }
 
@@ -396,4 +411,91 @@ func TestExecute_PayoutOrderWithoutPaymentClientFails(t *testing.T) {
 	got := f.repo.snapshot()
 	assert.Equal(t, int32(constants.StateJustCreated), got.State, "order stays executable once a rail is configured")
 	assert.NotEmpty(t, got.LedgerTransactionID)
+}
+
+// A payout the rail reports as failed is neither settled nor resent, and a
+// later retry that can no longer see the payment still refuses to complete.
+func TestExecute_FailedPayoutAtRailIsNotSettledNorResent(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	f.repo.order.LedgerTransactionID = "ledger-earlier"
+	stale := time.Now().Add(-time.Minute)
+	f.repo.order.PaymentInitiatedAt = &stale
+	f.locator.found = (&paymentv1.Payment_builder{
+		Id: "pay-failed", ReferenceId: f.repo.order.Reference, Status: commonv1.STATUS_FAILED,
+	}).Build()
+
+	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutFailed)
+	got := f.repo.snapshot()
+	assert.Equal(t, int32(constants.StateJustCreated), got.State)
+	assert.Equal(t, "pay-failed", got.PaymentID)
+	assert.True(t, got.PayoutFailed())
+	assert.Equal(t, 0, f.payment.sends)
+
+	// The marker outlives the lookup: even with the payment gone from the
+	// service's answer, the order does not complete and nothing is resent.
+	f.locator.found = nil
+	err = f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutFailed)
+	assert.NotEqual(t, int32(constants.StateInactive), f.repo.snapshot().State)
+	assert.Equal(t, 0, f.payment.sends)
+}
+
+// A recorded payment id is re-checked, not trusted: if the service now says
+// the payout failed, the order does not complete.
+func TestExecute_RecordedPaymentIDIsRecheckedBeforeCompleting(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	f.repo.order.LedgerTransactionID = "ledger-earlier"
+	stale := time.Now().Add(-time.Minute)
+	f.repo.order.PaymentInitiatedAt = &stale
+	f.repo.order.PaymentID = "pay-1"
+	f.locator.found = (&paymentv1.Payment_builder{
+		Id: "pay-1", ReferenceId: f.repo.order.Reference, Status: commonv1.STATUS_FAILED,
+	}).Build()
+
+	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutFailed)
+	assert.NotEqual(t, int32(constants.StateInactive), f.repo.snapshot().State)
+
+	// With the service confirming success the order completes without a resend.
+	g := newExecuteFixture(t, int32(constants.StateJustCreated))
+	g.repo.order.LedgerTransactionID = "ledger-earlier"
+	g.repo.order.PaymentInitiatedAt = &stale
+	g.repo.order.PaymentID = "pay-1"
+	g.locator.found = (&paymentv1.Payment_builder{
+		Id: "pay-1", ReferenceId: g.repo.order.Reference, Status: commonv1.STATUS_SUCCESSFUL,
+	}).Build()
+	require.NoError(t, g.biz.Execute(context.Background(), g.repo.order.GetID()))
+	assert.Equal(t, int32(constants.StateInactive), g.repo.snapshot().State)
+	assert.Equal(t, 0, g.payment.sends)
+}
+
+// An inconclusive lookup never licenses a resend.
+func TestExecute_InconclusivePayoutLookupKeepsWaiting(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	f.repo.order.LedgerTransactionID = "ledger-earlier"
+	stale := time.Now().Add(-payoutConfirmationGrace - time.Minute)
+	f.repo.order.PaymentInitiatedAt = &stale
+	f.locator.err = ErrPayoutLookupInconclusive
+
+	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutPendingConfirmation)
+	assert.Equal(t, 0, f.payment.sends)
+}
+
+// A payout the rail rejects in the Send response is recorded as failed at
+// once and the order never completes nor resends.
+func TestExecute_SynchronousRailRejectionMarksPayoutFailed(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	f.payment.reject = true
+
+	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutFailed)
+	got := f.repo.snapshot()
+	assert.True(t, got.PayoutFailed())
+	assert.NotEqual(t, int32(constants.StateInactive), got.State)
+
+	err = f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutFailed)
+	assert.Equal(t, 1, f.payment.sends)
 }

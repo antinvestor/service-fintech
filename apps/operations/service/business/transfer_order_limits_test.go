@@ -153,8 +153,9 @@ func (r *stubTransferOrderRepo) MarkLedgerPosted(_ context.Context, _, txnID str
 func (r *stubTransferOrderRepo) ClaimPaymentInitiation(_ context.Context, _ string) (bool, error) {
 	return true, nil
 }
-func (r *stubTransferOrderRepo) RecordPaymentID(_ context.Context, _, _ string) error { return nil }
-func (r *stubTransferOrderRepo) ClearPaymentInitiation(_ context.Context, _ string) (bool, error) {
+func (r *stubTransferOrderRepo) RecordPaymentID(_ context.Context, _, _ string) error     { return nil }
+func (r *stubTransferOrderRepo) MarkPayoutFailed(_ context.Context, _, _, _ string) error { return nil }
+func (r *stubTransferOrderRepo) RetakePaymentInitiation(_ context.Context, _ string, _ time.Time) (bool, error) {
 	return true, nil
 }
 func (r *stubTransferOrderRepo) MarkFailedIfUnposted(_ context.Context, _ string) (bool, error) {

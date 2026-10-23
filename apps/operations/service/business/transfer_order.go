@@ -369,6 +369,11 @@ var (
 	// settled; the caller retries later.
 	ErrPayoutPendingConfirmation = apperrors.NewError(apperrors.ServiceUnavailable,
 		"payout from an earlier attempt is awaiting confirmation; retry later")
+	// ErrPayoutFailed is returned when the payment rail reports the payout as
+	// failed after the ledger leg posted. The order is not settled and must
+	// not be resent; it needs a reversal or re-route by an operator.
+	ErrPayoutFailed = apperrors.NewError(apperrors.Unprocessable,
+		"payout failed at the payment rail after the ledger posted; reverse or re-route the order")
 )
 
 // payoutConfirmationGrace is how long after an unconfirmed payout claim the
@@ -400,8 +405,10 @@ func (l connectPayoutLocator) FindByReference(ctx context.Context, reference str
 		return nil, err
 	}
 	defer func() { _ = stream.Close() }()
+	seen := 0
 	for stream.Receive() {
 		for _, p := range stream.Msg().GetData() {
+			seen++
 			if p.GetReferenceId() == reference {
 				return p, nil
 			}
@@ -410,10 +417,21 @@ func (l connectPayoutLocator) FindByReference(ctx context.Context, reference str
 	if err = stream.Err(); err != nil {
 		return nil, err
 	}
+	if seen > 0 {
+		// The search ORs a text match with the exact reference filter, so
+		// any result set that holds other payments but not ours may have
+		// crowded ours out. Only an empty answer means "not found": "not
+		// found" licenses a resend, "inconclusive" does not.
+		return nil, ErrPayoutLookupInconclusive
+	}
 	return nil, nil //nolint:nilnil // no payment is a valid answer, not an error
 }
 
-const payoutSearchLimit = 20
+// ErrPayoutLookupInconclusive is returned when the payment service search
+// could not rule a payout in or out; the caller keeps waiting.
+var ErrPayoutLookupInconclusive = errors.New("payout lookup inconclusive: results returned without the reference")
+
+const payoutSearchLimit = 100
 
 // executeInner runs the core transfer order execution logic after any gate check.
 //
@@ -481,7 +499,12 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 		logger.WithError(syncErr).Warn("CBS sync record logging failed (non-fatal)")
 	}
 
-	// Step 6: Mark the transfer order as completed
+	// Step 6: Mark the transfer order as completed. An order whose payout
+	// the rail rejected never completes; it is released for a reversal.
+	if order.PayoutFailed() {
+		b.releaseExecution(ctx, logger, orderID, "payout failed at the payment rail")
+		return ErrPayoutFailed
+	}
 	done, doneErr := b.toRepo.ClaimState(
 		ctx,
 		orderID,
@@ -814,7 +837,22 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 		// service by reference settles it; a blind resend could pay twice.
 		return fmt.Errorf("payment send failed: %w", err)
 	}
-	if status := resp.Msg.GetData(); status != nil && status.GetId() != "" {
+	status := resp.Msg.GetData()
+	if status == nil {
+		return nil
+	}
+	if status.GetStatus() == commonv1.STATUS_FAILED {
+		// Rejected synchronously by the rail: record it so no retry can
+		// complete or resend this order; it needs a reversal.
+		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), status.GetId(),
+			"payout rejected by the payment rail"); markErr != nil {
+			util.Log(ctx).WithError(markErr).WithField("order_id", order.GetID()).
+				Error("could not record rejected payout on transfer order")
+		}
+		order.PayoutStatus = models.PayoutStatusFailed
+		return ErrPayoutFailed
+	}
+	if status.GetId() != "" {
 		if recErr := b.toRepo.RecordPaymentID(ctx, order.GetID(), status.GetId()); recErr != nil {
 			util.Log(ctx).WithError(recErr).WithField("order_id", order.GetID()).
 				Warn("could not record payment id on transfer order")
@@ -840,48 +878,77 @@ func (b *transferOrderBusiness) confirmEarlierPayout(ctx context.Context, order 
 	if err != nil {
 		return fmt.Errorf("reload transfer order: %w", err)
 	}
-	if current.PaymentID != "" {
-		logger.WithField("payment_id", current.PaymentID).Info("payout already initiated by an earlier execution")
-		return nil
+	if current.PayoutFailed() {
+		return ErrPayoutFailed
 	}
 
+	// A recorded payment id says the rail accepted the request, not that the
+	// payout succeeded. Ask the payment service for its current word.
 	payment, err := b.payoutLocator().FindByReference(ctx, order.Reference)
 	if err != nil {
 		logger.WithError(err).Warn("could not confirm earlier payout with the payment service")
 		return ErrPayoutPendingConfirmation
 	}
 	if payment != nil {
+		return b.settleFoundPayout(ctx, logger, order, current, payment)
+	}
+	if current.PaymentID != "" {
+		// We hold an id the service no longer shows: not something to act on
+		// blindly either way. Keep waiting for a conclusive answer.
+		logger.WithField("payment_id", current.PaymentID).Warn("recorded payout not found at the payment service")
+		return ErrPayoutPendingConfirmation
+	}
+
+	if current.PaymentInitiatedAt == nil {
+		// Cleared between our claim attempt and now; the next attempt claims.
+		return ErrPayoutPendingConfirmation
+	}
+	observed := *current.PaymentInitiatedAt
+	if time.Since(observed) < payoutConfirmationGrace {
+		return ErrPayoutPendingConfirmation
+	}
+
+	// Compare-and-swap on the stale claim: every resumer that saw the same
+	// timestamp races on one UPDATE and exactly one wins the right to send.
+	retaken, err := b.toRepo.RetakePaymentInitiation(ctx, order.GetID(), observed)
+	if err != nil {
+		return fmt.Errorf("retake stale payout claim: %w", err)
+	}
+	if !retaken {
+		return ErrPayoutPendingConfirmation
+	}
+	logger.Warn("earlier payout never reached the payment service; claim retaken, sending now")
+	return b.sendPayoutNow(ctx, order)
+}
+
+// settleFoundPayout interprets the payment the service holds for the order.
+func (b *transferOrderBusiness) settleFoundPayout(
+	ctx context.Context,
+	logger *util.LogEntry,
+	order, current *models.TransferOrder,
+	payment *paymentv1.Payment,
+) error {
+	if payment.GetStatus() == commonv1.STATUS_FAILED {
+		// The rail took the request and rejected it: the ledger leg is
+		// posted but no cash reached the recipient. This is not settled
+		// and must not be resent blindly; it needs a reversal or a
+		// re-route by an operator. The marker, claim and payment id stay
+		// so the order can neither complete nor pay twice meanwhile.
+		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), payment.GetId(),
+			"payout failed at the payment rail"); markErr != nil {
+			logger.WithError(markErr).Error("could not record failed payout on transfer order")
+		}
+		order.PayoutStatus = models.PayoutStatusFailed
+		logger.WithField("payment_id", payment.GetId()).Error("earlier payout failed at the payment rail")
+		return ErrPayoutFailed
+	}
+	if current.PaymentID == "" {
 		if recErr := b.toRepo.RecordPaymentID(ctx, order.GetID(), payment.GetId()); recErr != nil {
 			logger.WithError(recErr).Warn("could not record confirmed payment id")
 		}
-		logger.WithField("payment_id", payment.GetId()).Info("earlier payout confirmed by the payment service")
-		return nil
 	}
-
-	initiatedAt := time.Time{}
-	if current.PaymentInitiatedAt != nil {
-		initiatedAt = *current.PaymentInitiatedAt
-	}
-	if time.Since(initiatedAt) < payoutConfirmationGrace {
-		return ErrPayoutPendingConfirmation
-	}
-
-	cleared, err := b.toRepo.ClearPaymentInitiation(ctx, order.GetID())
-	if err != nil {
-		return fmt.Errorf("clear stale payout claim: %w", err)
-	}
-	if !cleared {
-		return ErrPayoutPendingConfirmation
-	}
-	logger.Warn("earlier payout never reached the payment service; claim cleared, sending now")
-	claimed, err := b.toRepo.ClaimPaymentInitiation(ctx, order.GetID())
-	if err != nil {
-		return fmt.Errorf("claim payment initiation: %w", err)
-	}
-	if !claimed {
-		return ErrPayoutPendingConfirmation
-	}
-	return b.sendPayoutNow(ctx, order)
+	logger.WithField("payment_id", payment.GetId()).Info("earlier payout confirmed by the payment service")
+	return nil
 }
 
 func (b *transferOrderBusiness) payoutLocator() PayoutLocator {
