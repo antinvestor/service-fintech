@@ -69,6 +69,16 @@ type TransferOrderRepository interface {
 
 	// RecordPaymentID stores the payment service's id for the payout.
 	RecordPaymentID(ctx context.Context, orderID, paymentID string) error
+
+	// ClearPaymentInitiation releases a payout claim once the payment service
+	// has confirmed it holds no payment for the order, so the payout may be
+	// sent. It only clears a claim that never recorded a payment id.
+	ClearPaymentInitiation(ctx context.Context, orderID string) (bool, error)
+
+	// MarkFailedIfUnposted moves an order to StateShutdown only while neither
+	// its ledger leg nor its payout has progressed. An order that has posted
+	// or reached the rail cannot be declared failed; it must be reversed.
+	MarkFailedIfUnposted(ctx context.Context, orderID string) (bool, error)
 }
 
 // NewTransferOrderRepository creates a new TransferOrderRepository.
@@ -224,4 +234,41 @@ func (r *transferOrderRepository) RecordPaymentID(ctx context.Context, orderID, 
 			colModifiedAt: time.Now().UTC(),
 			colVersion:    gorm.Expr("version + 1"),
 		}).Error
+}
+
+func (r *transferOrderRepository) ClearPaymentInitiation(ctx context.Context, orderID string) (bool, error) {
+	result := r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ? AND payment_initiated_at IS NOT NULL AND (payment_id IS NULL OR payment_id = '')",
+			orderID).
+		Updates(map[string]any{
+			colPaymentInitiatedAt: nil,
+			colModifiedAt:         time.Now().UTC(),
+			colVersion:            gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *transferOrderRepository) MarkFailedIfUnposted(ctx context.Context, orderID string) (bool, error) {
+	result := r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ? AND state IN ? "+
+			"AND (ledger_transaction_id IS NULL OR ledger_transaction_id = '') AND payment_initiated_at IS NULL",
+			orderID, []int32{
+				int32(constants.StateJustCreated),
+				int32(constants.StateCheckCreated),
+				int32(constants.StateActive),
+			}).
+		Updates(map[string]any{
+			colState:      int32(constants.StateShutdown),
+			colModifiedAt: time.Now().UTC(),
+			colVersion:    gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }

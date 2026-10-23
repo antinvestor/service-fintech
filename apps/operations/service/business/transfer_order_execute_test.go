@@ -61,6 +61,16 @@ func (r *memOrderRepo) GetByID(_ context.Context, id string) (*models.TransferOr
 	return &cp, nil
 }
 
+func (r *memOrderRepo) GetByReference(_ context.Context, ref string) (*models.TransferOrder, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.order == nil || r.order.Reference != ref {
+		return nil, gorm.ErrRecordNotFound
+	}
+	cp := *r.order
+	return &cp, nil
+}
+
 func (r *memOrderRepo) ClaimState(_ context.Context, id string, from []int32, to int32) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -127,6 +137,26 @@ func (r *memOrderRepo) RecordPaymentID(_ context.Context, _ string, paymentID st
 	return nil
 }
 
+func (r *memOrderRepo) ClearPaymentInitiation(_ context.Context, _ string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.order.PaymentInitiatedAt == nil || r.order.PaymentID != "" {
+		return false, nil
+	}
+	r.order.PaymentInitiatedAt = nil
+	return true, nil
+}
+
+func (r *memOrderRepo) MarkFailedIfUnposted(_ context.Context, _ string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.order.LedgerTransactionID != "" || r.order.PaymentInitiatedAt != nil {
+		return false, nil
+	}
+	r.order.State = int32(constants.StateShutdown)
+	return true, nil
+}
+
 func (r *memOrderRepo) snapshot() models.TransferOrder {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -188,10 +218,23 @@ func (f *fakePayment) Send(
 	return connect.NewResponse((&paymentv1.SendResponse_builder{Data: status}).Build()), nil
 }
 
+// fakeLocator stands in for the payment-service search by reference.
+type fakeLocator struct {
+	found *paymentv1.Payment
+	err   error
+	calls int
+}
+
+func (f *fakeLocator) FindByReference(_ context.Context, _ string) (*paymentv1.Payment, error) {
+	f.calls++
+	return f.found, f.err
+}
+
 type executeFixture struct {
 	repo    *memOrderRepo
 	ledger  *fakeLedger
 	payment *fakePayment
+	locator *fakeLocator
 	biz     *transferOrderBusiness
 }
 
@@ -215,13 +258,15 @@ func newExecuteFixture(t *testing.T, state int32) *executeFixture {
 	repo := newMemOrderRepo(order)
 	ledger := &fakeLedger{}
 	payment := &fakePayment{}
+	locator := &fakeLocator{}
 	biz := &transferOrderBusiness{
 		eventsMan: &noopTransferEventsManager{},
 		toRepo:    repo,
 		arRepo:    memAccountRefRepo{},
 		clients:   &clients.PlatformClients{LedgerClient: ledger, PaymentClient: payment},
+		locator:   locator,
 	}
-	return &executeFixture{repo: repo, ledger: ledger, payment: payment, biz: biz}
+	return &executeFixture{repo: repo, ledger: ledger, payment: payment, locator: locator, biz: biz}
 }
 
 func TestExecute_LedgerFailureReleasesOrderAndRetryConverges(t *testing.T) {
@@ -248,7 +293,7 @@ func TestExecute_LedgerFailureReleasesOrderAndRetryConverges(t *testing.T) {
 	assert.Equal(t, 1, f.payment.sends)
 }
 
-func TestExecute_PayoutFailureKeepsLedgerAndNeverResends(t *testing.T) {
+func TestExecute_PayoutFailureKeepsLedgerAndIsConfirmedNotResent(t *testing.T) {
 	f := newExecuteFixture(t, int32(constants.StateJustCreated))
 	f.payment.fail = errors.New("rail timeout")
 
@@ -260,13 +305,54 @@ func TestExecute_PayoutFailureKeepsLedgerAndNeverResends(t *testing.T) {
 	assert.NotEmpty(t, got.LedgerTransactionID, "ledger id is kept so the retry does not post twice")
 	require.NotNil(t, got.PaymentInitiatedAt, "the payout claim must survive an ambiguous rail error")
 
+	// Retry while the payment service shows nothing yet: not settled, not resent.
 	f.payment.fail = nil
-	require.NoError(t, f.biz.Execute(context.Background(), f.repo.order.GetID()))
+	err = f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutPendingConfirmation)
+	assert.Equal(t, 1, f.payment.sends, "an unconfirmed payout must not be sent a second time")
+	assert.Equal(t, int32(constants.StateJustCreated), f.repo.snapshot().State, "order stays unsettled")
 
+	// The payment service now shows the payout: it is recorded and the order completes.
+	f.locator.found = (&paymentv1.Payment_builder{Id: "pay-found", ReferenceId: f.repo.order.Reference}).Build()
+	require.NoError(t, f.biz.Execute(context.Background(), f.repo.order.GetID()))
 	got = f.repo.snapshot()
 	assert.Equal(t, int32(constants.StateInactive), got.State)
-	assert.Equal(t, 1, f.ledger.calls, "ledger must be posted exactly once across attempts")
-	assert.Equal(t, 1, f.payment.sends, "an ambiguous payout must not be sent a second time")
+	assert.Equal(t, "pay-found", got.PaymentID)
+	assert.Equal(t, 1, f.ledger.calls)
+	assert.Equal(t, 1, f.payment.sends)
+}
+
+// A payout claim the payment service has never seen, once older than the
+// confirmation grace, is treated as a Send that never landed: it is cleared
+// and the payout sent exactly once.
+func TestExecute_StalePayoutClaimWithNoPaymentIsResent(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	f.repo.order.LedgerTransactionID = "ledger-earlier"
+	stale := time.Now().Add(-payoutConfirmationGrace - time.Minute)
+	f.repo.order.PaymentInitiatedAt = &stale
+
+	require.NoError(t, f.biz.Execute(context.Background(), f.repo.order.GetID()))
+	got := f.repo.snapshot()
+	assert.Equal(t, int32(constants.StateInactive), got.State)
+	assert.Equal(t, 1, f.payment.sends)
+	assert.Equal(t, "pay-1", got.PaymentID)
+	assert.Equal(t, 1, f.locator.calls)
+}
+
+// RecordFailure must not declare an order failed once money has moved.
+func TestRecordFailure_RefusesProgressedOrder(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	f.repo.order.LedgerTransactionID = "ledger-posted"
+
+	_, err := f.biz.RecordFailure(context.Background(), f.repo.order.Reference, "engine gave up")
+	require.ErrorIs(t, err, ErrTransferOrderProgressed)
+	assert.NotEqual(t, int32(constants.StateShutdown), f.repo.snapshot().State)
+
+	fresh := newExecuteFixture(t, int32(constants.StateJustCreated))
+	out, err := fresh.biz.RecordFailure(context.Background(), fresh.repo.order.Reference, "engine gave up")
+	require.NoError(t, err)
+	assert.Equal(t, true, out["newly_failed"])
+	assert.Equal(t, int32(constants.StateShutdown), fresh.repo.snapshot().State)
 }
 
 func TestExecute_FreshInProgressClaimIsRejectedNotSucceeded(t *testing.T) {

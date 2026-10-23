@@ -154,6 +154,15 @@ func (r *stubTransferOrderRepo) ClaimPaymentInitiation(_ context.Context, _ stri
 	return true, nil
 }
 func (r *stubTransferOrderRepo) RecordPaymentID(_ context.Context, _, _ string) error { return nil }
+func (r *stubTransferOrderRepo) ClearPaymentInitiation(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+func (r *stubTransferOrderRepo) MarkFailedIfUnposted(_ context.Context, _ string) (bool, error) {
+	if r.order != nil {
+		r.order.State = int32(constants.StateShutdown)
+	}
+	return true, nil
+}
 
 var _ repository.TransferOrderRepository = (*stubTransferOrderRepo)(nil)
 

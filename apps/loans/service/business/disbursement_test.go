@@ -601,7 +601,10 @@ func TestCreate_GatePending(t *testing.T) {
 // already persisted (idempotency match), Create returns early without hitting
 // the Gate or ops client.
 func TestCreate_IdempotencyShortCircuit(t *testing.T) {
-	existingDisb := &loansmodels.Disbursement{}
+	existingDisb := &loansmodels.Disbursement{
+		LoanAccountID: "loan-1",
+		Status:        int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED),
+	}
 	existingDisb.GenID(context.Background())
 
 	disbRepo := &stubDisbursementRepo{findResp: existingDisb, findErr: nil}
@@ -712,4 +715,21 @@ func TestCreate_SecondKeyForLiveLoanIsRefused(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrDisbursementInFlight)
 	assert.Empty(t, disbRepo.stored)
+}
+
+// An idempotency key already used for another loan is refused rather than
+// answered with that loan's disbursement.
+func TestCreate_KeyBoundToAnotherLoanIsRefused(t *testing.T) {
+	la := pendingDisbursementLA()
+	other := &loansmodels.Disbursement{LoanAccountID: "some-other-loan", IdempotencyKey: "idem-shared",
+		Status: int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED)}
+	other.GenID(context.Background())
+	disbRepo := &stubDisbursementRepo{findResp: other}
+	laRepo := &stubLoanAccountRepo{account: la}
+	b := buildDisbBusiness(disbRepo, laRepo, &stubOperationsClient{}, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-shared", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDuplicateIdempotencyKey)
 }

@@ -56,12 +56,28 @@ type TransferOrder struct {
 	PaymentID string `gorm:"type:varchar(50)"`
 	// FailureReason records why the last execution attempt released the order.
 	FailureReason string `gorm:"type:text"`
+
+	payout payoutTarget `gorm:"-"`
 }
 
 func (m *TransferOrder) TableName() string { return "transfer_orders" }
 
 // LedgerPosted reports whether the ledger leg of this order has landed.
 func (m *TransferOrder) LedgerPosted() bool { return m.LedgerTransactionID != "" }
+
+// payoutTarget is the transient payout destination, set by the side-effect
+// handler for the execution in progress; never persisted.
+type payoutTarget struct {
+	recipientID string
+	route       string
+}
+
+func (m *TransferOrder) SetPayoutTarget(recipientID, route string) {
+	m.payout = payoutTarget{recipientID: recipientID, route: route}
+}
+
+func (m *TransferOrder) PayoutRecipient() string { return m.payout.recipientID }
+func (m *TransferOrder) PayoutRoute() string     { return m.payout.route }
 
 // Obligation represents a financial obligation for a member.
 type Obligation struct {

@@ -393,3 +393,57 @@ func (s *claimsSuite) TestClaimPaymentInitiationIsOnce() {
 	s.Require().Equal("ledger-1", stored.LedgerTransactionID)
 	s.Require().Equal("pay-1", stored.PaymentID)
 }
+
+// An order is only declared failed while nothing has moved; once the ledger
+// posted or a payout was initiated the mark is refused.
+func (s *claimsSuite) TestMarkFailedIfUnpostedGuardsProgressedOrders() {
+	e := s.newEnv()
+
+	fresh := s.newOrder(e.ctx, "disbursement:fail-fresh")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, fresh))
+	marked, err := e.orders.MarkFailedIfUnposted(e.ctx, fresh.GetID())
+	s.Require().NoError(err)
+	s.Require().True(marked)
+
+	posted := s.newOrder(e.ctx, "disbursement:fail-posted")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, posted))
+	s.Require().NoError(e.orders.MarkLedgerPosted(e.ctx, posted.GetID(), "ledger-1"))
+	marked, err = e.orders.MarkFailedIfUnposted(e.ctx, posted.GetID())
+	s.Require().NoError(err)
+	s.Require().False(marked, "a posted order cannot be declared failed")
+
+	paid := s.newOrder(e.ctx, "disbursement:fail-paid")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, paid))
+	claimed, err := e.orders.ClaimPaymentInitiation(e.ctx, paid.GetID())
+	s.Require().NoError(err)
+	s.Require().True(claimed)
+	marked, err = e.orders.MarkFailedIfUnposted(e.ctx, paid.GetID())
+	s.Require().NoError(err)
+	s.Require().False(marked, "an order whose payout reached the rail cannot be declared failed")
+}
+
+// A payout claim is cleared only while no payment id was recorded.
+func (s *claimsSuite) TestClearPaymentInitiationOnlyWithoutPaymentID() {
+	e := s.newEnv()
+
+	order := s.newOrder(e.ctx, "disbursement:clear")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+
+	cleared, err := e.orders.ClearPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().False(cleared, "nothing to clear before a claim")
+
+	_, err = e.orders.ClaimPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	cleared, err = e.orders.ClearPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().True(cleared)
+
+	again, err := e.orders.ClaimPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().True(again, "a cleared claim may be taken again")
+	s.Require().NoError(e.orders.RecordPaymentID(e.ctx, order.GetID(), "pay-9"))
+	cleared, err = e.orders.ClearPaymentInitiation(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().False(cleared, "a confirmed payout is never cleared")
+}

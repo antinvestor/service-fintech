@@ -27,6 +27,7 @@ import (
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v1/paymentv1connect"
 	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
 	"connectrpc.com/connect"
 	"github.com/pitabwire/frame/v2/data"
@@ -70,6 +71,9 @@ type transferOrderBusiness struct {
 	limitsCli         limitsv1connect.LimitsServiceClient
 	limitsGateEnabled bool
 	limitsGateMode    string
+	// locator overrides the payment-service lookup used to confirm an
+	// earlier payout; nil means search the configured payment client.
+	locator PayoutLocator
 }
 
 func NewTransferOrderBusiness(
@@ -304,14 +308,19 @@ func (b *transferOrderBusiness) RecordFailure(
 		}, nil
 	}
 
-	claimed, claimErr := b.toRepo.ClaimState(
-		ctx,
-		order.GetID(),
-		[]int32{int32(constants.StateJustCreated), int32(constants.StateCheckCreated), int32(constants.StateActive)},
-		int32(constants.StateShutdown),
-	)
+	// An order whose ledger leg posted or whose payout reached the rail has
+	// moved money. It cannot be declared failed; it needs a reversal order.
+	if order.LedgerPosted() || order.PaymentInitiatedAt != nil {
+		return nil, ErrTransferOrderProgressed
+	}
+	claimed, claimErr := b.toRepo.MarkFailedIfUnposted(ctx, order.GetID())
 	if claimErr != nil {
 		return nil, claimErr
+	}
+	if !claimed {
+		// Lost a race with an execution that progressed the order between
+		// our read and the conditional update.
+		return nil, ErrTransferOrderProgressed
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
@@ -350,7 +359,61 @@ var (
 	// workflow marked failed through RecordFailure. It will not execute again.
 	ErrTransferOrderFailed = apperrors.NewError(apperrors.Unprocessable,
 		"transfer order was marked failed and cannot be executed")
+	// ErrTransferOrderProgressed is returned when a caller tries to mark an
+	// order failed after its ledger leg posted or its payout reached the
+	// rail. Money has moved; the remedy is a reversal order, not a flag.
+	ErrTransferOrderProgressed = apperrors.NewError(apperrors.Unprocessable,
+		"transfer order has already moved money and cannot be marked failed; reverse it instead")
+	// ErrPayoutPendingConfirmation is returned while an earlier attempt's
+	// payout is being confirmed with the payment service. The order is not
+	// settled; the caller retries later.
+	ErrPayoutPendingConfirmation = apperrors.NewError(apperrors.ServiceUnavailable,
+		"payout from an earlier attempt is awaiting confirmation; retry later")
 )
+
+// payoutConfirmationGrace is how long after an unconfirmed payout claim the
+// payment service is given to show the payment before the claim is treated
+// as never having reached the rail. The payment service persists a Send
+// through its queue, so a lookup right after an ambiguous error can miss a
+// payment that did land.
+const payoutConfirmationGrace = 10 * time.Minute
+
+// PayoutLocator finds a payout the payment service holds for an order
+// reference. It is the slice of the payment client sendPayment needs to
+// confirm an earlier attempt without sending again.
+type PayoutLocator interface {
+	FindByReference(ctx context.Context, reference string) (*paymentv1.Payment, error)
+}
+
+// connectPayoutLocator searches the payment service by reference id.
+type connectPayoutLocator struct {
+	cli paymentv1connect.PaymentServiceClient
+}
+
+func (l connectPayoutLocator) FindByReference(ctx context.Context, reference string) (*paymentv1.Payment, error) {
+	stream, err := l.cli.Search(ctx, connect.NewRequest(commonv1.SearchRequest_builder{
+		Query:      reference,
+		Properties: []string{"reference_id"},
+		Cursor:     commonv1.PageCursor_builder{Limit: payoutSearchLimit}.Build(),
+	}.Build()))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = stream.Close() }()
+	for stream.Receive() {
+		for _, p := range stream.Msg().GetData() {
+			if p.GetReferenceId() == reference {
+				return p, nil
+			}
+		}
+	}
+	if err = stream.Err(); err != nil {
+		return nil, err
+	}
+	return nil, nil //nolint:nilnil // no payment is a valid answer, not an error
+}
+
+const payoutSearchLimit = 20
 
 // executeInner runs the core transfer order execution logic after any gate check.
 //
@@ -710,20 +773,28 @@ func (b *transferOrderBusiness) sendPayment(
 		return errPaymentClientUnavailable
 	}
 
+	order.SetPayoutTarget(recipientID, route)
+
 	// Claim the payout exactly once. The payment service does not dedupe on
 	// our reference, so a resumed execution that finds the claim taken must
-	// not send again: the earlier attempt reached the rail and its outcome
-	// is settled through the payment status path, not by a second Send.
+	// not send again blindly: the earlier attempt may have reached the rail,
+	// and confirmEarlierPayout settles which it was.
 	claimed, err := b.toRepo.ClaimPaymentInitiation(ctx, order.GetID())
 	if err != nil {
 		return fmt.Errorf("claim payment initiation: %w", err)
 	}
 	if !claimed {
-		util.Log(ctx).WithField("order_id", order.GetID()).
-			Warn("payout already initiated by an earlier execution, not sending again")
-		return nil
+		return b.confirmEarlierPayout(ctx, order)
 	}
 
+	return b.sendPayoutNow(ctx, order)
+}
+
+// sendPayoutNow calls the payment rail for an order whose payout claim this
+// attempt holds, and records the payment id the rail returns.
+func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models.TransferOrder) error {
+	recipientID := order.PayoutRecipient()
+	route := order.PayoutRoute()
 	req := (&paymentv1.SendRequest_builder{
 		Data: (&paymentv1.Payment_builder{
 			ReferenceId: order.Reference,
@@ -753,6 +824,72 @@ func (b *transferOrderBusiness) sendPayment(
 }
 
 var errPaymentClientUnavailable = errors.New("payment client is not configured; refusing to execute a payout order")
+
+// confirmEarlierPayout settles what an earlier attempt's payout claim means
+// when this attempt finds it taken. A recorded payment id means the rail
+// accepted it: nothing more to send. Otherwise the payment service is asked
+// whether it holds a payment for the order reference; if it does, its id is
+// recorded and the payout counts as initiated. If it does not and the claim
+// is older than the confirmation grace, the Send never landed and the claim
+// is cleared so this attempt may send. Within the grace, or when the lookup
+// fails, the order is left unsettled and the caller retries later.
+func (b *transferOrderBusiness) confirmEarlierPayout(ctx context.Context, order *models.TransferOrder) error {
+	logger := util.Log(ctx).WithField("order_id", order.GetID())
+
+	current, err := b.toRepo.GetByID(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("reload transfer order: %w", err)
+	}
+	if current.PaymentID != "" {
+		logger.WithField("payment_id", current.PaymentID).Info("payout already initiated by an earlier execution")
+		return nil
+	}
+
+	payment, err := b.payoutLocator().FindByReference(ctx, order.Reference)
+	if err != nil {
+		logger.WithError(err).Warn("could not confirm earlier payout with the payment service")
+		return ErrPayoutPendingConfirmation
+	}
+	if payment != nil {
+		if recErr := b.toRepo.RecordPaymentID(ctx, order.GetID(), payment.GetId()); recErr != nil {
+			logger.WithError(recErr).Warn("could not record confirmed payment id")
+		}
+		logger.WithField("payment_id", payment.GetId()).Info("earlier payout confirmed by the payment service")
+		return nil
+	}
+
+	initiatedAt := time.Time{}
+	if current.PaymentInitiatedAt != nil {
+		initiatedAt = *current.PaymentInitiatedAt
+	}
+	if time.Since(initiatedAt) < payoutConfirmationGrace {
+		return ErrPayoutPendingConfirmation
+	}
+
+	cleared, err := b.toRepo.ClearPaymentInitiation(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("clear stale payout claim: %w", err)
+	}
+	if !cleared {
+		return ErrPayoutPendingConfirmation
+	}
+	logger.Warn("earlier payout never reached the payment service; claim cleared, sending now")
+	claimed, err := b.toRepo.ClaimPaymentInitiation(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("claim payment initiation: %w", err)
+	}
+	if !claimed {
+		return ErrPayoutPendingConfirmation
+	}
+	return b.sendPayoutNow(ctx, order)
+}
+
+func (b *transferOrderBusiness) payoutLocator() PayoutLocator {
+	if b.locator != nil {
+		return b.locator
+	}
+	return connectPayoutLocator{cli: b.clients.PaymentClient}
+}
 
 // extraDataString safely extracts a string value from the order's ExtraData map.
 func extraDataString(order *models.TransferOrder, key string) string {

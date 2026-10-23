@@ -111,8 +111,13 @@ func (b *disbursementBusiness) Create(
 	// not an answer: the previous attempt did not reach a settled state and
 	// this call drives the same transfer order again so it converges.
 	if existing, idErr := b.disbRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); idErr == nil &&
-		existing != nil && !disbursementResumable(existing) {
-		return existing.ToAPI(), nil
+		existing != nil {
+		if existing.LoanAccountID != req.GetLoanAccountId() {
+			return nil, ErrDuplicateIdempotencyKey
+		}
+		if !disbursementResumable(existing) {
+			return existing.ToAPI(), nil
+		}
 	}
 
 	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
@@ -191,6 +196,12 @@ func (b *disbursementBusiness) createInner(
 		return nil, claimErr
 	}
 	if !created {
+		// The key belongs to whoever used it first. A different loan under
+		// the same key is a client bug or a replay against the wrong loan;
+		// it must never be answered with another loan's disbursement.
+		if stored.LoanAccountID != la.GetID() {
+			return nil, ErrDuplicateIdempotencyKey
+		}
 		if !disbursementResumable(stored) {
 			return stored.ToAPI(), nil
 		}
