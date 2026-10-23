@@ -46,6 +46,8 @@ import (
 	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 
+	"github.com/antinvestor/common/notification"
+
 	aconfig "github.com/antinvestor/service-fintech/apps/identity/config"
 	"github.com/antinvestor/service-fintech/apps/identity/service/authz"
 	"github.com/antinvestor/service-fintech/apps/identity/service/business"
@@ -55,6 +57,8 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/messages"
+	"github.com/antinvestor/service-fintech/pkg/notify"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 )
 
@@ -99,6 +103,12 @@ func main() {
 	// register them under service-identity (ownership 403).
 	identitySD := identitypb.File_identity_v1_identity_proto.Services().ByName("IdentityService")
 	if frame.ShouldRunSetup(&cfg) {
+		// Every message the service sends is declared in pkg/messages and
+		// upserted with the notification service on each deploy.
+		notification.RegisterTemplateSync(svc, &cfg, notification.Target{
+			Endpoint:              cfg.NotificationServiceURI,
+			WorkloadAPITargetPath: cfg.NotificationServiceWorkloadAPITargetPath,
+		}, messages.Registry())
 		svc.Init(ctx, frame.WithPermissionRegistration(identitySD))
 		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
 			log.WithError(setupErr).Fatal("setup plan failed")
@@ -134,12 +144,7 @@ func main() {
 		log.WithError(err).Fatal("main -- Could not setup auth contract client")
 	}
 
-	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
-	if notifErr != nil {
-		log.WithError(notifErr).
-			Warn("main -- Could not setup notification client, agent notifications will be disabled")
-	}
-	agentNotifier := business.NewAgentNotifier(notificationCli, profileCli, cfg.AgentOnboardingTemplate)
+	notifiers := setupNotifiers(ctx, cfg)
 
 	// Get database pool
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
@@ -155,7 +160,7 @@ func main() {
 		dbPool,
 		workMan,
 		cfg,
-		agentNotifier,
+		notifiers,
 		partitionCli,
 		authContractCli,
 		profileCli,
@@ -170,6 +175,30 @@ func main() {
 	}
 }
 
+// serviceNotifiers carries the message senders the businesses are wired with.
+type serviceNotifiers struct {
+	notificationCli notificationv1connect.NotificationServiceClient
+	client          *business.ClientNotifier
+	workforce       *business.WorkforceNotifier
+}
+
+// setupNotifiers builds the notification client and the senders over it. A
+// client that cannot be built disables notifications with a warning; that is
+// acceptable for local development only, and every dropped message is counted.
+func setupNotifiers(ctx context.Context, cfg aconfig.IdentityConfig) serviceNotifiers {
+	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
+	if notifErr != nil {
+		util.Log(ctx).WithError(notifErr).
+			Warn("main -- Could not setup notification client, notifications will be disabled")
+	}
+	notifier := notify.New(notificationCli, messages.Registry())
+	return serviceNotifiers{
+		notificationCli: notificationCli,
+		client:          business.NewClientNotifier(notifier, cfg.LenderDisplayName),
+		workforce:       business.NewWorkforceNotifier(notifier),
+	}
+}
+
 func setupServiceOptions( //nolint:funlen // sequential service wiring
 	ctx context.Context,
 	sm security.Manager,
@@ -177,7 +206,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	dbPool pool.Pool,
 	workMan workerpool.Manager,
 	cfg aconfig.IdentityConfig,
-	agentNotifier *business.AgentNotifier,
+	notifiers serviceNotifiers,
 	partitionCli tenancyv1connect.TenancyServiceClient,
 	authContractCli tenancyv2connect.AuthContractServiceClient,
 	profileCli profilev1connect.ProfileServiceClient,
@@ -206,8 +235,8 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	clientDataHistoryRepo := repository.NewClientDataEntryHistoryRepository(ctx, dbPool, workMan)
 
 	approvalCaseNotifier := business.NewApprovalCaseNotifier(
-		agentNotifier.Client(),
-		agentNotifier.ProfileClient(),
+		notifiers.notificationCli,
+		profileCli,
 		workforceMemberRepo,
 		orgUnitRepo,
 		clientRepo,
@@ -227,7 +256,6 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		branchRepo,
 		agentRepo,
 		agentBranchRepo,
-		agentNotifier,
 	)
 	clientBusiness := business.NewClientBusiness(
 		ctx,
@@ -239,6 +267,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		workforceMemberRepo,
 		internalTeamRepo,
 		teamMembershipRepo,
+		business.WithClientNotifier(notifiers.client),
 	)
 	workforceBusiness := business.NewWorkforceBusiness(
 		evtsMan,
@@ -252,11 +281,13 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		teamMembershipRepo,
 		accessRoleAssignmentRepo,
 		partitionCli,
+		business.WithWorkforceNotifier(notifiers.workforce),
 	)
 	groupBusiness := business.NewClientGroupBusiness(ctx, evtsMan, workforceMemberRepo, orgUnitRepo, groupRepo)
 	membershipBusiness := business.NewMembershipBusiness(ctx, evtsMan, groupRepo, membershipRepo)
 	investorBusiness := business.NewInvestorBusiness(ctx, evtsMan, investorRepo)
-	clientDataBusiness := business.NewClientDataBusiness(ctx, evtsMan, clientDataEntryRepo, clientDataHistoryRepo)
+	clientDataBusiness := business.NewClientDataBusiness(ctx, evtsMan, clientDataEntryRepo, clientDataHistoryRepo,
+		business.WithClientNotifier(notifiers.client), business.WithClientLookup(clientRepo))
 
 	formTemplateRepo := repository.NewFormTemplateRepository(ctx, dbPool, workMan)
 	formSubmissionRepo := repository.NewFormSubmissionRepository(ctx, dbPool, workMan)

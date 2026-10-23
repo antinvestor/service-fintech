@@ -30,7 +30,8 @@ type IdentityConfig struct {
 
 	NotificationServiceURI                   string `envDefault:"127.0.0.1:7040"                           env:"NOTIFICATION_SERVICE_URI"`
 	NotificationServiceWorkloadAPITargetPath string `envDefault:"/ns/notification/sa/service-notification" env:"NOTIFICATION_SERVICE_WORKLOAD_API_TARGET_PATH"`
-	AgentOnboardingTemplate                  string `envDefault:"template.fintech.agent.onboarding"        env:"AGENT_ONBOARDING_TEMPLATE"`
+	// LenderDisplayName opens every borrower-facing message.
+	LenderDisplayName string `envDefault:"Your lender" env:"LENDER_DISPLAY_NAME"`
 
 	MaxAgentDepth int `envDefault:"5" env:"MAX_AGENT_DEPTH"`
 

@@ -51,7 +51,6 @@ type agentBusiness struct {
 	branchRepo       repository.BranchRepository
 	agentRepo        repository.AgentRepository
 	agentBranchRepo  repository.AgentBranchRepository
-	notifier         *AgentNotifier
 }
 
 func NewAgentBusiness(
@@ -62,7 +61,6 @@ func NewAgentBusiness(
 	branchRepo repository.BranchRepository,
 	agentRepo repository.AgentRepository,
 	agentBranchRepo repository.AgentBranchRepository,
-	notifier *AgentNotifier,
 ) AgentBusiness {
 	return &agentBusiness{
 		eventsMan:        eventsMan,
@@ -71,7 +69,6 @@ func NewAgentBusiness(
 		branchRepo:       branchRepo,
 		agentRepo:        agentRepo,
 		agentBranchRepo:  agentBranchRepo,
-		notifier:         notifier,
 	}
 }
 

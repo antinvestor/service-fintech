@@ -52,6 +52,8 @@ type clientDataBusiness struct {
 	eventsMan   fevents.Manager
 	entryRepo   repository.ClientDataEntryRepository
 	historyRepo repository.ClientDataEntryHistoryRepository
+	notifier    *ClientNotifier
+	clients     clientLookup
 }
 
 func NewClientDataBusiness(
@@ -59,11 +61,15 @@ func NewClientDataBusiness(
 	eventsMan fevents.Manager,
 	entryRepo repository.ClientDataEntryRepository,
 	historyRepo repository.ClientDataEntryHistoryRepository,
+	opts ...Option,
 ) ClientDataBusiness {
+	o := applyOptions(opts)
 	return &clientDataBusiness{
 		eventsMan:   eventsMan,
 		entryRepo:   entryRepo,
 		historyRepo: historyRepo,
+		notifier:    o.clientNotifier,
+		clients:     o.clientLookup,
 	}
 }
 
@@ -244,7 +250,41 @@ func (b *clientDataBusiness) review(
 		return nil, historyErr
 	}
 
+	b.notifyReviewOutcome(ctx, entry, target, comment)
+
 	return entry, nil
+}
+
+// notifyReviewOutcome tells the borrower what the reviewer decided. The
+// client row is looked up for its profile; a client that cannot be found is
+// logged, never a reason to fail the review that already landed.
+func (b *clientDataBusiness) notifyReviewOutcome(
+	ctx context.Context,
+	entry *models.ClientDataEntry,
+	target identityv1.DataVerificationStatus,
+	comment string,
+) {
+	if !b.notifier.Enabled() || b.clients == nil {
+		return
+	}
+	client, err := b.clients.GetByID(ctx, entry.ClientID)
+	if err != nil || client == nil {
+		util.Log(ctx).WithError(err).WithField("client_id", entry.ClientID).
+			Error("KYC review notification not sent: client could not be loaded")
+		return
+	}
+	switch target {
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED:
+		b.notifier.NotifyKYCVerified(ctx, client, entry.FieldKey)
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_REJECTED:
+		b.notifier.NotifyKYCRejected(ctx, client, entry.FieldKey, comment)
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED:
+		b.notifier.NotifyKYCInfoRequested(ctx, client, entry.FieldKey, comment)
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNSPECIFIED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNDER_REVIEW,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_EXPIRED:
+	}
 }
 
 // isReviewableStatus reports whether an entry in this status may still be

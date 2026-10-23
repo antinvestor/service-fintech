@@ -113,6 +113,7 @@ type workforceBusiness struct {
 	teamMembershipRepo     repository.TeamMembershipRepository
 	accessRoleRepo         repository.AccessRoleAssignmentRepository
 	platformAccessCli      platformAccessClient
+	notifier               *WorkforceNotifier
 }
 
 func NewWorkforceBusiness(
@@ -127,8 +128,10 @@ func NewWorkforceBusiness(
 	teamMembershipRepo repository.TeamMembershipRepository,
 	accessRoleRepo repository.AccessRoleAssignmentRepository,
 	partitionCli tenancyv1connect.TenancyServiceClient,
+	opts ...Option,
 ) WorkforceBusiness {
 	return &workforceBusiness{
+		notifier:               applyOptions(opts).workforceNotifier,
 		eventsMan:              eventsMan,
 		organizationRepo:       organizationRepo,
 		orgUnitRepo:            orgUnitRepo,
@@ -173,6 +176,7 @@ func (b *workforceBusiness) WorkforceMemberSave(
 
 	if isNew {
 		IdentityWorkforceAdded.Add(ctx, 1)
+		b.notifyMemberOnboarded(ctx, member)
 	} else if member.State == int32(commonv1.STATE_INACTIVE) || member.State == int32(commonv1.STATE_DELETED) {
 		IdentityWorkforceRemoved.Add(ctx, 1)
 	}
@@ -194,6 +198,32 @@ func (b *workforceBusiness) WorkforceMemberSave(
 	}
 
 	return member.ToAPI(), nil
+}
+
+// notifyMemberOnboarded invites a new member to sign in, naming the
+// organization they now work for.
+func (b *workforceBusiness) notifyMemberOnboarded(ctx context.Context, member *models.WorkforceMember) {
+	if !b.notifier.Enabled() {
+		return
+	}
+	orgName := ""
+	if org, err := b.organizationRepo.GetByID(ctx, member.OrganizationID); err == nil && org != nil {
+		orgName = org.Name
+	}
+	b.notifier.NotifyMemberOnboarded(ctx, member, workforceMemberName(member), orgName)
+}
+
+// workforceMemberName picks the display name recorded on the member, if any.
+func workforceMemberName(member *models.WorkforceMember) string {
+	if member == nil || member.Properties == nil {
+		return ""
+	}
+	for _, key := range []string{"name", "full_name", "display_name"} {
+		if v, ok := member.Properties[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (b *workforceBusiness) WorkforceMemberGet(

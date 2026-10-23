@@ -63,6 +63,7 @@ type clientBusiness struct {
 	workforceRepo      repository.WorkforceMemberRepository
 	internalTeamRepo   repository.InternalTeamRepository
 	teamMembershipRepo repository.TeamMembershipRepository
+	notifier           *ClientNotifier
 }
 
 func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -73,8 +74,10 @@ func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
 	workforceRepo repository.WorkforceMemberRepository,
 	internalTeamRepo repository.InternalTeamRepository,
 	teamMembershipRepo repository.TeamMembershipRepository,
+	opts ...Option,
 ) ClientBusiness {
 	return &clientBusiness{
+		notifier:           applyOptions(opts).clientNotifier,
 		eventsMan:          eventsMan,
 		clientRepo:         clientRepo,
 		clientHistoryRepo:  clientHistoryRepo,
@@ -141,6 +144,10 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 	if err = b.eventsMan.Emit(ctx, events.ClientSaveEvent, client); err != nil {
 		logger.WithError(err).Error("could not emit client save event")
 		return nil, err
+	}
+
+	if isNew {
+		b.notifier.NotifyClientOnboarded(ctx, client, "")
 	}
 
 	return client.ToAPI(), nil
