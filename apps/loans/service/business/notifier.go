@@ -16,121 +16,371 @@ package business
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
 
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	notificationv1 "buf.build/gen/go/antinvestor/notification/protocolbuffers/go/notification/v1"
 	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
+
+	"github.com/antinvestor/service-fintech/apps/loans/service/models"
+	"github.com/antinvestor/service-fintech/pkg/messages"
+	"github.com/antinvestor/service-fintech/pkg/notify"
 )
 
-// LoanNotifier wraps the notification service client for sending
-// loan-related notifications to clients.
-type LoanNotifier struct {
-	client notificationv1connect.NotificationServiceClient
+// notificationKindLoan labels every borrower- and agent-facing loan message.
+const notificationKindLoan = "loan"
+
+// ErrClientProfileUnknown is returned when a client cannot be mapped to a
+// profile, so there is no one to address a message to.
+var ErrClientProfileUnknown = errors.New("loans: client has no profile to notify")
+
+// ClientProfileResolver maps a loans client id onto the profile that owns it.
+// Loans are keyed by client id; the notification service delivers to a
+// profile's reachable contacts, so every message crosses this bridge once.
+type ClientProfileResolver interface {
+	ProfileIDForClient(ctx context.Context, clientID string) (string, error)
 }
 
-// NewLoanNotifier creates a LoanNotifier. If client is nil the notifier
-// degrades gracefully — all methods become no-ops that log a warning.
-func NewLoanNotifier(client notificationv1connect.NotificationServiceClient) *LoanNotifier {
-	return &LoanNotifier{client: client}
+// fieldClientProfileResolver asks the field service (served by the identity
+// binary) for the client's profile.
+type fieldClientProfileResolver struct {
+	fieldCli fieldv1connect.FieldServiceClient
 }
 
-// NotifyLoanApproved sends a high-priority notification when a loan is approved.
-func (n *LoanNotifier) NotifyLoanApproved(ctx context.Context, clientContact, clientName, loanAmount, currency string) {
-	data := map[string]string{
-		"loan_amount": loanAmount,
-		fieldCurrency: currency,
+// NewFieldClientProfileResolver builds the production resolver.
+func NewFieldClientProfileResolver(fieldCli fieldv1connect.FieldServiceClient) ClientProfileResolver {
+	return &fieldClientProfileResolver{fieldCli: fieldCli}
+}
+
+func (r *fieldClientProfileResolver) ProfileIDForClient(ctx context.Context, clientID string) (string, error) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" || r == nil || r.fieldCli == nil {
+		return "", ErrClientProfileUnknown
 	}
-	n.send(ctx, "loan_approved", clientContact, clientName, data, notificationv1.PRIORITY_HIGH)
+	resp, err := r.fieldCli.ClientGet(ctx, connect.NewRequest(&fieldv1.ClientGetRequest{Id: clientID}))
+	if err != nil {
+		return "", fmt.Errorf("client get %s: %w", clientID, err)
+	}
+	profileID := strings.TrimSpace(resp.Msg.GetData().GetProfileId())
+	if profileID == "" {
+		return "", ErrClientProfileUnknown
+	}
+	return profileID, nil
 }
 
-// NotifyRepaymentReceived sends a notification when a repayment is received.
+// LoanNotifier sends the borrower- and agent-facing messages of the loan
+// lifecycle. Every method is fire-and-forget: the state change or money
+// movement that triggered it has already happened and is never undone
+// because a message could not be sent; failures are logged and counted.
+//
+// A nil *LoanNotifier is safe to call and sends nothing.
+type LoanNotifier struct {
+	notifier   *notify.Notifier
+	resolver   ClientProfileResolver
+	lenderName string
+}
+
+// NewLoanNotifier builds a LoanNotifier. lenderName is the name borrowers
+// know the lender by; it opens every message.
+func NewLoanNotifier(notifier *notify.Notifier, resolver ClientProfileResolver, lenderName string) *LoanNotifier {
+	if strings.TrimSpace(lenderName) == "" {
+		lenderName = "Your lender"
+	}
+	return &LoanNotifier{notifier: notifier, resolver: resolver, lenderName: lenderName}
+}
+
+// Enabled reports whether messages can reach a notification service.
+func (n *LoanNotifier) Enabled() bool {
+	return n != nil && n.notifier.Enabled()
+}
+
+// --- application lifecycle ---
+
+// NotifyApplicationSubmitted tells the borrower their application is in.
+func (n *LoanNotifier) NotifyApplicationSubmitted(ctx context.Context, lr *models.LoanRequest) {
+	if !n.Enabled() || lr == nil {
+		return
+	}
+	vars := n.requestVars(lr)
+	vars[messages.VarAmount] = messages.FormatAmount(lr.CurrencyCode, lr.RequestedAmount)
+	n.toClient(ctx, lr.ClientID, messages.LoanApplicationSubmitted, vars, notificationv1.PRIORITY_LOW)
+}
+
+// NotifyApplicationApproved tells the borrower the approved terms.
+func (n *LoanNotifier) NotifyApplicationApproved(ctx context.Context, lr *models.LoanRequest) {
+	if !n.Enabled() || lr == nil {
+		return
+	}
+	vars := n.requestVars(lr)
+	vars[messages.VarAmount] = messages.FormatAmount(lr.CurrencyCode, lr.ApprovedAmount)
+	vars[messages.VarTermDays] = lr.ApprovedTermDays
+	n.toClient(ctx, lr.ClientID, messages.LoanApplicationApproved, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyApplicationRejected tells the borrower, with the reason recorded.
+func (n *LoanNotifier) NotifyApplicationRejected(ctx context.Context, lr *models.LoanRequest) {
+	if !n.Enabled() || lr == nil {
+		return
+	}
+	vars := n.requestVars(lr)
+	vars[messages.VarReason] = orDefault(lr.RejectionReason, "Please contact your field officer for details.")
+	n.toClient(ctx, lr.ClientID, messages.LoanApplicationRejected, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyApplicationCancelled tells the borrower the application was withdrawn.
+func (n *LoanNotifier) NotifyApplicationCancelled(ctx context.Context, lr *models.LoanRequest) {
+	if !n.Enabled() || lr == nil {
+		return
+	}
+	vars := n.requestVars(lr)
+	vars[messages.VarReason] = orDefault(lr.RejectionReason, "")
+	n.toClient(ctx, lr.ClientID, messages.LoanApplicationCancelled, vars, notificationv1.PRIORITY_LOW)
+}
+
+// --- money movements ---
+
+// NotifyLoanDisbursed tells the borrower the principal has left and when the
+// first repayment is due.
+func (n *LoanNotifier) NotifyLoanDisbursed(ctx context.Context, la *models.LoanAccount, channel string) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, la.PrincipalAmount)
+	vars[messages.VarChannel] = orDefault(channel, "your registered account")
+	vars[messages.VarDueDate] = messages.FormatDate(la.FirstRepaymentDate)
+	n.toClient(ctx, la.ClientID, messages.LoanDisbursed, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyRepaymentReceived confirms a repayment and the balance after it.
 func (n *LoanNotifier) NotifyRepaymentReceived(
 	ctx context.Context,
-	clientContact, clientName, amount, currency, remainingBalance string,
+	la *models.LoanAccount,
+	amountMinor, balanceMinor int64,
+	channel, reference string,
 ) {
-	data := map[string]string{
-		fieldAmount:         amount,
-		fieldCurrency:       currency,
-		"remaining_balance": remainingBalance,
+	if !n.Enabled() || la == nil {
+		return
 	}
-	n.send(ctx, "repayment_received", clientContact, clientName, data, notificationv1.PRIORITY_LOW)
+	vars := n.loanVars(la)
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
+	vars[messages.VarBalance] = messages.FormatAmount(la.CurrencyCode, balanceMinor)
+	vars[messages.VarChannel] = orDefault(channel, "payment")
+	vars[messages.VarReference] = orDefault(reference, "-")
+	n.toClient(ctx, la.ClientID, messages.LoanRepaymentReceived, vars, notificationv1.PRIORITY_LOW)
 }
 
-// NotifyLoanFullyPaid sends a notification when a loan is fully paid off.
-func (n *LoanNotifier) NotifyLoanFullyPaid(ctx context.Context, clientContact, clientName string) {
-	n.send(ctx, "loan_fully_paid", clientContact, clientName, nil, notificationv1.PRIORITY_LOW)
-}
-
-// NotifyCollectionRequested asks a borrower to settle an amount now. The
-// contact detail is passed straight to the notification service and never
-// logged.
-func (n *LoanNotifier) NotifyCollectionRequested(ctx context.Context, clientContact, amount, currency string) {
-	data := map[string]string{
-		fieldAmount:   amount,
-		fieldCurrency: currency,
+// NotifyLoanFullyPaid closes the conversation on a settled loan.
+func (n *LoanNotifier) NotifyLoanFullyPaid(ctx context.Context, la *models.LoanAccount) {
+	if !n.Enabled() || la == nil {
+		return
 	}
-	n.send(ctx, "collection_requested", clientContact, "", data, notificationv1.PRIORITY_HIGH)
+	n.toClient(ctx, la.ClientID, messages.LoanPaidOff, n.loanVars(la), notificationv1.PRIORITY_LOW)
 }
 
-// NotifyApplicationUnderReview sends a notification when an application is under review.
-func (n *LoanNotifier) NotifyApplicationUnderReview(ctx context.Context, clientContact, clientName string) {
-	n.send(ctx, "application_under_review", clientContact, clientName, nil, notificationv1.PRIORITY_LOW)
-}
-
-// send builds a Notification, calls Send on the notification service client,
-// and closes the resulting stream. Errors are logged but never propagated
-// (fire-and-forget).
-func (n *LoanNotifier) send(
+// NotifyCollectionRequested asks the borrower to pay an amount now. When a
+// contact is supplied it is addressed directly (a phone number is a contact
+// detail the notification service resolves); otherwise the client's profile.
+func (n *LoanNotifier) NotifyCollectionRequested(
 	ctx context.Context,
-	template, contact, name string,
-	data map[string]string,
+	la *models.LoanAccount,
+	amountMinor int64,
+	contact, reference string,
+) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
+	vars[messages.VarReference] = reference
+	if strings.TrimSpace(contact) != "" {
+		n.send(ctx, notify.ToContact(contact), messages.LoanCollectionRequested, vars, notificationv1.PRIORITY_HIGH)
+		return
+	}
+	n.toClient(ctx, la.ClientID, messages.LoanCollectionRequested, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// --- arrears and servicing ---
+
+// NotifyLoanDelinquent tells the borrower the loan is in arrears.
+func (n *LoanNotifier) NotifyLoanDelinquent(
+	ctx context.Context,
+	la *models.LoanAccount,
+	daysOverdue int,
+	balanceMinor int64,
+) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarDaysOverdue] = daysOverdue
+	vars[messages.VarBalance] = messages.FormatAmount(la.CurrencyCode, balanceMinor)
+	n.toClient(ctx, la.ClientID, messages.LoanDelinquent, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyAgentClientDelinquent tells the field agent one of their clients is
+// in arrears so they can follow up in person.
+func (n *LoanNotifier) NotifyAgentClientDelinquent(
+	ctx context.Context,
+	la *models.LoanAccount,
+	agentProfileID string,
+	daysOverdue int,
+	balanceMinor int64,
+) {
+	if !n.Enabled() || la == nil || strings.TrimSpace(agentProfileID) == "" {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAgentName] = "field officer"
+	vars[messages.VarDaysOverdue] = daysOverdue
+	vars[messages.VarBalance] = messages.FormatAmount(la.CurrencyCode, balanceMinor)
+	n.send(ctx, notify.ToProfile(agentProfileID), messages.AgentClientDelinquent, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyPenaltyApplied tells the borrower a penalty was charged.
+func (n *LoanNotifier) NotifyPenaltyApplied(
+	ctx context.Context,
+	la *models.LoanAccount,
+	amountMinor int64,
+	reason string,
+) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
+	vars[messages.VarReason] = orDefault(reason, "Late repayment.")
+	n.toClient(ctx, la.ClientID, messages.LoanPenaltyApplied, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyPenaltyWaived tells the borrower a penalty was removed.
+func (n *LoanNotifier) NotifyPenaltyWaived(ctx context.Context, la *models.LoanAccount, amountMinor int64) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
+	n.toClient(ctx, la.ClientID, messages.LoanPenaltyWaived, vars, notificationv1.PRIORITY_LOW)
+}
+
+// NotifyLoanRestructured tells the borrower the new balance and next due date.
+func (n *LoanNotifier) NotifyLoanRestructured(
+	ctx context.Context,
+	la *models.LoanAccount,
+	balanceMinor int64,
+	nextDue *time.Time,
+) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarBalance] = messages.FormatAmount(la.CurrencyCode, balanceMinor)
+	vars[messages.VarDueDate] = messages.FormatDate(nextDue)
+	n.toClient(ctx, la.ClientID, messages.LoanRestructured, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// NotifyLoanWrittenOff tells the borrower the loan has been closed.
+func (n *LoanNotifier) NotifyLoanWrittenOff(ctx context.Context, la *models.LoanAccount, balanceMinor int64) {
+	if !n.Enabled() || la == nil {
+		return
+	}
+	vars := n.loanVars(la)
+	vars[messages.VarBalance] = messages.FormatAmount(la.CurrencyCode, balanceMinor)
+	n.toClient(ctx, la.ClientID, messages.LoanWrittenOff, vars, notificationv1.PRIORITY_HIGH)
+}
+
+// --- plumbing ---
+
+func (n *LoanNotifier) requestVars(lr *models.LoanRequest) map[string]any {
+	return map[string]any{
+		messages.VarLenderName: n.lenderName,
+		messages.VarClientName: "customer",
+		messages.VarLoanRef:    shortRef(lr.GetID()),
+		messages.VarCurrency:   lr.CurrencyCode,
+		messages.VarTermDays:   lr.RequestedTermDays,
+	}
+}
+
+func (n *LoanNotifier) loanVars(la *models.LoanAccount) map[string]any {
+	return map[string]any{
+		messages.VarLenderName: n.lenderName,
+		messages.VarClientName: "customer",
+		messages.VarLoanRef:    shortRef(la.GetID()),
+		messages.VarCurrency:   la.CurrencyCode,
+	}
+}
+
+// toClient resolves the client's profile and sends. A client with no profile
+// is logged and counted as dropped; it is a data problem to fix in identity,
+// not a reason to fail the business operation.
+func (n *LoanNotifier) toClient(
+	ctx context.Context,
+	clientID, template string,
+	vars map[string]any,
 	priority notificationv1.PRIORITY,
 ) {
-	logger := util.Log(ctx).WithFields(map[string]any{"component": "LoanNotifier", "template": template})
-
-	if n == nil || n.client == nil {
-		logger.Warn("notification client is nil, skipping notification")
+	if !n.Enabled() {
 		return
 	}
-
-	dataJSON := ""
-	if data != nil {
-		raw, err := json.Marshal(data)
-		if err != nil {
-			logger.WithError(err).Warn("could not marshal notification data")
-		} else {
-			dataJSON = string(raw)
-		}
+	if n.resolver == nil {
+		util.Log(ctx).WithField("template", template).Warn("loan notification skipped: no client profile resolver")
+		return
 	}
-
-	notification := notificationv1.Notification_builder{
-		Type:     "loan",
-		Template: template,
-		Data:     dataJSON,
-		Recipient: commonv1.ContactLink_builder{
-			Detail:      contact,
-			ProfileName: name,
-		}.Build(),
-		OutBound:    true,
-		AutoRelease: true,
-		Priority:    priority,
-	}.Build()
-
-	stream, err := n.client.Send(ctx, connect.NewRequest(&notificationv1.SendRequest{
-		Data: []*notificationv1.Notification{notification},
-	}))
+	profileID, err := n.resolver.ProfileIDForClient(ctx, clientID)
 	if err != nil {
-		logger.WithError(err).Error("could not send notification")
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"template":  template,
+			"client_id": clientID,
+		}).Error("loan notification not sent: client profile could not be resolved")
 		return
 	}
-	// Drain and close the stream (fire-and-forget).
-	for stream.Receive() {
-		// discard responses
+	n.send(ctx, notify.ToProfile(profileID), template, vars, priority)
+}
+
+func (n *LoanNotifier) send(
+	ctx context.Context,
+	recipient notifyRecipient,
+	template string,
+	vars map[string]any,
+	priority notificationv1.PRIORITY,
+) {
+	if !n.Enabled() {
+		return
 	}
-	if closeErr := stream.Close(); closeErr != nil {
-		logger.WithError(closeErr).Warn("error closing notification stream")
+	n.notifier.SendOrLog(ctx, notify.Message{
+		Template:  template,
+		Kind:      notificationKindLoan,
+		Recipient: recipient,
+		Vars:      vars,
+		Priority:  priority,
+	})
+}
+
+// notifyRecipient is the ContactLink type, named so the signatures above
+// read as what they are.
+type notifyRecipient = notify.Recipient
+
+// shortRefLen is how many trailing characters of an id a borrower sees.
+const shortRefLen = 8
+
+// shortRef renders an id the way a borrower sees it on an SMS: the last
+// eight characters, upper-cased.
+func shortRef(id string) string {
+	id = strings.TrimSpace(id)
+	if len(id) > shortRefLen {
+		id = id[len(id)-shortRefLen:]
 	}
+	return strings.ToUpper(id)
+}
+
+func orDefault(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }

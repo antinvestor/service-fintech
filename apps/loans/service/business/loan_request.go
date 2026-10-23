@@ -58,6 +58,7 @@ type loanRequestBusiness struct {
 	limitsCli         limitsv1connect.LimitsServiceClient
 	limitsGateEnabled bool
 	limitsGateMode    string
+	notifier          *LoanNotifier
 }
 
 func NewLoanRequestBusiness(
@@ -70,8 +71,10 @@ func NewLoanRequestBusiness(
 	limitsGateMode string,
 	opts ...Option,
 ) LoanRequestBusiness {
+	o := applyOptions(opts)
 	return &loanRequestBusiness{
-		scope:             applyOptions(opts).scope,
+		scope:             o.scope,
+		notifier:          o.notifier,
 		eventsMan:         eventsMan,
 		loanRequestRepo:   loanRequestRepo,
 		loanProductRepo:   loanProductRepo,
@@ -138,6 +141,13 @@ func (b *loanRequestBusiness) Save(
 	if err := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); err != nil {
 		logger.WithError(err).Error("could not emit loan request save event")
 		return nil, err
+	}
+
+	// The borrower hears about the submission once: the first save that
+	// lands on SUBMITTED. Re-saves of a submitted request stay silent.
+	if lr.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED) &&
+		(existing == nil || existing.Status != lr.Status) {
+		b.notifier.NotifyApplicationSubmitted(ctx, lr)
 	}
 
 	return lr.ToAPI(), nil
@@ -369,6 +379,8 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 		return nil, errEmit
 	}
 
+	b.notifier.NotifyApplicationApproved(ctx, lr)
+
 	return lr.ToAPI(), nil
 }
 
@@ -430,6 +442,8 @@ func (b *loanRequestBusiness) Reject(
 		return nil, errEmit
 	}
 
+	b.notifier.NotifyApplicationRejected(ctx, lr)
+
 	return lr.ToAPI(), nil
 }
 
@@ -456,6 +470,8 @@ func (b *loanRequestBusiness) Cancel(
 		logger.WithError(errEmit).Error("could not emit loan request cancel event")
 		return nil, errEmit
 	}
+
+	b.notifier.NotifyApplicationCancelled(ctx, lr)
 
 	return lr.ToAPI(), nil
 }

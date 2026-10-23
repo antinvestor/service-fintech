@@ -286,7 +286,8 @@ func (r *transferOrderRepository) MarkFailedIfUnposted(ctx context.Context, orde
 func (r *transferOrderRepository) MarkPayoutFailed(ctx context.Context, orderID, paymentID, reason string) error {
 	return r.dbPool.DB(ctx, false).
 		Table("transfer_orders").
-		Where("deleted_at IS NULL AND id = ?", orderID).
+		Where("deleted_at IS NULL AND id = ? AND (payment_id IS NULL OR payment_id = '' OR payment_id = ?)",
+			orderID, paymentID).
 		Updates(map[string]any{
 			colPayoutStatus:  models.PayoutStatusFailed,
 			colPaymentID:     paymentID,

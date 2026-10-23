@@ -259,7 +259,14 @@ func (b *repaymentBusiness) recordInner(
 
 	b.persistAllocatedEntries(ctx, logger, alloc)
 
-	if applyErr := b.applyRepaymentToBalance(ctx, logger, la, alloc); applyErr != nil {
+	if applyErr := b.applyRepaymentToBalance(
+		ctx,
+		logger,
+		la,
+		alloc,
+		req.GetChannel(),
+		req.GetPaymentReference(),
+	); applyErr != nil {
 		return nil, applyErr
 	}
 
@@ -350,6 +357,7 @@ func (b *repaymentBusiness) applyRepaymentToBalance(
 	logger *util.LogEntry,
 	la *models.LoanAccount,
 	alloc waterfallResult,
+	channel, reference string,
 ) error {
 	delta := repository.LoanBalanceDelta{
 		PrincipalApplied: alloc.principalApplied,
@@ -364,13 +372,7 @@ func (b *repaymentBusiness) applyRepaymentToBalance(
 		return err
 	}
 
-	if b.notifier != nil {
-		b.notifier.NotifyRepaymentReceived(ctx, la.ClientID, "",
-			models.MinorUnitsToString(delta.Total()),
-			la.CurrencyCode,
-			models.MinorUnitsToString(fresh.TotalOutstanding),
-		)
-	}
+	b.notifier.NotifyRepaymentReceived(ctx, la, delta.Total(), fresh.TotalOutstanding, channel, reference)
 
 	if fresh.TotalOutstanding <= 0 {
 		// The automatic pay-off goes through the same state machine as an
@@ -399,9 +401,7 @@ func (b *repaymentBusiness) applyRepaymentToBalance(
 			}
 		}
 
-		if b.notifier != nil {
-			b.notifier.NotifyLoanFullyPaid(ctx, la.ClientID, "")
-		}
+		b.notifier.NotifyLoanFullyPaid(ctx, la)
 
 		// Fire the paid-off hook so downstream products (seed credit
 		// profile, for instance) can react to a fully settled loan.

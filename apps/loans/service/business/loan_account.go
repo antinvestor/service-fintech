@@ -142,6 +142,7 @@ type loanAccountBusiness struct {
 	scope             *ReadScope
 	disbRepo          repository.DisbursementRepository
 	scheduleEntryRepo repository.ScheduleEntryRepository
+	notifier          *LoanNotifier
 }
 
 func NewLoanAccountBusiness(
@@ -178,6 +179,7 @@ func NewLoanAccountBusiness(
 		scope:             o.scope,
 		disbRepo:          o.disbRepo,
 		scheduleEntryRepo: o.scheduleEntryRepo,
+		notifier:          o.notifier,
 
 		eventsMan:        eventsMan,
 		loanProductRepo:  loanProductRepo,
@@ -933,6 +935,12 @@ func (b *loanAccountBusiness) TransitionStatus(
 	}, func(auErr error) {
 		logger.WithError(auErr).Warn("audit emission failed for loan status change")
 	})
+
+	if newStatus == loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF {
+		if balance, balErr := b.loanBalanceRepo.GetByLoanAccountID(ctx, la.GetID()); balErr == nil && balance != nil {
+			b.notifier.NotifyLoanWrittenOff(ctx, la, balance.TotalOutstanding)
+		}
+	}
 
 	recordLoanStatusTransition(ctx, newStatus)
 

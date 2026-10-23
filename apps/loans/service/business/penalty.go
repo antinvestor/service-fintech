@@ -48,6 +48,7 @@ type penaltyBusiness struct {
 	loanBalanceRepo repository.LoanBalanceRepository
 	operationsCli   operationsv1connect.OperationsServiceClient
 	auditWriter     *audit.Writer
+	notifier        *LoanNotifier
 }
 
 func NewPenaltyBusiness(
@@ -57,6 +58,7 @@ func NewPenaltyBusiness(
 	loanBalanceRepo repository.LoanBalanceRepository,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
+	opts ...Option,
 ) PenaltyBusiness {
 	return &penaltyBusiness{
 		penaltyRepo:     penaltyRepo,
@@ -64,6 +66,7 @@ func NewPenaltyBusiness(
 		loanBalanceRepo: loanBalanceRepo,
 		operationsCli:   operationsCli,
 		auditWriter:     auditWriter,
+		notifier:        applyOptions(opts).notifier,
 	}
 }
 
@@ -146,6 +149,8 @@ func (b *penaltyBusiness) Save(ctx context.Context, obj *loansv1.PenaltyObject) 
 	}, func(auErr error) {
 		logger.WithError(auErr).Warn("audit emission failed for penalty")
 	})
+
+	b.notifier.NotifyPenaltyApplied(ctx, la, penalty.Amount, penalty.Reason)
 
 	return penalty.ToAPI(), nil
 }
@@ -264,6 +269,10 @@ func (b *penaltyBusiness) Waive(ctx context.Context, id, reason string) (*loansv
 	}, func(auErr error) {
 		logger.WithError(auErr).Warn("audit emission failed for penalty waiver")
 	})
+
+	if la, laErr := b.loanRepo.GetByID(ctx, penalty.LoanAccountID); laErr == nil && la != nil {
+		b.notifier.NotifyPenaltyWaived(ctx, la, penalty.Amount)
+	}
 
 	return penalty.ToAPI(), nil
 }

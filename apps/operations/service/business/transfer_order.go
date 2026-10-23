@@ -890,6 +890,20 @@ func (b *transferOrderBusiness) confirmEarlierPayout(ctx context.Context, order 
 		return ErrPayoutPendingConfirmation
 	}
 	if payment != nil {
+		if current.PaymentID != "" && payment.GetId() != current.PaymentID {
+			// The service answered with a different payment for our
+			// reference. Not ours to act on either way; keep waiting.
+			logger.WithFields(map[string]any{
+				"recorded_payment_id": current.PaymentID,
+				"found_payment_id":    payment.GetId(),
+			}).Warn("payout lookup returned a payment other than the recorded one")
+			return ErrPayoutPendingConfirmation
+		}
+		if current.PaymentID == "" && !payoutMatchesOrder(payment, order) {
+			logger.WithField("found_payment_id", payment.GetId()).
+				Warn("payout lookup returned a payment that does not match the order")
+			return ErrPayoutPendingConfirmation
+		}
 		return b.settleFoundPayout(ctx, logger, order, current, payment)
 	}
 	if current.PaymentID != "" {
@@ -949,6 +963,22 @@ func (b *transferOrderBusiness) settleFoundPayout(
 	}
 	logger.WithField("payment_id", payment.GetId()).Info("earlier payout confirmed by the payment service")
 	return nil
+}
+
+// payoutMatchesOrder checks a payment found by reference really is this
+// order's payout: outbound, same currency and amount.
+func payoutMatchesOrder(payment *paymentv1.Payment, order *models.TransferOrder) bool {
+	if payment == nil || !payment.GetOutbound() {
+		return false
+	}
+	amt := payment.GetAmount()
+	if amt == nil {
+		return false
+	}
+	if !strings.EqualFold(amt.GetCurrencyCode(), order.Currency) {
+		return false
+	}
+	return utilmoney.ToInt64(amt, utilmoney.Decimals(order.Currency)) == order.Amount
 }
 
 func (b *transferOrderBusiness) payoutLocator() PayoutLocator {

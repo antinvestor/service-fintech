@@ -45,6 +45,8 @@ import (
 	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 
+	"github.com/antinvestor/common/notification"
+
 	aconfig "github.com/antinvestor/service-fintech/apps/loans/config"
 	"github.com/antinvestor/service-fintech/apps/loans/service/authz"
 	"github.com/antinvestor/service-fintech/apps/loans/service/business"
@@ -54,6 +56,8 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/messages"
+	"github.com/antinvestor/service-fintech/pkg/notify"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
@@ -103,6 +107,13 @@ func main() {
 	// Frame setup job (DO_SETUP / argv setup): no peer clients required.
 	loansSD := loanspb.File_loans_v1_loans_proto.Services().ByName("LoanManagementService")
 	if frame.ShouldRunSetup(&cfg) {
+		// Every message the service sends is declared in pkg/messages and
+		// upserted with the notification service on each deploy, so a
+		// template a borrower is owed exists before the first send.
+		notification.RegisterTemplateSync(svc, &cfg, notification.Target{
+			Endpoint:              cfg.NotificationServiceURI,
+			WorkloadAPITargetPath: cfg.NotificationServiceWorkloadAPITargetPath,
+		}, messages.Registry())
 		svc.Init(ctx, frame.WithPermissionRegistration(loansSD))
 		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
 			log.WithError(setupErr).Fatal("setup plan failed")
@@ -209,6 +220,7 @@ func setupServiceOptions(
 		limitsGateEnabledLoanRequestApproval,
 		limitsGateModeLoanRequestApproval,
 		business.WithReadScope(readScope),
+		business.WithNotifier(loanNotifier),
 	)
 	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo)
 	laBusiness := business.NewLoanAccountBusiness(
@@ -216,6 +228,7 @@ func setupServiceOptions(
 		loanRequestRepo, fundingCli, scheduleBusiness, operationsCli, auditWriter,
 		business.WithReadScope(readScope),
 		business.WithStatementSources(disbRepo, seRepo),
+		business.WithNotifier(loanNotifier),
 	)
 	// paidOffHook is currently nil here. A deployment that runs seed
 	// inside the loans process (or wires an RPC client for a seed
@@ -239,9 +252,11 @@ func setupServiceOptions(
 		limitsGateModeLoanRepayment,
 		business.WithReadScope(readScope),
 	)
-	penaltyBusiness := business.NewPenaltyBusiness(ctx, penRepo, laRepo, lbRepo, operationsCli, auditWriter)
+	penaltyBusiness := business.NewPenaltyBusiness(ctx, penRepo, laRepo, lbRepo, operationsCli, auditWriter,
+		business.WithNotifier(loanNotifier))
 	restructBusiness := business.NewLoanRestructureBusiness(
 		ctx, evtsMan, lrRepo, laRepo, lbRepo, rsRepo, laBusiness, scheduleBusiness,
+		business.WithNotifier(loanNotifier),
 	)
 	reconBusiness := business.NewReconciliationBusiness(ctx, evtsMan, reconRepo)
 	disbBusiness := business.NewDisbursementBusiness(
@@ -257,6 +272,7 @@ func setupServiceOptions(
 		limitsGateModeDisbursement,
 		business.WithReadScope(readScope),
 		business.WithScheduleBusiness(scheduleBusiness),
+		business.WithNotifier(loanNotifier),
 	)
 
 	portfolioBusiness := business.NewPortfolioBusiness(ctx, dbPool)
@@ -366,10 +382,14 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 	}
 
 	return peerClients{
-		loanNotifier: business.NewLoanNotifier(notificationCli),
-		operations:   operationsCli,
-		funding:      fundingCli,
-		limits:       limitsCli,
+		loanNotifier: business.NewLoanNotifier(
+			notify.New(notificationCli, messages.Registry()),
+			business.NewFieldClientProfileResolver(fieldCli),
+			cfg.LenderDisplayName,
+		),
+		operations: operationsCli,
+		funding:    fundingCli,
+		limits:     limitsCli,
 		readScope: business.NewReadScope(
 			business.NewFieldClientResolver(fieldCli), splitCSV(cfg.LoansStaffRoles)...,
 		),

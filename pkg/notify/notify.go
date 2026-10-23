@@ -80,6 +80,10 @@ type Message struct {
 	Language string
 }
 
+// Recipient is the address of a message: a ContactLink naming a profile or a
+// contact, as built by ToProfile or ToContact.
+type Recipient = *commonv1.ContactLink
+
 // ToProfile addresses a message to a profile; the notification service
 // picks the profile's reachable contact.
 func ToProfile(profileID string) *commonv1.ContactLink {

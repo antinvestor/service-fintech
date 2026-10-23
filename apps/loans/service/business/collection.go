@@ -93,12 +93,7 @@ func (b *collectionBusiness) Initiate(
 	// the request identifies the same prompt instead of raising a second one.
 	promptID := "collection:" + la.GetID() + ":" + req.GetIdempotencyKey()
 
-	b.notifier.NotifyCollectionRequested(
-		ctx,
-		req.GetPhoneNumber(),
-		models.MinorUnitsToString(amount),
-		la.CurrencyCode,
-	)
+	b.notifier.NotifyCollectionRequested(ctx, la, amount, req.GetPhoneNumber(), promptID)
 
 	logger.WithField("loan_id", la.GetID()).Info("collection prompt raised")
 

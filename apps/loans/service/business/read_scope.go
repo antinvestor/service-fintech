@@ -147,6 +147,13 @@ type options struct {
 	disbRepo          repository.DisbursementRepository
 	scheduleEntryRepo repository.ScheduleEntryRepository
 	scheduleBusiness  RepaymentScheduleBusiness
+	notifier          *LoanNotifier
+}
+
+// WithNotifier installs the borrower/agent notifier. Without it the business
+// flows run silently (local development, tests).
+func WithNotifier(n *LoanNotifier) Option {
+	return func(o *options) { o.notifier = n }
 }
 
 // WithScheduleBusiness lets the disbursement flow re-anchor the repayment

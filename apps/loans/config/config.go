@@ -52,6 +52,10 @@ type LoanManagementConfig struct {
 	LimitsGateEnabledLoanRepayment           bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_REPAYMENT"`
 	LimitsGateModeLoanRepayment              string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REPAYMENT"`
 
+	// LenderDisplayName opens every borrower-facing message ("<lender>: your
+	// loan ... "). Set it to the trading name borrowers know.
+	LenderDisplayName string `envDefault:"Your lender" env:"LENDER_DISPLAY_NAME"`
+
 	// LoansStaffRoles are the claim roles that may read any client's loan
 	// records; every other caller is scoped to the client its profile owns.
 	LoansStaffRoles string `envDefault:"admin,operator,viewer" env:"LOANS_STAFF_ROLES"`

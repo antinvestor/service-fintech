@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"strconv"
+	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
@@ -49,6 +50,7 @@ type loanRestructureBusiness struct {
 	scheduleRepo        repository.RepaymentScheduleRepository
 	laBusiness          LoanAccountBusiness
 	scheduleBusiness    RepaymentScheduleBusiness
+	notifier            *LoanNotifier
 }
 
 func NewLoanRestructureBusiness(
@@ -60,8 +62,10 @@ func NewLoanRestructureBusiness(
 	scheduleRepo repository.RepaymentScheduleRepository,
 	laBusiness LoanAccountBusiness,
 	scheduleBusiness RepaymentScheduleBusiness,
+	opts ...Option,
 ) LoanRestructureBusiness {
 	return &loanRestructureBusiness{
+		notifier:            applyOptions(opts).notifier,
 		eventsMan:           eventsMan,
 		loanRestructureRepo: loanRestructureRepo,
 		loanAccountRepo:     loanAccountRepo,
@@ -218,6 +222,12 @@ func (b *loanRestructureBusiness) Approve(
 		logger.WithError(err).Error("could not emit loan restructure save event")
 		return nil, err
 	}
+
+	var nextDue *time.Time
+	if len(schedule.Entries) > 0 {
+		nextDue = schedule.Entries[0].DueDate
+	}
+	b.notifier.NotifyLoanRestructured(ctx, la, balance.TotalOutstanding, nextDue)
 
 	return lr.ToAPI(), nil
 }

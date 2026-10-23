@@ -64,6 +64,7 @@ type disbursementBusiness struct {
 	limitsGateEnabled bool
 	limitsGateMode    string
 	scheduleBusiness  RepaymentScheduleBusiness
+	notifier          *LoanNotifier
 }
 
 func NewDisbursementBusiness(
@@ -83,6 +84,7 @@ func NewDisbursementBusiness(
 	return &disbursementBusiness{
 		scope:             o.scope,
 		scheduleBusiness:  o.scheduleBusiness,
+		notifier:          o.notifier,
 		eventsMan:         eventsMan,
 		disbRepo:          disbRepo,
 		loanAccountRepo:   loanAccountRepo,
@@ -261,6 +263,7 @@ func (b *disbursementBusiness) completeDisbursement(
 	}
 
 	b.recordDisbursementOnLoan(ctx, logger, la)
+	b.notifier.NotifyLoanDisbursed(ctx, la, req.GetChannel())
 
 	actor := callerSubject(ctx)
 	if actor == "" {
