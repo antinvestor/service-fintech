@@ -43,9 +43,28 @@ type IncomingPaymentRepository interface {
 	ClaimState(ctx context.Context, paymentID string, fromStates []int32, toState int32) (bool, error)
 
 	// SetAllocationOutcome writes the post-allocation state together with the
-	// amount left unallocated. The remainder is the payer's suspense balance,
-	// so it is recorded on the row rather than recomputed from the ledger.
-	SetAllocationOutcome(ctx context.Context, paymentID string, state int32, remaining int64) error
+	// amount left unallocated, and releases the allocation lease. It is fenced
+	// by the lease: only the run holding lease may write, so a run whose lease
+	// was taken over as stale cannot overwrite a newer outcome. The remainder
+	// is the payer's suspense balance, so it is recorded on the row rather
+	// than recomputed from the ledger. It reports whether the write landed.
+	SetAllocationOutcome(
+		ctx context.Context,
+		paymentID string,
+		lease time.Time,
+		state int32,
+		remaining int64,
+	) (bool, error)
+
+	// ClaimAllocation takes the allocation lease on a payment: it succeeds
+	// when no run holds it, or the holder's lease is older than staleBefore.
+	// Exactly one of several concurrent callers wins and receives the row as
+	// it is after the claim, carrying the lease in AllocatingAt.
+	ClaimAllocation(ctx context.Context, paymentID string, staleBefore time.Time) (*models.IncomingPayment, bool, error)
+
+	// ReleaseAllocation drops the lease held as lease without recording an
+	// outcome, for a run that could not do its work.
+	ReleaseAllocation(ctx context.Context, paymentID string, lease time.Time) error
 
 	// GetWithSuspenseByOwnerID returns the owner's payments that still carry an
 	// unallocated remainder, oldest first.
@@ -124,24 +143,30 @@ func (r *incomingPaymentRepository) ClaimState(
 func (r *incomingPaymentRepository) SetAllocationOutcome(
 	ctx context.Context,
 	paymentID string,
+	lease time.Time,
 	state int32,
 	remaining int64,
-) error {
+) (bool, error) {
 	if remaining < 0 {
 		remaining = 0
 	}
-	return r.Pool().DB(ctx, false).
+	result := r.Pool().DB(ctx, false).
 		Table("incoming_payments").
-		Where("deleted_at IS NULL AND id = ?", paymentID).
+		Where("deleted_at IS NULL AND id = ? AND allocating_at = ?", paymentID, lease.UTC()).
 		Updates(map[string]any{
-			colState: state,
+			colState:        state,
+			colAllocatingAt: nil,
 			colProperties: gorm.Expr(
-				"coalesce(properties, '{}'::jsonb) || jsonb_build_object(?::text, ?::bigint)",
+				"COALESCE("+colProperties+", '{}'::jsonb) || jsonb_build_object(?::text, ?::bigint)",
 				propertyRemainingAmount, remaining,
 			),
 			colModifiedAt: time.Now().UTC(),
 			colVersion:    gorm.Expr("version + 1"),
-		}).Error
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *incomingPaymentRepository) GetWithSuspenseByOwnerID(
@@ -190,4 +215,47 @@ func (r *incomingPaymentRepository) GetByTransactionID(
 		return nil, err
 	}
 	return &ip, nil
+}
+
+const colAllocatingAt = "allocating_at"
+
+func (r *incomingPaymentRepository) ClaimAllocation(
+	ctx context.Context,
+	paymentID string,
+	staleBefore time.Time,
+) (*models.IncomingPayment, bool, error) {
+	// Microsecond precision matches what Postgres stores, so the value we
+	// write is the value a later fenced UPDATE compares against.
+	lease := time.Now().UTC().Truncate(time.Microsecond)
+	result := r.Pool().DB(ctx, false).
+		Table("incoming_payments").
+		Where("deleted_at IS NULL AND id = ? AND (allocating_at IS NULL OR allocating_at < ?)",
+			paymentID, staleBefore.UTC()).
+		Updates(map[string]any{
+			colAllocatingAt: lease,
+			colModifiedAt:   lease,
+			colVersion:      gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, false, nil
+	}
+	fresh, err := r.GetByID(ctx, paymentID)
+	if err != nil {
+		return nil, false, err
+	}
+	return fresh, true, nil
+}
+
+func (r *incomingPaymentRepository) ReleaseAllocation(ctx context.Context, paymentID string, lease time.Time) error {
+	return r.Pool().DB(ctx, false).
+		Table("incoming_payments").
+		Where("deleted_at IS NULL AND id = ? AND allocating_at = ?", paymentID, lease.UTC()).
+		Updates(map[string]any{
+			colAllocatingAt: nil,
+			colModifiedAt:   time.Now().UTC(),
+			colVersion:      gorm.Expr("version + 1"),
+		}).Error
 }

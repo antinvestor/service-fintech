@@ -465,3 +465,65 @@ func (s *claimsSuite) TestRetakePaymentInitiationIsCompareAndSwap() {
 	s.Require().NoError(err)
 	s.Require().False(retaken, "a confirmed payout is never retaken")
 }
+
+// Exactly one allocation run may hold a payment's lease; a stale lease is
+// taken over; the outcome releases it.
+func (s *claimsSuite) TestClaimAllocationIsExclusiveAndStaleAware() {
+	e := s.newEnv()
+
+	payment := &models.IncomingPayment{
+		TransactionID: "txn-lease", Amount: 1000, Currency: "KES",
+		OwnerID: "member-lease", OwnerType: "membership", State: int32(constants.StateJustCreated),
+	}
+	payment.GenID(e.ctx)
+	stored, err := e.payments.CreateIfAbsent(e.ctx, payment)
+	s.Require().NoError(err)
+
+	const racers = 8
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		wins int
+	)
+	staleBefore := time.Now().Add(-2 * time.Minute)
+	var winner *models.IncomingPayment
+	for range racers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fresh, ok, cErr := e.payments.ClaimAllocation(e.ctx, stored.GetID(), staleBefore)
+			if cErr == nil && ok {
+				mu.Lock()
+				wins++
+				winner = fresh
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	s.Require().Equal(1, wins, "exactly one run may hold the allocation lease")
+	s.Require().NotNil(winner)
+	s.Require().NotNil(winner.AllocatingAt, "the winner receives the row carrying its lease")
+
+	// A stranger's lease value cannot write the outcome.
+	landed, err := e.payments.SetAllocationOutcome(e.ctx, stored.GetID(), time.Now().Add(time.Hour),
+		int32(constants.StateActive), 400)
+	s.Require().NoError(err)
+	s.Require().False(landed, "the outcome is fenced by the lease")
+
+	landed, err = e.payments.SetAllocationOutcome(e.ctx, stored.GetID(), *winner.AllocatingAt,
+		int32(constants.StateActive), 400)
+	s.Require().NoError(err)
+	s.Require().True(landed)
+
+	_, again, err := e.payments.ClaimAllocation(e.ctx, stored.GetID(), staleBefore)
+	s.Require().NoError(err)
+	s.Require().True(again, "the outcome releases the lease")
+
+	s.Require().NoError(e.payments.Pool().DB(e.ctx, false).
+		Table("incoming_payments").Where("id = ?", stored.GetID()).
+		Update("allocating_at", time.Now().Add(-time.Hour)).Error)
+	_, takeover, err := e.payments.ClaimAllocation(e.ctx, stored.GetID(), staleBefore)
+	s.Require().NoError(err)
+	s.Require().True(takeover, "a stale lease is taken over")
+}

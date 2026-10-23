@@ -28,6 +28,7 @@ import (
 	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
 	"connectrpc.com/connect"
 	"github.com/pitabwire/frame/v2/data"
+	utilmoney "github.com/pitabwire/util/moneyx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -328,7 +329,7 @@ func TestExecute_PayoutFailureKeepsLedgerAndIsConfirmedNotResent(t *testing.T) {
 	assert.Equal(t, int32(constants.StateJustCreated), f.repo.snapshot().State, "order stays unsettled")
 
 	// The payment service now shows the payout: it is recorded and the order completes.
-	f.locator.found = (&paymentv1.Payment_builder{Id: "pay-found", ReferenceId: f.repo.order.Reference}).Build()
+	f.locator.found = matchingPayout(f.repo.order, "pay-found", commonv1.STATUS_SUCCESSFUL)
 	require.NoError(t, f.biz.Execute(context.Background(), f.repo.order.GetID()))
 	got = f.repo.snapshot()
 	assert.Equal(t, int32(constants.StateInactive), got.State)
@@ -420,9 +421,7 @@ func TestExecute_FailedPayoutAtRailIsNotSettledNorResent(t *testing.T) {
 	f.repo.order.LedgerTransactionID = "ledger-earlier"
 	stale := time.Now().Add(-time.Minute)
 	f.repo.order.PaymentInitiatedAt = &stale
-	f.locator.found = (&paymentv1.Payment_builder{
-		Id: "pay-failed", ReferenceId: f.repo.order.Reference, Status: commonv1.STATUS_FAILED,
-	}).Build()
+	f.locator.found = matchingPayout(f.repo.order, "pay-failed", commonv1.STATUS_FAILED)
 
 	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
 	require.ErrorIs(t, err, ErrPayoutFailed)
@@ -498,4 +497,33 @@ func TestExecute_SynchronousRailRejectionMarksPayoutFailed(t *testing.T) {
 	err = f.biz.Execute(context.Background(), f.repo.order.GetID())
 	require.ErrorIs(t, err, ErrPayoutFailed)
 	assert.Equal(t, 1, f.payment.sends)
+}
+
+// matchingPayout is a payment the service would hold for order: outbound,
+// same reference, amount and currency.
+func matchingPayout(order *models.TransferOrder, id string, status commonv1.STATUS) *paymentv1.Payment {
+	return (&paymentv1.Payment_builder{
+		Id:          id,
+		ReferenceId: order.Reference,
+		Status:      status,
+		Outbound:    true,
+		Amount:      utilmoney.FromMinorUnitsByCurrency(order.Currency, order.Amount),
+	}).Build()
+}
+
+// A payment found by reference that is not this order's payout (wrong
+// amount, or inbound) is never taken as confirmation.
+func TestExecute_MismatchedPayoutIsNotConfirmation(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	f.repo.order.LedgerTransactionID = "ledger-earlier"
+	stale := time.Now().Add(-time.Minute)
+	f.repo.order.PaymentInitiatedAt = &stale
+	f.locator.found = (&paymentv1.Payment_builder{
+		Id: "pay-other", ReferenceId: f.repo.order.Reference, Outbound: true,
+		Amount: utilmoney.FromMinorUnitsByCurrency(f.repo.order.Currency, f.repo.order.Amount+1),
+	}).Build()
+
+	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutPendingConfirmation)
+	assert.Equal(t, 0, f.payment.sends)
 }

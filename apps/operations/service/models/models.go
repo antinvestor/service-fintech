@@ -120,6 +120,10 @@ type IncomingPayment struct {
 	OwnerType     string `gorm:"type:varchar(50)"`
 	State         int32
 	Properties    data.JSONMap
+	// AllocatingAt is the lease an allocation run holds on the payment. One
+	// run at a time may allocate; a lease older than the stale window is
+	// taken over, so a crashed run never parks a payment for ever.
+	AllocatingAt *time.Time
 }
 
 func (m *IncomingPayment) TableName() string { return "incoming_payments" }

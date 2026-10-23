@@ -21,6 +21,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/frame/v2/datastore/pool"
 	fevents "github.com/pitabwire/frame/v2/events"
@@ -278,23 +281,52 @@ func (r *incomingPaymentRepoStub) ClaimState(
 	return true, nil
 }
 
+func (r *incomingPaymentRepoStub) ClaimAllocation(
+	_ context.Context,
+	paymentID string,
+	staleBefore time.Time,
+) (*models.IncomingPayment, bool, error) {
+	payment, ok := r.byID[paymentID]
+	if !ok {
+		return nil, false, nil
+	}
+	if payment.AllocatingAt != nil && payment.AllocatingAt.After(staleBefore) {
+		return nil, false, nil
+	}
+	now := time.Now()
+	payment.AllocatingAt = &now
+	return cloneIncomingPayment(payment), true, nil
+}
+
+func (r *incomingPaymentRepoStub) ReleaseAllocation(_ context.Context, paymentID string, lease time.Time) error {
+	if payment, ok := r.byID[paymentID]; ok && payment.AllocatingAt != nil && payment.AllocatingAt.Equal(lease) {
+		payment.AllocatingAt = nil
+	}
+	return nil
+}
+
 func (r *incomingPaymentRepoStub) SetAllocationOutcome(
 	_ context.Context,
 	paymentID string,
+	lease time.Time,
 	state int32,
 	remaining int64,
-) error {
+) (bool, error) {
 	payment, ok := r.byID[paymentID]
 	if !ok {
-		return gorm.ErrRecordNotFound
+		return false, gorm.ErrRecordNotFound
+	}
+	if payment.AllocatingAt == nil || !payment.AllocatingAt.Equal(lease) {
+		return false, nil
 	}
 	payment.State = state
+	payment.AllocatingAt = nil
 	if payment.Properties == nil {
 		payment.Properties = data.JSONMap{}
 	}
 	payment.Properties["remaining_amount"] = remaining
 
-	return nil
+	return true, nil
 }
 
 func (r *incomingPaymentRepoStub) GetWithSuspenseByOwnerID(
@@ -423,4 +455,184 @@ func cloneIncomingPayment(payment *models.IncomingPayment) *models.IncomingPayme
 	}
 
 	return &clone
+}
+
+// allocObligationRepoStub serves configured obligations and records consumption.
+type allocObligationRepoStub struct {
+	obligationRepoStub
+	obligations []*models.Obligation
+	consumed    map[string]int64
+}
+
+func (r *allocObligationRepoStub) GetByMembershipID(context.Context, string) ([]*models.Obligation, error) {
+	return r.obligations, nil
+}
+
+func (r *allocObligationRepoStub) ConsumeAmount(_ context.Context, id string, amount int64) (bool, error) {
+	if r.consumed == nil {
+		r.consumed = map[string]int64{}
+	}
+	for _, o := range r.obligations {
+		if o.GetID() == id && o.Amount >= amount && o.State == int32(constants.StateActive) {
+			r.consumed[id] += amount
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// allocOrderRepoStub records synchronously written orders by reference.
+type allocOrderRepoStub struct {
+	stubTransferOrderRepo
+	byReference map[string]*models.TransferOrder
+	parked      []string
+}
+
+func (r *allocOrderRepoStub) CreateIfAbsent(_ context.Context, order *models.TransferOrder) error {
+	if r.byReference == nil {
+		r.byReference = map[string]*models.TransferOrder{}
+	}
+	if existing, ok := r.byReference[order.Reference]; ok {
+		order.ID = existing.ID
+		order.State = existing.State
+		return nil
+	}
+	cp := *order
+	r.byReference[order.Reference] = &cp
+	return nil
+}
+
+func (r *allocOrderRepoStub) MarkFailedIfUnposted(_ context.Context, id string) (bool, error) {
+	r.parked = append(r.parked, id)
+	return true, nil
+}
+
+// newSavingsObligation is a current (not overdue) loan principal obligation,
+// which the allocation buckets match without any ledger account lookup.
+func newSavingsObligation(id string, amount int64) *models.Obligation {
+	o := &models.Obligation{
+		MembershipID: "member-1",
+		CauseType:    "loan_principal",
+		Amount:       amount,
+		State:        int32(constants.StateActive),
+	}
+	o.ID = id
+	return o
+}
+
+func TestAllocatePayment_ReplayNeverReallocatesAndLeaseIsExclusive(t *testing.T) {
+	t.Parallel()
+
+	paymentRepo := newIncomingPaymentRepoStub()
+	payment := &models.IncomingPayment{
+		TransactionID: "txn-replay", Amount: 75_000, Currency: "UGX",
+		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+	}
+	payment.GenID(context.Background())
+	paymentRepo.store(payment)
+
+	obligations := &allocObligationRepoStub{obligations: []*models.Obligation{
+		newSavingsObligation("ob-1", 50_000),
+		newSavingsObligation("ob-2", 50_000),
+	}}
+	orders := &allocOrderRepoStub{}
+	business := &paymentRoutingBusiness{
+		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
+		ipRepo:    paymentRepo,
+		obRepo:    obligations,
+		toRepo:    orders,
+	}
+
+	first, err := business.AllocatePayment(context.Background(), payment.GetID())
+	require.NoError(t, err)
+	require.Len(t, first["transfer_orders"], 2)
+	assert.Equal(t, int64(50_000), obligations.consumed["ob-1"])
+	assert.Equal(t, int64(25_000), obligations.consumed["ob-2"])
+	stored, _ := paymentRepo.GetByID(context.Background(), payment.GetID())
+	assert.Equal(t, int32(constants.StateInactive), stored.State, "fully allocated")
+	assert.Nil(t, stored.AllocatingAt, "lease released with the outcome")
+	assert.Len(t, orders.byReference, 2, "orders are written synchronously")
+
+	// Replay: nothing left to allocate, nothing consumed again.
+	second, err := business.AllocatePayment(context.Background(), payment.GetID())
+	require.NoError(t, err)
+	assert.Equal(t, "already_processed", second["status"])
+	assert.Equal(t, int64(50_000), obligations.consumed["ob-1"])
+	assert.Equal(t, int64(25_000), obligations.consumed["ob-2"])
+
+	// A payment another run holds is refused, not allocated twice.
+	held := &models.IncomingPayment{
+		TransactionID: "txn-held", Amount: 10_000, Currency: "UGX",
+		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+	}
+	held.GenID(context.Background())
+	now := time.Now()
+	held.AllocatingAt = &now
+	paymentRepo.store(held)
+	_, err = business.AllocatePayment(context.Background(), held.GetID())
+	require.ErrorIs(t, err, ErrAllocationInProgress)
+}
+
+func TestAllocatePayment_StartsFromThePersistedRemainder(t *testing.T) {
+	t.Parallel()
+
+	paymentRepo := newIncomingPaymentRepoStub()
+	payment := &models.IncomingPayment{
+		TransactionID: "txn-remainder", Amount: 75_000, Currency: "UGX",
+		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateActive),
+		Properties: data.JSONMap{"remaining_amount": float64(20_000)},
+	}
+	payment.GenID(context.Background())
+	paymentRepo.store(payment)
+
+	obligations := &allocObligationRepoStub{obligations: []*models.Obligation{newSavingsObligation("ob-9", 50_000)}}
+	orders := &allocOrderRepoStub{}
+	business := &paymentRoutingBusiness{
+		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
+		ipRepo:    paymentRepo,
+		obRepo:    obligations,
+		toRepo:    orders,
+	}
+
+	_, err := business.AllocatePayment(context.Background(), payment.GetID())
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		int64(20_000),
+		obligations.consumed["ob-9"],
+		"only the remainder may be allocated, never the full amount again",
+	)
+	stored, _ := paymentRepo.GetByID(context.Background(), payment.GetID())
+	assert.Equal(t, int32(constants.StateInactive), stored.State)
+	assert.EqualValues(t, int64(0), stored.Properties["remaining_amount"])
+}
+
+// An order that already exists for the (payment, obligation) pair means an
+// earlier run allocated it; this run must not consume the obligation again.
+func TestAllocatePayment_ExistingOrderIsNotCountedTwice(t *testing.T) {
+	t.Parallel()
+
+	paymentRepo := newIncomingPaymentRepoStub()
+	payment := &models.IncomingPayment{
+		TransactionID: "txn-existing", Amount: 30_000, Currency: "UGX",
+		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+	}
+	payment.GenID(context.Background())
+	paymentRepo.store(payment)
+
+	obligations := &allocObligationRepoStub{obligations: []*models.Obligation{newSavingsObligation("ob-5", 30_000)}}
+	prior := &models.TransferOrder{Reference: "payment:" + payment.GetID() + ":obligation:ob-5"}
+	prior.GenID(context.Background())
+	orders := &allocOrderRepoStub{byReference: map[string]*models.TransferOrder{prior.Reference: prior}}
+	business := &paymentRoutingBusiness{
+		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
+		ipRepo:    paymentRepo,
+		obRepo:    obligations,
+		toRepo:    orders,
+	}
+
+	_, err := business.AllocatePayment(context.Background(), payment.GetID())
+	require.NoError(t, err)
+	assert.Empty(t, obligations.consumed)
+	assert.Empty(t, orders.parked)
 }

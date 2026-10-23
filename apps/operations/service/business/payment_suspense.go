@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -122,29 +123,23 @@ func (b *paymentRoutingBusiness) ApplySuspense(
 			if budget <= 0 {
 				break
 			}
-			if available > budget {
-				available = budget
-			}
+			available = min(available, budget)
 		}
 
-		leftover, _ := b.runAllocationBuckets(
-			ctx, logger, buckets, obligations, payment, payment.GetID(), membershipID, available,
+		consumed, applyErr := b.applySuspensePayment(
+			ctx,
+			logger,
+			buckets,
+			payment,
+			membershipID,
+			available,
 		)
-		consumed := available - leftover
-		if consumed <= 0 {
-			continue
+		if applyErr != nil {
+			return nil, applyErr
 		}
-
 		applied += consumed
 		if maxAmount > 0 {
 			budget -= consumed
-		}
-
-		remaining := paymentRemainder(payment) - consumed
-		state := resolvePaymentState(remaining, consumed)
-		if outcomeErr := b.ipRepo.SetAllocationOutcome(ctx, payment.GetID(), state, remaining); outcomeErr != nil {
-			logger.WithError(outcomeErr).WithField(fieldPaymentID, payment.GetID()).
-				Error("could not record suspense application outcome")
 		}
 	}
 
@@ -255,4 +250,65 @@ func (b *paymentRoutingBusiness) ConfirmPayment(
 		"status":             "confirmed",
 		"newly_confirmed":    stamped,
 	}, nil
+}
+
+// applySuspensePayment runs the allocation buckets against one payment's
+// remainder under the allocation lease and records the outcome. It returns
+// how much of the payment was applied.
+func (b *paymentRoutingBusiness) applySuspensePayment(
+	ctx context.Context,
+	logger *util.LogEntry,
+	buckets []allocationBucket,
+	payment *models.IncomingPayment,
+	membershipID string,
+	available int64,
+) (int64, error) {
+	// Same lease as AllocatePayment: suspense application is an allocation
+	// run and must not race one.
+	fresh, claimed, claimErr := b.ipRepo.ClaimAllocation(
+		ctx,
+		payment.GetID(),
+		time.Now().Add(-allocationLeaseStaleAfter),
+	)
+	if claimErr != nil {
+		return 0, fmt.Errorf("claim payment for suspense application: %w", claimErr)
+	}
+	if !claimed {
+		logger.WithField(fieldPaymentID, payment.GetID()).Info("payment is being allocated elsewhere; skipping")
+		return 0, nil
+	}
+	lease := leaseOf(fresh)
+
+	// Work from the row and the obligations as they are under the lease; the
+	// list read before claiming may have been consumed by another run.
+	available = min(available, paymentRemainder(fresh))
+	if available <= 0 {
+		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
+		return 0, nil
+	}
+	obligations, err := b.obRepo.GetByMembershipID(ctx, membershipID)
+	if err != nil {
+		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
+		return 0, fmt.Errorf("could not retrieve obligations for member: %w", err)
+	}
+
+	leftover, _ := b.runAllocationBuckets(
+		ctx, logger, buckets, obligations, fresh, fresh.GetID(), membershipID, available,
+	)
+	consumed := available - leftover
+	if consumed <= 0 {
+		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
+		return 0, nil
+	}
+
+	remaining := paymentRemainder(fresh) - consumed
+	state := resolvePaymentState(remaining, fresh.Amount-remaining)
+	landed, outcomeErr := b.ipRepo.SetAllocationOutcome(ctx, fresh.GetID(), lease, state, remaining)
+	if outcomeErr != nil {
+		logger.WithError(outcomeErr).WithField(fieldPaymentID, fresh.GetID()).
+			Error("could not record suspense application outcome")
+	} else if !landed {
+		logger.WithField(fieldPaymentID, fresh.GetID()).Warn("suspense outcome not recorded: lease was taken over")
+	}
+	return consumed, nil
 }

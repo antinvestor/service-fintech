@@ -125,7 +125,7 @@ func (b *fundingAllocationBusiness) SourceForRequest(
 		return b.buildPersistedResult(ctx, loanRequestID, requestInfo)
 	}
 
-	result, err := b.allocate(ctx, logger, loanRequestID, requestInfo)
+	result, run, err := b.allocate(ctx, logger, loanRequestID, requestInfo)
 	if err != nil {
 		// Nothing was committed, so drop the lock and let the request be
 		// funded on a later attempt.
@@ -134,19 +134,86 @@ func (b *fundingAllocationBusiness) SourceForRequest(
 		}
 		return nil, err
 	}
+	if !result.FullyFunded {
+		// A short allocation is not a funded loan. Holding the lock and the
+		// reservations would answer every retry with the same shortfall even
+		// after new capital arrives; give both back so a later attempt can
+		// fund the request in full.
+		logger.WithField("deficit", result.Deficit).Warn("loan request not fully funded; releasing allocation")
+		b.rollbackReservations(ctx, logger, run.reserved)
+		b.voidRecords(ctx, logger, run.written)
+		if releaseErr := b.claimRepo.Release(ctx, loanRequestID); releaseErr != nil {
+			logger.WithError(releaseErr).Error("could not release the allocation lock after a short allocation")
+		}
+		result.Allocations = nil
+		result.TotalAllocated = 0
+		result.Deficit = result.LoanAmount
+	}
 	return result, nil
 }
 
-// allocate computes and persists the tranche allocation for a claimed request.
+// reservation is capital set aside on an investor account during allocation,
+// kept so a failed or short allocation can give it back, together with the
+// funding records this run wrote so they can be voided alongside.
+type reservation struct {
+	investorAccountID string
+	amount            int64
+}
+
+// writtenRecords are the funding and tranche rows one allocation run emitted.
+type writtenRecords struct {
+	fundings []*models.LoanFunding
+	tranches []*models.FundingTranche
+}
+
+// voidRecords marks the run's funding and tranche rows inactive, so a later
+// read of the request's allocation does not count capital that was given
+// back. Emitted through the same event path that created them.
+func (b *fundingAllocationBusiness) voidRecords(ctx context.Context, logger *util.LogEntry, written writtenRecords) {
+	for _, f := range written.fundings {
+		f.State = int32(constants.StateInactive)
+		if err := b.eventsMan.Emit(ctx, events.LoanFundingSaveEvent, f); err != nil {
+			logger.WithError(err).WithField("loan_funding_id", f.GetID()).Error("could not void loan funding record")
+		}
+	}
+	for _, t := range written.tranches {
+		t.State = int32(constants.StateInactive)
+		if err := b.eventsMan.Emit(ctx, events.FundingTrancheSaveEvent, t); err != nil {
+			logger.WithError(err).
+				WithField("funding_tranche_id", t.GetID()).
+				Error("could not void funding tranche record")
+		}
+	}
+}
+
+// rollbackReservations returns reserved capital to the investors' available
+// balances. Each release is logged on failure and the rest still run.
+func (b *fundingAllocationBusiness) rollbackReservations(
+	ctx context.Context,
+	logger *util.LogEntry,
+	reserved []reservation,
+) {
+	for _, r := range reserved {
+		if _, err := b.iaRepo.AtomicRelease(ctx, r.investorAccountID, r.amount); err != nil {
+			logger.WithError(err).WithFields(map[string]any{
+				"investor_account_id": r.investorAccountID,
+				"amount":              r.amount,
+			}).Error("could not release investor reservation; capital stays reserved until reconciled")
+		}
+	}
+}
+
+// allocate computes and persists the tranche allocation for a claimed
+// request, returning what it reserved so the caller can give it back.
 func (b *fundingAllocationBusiness) allocate(
 	ctx context.Context,
 	logger *util.LogEntry,
 	loanRequestID string,
 	requestInfo *LoanRequestInfo,
-) (*AllocationResult, error) {
+) (*AllocationResult, allocationRun, error) {
 	loanAmount := requestInfo.Amount
 	if loanAmount <= 0 {
-		return nil, ErrLoanRequestAmountInvalid
+		return nil, allocationRun{}, ErrLoanRequestAmountInvalid
 	}
 
 	precision := moneyx.Decimals(requestInfo.Currency)
@@ -155,7 +222,7 @@ func (b *fundingAllocationBusiness) allocate(
 
 	sources, err := b.gatherFundingSources(ctx, request, precision)
 	if err != nil {
-		return nil, err
+		return nil, allocationRun{}, err
 	}
 	calcResult := calculation.AllocateLoanFunding(request, sources)
 
@@ -165,9 +232,9 @@ func (b *fundingAllocationBusiness) allocate(
 			Warn("loan request not fully funded")
 	}
 
-	allocations, err := b.persistAllocations(ctx, loanRequestID, requestInfo.Currency, precision, calcResult)
+	allocations, run, err := b.persistAllocations(ctx, loanRequestID, requestInfo.Currency, precision, calcResult)
 	if err != nil {
-		return nil, err
+		return nil, allocationRun{}, err
 	}
 
 	logger.WithField("loan_request_id", loanRequestID).
@@ -191,7 +258,13 @@ func (b *fundingAllocationBusiness) allocate(
 		FullyFunded:    deficit == 0,
 		IsGroupLoan:    request.IsGroupLoan,
 		Allocations:    allocations,
-	}, nil
+	}, run, nil
+}
+
+// allocationRun is what one allocation attempt reserved and wrote.
+type allocationRun struct {
+	reserved []reservation
+	written  writtenRecords
 }
 
 // persistAllocations creates the LoanFunding and FundingTranche records for
@@ -203,8 +276,9 @@ func (b *fundingAllocationBusiness) persistAllocations(
 	loanRequestID, currency string,
 	precision int32,
 	result calculation.FundingResult,
-) ([]Allocation, error) {
+) ([]Allocation, allocationRun, error) {
 	allocations := make([]Allocation, 0, len(result.Allocations))
+	var run allocationRun
 	for _, alloc := range result.Allocations {
 		if !alloc.Amount.IsPositive() {
 			continue
@@ -215,19 +289,30 @@ func (b *fundingAllocationBusiness) persistAllocations(
 
 		funding := buildLoanFundingRecord(ctx, loanRequestID, currency, alloc, proportion, allocAmount)
 		if emitErr := b.eventsMan.Emit(ctx, events.LoanFundingSaveEvent, funding); emitErr != nil {
-			return nil, fmt.Errorf("persist loan funding: %w", emitErr)
+			b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
+			b.voidRecords(ctx, util.Log(ctx), run.written)
+			return nil, allocationRun{}, fmt.Errorf("persist loan funding: %w", emitErr)
 		}
+		run.written.fundings = append(run.written.fundings, funding)
 
 		investorAccountID := investorAccountIDForAlloc(alloc)
 		tranche := buildFundingTrancheRecord(ctx, funding.GetID(), investorAccountID, alloc, allocAmount, currency)
 		if emitErr := b.eventsMan.Emit(ctx, events.FundingTrancheSaveEvent, tranche); emitErr != nil {
-			return nil, fmt.Errorf("persist funding tranche: %w", emitErr)
+			b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
+			b.voidRecords(ctx, util.Log(ctx), run.written)
+			return nil, allocationRun{}, fmt.Errorf("persist funding tranche: %w", emitErr)
 		}
+		run.written.tranches = append(run.written.tranches, tranche)
 
 		if investorAccountID != "" {
 			if resErr := b.reserveInvestorBalance(ctx, investorAccountID, allocAmount); resErr != nil {
-				return nil, resErr
+				// A partially reserved loan is not a funded loan: give back
+				// what this run reserved and void what it wrote before failing.
+				b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
+				b.voidRecords(ctx, util.Log(ctx), run.written)
+				return nil, allocationRun{}, resErr
 			}
+			run.reserved = append(run.reserved, reservation{investorAccountID: investorAccountID, amount: allocAmount})
 		}
 
 		allocations = append(allocations, Allocation{
@@ -241,7 +326,7 @@ func (b *fundingAllocationBusiness) persistAllocations(
 		})
 	}
 
-	return allocations, nil
+	return allocations, run, nil
 }
 
 // computeProportion returns the allocation proportion in basis points.
@@ -466,6 +551,10 @@ func (b *fundingAllocationBusiness) buildPersistedResult(
 	allocations := make([]Allocation, 0, len(fundings))
 	var totalAllocated int64
 	for _, funding := range fundings {
+		if funding.State != int32(constants.StateActive) {
+			// Voided by a short or failed allocation: not capital behind this loan.
+			continue
+		}
 		totalAllocated += funding.Amount
 		trancheLevel := int32(0)
 		tranches, trancheErr := b.ftRepo.GetByLoanFundingID(ctx, funding.GetID())

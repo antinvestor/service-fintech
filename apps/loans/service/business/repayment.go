@@ -528,10 +528,14 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 	}
 
 	if alloc.penaltiesApplied > 0 {
+		// Penalty income was recognised when the penalty accrued (debit the
+		// member's penalty receivable, credit penalty income). Settling it
+		// clears that receivable; crediting income again would count the
+		// same penalty twice and leave the receivable open for ever.
 		if err := b.emitTransferOrder(ctx, logger,
-			memberAccount, la.LedgerPenaltyIncomeAccountID,
+			memberAccount, constants.MemberPenaltyReceivableAccount(la.ClientID),
 			alloc.penaltiesApplied, la.CurrencyCode,
-			constants.TransferTypePenaltyCancel,
+			constants.TransferTypePenaltyRepayment,
 			fmt.Sprintf("repayment:%s:penalties", repRef),
 			"Penalty repayment",
 			baseExtraData.Copy(),

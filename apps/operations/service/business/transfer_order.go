@@ -592,6 +592,7 @@ func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 		constants.TransferTypePaymentAllocated:                          noErr(b.handlePaymentAllocated),
 		constants.TransferTypePenalty:                                   noErr(b.handlePenalty),
 		constants.TransferTypePenaltyCancel:                             noErr(b.handlePenaltyCancel),
+		constants.TransferTypePenaltyRepayment:                          noErr(b.handlePenaltyRepayment),
 		constants.TransferTypePenaltyIncomeDistribution:                 noErr(b.handlePenaltyIncomeDistribution),
 		constants.TransferTypeCost:                                      noErr(b.handleCost),
 		constants.TransferTypeServiceFee:                                noErr(b.handleServiceFee),
@@ -1635,6 +1636,14 @@ func (b *transferOrderBusiness) handlePenalty(
 
 // handlePenaltyCancel reverses a previously posted penalty.
 // Debit: group penalty income -> Credit: member suspense.
+// handlePenaltyRepayment is the settlement of an accrued penalty: the base
+// transfer clears the member's penalty receivable. No further side effect.
+func (b *transferOrderBusiness) handlePenaltyRepayment(ctx context.Context, order *models.TransferOrder) {
+	util.Log(ctx).WithField("handler", "handlePenaltyRepayment").
+		WithField("order_id", order.GetID()).
+		Info("penalty repayment: penalty receivable settled")
+}
+
 func (b *transferOrderBusiness) handlePenaltyCancel(
 	ctx context.Context,
 	order *models.TransferOrder,

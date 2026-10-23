@@ -40,6 +40,24 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
+// allocationLeaseStaleAfter is how long an allocation run may hold a payment
+// before another run treats it as crashed and takes over.
+const allocationLeaseStaleAfter = 2 * time.Minute
+
+// ErrAllocationInProgress is returned while another run holds the payment's
+// allocation lease; the caller retries later.
+var ErrAllocationInProgress = apperrors.NewError(apperrors.ServiceUnavailable,
+	"payment allocation is in progress elsewhere; retry later")
+
+func allocationAlreadyProcessed(paymentID string, state int32) map[string]interface{} {
+	return map[string]interface{}{
+		fieldPaymentID:      paymentID,
+		fieldStatus:         "already_processed",
+		fieldState:          state,
+		fieldTransferOrders: []map[string]interface{}{},
+	}
+}
+
 type paymentRoutingBusiness struct {
 	eventsMan   fevents.Manager
 	ipRepo      repository.IncomingPaymentRepository
@@ -665,43 +683,41 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 		return nil, fmt.Errorf("payment %s not found: %w", paymentID, err)
 	}
 
-	// Idempotency + concurrency guard: only allocate payments in initial state.
-	if payment.State != int32(constants.StateJustCreated) && payment.State != int32(constants.StateCheckCreated) {
-		return map[string]interface{}{
-			fieldPaymentID:      paymentID,
-			fieldStatus:         "already_processed",
-			fieldState:          payment.State,
-			fieldTransferOrders: []map[string]interface{}{},
-		}, nil
+	if payment.State == int32(constants.StateInactive) || payment.State == int32(constants.StateDeleted) {
+		return allocationAlreadyProcessed(paymentID, payment.State), nil
 	}
 
-	// Claim the payment for processing with a conditional UPDATE so two
-	// concurrent allocations cannot both pass the state guard above.
-	claimed, claimErr := b.ipRepo.ClaimState(
-		ctx,
-		paymentID,
-		[]int32{int32(constants.StateJustCreated), int32(constants.StateCheckCreated)},
-		int32(constants.StateCheckCreated),
-	)
+	// One allocation run at a time. The lease, not the state, is the mutual
+	// exclusion: the outcome states (unallocated, partial, full) are what a
+	// finished run leaves behind and must never double as a lock, or a replay
+	// re-allocates the remainder and inflates suspense.
+	fresh, claimed, claimErr := b.ipRepo.ClaimAllocation(ctx, paymentID, time.Now().Add(-allocationLeaseStaleAfter))
 	if claimErr != nil {
 		return nil, fmt.Errorf("could not claim payment for allocation: %w", claimErr)
 	}
 	if !claimed {
-		return map[string]interface{}{
-			fieldPaymentID:      paymentID,
-			fieldStatus:         "already_processed",
-			fieldState:          payment.State,
-			fieldTransferOrders: []map[string]interface{}{},
-		}, nil
+		return nil, ErrAllocationInProgress
 	}
-	payment.State = int32(constants.StateCheckCreated)
+	// Everything below works from the row as it is under our lease, never
+	// from what was read before the claim.
+	payment = fresh
+	lease := leaseOf(payment)
 
+	// Allocate only what an earlier run left: the persisted remainder, or the
+	// whole amount for a payment never allocated before.
+	startAmount := paymentRemainder(payment)
+	if startAmount <= 0 || payment.State == int32(constants.StateInactive) {
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
+		return allocationAlreadyProcessed(paymentID, payment.State), nil
+	}
 	if payment.Amount <= 0 {
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
 		return nil, fmt.Errorf("payment %s has non-positive amount %d", paymentID, payment.Amount)
 	}
 
 	membershipID := payment.OwnerID
 	if membershipID == "" {
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
 		return nil, fmt.Errorf("payment %s has no owner (membership) assigned -- run identification first", paymentID)
 	}
 
@@ -709,15 +725,8 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	obligations, err := b.obRepo.GetByMembershipID(ctx, membershipID)
 	if err != nil {
 		// Treating a load failure as "no obligations" would allocate nothing and
-		// mark the payment processed. Leave it claimable and surface the error.
-		if _, releaseErr := b.ipRepo.ClaimState(
-			ctx,
-			paymentID,
-			[]int32{int32(constants.StateCheckCreated)},
-			int32(constants.StateJustCreated),
-		); releaseErr != nil {
-			logger.WithError(releaseErr).Error("could not release payment claim after obligation load failure")
-		}
+		// mark the payment processed. Drop the lease and surface the error.
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
 		return nil, fmt.Errorf("could not retrieve obligations for member: %w", err)
 	}
 
@@ -730,7 +739,7 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 
 	buckets := buildAllocationBuckets()
 	remainingAmount, allocations := b.runAllocationBuckets(
-		ctx, logger, buckets, obligations, payment, paymentID, membershipID, payment.Amount,
+		ctx, logger, buckets, obligations, payment, paymentID, membershipID, startAmount,
 	)
 
 	allocatedAmount := payment.Amount - remainingAmount
@@ -740,8 +749,15 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	// the remainder is the member's suspense balance and the apply-suspense
 	// path reads it back rather than re-deriving it from the ledger.
 	payment.State = paymentState
-	if stateErr := b.ipRepo.SetAllocationOutcome(ctx, paymentID, paymentState, remainingAmount); stateErr != nil {
+	landed, stateErr := b.ipRepo.SetAllocationOutcome(ctx, paymentID, lease, paymentState, remainingAmount)
+	if stateErr != nil {
 		logger.WithError(stateErr).Error("failed to update payment state after allocation")
+	} else if !landed {
+		// Our lease was taken over as stale while we ran. The orders this
+		// run wrote are keyed on (payment, obligation) and the obligations
+		// were consumed conditionally, so nothing is double-counted; the
+		// newer holder recomputes the remainder from the persisted orders.
+		logger.Warn("allocation outcome not recorded: lease was taken over by another run")
 	}
 
 	if allocatedAmount > 0 {
@@ -877,48 +893,22 @@ func (b *paymentRoutingBusiness) allocateBucket(
 		}
 
 		originalAmount := obl.Amount
-		allocAmount := originalAmount
-		if allocAmount > remainingAmount {
-			allocAmount = remainingAmount
-		}
+		allocAmount := min(originalAmount, remainingAmount)
 
-		// Consume the obligation before writing the transfer order: the
-		// conditional UPDATE is what makes an allocation exclusive, and a
-		// transfer order for an obligation somebody else already consumed
-		// would double-count the money.
-		consumed, consumeErr := b.obRepo.ConsumeAmount(ctx, obl.GetID(), allocAmount)
-		if consumeErr != nil {
-			logger.WithError(consumeErr).WithField("obligation_id", obl.GetID()).
-				Error("could not consume obligation")
+		to, outcome := b.allocateObligation(ctx, logger, bkt, obl, payment, paymentID, membershipID, allocAmount)
+		switch outcome {
+		case allocationSkipped:
 			continue
-		}
-		if !consumed {
-			continue
-		}
-		obl.Amount = originalAmount - allocAmount
-		if obl.Amount <= 0 {
-			obl.State = int32(constants.StateInactive)
-		}
-
-		debitAccount := constants.MemberSuspenseAccount(membershipID)
-		creditAccount := b.creditAccountForBucket(bkt.name, membershipID, obl)
-
-		to := &models.TransferOrder{
-			DebitAccountRef:  debitAccount,
-			CreditAccountRef: creditAccount,
-			Amount:           allocAmount,
-			Currency:         payment.Currency,
-			OrderType:        constants.SafeInt32FromInt(bkt.orderType),
-			Reference:        fmt.Sprintf("payment:%s:obligation:%s", paymentID, obl.GetID()),
-			Description:      fmt.Sprintf("Auto-allocation of %s from payment %s", bkt.name, paymentID),
-			State:            int32(constants.StateJustCreated),
-		}
-		to.GenID(ctx)
-
-		if emitErr := b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, to); emitErr != nil {
-			logger.WithError(emitErr).WithField("bucket", bkt.name).
-				Error("failed to create transfer order for allocation")
-			continue
+		case allocationRecordedEarlier:
+			// An earlier run wrote this order and consumed the obligation
+			// but did not get to record its outcome. The money is spoken
+			// for: count it toward this payment, do not consume again.
+			allocAmount = to.Amount
+		case allocationDone:
+			obl.Amount = originalAmount - allocAmount
+			if obl.Amount <= 0 {
+				obl.State = int32(constants.StateInactive)
+			}
 		}
 
 		remainingAmount -= allocAmount
@@ -944,6 +934,76 @@ func (b *paymentRoutingBusiness) allocateBucket(
 
 	return totalAllocated, allocations
 }
+
+// allocateObligation writes the transfer order for one (payment, obligation)
+// pair and consumes the obligation. The order is written first and
+// synchronously, keyed on the pair: a row that already exists means an
+// earlier run allocated this pair and consumed the obligation, so this run
+// must not count it again. Only a freshly written order goes on to consume
+// the obligation; one that loses that race is parked so it never executes.
+// It reports whether this run allocated the amount, an earlier run did, or
+// nothing was allocated.
+func (b *paymentRoutingBusiness) allocateObligation(
+	ctx context.Context,
+	logger *util.LogEntry,
+	bkt allocationBucket,
+	obl *models.Obligation,
+	payment *models.IncomingPayment,
+	paymentID, membershipID string,
+	allocAmount int64,
+) (*models.TransferOrder, allocationOutcome) {
+	to := &models.TransferOrder{
+		DebitAccountRef:  constants.MemberSuspenseAccount(membershipID),
+		CreditAccountRef: b.creditAccountForBucket(bkt.name, membershipID, obl),
+		Amount:           allocAmount,
+		Currency:         payment.Currency,
+		OrderType:        constants.SafeInt32FromInt(bkt.orderType),
+		Reference:        fmt.Sprintf("payment:%s:obligation:%s", paymentID, obl.GetID()),
+		Description:      fmt.Sprintf("Auto-allocation of %s from payment %s", bkt.name, paymentID),
+		State:            int32(constants.StateJustCreated),
+	}
+	to.GenID(ctx)
+	to.CopyPartitionInfo(&payment.BaseModel)
+	freshID := to.GetID()
+
+	if createErr := b.toRepo.CreateIfAbsent(ctx, to); createErr != nil {
+		logger.WithError(createErr).WithField("bucket", bkt.name).
+			Error("failed to create transfer order for allocation")
+		return nil, allocationSkipped
+	}
+	if to.GetID() != freshID {
+		if to.State == int32(constants.StateShutdown) {
+			// Parked by an earlier run whose obligation consumption failed:
+			// nothing was allocated for this pair.
+			return nil, allocationSkipped
+		}
+		logger.WithField("transfer_order_id", to.GetID()).WithField("obligation_id", obl.GetID()).
+			Info("allocation already recorded by an earlier run; counting it, not consuming again")
+		return to, allocationRecordedEarlier
+	}
+
+	consumed, consumeErr := b.obRepo.ConsumeAmount(ctx, obl.GetID(), allocAmount)
+	if consumeErr != nil {
+		logger.WithError(consumeErr).WithField("obligation_id", obl.GetID()).Error("could not consume obligation")
+	}
+	if consumeErr != nil || !consumed {
+		if _, parkErr := b.toRepo.MarkFailedIfUnposted(ctx, to.GetID()); parkErr != nil {
+			logger.WithError(parkErr).WithField("transfer_order_id", to.GetID()).
+				Error("could not park the transfer order of an unconsumed obligation")
+		}
+		return nil, allocationSkipped
+	}
+	return to, allocationDone
+}
+
+// allocationOutcome says what allocateObligation did for one pair.
+type allocationOutcome int
+
+const (
+	allocationSkipped allocationOutcome = iota
+	allocationDone
+	allocationRecordedEarlier
+)
 
 // creditAccountForBucket returns the appropriate credit account reference for a given
 // allocation bucket and obligation.
@@ -1160,4 +1220,24 @@ func (b *paymentRoutingBusiness) getMembersByProfileID(
 	}
 
 	return members, nil
+}
+
+// releaseAllocationLease drops the lease of a run that did no work.
+func (b *paymentRoutingBusiness) releaseAllocationLease(
+	ctx context.Context,
+	logger *util.LogEntry,
+	paymentID string,
+	lease time.Time,
+) {
+	if err := b.ipRepo.ReleaseAllocation(ctx, paymentID, lease); err != nil {
+		logger.WithError(err).WithField(fieldPaymentID, paymentID).Warn("could not release allocation lease")
+	}
+}
+
+// leaseOf returns the lease a claimed payment row carries.
+func leaseOf(payment *models.IncomingPayment) time.Time {
+	if payment == nil || payment.AllocatingAt == nil {
+		return time.Time{}
+	}
+	return *payment.AllocatingAt
 }

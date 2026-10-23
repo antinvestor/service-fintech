@@ -35,22 +35,27 @@ const (
 	TransferTypePenalty                                   = 31
 	TransferTypePenaltyCancel                             = 32
 	TransferTypePenaltyIncomeDistribution                 = 33
-	TransferTypeLoanFundingExternalLending                = 36
-	TransferTypeLoanFundingExternalLendingPayback         = 37
-	TransferTypeInvestorDeployment                        = 38 // investor account → loan (capital deployed)
-	TransferTypeInvestorPrincipalReturn                   = 39 // loan repayment → investor account (principal back)
-	TransferTypeInvestorIncomeDistribution                = 40 // interest/fees → investor account (earnings)
-	TransferTypeLoan                                      = 41
-	TransferTypeLoanRepayment                             = 42
-	TransferTypeShutdownLoanRecovery                      = 43
-	TransferTypePlatformFirstLossAbsorption               = 44 // platform reserve → loss (first-loss triggered)
-	TransferTypeInvestorLossAbsorption                    = 45 // investor account → loss (investor loss)
-	TransferTypeLoanInterest                              = 46
-	TransferTypeLoanInterestRepayment                     = 47
-	TransferTypeLoanInterestIncomeDistribution            = 48
-	TransferTypeLoanInsurance                             = 51
-	TransferTypeLoanInsuranceRepayment                    = 52
-	TransferTypeInterSubscriptionPayment                  = 71
+	// TransferTypePenaltyRepayment settles an accrued penalty: the borrower's
+	// payment clears the penalty receivable that TransferTypePenalty opened.
+	// Income was recognised at accrual; settling it must not recognise it
+	// again, which is why this is not TransferTypePenaltyCancel (a waiver).
+	TransferTypePenaltyRepayment                  = 34
+	TransferTypeLoanFundingExternalLending        = 36
+	TransferTypeLoanFundingExternalLendingPayback = 37
+	TransferTypeInvestorDeployment                = 38 // investor account → loan (capital deployed)
+	TransferTypeInvestorPrincipalReturn           = 39 // loan repayment → investor account (principal back)
+	TransferTypeInvestorIncomeDistribution        = 40 // interest/fees → investor account (earnings)
+	TransferTypeLoan                              = 41
+	TransferTypeLoanRepayment                     = 42
+	TransferTypeShutdownLoanRecovery              = 43
+	TransferTypePlatformFirstLossAbsorption       = 44 // platform reserve → loss (first-loss triggered)
+	TransferTypeInvestorLossAbsorption            = 45 // investor account → loss (investor loss)
+	TransferTypeLoanInterest                      = 46
+	TransferTypeLoanInterestRepayment             = 47
+	TransferTypeLoanInterestIncomeDistribution    = 48
+	TransferTypeLoanInsurance                     = 51
+	TransferTypeLoanInsuranceRepayment            = 52
+	TransferTypeInterSubscriptionPayment          = 71
 )
 
 // transferTypeNames maps each transfer type constant to its human-readable name.
@@ -72,6 +77,7 @@ var transferTypeNames = map[int]string{ //nolint:gochecknoglobals // package-lev
 	TransferTypePenalty:                                   "PENALTY",
 	TransferTypePenaltyCancel:                             "PENALTY_CANCEL",
 	TransferTypePenaltyIncomeDistribution:                 "PENALTY_INCOME_DISTRIBUTION",
+	TransferTypePenaltyRepayment:                          "PENALTY_REPAYMENT",
 	TransferTypeLoanFundingExternalLending:                "LOAN_FUNDING_EXTERNAL_LENDING",
 	TransferTypeLoanFundingExternalLendingPayback:         "LOAN_FUNDING_EXTERNAL_LENDING_PAYBACK",
 	TransferTypeLoan:                                      "LOAN",

@@ -58,6 +58,7 @@ const List<TransferType> transferTypes = [
     'PENALTY_INCOME_DISTRIBUTION',
     'Penalty Income Distribution',
   ),
+  TransferType(34, 'PENALTY_REPAYMENT', 'Penalty Repayment'),
   TransferType(
     36,
     'LOAN_FUNDING_EXTERNAL_LENDING',
