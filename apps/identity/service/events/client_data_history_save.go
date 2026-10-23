@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package events
+package events //nolint:dupl // similar event handlers for different entity types
 
 import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const ClientDataEntryHistorySaveEvent = "client_data_entry_history.save"
@@ -61,8 +61,8 @@ func (e *ClientDataEntryHistorySave) Execute(ctx context.Context, payload any) e
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "history_id": history.GetID()})
 	defer logger.Release()
 
-	if err := e.historyRepo.Create(ctx, history); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create client data entry history in db")
+	if err := upsert.ByID(ctx, e.historyRepo, history); err != nil {
+		logger.WithError(err).Error("could not save client data entry history in db")
 		return err
 	}
 

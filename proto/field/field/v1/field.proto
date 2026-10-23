@@ -194,7 +194,11 @@ message AgentSearchRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ]; // Optional filter by parent agent
-  common.v1.PageCursor cursor = 4; // Pagination
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
   string organization_id = 5 [
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.min_len = 3,
@@ -250,7 +254,11 @@ message AgentBranchListRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ]; // List agents for a branch
-  common.v1.PageCursor cursor = 3; // Pagination
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
 }
 
 message AgentBranchListResponse {
@@ -285,7 +293,11 @@ message ClientSearchRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ]; // Deprecated legacy filter by agent
-  common.v1.PageCursor cursor = 3; // Pagination
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
   string owning_team_id = 4 [
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
@@ -294,6 +306,10 @@ message ClientSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ]; // Optional filter by relationship handler
+  string profile_id = 6 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ]; // Optional exact filter by the client's profile
 }
 
 message ClientSearchResponse {
@@ -368,7 +384,11 @@ message ClientRelationshipSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 3;
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message ClientRelationshipSearchResponse {

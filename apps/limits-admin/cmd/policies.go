@@ -34,6 +34,7 @@ func policiesCmd() *cobra.Command {
 
 	cmd.AddCommand(policiesListCmd())
 	cmd.AddCommand(policiesShowCmd())
+	cmd.AddCommand(policiesShadowCmd())
 	cmd.AddCommand(policiesEnableCmd())
 	cmd.AddCommand(policiesDisableCmd())
 
@@ -185,10 +186,21 @@ func policiesShowCmd() *cobra.Command {
 func policiesEnableCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable <id>",
-		Short: "Enable a policy (set mode to POLICY_MODE_ENFORCE)",
+		Short: "Enforce a policy (set mode to POLICY_MODE_ENFORCE). Soak in shadow first.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return togglePolicyMode(cmd.Context(), args[0], limitsv1.PolicyMode_POLICY_MODE_ENFORCE)
+		},
+	}
+}
+
+func policiesShadowCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "shadow <id>",
+		Short: "Put a policy in shadow mode (records verdicts, blocks nothing)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return togglePolicyMode(cmd.Context(), args[0], limitsv1.PolicyMode_POLICY_MODE_SHADOW)
 		},
 	}
 }
@@ -205,6 +217,8 @@ func policiesDisableCmd() *cobra.Command {
 }
 
 // togglePolicyMode fetches the policy, sets its mode, and saves it back.
+// The version read from PolicyGet rides along on the save, so a concurrent
+// edit by another operator is rejected rather than silently overwritten.
 func togglePolicyMode(ctx context.Context, id string, mode limitsv1.PolicyMode) error {
 	client, err := newAdminClient(ctx)
 	if err != nil {

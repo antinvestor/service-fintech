@@ -22,23 +22,23 @@ import (
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"connectrpc.com/connect"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
-	"github.com/antinvestor/service-fintech/apps/stawi/service/events"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/constants"
+	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 )
 
 const (
-	defaultTenureDuration = int32(52)
-	tenureDaysPerWeek     = 7
-	tenureDaysPerBiweek   = 14
+	tenureDaysPerWeek   = 7
+	tenureDaysPerBiweek = 14
 )
 
 type tenureBusiness struct {
-	eventsMan   fevents.Manager
+	product     stawiproduct.ProductConfig
 	identityCli identityv1connect.IdentityServiceClient
 	tenRepo     repository.TenureRepository
 	perRepo     repository.PeriodRepository
@@ -46,12 +46,12 @@ type tenureBusiness struct {
 
 func NewTenureBusiness(
 	_ context.Context,
-	eventsMan fevents.Manager,
+	product stawiproduct.ProductConfig,
 	identityCli identityv1connect.IdentityServiceClient,
 	tenRepo repository.TenureRepository,
 	perRepo repository.PeriodRepository,
 ) TenureBusiness {
-	return &tenureBusiness{eventsMan: eventsMan, identityCli: identityCli, tenRepo: tenRepo, perRepo: perRepo}
+	return &tenureBusiness{product: product, identityCli: identityCli, tenRepo: tenRepo, perRepo: perRepo}
 }
 
 // Open creates a new tenure for the given group.
@@ -67,14 +67,14 @@ func (b *tenureBusiness) Open(ctx context.Context, groupID string) (*models.Tenu
 		&identityv1.ClientGroupGetRequest{Id: groupID},
 	))
 	if err != nil {
-		return nil, fmt.Errorf("group not found: %w", err)
+		return nil, apperrors.ErrDataNotFound.Extend("client group")
 	}
 	group := grpResp.Msg.GetData()
 
 	// Ensure no active tenure already exists
 	existing, err := b.tenRepo.GetActiveByGroupID(ctx, groupID)
 	if err == nil && existing != nil && existing.State == int32(constants.StateActive) {
-		return nil, fmt.Errorf("group already has an active tenure (id=%s)", existing.GetID())
+		return nil, apperrors.NewError(apperrors.Conflict, "group already has an active tenure")
 	}
 
 	// Determine next position from latest tenure
@@ -84,8 +84,8 @@ func (b *tenureBusiness) Open(ctx context.Context, groupID string) (*models.Tenu
 		nextPosition = latestTenure.Position + 1
 	}
 
-	// Duration defaults to 52 periods, overridable from group properties
-	duration := defaultTenureDuration
+	// Duration defaults to the product's group life, overridable per group.
+	duration := b.product.GroupLifeDuration
 	if props := group.GetProperties(); props != nil {
 		if v, ok := props.GetFields()["tenure_duration"]; ok && v.GetNumberValue() > 0 {
 			duration = int32(v.GetNumberValue())
@@ -115,9 +115,14 @@ func (b *tenureBusiness) Open(ctx context.Context, groupID string) (*models.Tenu
 	}
 	tenure.GenID(ctx)
 
-	err = b.eventsMan.Emit(ctx, events.TenureSaveEvent, tenure)
-	if err != nil {
-		logger.WithError(err).Error("could not emit tenure save event")
+	// Synchronous insert. The partial unique index on group_id for active
+	// tenures is what makes "one active tenure per group" hold under
+	// concurrency; the guard above only narrows the common case.
+	if err = b.tenRepo.Create(ctx, tenure); err != nil {
+		if data.ErrorIsDuplicateKey(err) {
+			return nil, apperrors.NewError(apperrors.Conflict, "group already has an active tenure")
+		}
+		logger.WithError(err).Error("could not persist new tenure")
 		return nil, err
 	}
 
@@ -137,11 +142,11 @@ func (b *tenureBusiness) Close(ctx context.Context, tenureID string) error {
 
 	tenure, err := b.tenRepo.GetByID(ctx, tenureID)
 	if err != nil {
-		return fmt.Errorf("tenure not found: %w", err)
+		return apperrors.ErrDataNotFound.Extend("tenure")
 	}
 
 	if tenure.State == int32(constants.StateShutdown) || tenure.State == int32(constants.StateDeleted) {
-		return fmt.Errorf("tenure is already closed (state=%d)", tenure.State)
+		return apperrors.NewError(apperrors.Unprocessable, "tenure is already closed")
 	}
 
 	// Close any active period in this tenure
@@ -151,8 +156,8 @@ func (b *tenureBusiness) Close(ctx context.Context, tenureID string) error {
 			now := time.Now().UTC()
 			currentPeriod.EndDate = &now
 			currentPeriod.State = int32(constants.StateShutdown)
-			if emitErr := b.eventsMan.Emit(ctx, events.PeriodSaveEvent, currentPeriod); emitErr != nil {
-				logger.WithError(emitErr).Warn("could not close active period during tenure close")
+			if _, perErr = b.perRepo.Update(ctx, currentPeriod); perErr != nil {
+				return fmt.Errorf("could not close active period during tenure close: %w", perErr)
 			}
 		}
 	}
@@ -161,10 +166,13 @@ func (b *tenureBusiness) Close(ctx context.Context, tenureID string) error {
 	tenure.EndDate = &now
 	tenure.State = int32(constants.StateShutdown)
 
-	err = b.eventsMan.Emit(ctx, events.TenureSaveEvent, tenure)
+	rows, err := b.tenRepo.Update(ctx, tenure)
 	if err != nil {
-		logger.WithError(err).Error("could not emit tenure save event")
+		logger.WithError(err).Error("could not close tenure")
 		return err
+	}
+	if rows == 0 {
+		return apperrors.NewError(apperrors.Conflict, "tenure changed while it was being closed")
 	}
 
 	logger.Info("tenure closed")

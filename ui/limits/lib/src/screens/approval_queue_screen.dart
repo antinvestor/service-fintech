@@ -104,7 +104,21 @@ class _ApprovalQueueScreenState extends ConsumerState<ApprovalQueueScreen> {
           Expanded(
             child: asyncList.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Failed: $e')),
+              error: (e, _) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Failed: $e'),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      onPressed: () =>
+                          ref.invalidate(approvalListProvider(_params)),
+                    ),
+                  ],
+                ),
+              ),
               data: (rows) {
                 if (rows.isEmpty) {
                   return const Center(
@@ -116,7 +130,7 @@ class _ApprovalQueueScreenState extends ConsumerState<ApprovalQueueScreen> {
                   itemBuilder: (_, i) => ApprovalRequestTile(
                     request: rows[i],
                     onTap: () =>
-                        context.go('/limits/approvals/${rows[i].id}'),
+                        context.push('/limits/approvals/${rows[i].id}'),
                   ),
                 );
               },

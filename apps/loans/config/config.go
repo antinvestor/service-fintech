@@ -16,12 +16,17 @@ package config
 
 import (
 	"github.com/pitabwire/frame/v2/config"
+
+	"github.com/antinvestor/service-fintech/pkg/clients"
 )
 
 type LoanManagementConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
 	IdentityServiceURI                       string `envDefault:"127.0.0.1:7001"                           env:"IDENTITY_SERVICE_URI"`
 	IdentityServiceWorkloadAPITargetPath     string `envDefault:"/ns/identity/sa/service-identity"         env:"IDENTITY_SERVICE_WORKLOAD_API_TARGET_PATH"`
+	FieldServiceURI                          string `envDefault:"127.0.0.1:7001"                           env:"FIELD_SERVICE_URI"`
+	FieldServiceWorkloadAPITargetPath        string `envDefault:"/ns/identity/sa/service-identity"         env:"FIELD_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LedgerServiceURI                         string `envDefault:"127.0.0.1:7020"                           env:"LEDGER_SERVICE_URI"`
 	LedgerServiceWorkloadAPITargetPath       string `envDefault:"/ns/ledger/sa/service-ledger"             env:"LEDGER_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	PaymentServiceURI                        string `envDefault:"127.0.0.1:7030"                           env:"PAYMENT_SERVICE_URI"`
@@ -46,6 +51,10 @@ type LoanManagementConfig struct {
 	LimitsGateModeLoanRequestApproval        string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REQUEST_APPROVAL"`
 	LimitsGateEnabledLoanRepayment           bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_REPAYMENT"`
 	LimitsGateModeLoanRepayment              string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REPAYMENT"`
+
+	// LoansStaffRoles are the claim roles that may read any client's loan
+	// records; every other caller is scoped to the client its profile owns.
+	LoansStaffRoles string `envDefault:"admin,operator,viewer" env:"LOANS_STAFF_ROLES"`
 
 	DefaultGracePeriodDays   int `envDefault:"3"  env:"DEFAULT_GRACE_PERIOD_DAYS"`
 	DelinquencyThresholdDays int `envDefault:"7"  env:"DELINQUENCY_THRESHOLD_DAYS"`

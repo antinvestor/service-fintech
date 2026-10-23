@@ -25,7 +25,10 @@ void main() {
       ..units = Int64(1234)
       ..nanos = 560000000;
     await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: CurrencyAmountText(amount: m))));
+      MaterialApp(
+        home: Scaffold(body: CurrencyAmountText(amount: m)),
+      ),
+    );
     expect(find.text('1234.56 KES'), findsOneWidget);
   });
 
@@ -35,7 +38,10 @@ void main() {
       ..units = Int64(500)
       ..nanos = 0;
     await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: CurrencyAmountText(amount: m))));
+      MaterialApp(
+        home: Scaffold(body: CurrencyAmountText(amount: m)),
+      ),
+    );
     expect(find.text('500 JPY'), findsOneWidget);
   });
 
@@ -45,13 +51,17 @@ void main() {
       ..units = Int64(1)
       ..nanos = 234000000;
     await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: CurrencyAmountText(amount: m))));
+      MaterialApp(
+        home: Scaffold(body: CurrencyAmountText(amount: m)),
+      ),
+    );
     expect(find.text('1.234 KWD'), findsOneWidget);
   });
 
   testWidgets('null renders em-dash', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(body: CurrencyAmountText(amount: null))));
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: CurrencyAmountText(amount: null))),
+    );
     expect(find.text('—'), findsOneWidget);
   });
 
@@ -61,7 +71,10 @@ void main() {
       ..units = Int64(-2)
       ..nanos = -500000000;
     await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: CurrencyAmountText(amount: m))));
+      MaterialApp(
+        home: Scaffold(body: CurrencyAmountText(amount: m)),
+      ),
+    );
     expect(find.text('-2.50 USD'), findsOneWidget);
   });
 
@@ -70,9 +83,13 @@ void main() {
       ..currencyCode = 'KES'
       ..units = Int64(100)
       ..nanos = 0;
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: Scaffold(
-            body: CurrencyAmountText(amount: m, showCurrency: false))));
+          body: CurrencyAmountText(amount: m, showCurrency: false),
+        ),
+      ),
+    );
     expect(find.text('100.00'), findsOneWidget);
   });
 }

@@ -20,21 +20,25 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: antinvestor/common/.github/workflows/docker-release.yml@main
+    uses: antinvestor/common/.github/workflows/docker-release.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
 
   buf-push:
     if: github.event_name == 'push'
     permissions:
       contents: read
-    uses: antinvestor/common/.github/workflows/buf-push.yaml@main
+    uses: antinvestor/common/.github/workflows/buf-push.yaml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
     secrets:
       buf_token: ${{ secrets.BUF_TOKEN }}
 
-  # Merge opl/**/*.opl.ts into identity-authorization-keto namespaces.ts (Cloud Run Keto).
+  # Merge apps/default/*.opl.ts into identity-authorization-keto namespaces.ts
+  # (Cloud Run Keto). apps/default is the single source of truth: it is what
+  # `make opl-generate` writes, so what ships is always what the protos say.
   opl-push:
     permissions:
       contents: read
-    uses: antinvestor/common/.github/workflows/opl-push.yml@main
+    uses: antinvestor/common/.github/workflows/opl-push.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    with:
+      opl_source: apps/default
     secrets:
       deploy_token: ${{ secrets.DEPLOY_REPO_TOKEN }}
 
@@ -45,7 +49,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@main
+    uses: antinvestor/common/.github/workflows/cloudrun-ship.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
     with:
       image: ghcr.io/antinvestor/service-fintech-identity:${{ inputs.tag != '' && inputs.tag || github.ref_name }}
       service: identity-identity

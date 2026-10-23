@@ -53,6 +53,8 @@ type TenureBusiness interface {
 type PeriodBusiness interface {
 	Open(ctx context.Context, groupID string) (*models.Period, error)
 	Close(ctx context.Context, periodID string) error
+	Freeze(ctx context.Context, periodID string) (*models.Period, error)
+	Extend(ctx context.Context, periodID, reason string) (*models.Period, error)
 	GetCurrent(ctx context.Context, groupID string) (*models.Period, error)
 }
 
@@ -65,11 +67,16 @@ type MotionBusiness interface {
 // LoanWindowBusiness handles loan window operations.
 type LoanWindowBusiness interface {
 	Evaluate(ctx context.Context, groupID string) (map[string]interface{}, error)
+	Open(ctx context.Context, groupID string) (*models.LoanWindow, error)
 }
 
 // LoanOfferBusiness handles loan offer operations.
 type LoanOfferBusiness interface {
 	GenerateForWindow(ctx context.Context, windowID string) (interface{}, error)
+	CheckEligibility(ctx context.Context, groupID, membershipID string) (map[string]interface{}, error)
+	EnsureSchedule(ctx context.Context, loanAccountID string) (map[string]interface{}, error)
+	Disburse(ctx context.Context, loanAccountID string) (map[string]interface{}, error)
 	Respond(ctx context.Context, offerID string, response int32) error
 	CreateLoanAccount(ctx context.Context, offerID string) (map[string]interface{}, error)
+	ExpireStale(ctx context.Context, membershipID string) (int, error)
 }

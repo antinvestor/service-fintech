@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const RepaymentSaveEvent = "repayment.save"
@@ -58,17 +58,8 @@ func (e *RepaymentSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "repayment_id": r.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.repaymentRepo.GetByID(ctx, r.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.repaymentRepo.Update(ctx, r); err != nil {
-			logger.WithError(err).Error("could not update repayment in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.repaymentRepo.Create(ctx, r); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create repayment in db")
+	if err := upsert.ByID(ctx, e.repaymentRepo, r); err != nil {
+		logger.WithError(err).Error("could not persist repayment")
 		return err
 	}
 

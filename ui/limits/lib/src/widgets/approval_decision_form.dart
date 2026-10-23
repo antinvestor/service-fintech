@@ -37,15 +37,17 @@ class _ApprovalDecisionFormState extends ConsumerState<ApprovalDecisionForm> {
 
   Future<void> _submit() async {
     try {
-      await ref.read(approvalDecisionProvider.notifier).decide(
+      await ref
+          .read(approvalDecisionProvider.notifier)
+          .decide(
             id: widget.approvalId,
             decision: _decision,
             note: _noteCtrl.text,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Decision recorded')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Decision recorded')));
       widget.onSuccess?.call();
     } catch (e) {
       if (!mounted) return;
@@ -68,7 +70,10 @@ class _ApprovalDecisionFormState extends ConsumerState<ApprovalDecisionForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Decision', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Decision',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             RadioGroup<String>(
               groupValue: _decision,

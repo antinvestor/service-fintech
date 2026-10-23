@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -41,6 +42,24 @@ func reservationsCmd() *cobra.Command {
 	return cmd
 }
 
+// parseApprovalStatus accepts either the short operator-facing name
+// ("pending") or the full proto enum name, case-insensitively. The runbooks
+// use the short form, so rejecting it makes the documented command fail.
+func parseApprovalStatus(raw string) (limitsv1.ApprovalStatus, error) {
+	normalised := strings.ToUpper(strings.TrimSpace(raw))
+	if !strings.HasPrefix(normalised, "APPROVAL_STATUS_") {
+		normalised = "APPROVAL_STATUS_" + normalised
+	}
+	v, ok := limitsv1.ApprovalStatus_value[normalised]
+	if !ok {
+		return limitsv1.ApprovalStatus_APPROVAL_STATUS_UNSPECIFIED, fmt.Errorf(
+			"unknown status %q; valid values: pending, approved, rejected, expired, auto_rejected_on_recheck",
+			raw,
+		)
+	}
+	return limitsv1.ApprovalStatus(v), nil
+}
+
 // watchInterval is how often --watch re-renders the reservation list.
 const watchInterval = 5 * time.Second
 
@@ -56,14 +75,11 @@ func reservationsListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			status := limitsv1.ApprovalStatus_APPROVAL_STATUS_PENDING
 			if flagStatus != "" {
-				v, ok := limitsv1.ApprovalStatus_value[flagStatus]
-				if !ok {
-					return fmt.Errorf(
-						"unknown status %q; valid values: APPROVAL_STATUS_PENDING, APPROVAL_STATUS_APPROVED, APPROVAL_STATUS_REJECTED, APPROVAL_STATUS_EXPIRED",
-						flagStatus,
-					)
+				v, err := parseApprovalStatus(flagStatus)
+				if err != nil {
+					return err
 				}
-				status = limitsv1.ApprovalStatus(v)
+				status = v
 			}
 
 			if flagWatch {
@@ -73,7 +89,8 @@ func reservationsListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&flagStatus, "status", "APPROVAL_STATUS_PENDING", "Filter by approval status")
+	cmd.Flags().StringVar(&flagStatus, "status", "pending",
+		"Filter by approval status: pending|approved|rejected|expired|auto_rejected_on_recheck")
 	cmd.Flags().BoolVar(&flagWatch, "watch", false, "Re-render every 5s; exit with Ctrl-C")
 
 	return cmd

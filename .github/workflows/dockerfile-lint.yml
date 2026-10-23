@@ -22,4 +22,4 @@ jobs:
   lint:
     permissions:
       contents: read
-    uses: antinvestor/common/.github/workflows/dockerfile-lint.yml@main
+    uses: antinvestor/common/.github/workflows/dockerfile-lint.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main

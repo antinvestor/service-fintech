@@ -25,4 +25,8 @@ const (
 	fieldLoanRequestID    = "loan_request_id"
 	metricUnitCount       = "count"
 	metricUnitCurrency    = "currency_unit"
+
+	// defaultPageLimit and maxPageLimit bound a single search page.
+	defaultPageLimit = 50
+	maxPageLimit     = 500
 )

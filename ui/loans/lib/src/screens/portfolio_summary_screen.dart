@@ -23,13 +23,13 @@ class _PortfolioSummaryScreenState
   String _productId = '';
 
   PortfolioParams get _params => (
-        organizationId: _organizationId,
-        branchId: _branchId,
-        agentId: _agentId,
-        productId: _productId,
-        clientId: '',
-        currencyCode: '',
-      );
+    organizationId: _organizationId,
+    branchId: _branchId,
+    agentId: _agentId,
+    productId: _productId,
+    clientId: '',
+    currencyCode: '',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -39,8 +39,9 @@ class _PortfolioSummaryScreenState
       builder: (context, constraints) {
         final isMobile = AppBreakpoints.isMobile(constraints.maxWidth);
         final padding = isMobile ? 16.0 : 24.0;
-        final crossAxisCount =
-            isMobile ? 2 : (constraints.maxWidth > 900 ? 3 : 2);
+        final crossAxisCount = isMobile
+            ? 2
+            : (constraints.maxWidth > 900 ? 3 : 2);
 
         return RefreshIndicator(
           onRefresh: () async {
@@ -56,19 +57,15 @@ class _PortfolioSummaryScreenState
                     children: [
                       Text(
                         'Portfolio Summary',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
+                        style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Aggregated financial metrics across your loan portfolio.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),

@@ -24,17 +24,61 @@ option go_package = "github.com/antinvestor/apis/go/operations/v1;operationsv1";
 option java_multiple_files = true;
 option java_package = "operationsv1";
 
+// TransferOrderType classifies a transfer order. The numeric values mirror
+// pkg/constants/transfer_types.go exactly so the enum and the legacy int32
+// order_type fields describe the same order; the int32 fields remain for
+// existing clients and are deprecated.
+enum TransferOrderType {
+  TRANSFER_ORDER_TYPE_UNSPECIFIED = 0;
+  TRANSFER_ORDER_TYPE_PAYMENT = 1;
+  TRANSFER_ORDER_TYPE_PAYMENT_IDENTIFIED = 2;
+  TRANSFER_ORDER_TYPE_PAYMENT_ALLOCATED = 3;
+  TRANSFER_ORDER_TYPE_DISBURSEMENT = 6;
+  TRANSFER_ORDER_TYPE_DISBURSEMENT_REVERSAL = 7;
+  TRANSFER_ORDER_TYPE_DISBURSEMENT_REVERSAL_REROUTE = 8;
+  TRANSFER_ORDER_TYPE_TERMINAL_DISBURSEMENT = 9;
+  TRANSFER_ORDER_TYPE_TERMINAL_DISBURSEMENT_RECOVERY = 10;
+  TRANSFER_ORDER_TYPE_COST = 11;
+  TRANSFER_ORDER_TYPE_SERVICE_FEE = 16;
+  TRANSFER_ORDER_TYPE_REGISTRATION_FEE = 21;
+  TRANSFER_ORDER_TYPE_PERIODIC_SAVING = 25;
+  TRANSFER_ORDER_TYPE_PERIODIC_SAVINGS_INTEREST_INCOME_DISTRIBUTION = 26;
+  TRANSFER_ORDER_TYPE_PERIODIC_SAVING_RECOVERY = 27;
+  TRANSFER_ORDER_TYPE_PENALTY = 31;
+  TRANSFER_ORDER_TYPE_PENALTY_CANCEL = 32;
+  TRANSFER_ORDER_TYPE_PENALTY_INCOME_DISTRIBUTION = 33;
+  TRANSFER_ORDER_TYPE_LOAN_FUNDING_EXTERNAL_LENDING = 36;
+  TRANSFER_ORDER_TYPE_LOAN_FUNDING_EXTERNAL_LENDING_PAYBACK = 37;
+  TRANSFER_ORDER_TYPE_INVESTOR_DEPLOYMENT = 38;
+  TRANSFER_ORDER_TYPE_INVESTOR_PRINCIPAL_RETURN = 39;
+  TRANSFER_ORDER_TYPE_INVESTOR_INCOME_DISTRIBUTION = 40;
+  TRANSFER_ORDER_TYPE_LOAN = 41;
+  TRANSFER_ORDER_TYPE_LOAN_REPAYMENT = 42;
+  TRANSFER_ORDER_TYPE_SHUTDOWN_LOAN_RECOVERY = 43;
+  TRANSFER_ORDER_TYPE_PLATFORM_FIRST_LOSS_ABSORPTION = 44;
+  TRANSFER_ORDER_TYPE_INVESTOR_LOSS_ABSORPTION = 45;
+  TRANSFER_ORDER_TYPE_LOAN_INTEREST = 46;
+  TRANSFER_ORDER_TYPE_LOAN_INTEREST_REPAYMENT = 47;
+  TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION = 48;
+  TRANSFER_ORDER_TYPE_LOAN_INSURANCE = 51;
+  TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT = 52;
+  TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT = 71;
+}
+
 message TransferOrderObject {
   string id = 1;
   string debit_account_ref = 2;
   string credit_account_ref = 3;
   common.v1.Money amount = 4;
   reserved 5;
-  int32 order_type = 6;
+  // Deprecated: use transfer_type. Kept for existing clients; both fields
+  // carry the same value.
+  int32 order_type = 6 [deprecated = true];
   string reference = 7;
   string description = 8;
   google.protobuf.Struct extra_data = 9;
   common.v1.STATE state = 10;
+  TransferOrderType transfer_type = 11;
 }
 
 message TransferOrderExecuteRequest {
@@ -46,11 +90,16 @@ message TransferOrderExecuteResponse {
 
 message TransferOrderSearchRequest {
   string query = 1;
-  int32 order_type = 2;
+  // Deprecated: use transfer_type. When both are set transfer_type wins.
+  int32 order_type = 2 [deprecated = true];
   common.v1.PageCursor cursor = 3;
+  TransferOrderType transfer_type = 4;
 }
 message TransferOrderSearchResponse {
   repeated TransferOrderObject data = 1;
+  // next_cursor is the opaque cursor for the page after this one; empty on
+  // the last page.
+  string next_cursor = 2;
 }
 
 // IncomingPaymentNotifyRequest notifies the system of a new payment received.

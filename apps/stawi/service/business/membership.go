@@ -16,12 +16,13 @@ package business
 
 import (
 	"context"
-	"errors"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"connectrpc.com/connect"
+
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
 type membershipBusiness struct {
@@ -80,9 +81,11 @@ func (b *membershipBusiness) GetByGroupID(ctx context.Context, groupID string) (
 }
 
 func (b *membershipBusiness) UpdateRole(_ context.Context, _ string, _ int32) error {
-	return errors.New("group membership operations are not yet available for this product")
+	return apperrors.NewError(apperrors.Unprocessable,
+		"membership role changes are not available for this product")
 }
 
 func (b *membershipBusiness) CheckPeriodicPayment(_ context.Context, _ string) (map[string]interface{}, error) {
-	return nil, errors.New("group membership operations are not yet available for this product")
+	return nil, apperrors.NewError(apperrors.Unprocessable,
+		"periodic payment checks are not available for this product")
 }

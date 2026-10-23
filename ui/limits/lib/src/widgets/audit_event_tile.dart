@@ -15,6 +15,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
+import '../utils/formatting.dart';
 
 class AuditEventTile extends StatelessWidget {
   final LimitsAuditEventObject event;
@@ -69,7 +70,9 @@ class AuditEventTile extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               Text(
-                event.occurredAt.toDateTime().toLocal().toString().substring(0, 19),
+                formatTimestamp(
+                  event.hasOccurredAt() ? event.occurredAt : null,
+                ),
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
@@ -117,7 +120,10 @@ class AuditEventTile extends StatelessWidget {
     if (v.hasBoolValue()) return v.boolValue;
     if (v.hasListValue()) return v.listValue.values.map(_valueToDart).toList();
     if (v.hasStructValue()) {
-      return {for (final e in v.structValue.fields.entries) e.key: _valueToDart(e.value)};
+      return {
+        for (final e in v.structValue.fields.entries)
+          e.key: _valueToDart(e.value),
+      };
     }
     return null;
   }

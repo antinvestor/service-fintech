@@ -17,5 +17,8 @@ package handlers
 // Shared string constants for repeated metadata keys, SQL fragments, and
 // label values used across this package (extracted to satisfy goconst).
 const (
-	fieldStatus = "status"
+	fieldStatus      = "status"
+	fieldClientID    = "client_id"
+	actorTypeUser    = "user"
+	actorTypeService = "service"
 )

@@ -700,6 +700,11 @@ class LoanRequestObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(6)
   void clearOrganizationId() => clearField(6);
 
+  /// status is owned by the server. It is set by the approval workflow
+  /// (Save accepts only DRAFT/SUBMITTED for new requests; Approve, Reject and
+  /// Cancel move it from there) and any client-supplied value on Save is
+  /// rejected by the business layer. Validation is skipped so the field can
+  /// be echoed back in responses without being constrained on input.
   @$pb.TagNumber(7)
   LoanRequestStatus get status => $_getN(6);
   @$pb.TagNumber(7)
@@ -821,7 +826,13 @@ class LoanRequestObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(19)
   void clearLoanAccountId() => clearField(19);
 
-  /// Source tracking: which product service created this request.
+  ///  Source tracking: which product service created this request.
+  ///
+  ///  The pair (source_service, source_request_id) identifies one request in
+  ///  the originating service and is unique within a partition: a product
+  ///  service that retries LoanRequestSave with the same pair gets the same
+  ///  loan request back rather than a duplicate. Either may be empty for
+  ///  requests captured manually, in which case no uniqueness is implied.
   @$pb.TagNumber(20)
   $core.String get sourceService => $_getSZ(19);
   @$pb.TagNumber(20)
@@ -5874,15 +5885,18 @@ class ReconciliationSearchResponse extends $pb.GeneratedMessage {
 class InitiateCollectionRequest extends $pb.GeneratedMessage {
   factory InitiateCollectionRequest({
     $core.String? loanAccountId,
+  @$core.Deprecated('This field is deprecated.')
     $core.String? amount,
     $core.String? phoneNumber,
     $core.String? idempotencyKey,
+    $7.Money? collectionAmount,
   }) {
     final $result = create();
     if (loanAccountId != null) {
       $result.loanAccountId = loanAccountId;
     }
     if (amount != null) {
+      // ignore: deprecated_member_use_from_same_package
       $result.amount = amount;
     }
     if (phoneNumber != null) {
@@ -5890,6 +5904,9 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
     }
     if (idempotencyKey != null) {
       $result.idempotencyKey = idempotencyKey;
+    }
+    if (collectionAmount != null) {
+      $result.collectionAmount = collectionAmount;
     }
     return $result;
   }
@@ -5902,6 +5919,7 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'amount')
     ..aOS(3, _omitFieldNames ? '' : 'phoneNumber')
     ..aOS(4, _omitFieldNames ? '' : 'idempotencyKey')
+    ..aOM<$7.Money>(5, _omitFieldNames ? '' : 'collectionAmount', subBuilder: $7.Money.create)
     ..hasRequiredFields = false
   ;
 
@@ -5935,12 +5953,18 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearLoanAccountId() => clearField(1);
 
+  /// Deprecated: a bare decimal string carries no currency. Use
+  /// collection_amount; when both are set collection_amount wins.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.String get amount => $_getSZ(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   set amount($core.String v) { $_setString(1, v); }
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.bool hasAmount() => $_has(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   void clearAmount() => clearField(2);
 
@@ -5961,6 +5985,19 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
   $core.bool hasIdempotencyKey() => $_has(3);
   @$pb.TagNumber(4)
   void clearIdempotencyKey() => clearField(4);
+
+  /// collection_amount is the amount to collect, in the loan's currency.
+  /// When unset the outstanding balance is collected.
+  @$pb.TagNumber(5)
+  $7.Money get collectionAmount => $_getN(4);
+  @$pb.TagNumber(5)
+  set collectionAmount($7.Money v) { setField(5, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasCollectionAmount() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearCollectionAmount() => clearField(5);
+  @$pb.TagNumber(5)
+  $7.Money ensureCollectionAmount() => $_ensure(4);
 }
 
 class InitiateCollectionResponse extends $pb.GeneratedMessage {
@@ -7564,6 +7601,7 @@ class PortfolioSummary extends $pb.GeneratedMessage {
     $core.String? currencyCode,
     $core.String? collectionRate,
     $core.String? par30,
+    $core.int? pendingDisbursementLoans,
   }) {
     final $result = create();
     if (totalLoans != null) {
@@ -7614,6 +7652,9 @@ class PortfolioSummary extends $pb.GeneratedMessage {
     if (par30 != null) {
       $result.par30 = par30;
     }
+    if (pendingDisbursementLoans != null) {
+      $result.pendingDisbursementLoans = pendingDisbursementLoans;
+    }
     return $result;
   }
   PortfolioSummary._() : super();
@@ -7637,6 +7678,7 @@ class PortfolioSummary extends $pb.GeneratedMessage {
     ..aOS(14, _omitFieldNames ? '' : 'currencyCode')
     ..aOS(15, _omitFieldNames ? '' : 'collectionRate')
     ..aOS(16, _omitFieldNames ? '' : 'par30', protoName: 'par_30')
+    ..a<$core.int>(17, _omitFieldNames ? '' : 'pendingDisbursementLoans', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -7820,6 +7862,18 @@ class PortfolioSummary extends $pb.GeneratedMessage {
   $core.bool hasPar30() => $_has(15);
   @$pb.TagNumber(16)
   void clearPar30() => clearField(16);
+
+  /// pending_disbursement_loans counts loans created but not yet disbursed
+  /// (LOAN_STATUS_PENDING_DISBURSEMENT). They are part of total_loans but of
+  /// none of the other status counts.
+  @$pb.TagNumber(17)
+  $core.int get pendingDisbursementLoans => $_getIZ(16);
+  @$pb.TagNumber(17)
+  set pendingDisbursementLoans($core.int v) { $_setSignedInt32(16, v); }
+  @$pb.TagNumber(17)
+  $core.bool hasPendingDisbursementLoans() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearPendingDisbursementLoans() => clearField(17);
 }
 
 class PortfolioSummaryRequest extends $pb.GeneratedMessage {

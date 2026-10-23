@@ -1,6 +1,6 @@
-import 'package:antinvestor_api_identity/antinvestor_api_identity.dart' as common;
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    as common;
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
-import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -104,7 +104,7 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                           description:
                               'The organization this org unit belongs to.',
                           child: DropdownButtonFormField<String>(
-                            value: _selectedOrganizationId.isNotEmpty
+                            initialValue: _selectedOrganizationId.isNotEmpty
                                 ? _selectedOrganizationId
                                 : null,
                             items: widget.organizations
@@ -121,8 +121,8 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                             }),
                             validator: (value) =>
                                 (value == null || value.isEmpty)
-                                    ? 'Select an organization'
-                                    : null,
+                                ? 'Select an organization'
+                                : null,
                           ),
                         ),
                       FormFieldCard(
@@ -130,7 +130,7 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                         description:
                             'Choose the hierarchy level this org unit represents.',
                         child: DropdownButtonFormField<OrgUnitType>(
-                          value: _selectedType,
+                          initialValue: _selectedType,
                           items: editableOrgUnitTypes
                               .map(
                                 (type) => DropdownMenuItem(
@@ -155,23 +155,21 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                                 data: (units) {
                                   final selectable = units
                                       .where(
-                                        (unit) =>
-                                            unit.id != widget.orgUnit?.id,
+                                        (unit) => unit.id != widget.orgUnit?.id,
                                       )
                                       .toList();
                                   final hasSelected =
                                       _selectedParentId.isEmpty ||
-                                          selectable.any(
-                                            (u) =>
-                                                u.id == _selectedParentId,
-                                          );
+                                      selectable.any(
+                                        (u) => u.id == _selectedParentId,
+                                      );
                                   final value =
                                       hasSelected &&
-                                              _selectedParentId.isNotEmpty
-                                          ? _selectedParentId
-                                          : null;
+                                          _selectedParentId.isNotEmpty
+                                      ? _selectedParentId
+                                      : null;
                                   return DropdownButtonFormField<String>(
-                                    value: value,
+                                    initialValue: value,
                                     items: [
                                       const DropdownMenuItem<String>(
                                         value: '',
@@ -189,13 +187,12 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                                     onChanged: widget.fixedParentId != null
                                         ? null
                                         : (value) => setState(
-                                            () => _selectedParentId =
-                                                value ?? '',
+                                            () =>
+                                                _selectedParentId = value ?? '',
                                           ),
                                   );
                                 },
-                                loading: () =>
-                                    const LinearProgressIndicator(),
+                                loading: () => const LinearProgressIndicator(),
                                 error: (error, _) => Text(
                                   'Failed to load parent units: $error',
                                   style: theme.textTheme.bodySmall?.copyWith(
@@ -214,8 +211,8 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                           ),
                           validator: (value) =>
                               (value == null || value.trim().isEmpty)
-                                  ? 'Enter a name'
-                                  : null,
+                              ? 'Enter a name'
+                              : null,
                         ),
                       ),
                       FormFieldCard(
@@ -229,8 +226,8 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                           ),
                           validator: (value) =>
                               (value == null || value.trim().isEmpty)
-                                  ? 'Enter a code'
-                                  : null,
+                              ? 'Enter a code'
+                              : null,
                         ),
                       ),
                       FormFieldCard(
@@ -238,7 +235,7 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
                         description:
                             'Initial lifecycle state for this org unit.',
                         child: DropdownButtonFormField<common.STATE>(
-                          value: _selectedState,
+                          initialValue: _selectedState,
                           items: const [
                             DropdownMenuItem(
                               value: common.STATE.CREATED,
@@ -292,13 +289,6 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    // Get partition and geoId from tenancy context.
-    final tenancy = ref.read(tenancyContextProvider);
-    final partitionId =
-        widget.orgUnit?.partitionId.isNotEmpty == true
-            ? widget.orgUnit!.partitionId
-            : tenancy.partitionId;
-
     // Inherit geoId from the parent organization if available.
     final parentOrg = widget.organizations
         .where((o) => o.id == _selectedOrganizationId)
@@ -311,7 +301,6 @@ class _OrgUnitFormDialogState extends ConsumerState<OrgUnitFormDialog> {
       id: widget.orgUnit?.id,
       organizationId: _selectedOrganizationId,
       parentId: _selectedParentId,
-      partitionId: partitionId,
       geoId: geoId,
       name: _nameCtrl.text.trim(),
       code: _codeCtrl.text.trim(),

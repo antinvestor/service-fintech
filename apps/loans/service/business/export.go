@@ -75,7 +75,7 @@ func (b *portfolioBusiness) queryExportRows(db *gorm.DB, filter PortfolioFilter)
 	query := db.Table("loan_accounts la").
 		Select(`
 			la.id,
-			la.application_id,
+			la.loan_request_id,
 			la.client_id,
 			la.agent_id,
 			la.branch_id,

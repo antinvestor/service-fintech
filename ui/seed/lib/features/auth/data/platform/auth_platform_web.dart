@@ -204,6 +204,23 @@ class AuthPlatformWeb implements AuthPlatform {
     _clearAuthState();
   }
 
+  @override
+  Uri? get postLogoutRedirectUri {
+    final current = Uri.parse(web.window.location.href);
+    if (current.scheme.isEmpty || current.host.isEmpty) return null;
+    return Uri(
+      scheme: current.scheme,
+      host: current.host,
+      port: current.port,
+      path: '/login',
+    );
+  }
+
+  @override
+  Future<void> navigateToEndSession(Uri uri) async {
+    web.window.location.href = uri.toString();
+  }
+
   String _generateCodeVerifier() {
     final random = Random.secure();
     final values = List<int>.generate(32, (_) => random.nextInt(256));

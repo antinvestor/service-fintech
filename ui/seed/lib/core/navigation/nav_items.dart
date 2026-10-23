@@ -28,7 +28,7 @@ class NavItem {
   bool get hasChildren => children.isNotEmpty;
 
   bool matchesRoute(String currentRoute) {
-    if (route != null && currentRoute.startsWith(route!)) return true;
+    if (routeMatches(route, currentRoute)) return true;
     return children.any((c) => c.matchesRoute(currentRoute));
   }
 
@@ -59,6 +59,16 @@ class NavItem {
       badge: badge,
     );
   }
+}
+
+/// Whether [location] is served by [route].
+///
+/// The dashboard lives at `/`, which is a prefix of every other location, so
+/// it only ever matches exactly. Everything else matches its own subtree.
+bool routeMatches(String? route, String location) {
+  if (route == null) return false;
+  if (route == '/') return location == '/';
+  return location == route || location.startsWith('$route/');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,7 +138,7 @@ List<NavItem> buildNavItems() => [
         icon: Icons.admin_panel_settings_outlined,
         activeIcon: Icons.admin_panel_settings,
         route: '/access-roles',
-        requiredPermissions: {'access_role_manage'},
+        requiredPermissions: {'access_role_assignment_manage'},
       ),
     ],
   ),
@@ -183,3 +193,25 @@ List<NavItem> buildNavItems() => [
     ],
   ),
 ];
+
+/// The permissions required to reach [location], gathered from the nav tree
+/// so route guards and sidebar visibility can never disagree.
+///
+/// Returns an empty set for locations the nav tree does not gate.
+Set<String> requiredPermissionsForRoute(String location) {
+  Set<String>? search(NavItem item, Set<String> inherited) {
+    final required = {...inherited, ...item.requiredPermissions};
+    if (routeMatches(item.route, location)) return required;
+    for (final child in item.children) {
+      final found = search(child, required);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  for (final item in buildNavItems()) {
+    final found = search(item, const {});
+    if (found != null) return found;
+  }
+  return const {};
+}

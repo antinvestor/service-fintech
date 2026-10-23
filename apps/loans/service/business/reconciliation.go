@@ -70,7 +70,6 @@ func (b *reconciliationBusiness) Save(
 	return recon.ToAPI(), nil
 }
 
-//nolint:dupl // similar search logic for different entity types
 func (b *reconciliationBusiness) Search(
 	ctx context.Context,
 	req *loansv1.ReconciliationSearchRequest,

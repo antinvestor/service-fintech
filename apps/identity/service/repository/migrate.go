@@ -16,7 +16,9 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pitabwire/frame/v2/datastore"
@@ -34,9 +36,11 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		return err
 	}
 
-	// Run pre-migrations before AutoMigrate to handle table renames
+	// Run pre-migrations before AutoMigrate to handle table renames and the
+	// column type changes AutoMigrate cannot perform on its own.
 	if preErr := preMigrate(ctx, dbPool); preErr != nil {
-		util.Log(ctx).WithError(preErr).Warn("preMigrate -- non-fatal pre-migration issue")
+		util.Log(ctx).WithError(preErr).Error("preMigrate -- failed")
+		return preErr
 	}
 
 	if migrateErr := dbManager.Migrate(ctx, dbPool, migrationPath,
@@ -128,7 +132,120 @@ func preMigrate(
 		}
 	}
 
+	return convertLegacyEnumColumns(ctx, db)
+}
+
+// legacyEnumColumn is a column that used to store an enum ordinal and now
+// stores an organization defined string.
+type legacyEnumColumn struct {
+	Table  string
+	Column string
+	Values map[int]string
+}
+
+// legacyEnumColumns must be converted before AutoMigrate runs: Postgres will
+// not widen an integer column to varchar without an explicit USING clause, and
+// AutoMigrate does not emit one.
+//
+//nolint:gochecknoglobals // static migration description
+var legacyEnumColumns = []legacyEnumColumn{
+	{
+		Table:  "workforce_members",
+		Column: "engagement_type",
+		Values: map[int]string{
+			1: "employee", 2: "contractor", 3: "service_account",
+			4: "agent", 5: "volunteer", 6: "intern",
+		},
+	},
+	{
+		Table:  "internal_teams",
+		Column: "team_type",
+		Values: map[int]string{
+			1: "portfolio", 2: "servicing", 3: "collections",
+			4: "sales", 5: "pilot", 6: "shared_service",
+		},
+	},
+	{
+		Table:  "team_memberships",
+		Column: "membership_role",
+		Values: map[int]string{
+			1: "lead", 2: "deputy", 3: "member",
+			4: "specialist", 5: "supervisor", 6: "coordinator",
+		},
+	},
+}
+
+func convertLegacyEnumColumns(ctx context.Context, db *gorm.DB) error {
+	for _, spec := range legacyEnumColumns {
+		isInteger, err := columnIsInteger(db, spec.Table, spec.Column)
+		if err != nil {
+			return err
+		}
+		if !isInteger {
+			continue
+		}
+
+		util.Log(ctx).
+			WithField("table", spec.Table).
+			WithField("column", spec.Column).
+			Info("preMigrate -- converting legacy enum column to varchar")
+
+		if err = db.Exec(fmt.Sprintf(
+			"ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT", spec.Table, spec.Column,
+		)).Error; err != nil {
+			return err
+		}
+		if err = db.Exec(fmt.Sprintf(
+			"ALTER TABLE %s ALTER COLUMN %s TYPE VARCHAR(50) USING (%s)",
+			spec.Table, spec.Column, enumCaseExpression(spec),
+		)).Error; err != nil {
+			return err
+		}
+		if err = db.Exec(fmt.Sprintf(
+			"ALTER TABLE %s ALTER COLUMN %s SET DEFAULT ''", spec.Table, spec.Column,
+		)).Error; err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// enumCaseExpression renders the CASE that maps stored ordinals onto their
+// string equivalents. Both sides are compile-time constants.
+func enumCaseExpression(spec legacyEnumColumn) string {
+	ordinals := make([]int, 0, len(spec.Values))
+	for ordinal := range spec.Values {
+		ordinals = append(ordinals, ordinal)
+	}
+	sort.Ints(ordinals)
+
+	var builder strings.Builder
+	builder.WriteString("CASE ")
+	for _, ordinal := range ordinals {
+		fmt.Fprintf(&builder, "WHEN %s = %d THEN '%s' ", spec.Column, ordinal, spec.Values[ordinal])
+	}
+	builder.WriteString("ELSE '' END")
+	return builder.String()
+}
+
+// columnIsInteger reports whether the column still holds the legacy integer
+// type. A table or column that does not exist yet reports false.
+func columnIsInteger(db *gorm.DB, table, column string) (bool, error) {
+	var dataType string
+	err := db.Raw(
+		`SELECT data_type FROM information_schema.columns
+		 WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
+		table, column,
+	).Scan(&dataType).Error
+	if err != nil {
+		return false, err
+	}
+	switch dataType {
+	case "smallint", "integer", "bigint":
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func safeRenameIndex(db *gorm.DB, _, oldName, newName string) {
@@ -346,15 +463,78 @@ $$ LANGUAGE plpgsql;`,
 		return err
 	}
 
-	backfillSQL := fmt.Sprintf("UPDATE %s SET searchable = %s", spec.Table, buildSearchableExpression(spec.Terms, ""))
-	if err := db.Exec(backfillSQL).Error; err != nil {
-		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to backfill searchable column")
+	if err := backfillSearchable(ctx, db, spec); err != nil {
 		return err
 	}
 
 	indexSQL := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s USING GIN (searchable)", indexName, spec.Table)
 	if err := db.Exec(indexSQL).Error; err != nil {
 		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to create searchable index")
+		return err
+	}
+
+	return nil
+}
+
+// searchableSpecsTable records the tsvector expression each table was last
+// backfilled with.
+const searchableSpecsTable = "searchable_column_specs"
+
+// backfillSearchable populates the searchable column.
+//
+// The trigger keeps rows current from here on, so normally only rows that never
+// had the column populated need rewriting, and an unconditional UPDATE would
+// rewrite every table on every deploy while holding the migration lock. But
+// when the expression itself changes, the rows written under the old expression
+// are stale and `WHERE searchable IS NULL` skips every one of them — the
+// searches silently keep matching on the old weights and columns. So the
+// expression is hashed and recorded; a changed hash rewrites the whole table
+// exactly once.
+func backfillSearchable(ctx context.Context, db *gorm.DB, spec searchableSpec) error {
+	expression := buildSearchableExpression(spec.Terms, "")
+
+	if err := db.Exec(fmt.Sprintf(
+		`CREATE TABLE IF NOT EXISTS %s (
+			table_name text PRIMARY KEY,
+			expression_hash text NOT NULL,
+			updated_at timestamptz NOT NULL DEFAULT now()
+		)`, searchableSpecsTable,
+	)).Error; err != nil {
+		util.Log(ctx).WithError(err).Error("failed to create searchable spec table")
+		return err
+	}
+
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(expression)))
+
+	var storedHash string
+	if err := db.Raw(
+		"SELECT expression_hash FROM "+searchableSpecsTable+" WHERE table_name = ?", spec.Table,
+	).Scan(&storedHash).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to read searchable spec hash")
+		return err
+	}
+
+	where := "WHERE searchable IS NULL"
+	if storedHash != hash {
+		util.Log(ctx).
+			WithField("table", spec.Table).
+			Info("searchable expression changed -- rewriting every row")
+		where = ""
+	}
+
+	backfillSQL := fmt.Sprintf("UPDATE %s SET searchable = %s %s", spec.Table, expression, where)
+	if err := db.Exec(backfillSQL).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to backfill searchable column")
+		return err
+	}
+
+	if err := db.Exec(fmt.Sprintf(
+		`INSERT INTO %s (table_name, expression_hash, updated_at) VALUES (?, ?, now())
+		 ON CONFLICT (table_name) DO UPDATE SET expression_hash = EXCLUDED.expression_hash,
+		                                        updated_at = EXCLUDED.updated_at`,
+		searchableSpecsTable,
+	), spec.Table, hash).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to record searchable spec hash")
 		return err
 	}
 

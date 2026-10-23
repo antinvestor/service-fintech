@@ -1,0 +1,12 @@
+The Manrope and Inter font files in this directory are distributed under the
+SIL Open Font License, Version 1.1 (https://openfontlicense.org).
+
+  Manrope — Copyright (c) 2018 The Manrope Project Authors
+            https://github.com/sharanda/manrope
+  Inter   — Copyright (c) 2016 The Inter Project Authors
+            https://github.com/rsms/inter
+
+They are bundled rather than fetched from fonts.googleapis.com at runtime so
+that the app makes no third-party request on page load: that request is both a
+privacy exposure for a fintech console and something a strict Content Security
+Policy blocks outright.

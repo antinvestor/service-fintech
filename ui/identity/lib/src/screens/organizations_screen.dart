@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
-import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +9,8 @@ import 'package:go_router/go_router.dart';
 
 import '../providers/organization_providers.dart';
 import 'organization_form_wizard.dart';
+import '../widgets/async_state_views.dart';
+import '../widgets/load_more_action.dart';
 
 // ---------------------------------------------------------------------------
 // Public helpers
@@ -17,22 +18,41 @@ import 'organization_form_wizard.dart';
 
 /// Human-readable label for OrganizationType.
 String orgTypeLabel(OrganizationType type) => switch (type) {
-      OrganizationType.ORGANIZATION_TYPE_UNSPECIFIED => 'Not specified',
-      OrganizationType.ORGANIZATION_TYPE_BANK => 'Bank',
-      OrganizationType.ORGANIZATION_TYPE_MICROFINANCE => 'Microfinance',
-      OrganizationType.ORGANIZATION_TYPE_SACCO => 'SACCO',
-      OrganizationType.ORGANIZATION_TYPE_FINTECH => 'Fintech',
-      OrganizationType.ORGANIZATION_TYPE_COOPERATIVE => 'Cooperative',
-      OrganizationType.ORGANIZATION_TYPE_NGO => 'NGO',
-      OrganizationType.ORGANIZATION_TYPE_GOVERNMENT => 'Government',
-      OrganizationType.ORGANIZATION_TYPE_OTHER => 'Other',
-      OrganizationType.ORGANIZATION_TYPE_TRADING => 'Trading',
-      OrganizationType.ORGANIZATION_TYPE_RETAIL => 'Retail',
-      OrganizationType.ORGANIZATION_TYPE_MANUFACTURING => 'Manufacturing',
-      OrganizationType.ORGANIZATION_TYPE_LOGISTICS => 'Logistics',
-      OrganizationType.ORGANIZATION_TYPE_SERVICES => 'Services',
-      _ => type.name,
-    };
+  OrganizationType.ORGANIZATION_TYPE_UNSPECIFIED => 'Not specified',
+  OrganizationType.ORGANIZATION_TYPE_BANK => 'Bank',
+  OrganizationType.ORGANIZATION_TYPE_MICROFINANCE => 'Microfinance',
+  OrganizationType.ORGANIZATION_TYPE_SACCO => 'SACCO',
+  OrganizationType.ORGANIZATION_TYPE_FINTECH => 'Fintech',
+  OrganizationType.ORGANIZATION_TYPE_COOPERATIVE => 'Cooperative',
+  OrganizationType.ORGANIZATION_TYPE_NGO => 'NGO',
+  OrganizationType.ORGANIZATION_TYPE_GOVERNMENT => 'Government',
+  OrganizationType.ORGANIZATION_TYPE_OTHER => 'Other',
+  OrganizationType.ORGANIZATION_TYPE_TRADING => 'Trading',
+  OrganizationType.ORGANIZATION_TYPE_RETAIL => 'Retail',
+  OrganizationType.ORGANIZATION_TYPE_MANUFACTURING => 'Manufacturing',
+  OrganizationType.ORGANIZATION_TYPE_LOGISTICS => 'Logistics',
+  OrganizationType.ORGANIZATION_TYPE_SERVICES => 'Services',
+  _ => type.name,
+};
+
+/// Every organization type a user may pick, in the order the dropdown shows
+/// them. Kept exhaustive against the proto enum by a test.
+const List<OrganizationType> organizationTypeOptions = [
+  OrganizationType.ORGANIZATION_TYPE_UNSPECIFIED,
+  OrganizationType.ORGANIZATION_TYPE_BANK,
+  OrganizationType.ORGANIZATION_TYPE_MICROFINANCE,
+  OrganizationType.ORGANIZATION_TYPE_SACCO,
+  OrganizationType.ORGANIZATION_TYPE_FINTECH,
+  OrganizationType.ORGANIZATION_TYPE_COOPERATIVE,
+  OrganizationType.ORGANIZATION_TYPE_NGO,
+  OrganizationType.ORGANIZATION_TYPE_GOVERNMENT,
+  OrganizationType.ORGANIZATION_TYPE_TRADING,
+  OrganizationType.ORGANIZATION_TYPE_RETAIL,
+  OrganizationType.ORGANIZATION_TYPE_MANUFACTURING,
+  OrganizationType.ORGANIZATION_TYPE_LOGISTICS,
+  OrganizationType.ORGANIZATION_TYPE_SERVICES,
+  OrganizationType.ORGANIZATION_TYPE_OTHER,
+];
 
 // ---------------------------------------------------------------------------
 // Organizations list screen
@@ -67,8 +87,24 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final organizationsAsync = ref.watch(organizationListProvider(_query));
-    final organizations = organizationsAsync.whenOrNull(data: (d) => d) ?? [];
+    final provider = organizationPagedListProvider(_query);
+    final organizationsAsync = ref.watch(provider);
+    if (organizationsAsync.hasError) {
+      return ListErrorView(
+        title: 'Organizations',
+        breadcrumbs: const ['Identity', 'Organizations'],
+        error: organizationsAsync.error!,
+        onRetry: () => ref.invalidate(provider),
+      );
+    }
+    if (organizationsAsync.isLoading && !organizationsAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'Organizations',
+        breadcrumbs: ['Identity', 'Organizations'],
+      );
+    }
+    final page = organizationsAsync.requireValue;
+    final organizations = page.items;
 
     return AdminEntityListPage<OrganizationObject>(
       title: 'Organizations',
@@ -80,6 +116,17 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       ],
       items: organizations,
       onSearch: (value) => setState(() => _query = value.trim()),
+      actions: [
+        LoadMoreAction(
+          loadedCount: organizations.length,
+          hasMore: page.hasMore,
+          isLoading: page.isLoadingMore,
+          errorMessage: page.loadMoreError == null
+              ? null
+              : friendlyError(page.loadMoreError!),
+          onLoadMore: () => ref.read(provider.notifier).loadMore(),
+        ),
+      ],
       addLabel: widget.canManage ? 'Add Organization' : null,
       onAdd: widget.canManage
           ? () => _showOrganizationDialog(context, ref)
@@ -95,11 +142,14 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.account_balance,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.primary),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.account_balance,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(org.name),
@@ -136,20 +186,18 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         onPickLogo: widget.onPickLogo,
         onSave: (result) async {
           try {
-            final tenancy = ref.read(tenancyContextProvider);
             final org = result.organization;
             org.profileId = result.profileId;
-            if (org.partitionId.isEmpty) {
-              org.partitionId = tenancy.partitionId;
-            }
+            // partition_id is assigned by the server from the caller's
+            // claims; sending one from here is ignored at best.
+            org.clearPartitionId();
 
-            await ref
-                .read(organizationNotifierProvider.notifier)
-                .save(org);
+            await ref.read(organizationNotifierProvider.notifier).save(org);
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                    content: Text('Organization created successfully')),
+                  content: Text('Organization created successfully'),
+                ),
               );
             }
           } catch (e) {
@@ -188,21 +236,29 @@ class _OrganizationDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(Icons.account_balance,
-                  color: theme.colorScheme.primary),
+              child: Icon(
+                Icons.account_balance,
+                color: theme.colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(organization.name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(organization.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    organization.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    organization.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -210,19 +266,21 @@ class _OrganizationDetail extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         _DetailRow(
-            label: 'Type',
-            value: orgTypeLabel(organization.organizationType)),
+          label: 'Type',
+          value: orgTypeLabel(organization.organizationType),
+        ),
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Row(
             children: [
               SizedBox(
                 width: 100,
-                child: Text('State',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant)),
+                child: Text(
+                  'State',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
               _StatePill(organization.state),
             ],
@@ -249,21 +307,18 @@ class _StatePill extends StatelessWidget {
     final theme = Theme.of(context);
     final (Color bg, Color fg) = switch (label) {
       'ACTIVE' => (
-          theme.colorScheme.tertiary.withAlpha(20),
-          theme.colorScheme.tertiary
-        ),
+        theme.colorScheme.tertiary.withAlpha(20),
+        theme.colorScheme.tertiary,
+      ),
       'CREATED' => (
-          theme.colorScheme.secondary.withAlpha(20),
-          theme.colorScheme.secondary
-        ),
+        theme.colorScheme.secondary.withAlpha(20),
+        theme.colorScheme.secondary,
+      ),
       'INACTIVE' || 'DELETED' => (
-          theme.colorScheme.error.withAlpha(20),
-          theme.colorScheme.error
-        ),
-      _ => (
-          theme.colorScheme.outline.withAlpha(20),
-          theme.colorScheme.outline
-        ),
+        theme.colorScheme.error.withAlpha(20),
+        theme.colorScheme.error,
+      ),
+      _ => (theme.colorScheme.outline.withAlpha(20), theme.colorScheme.outline),
     };
 
     return Container(
@@ -298,14 +353,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),

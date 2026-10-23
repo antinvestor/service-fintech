@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"strings"
 
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
 	fieldpb "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
@@ -40,11 +41,10 @@ import (
 	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/frame/v2/security/authorizer"
 	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
+	"github.com/pitabwire/frame/v2/security/interceptors/httptor"
 	"github.com/pitabwire/frame/v2/setup"
 	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
-
-	"github.com/antinvestor/common/audit"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/identity/config"
 	"github.com/antinvestor/service-fintech/apps/identity/service/authz"
@@ -52,6 +52,10 @@ import (
 	identityevents "github.com/antinvestor/service-fintech/apps/identity/service/events"
 	"github.com/antinvestor/service-fintech/apps/identity/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/bootcheck"
+	"github.com/antinvestor/service-fintech/pkg/clients"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 )
 
 func main() {
@@ -67,14 +71,24 @@ func main() {
 		cfg.ServiceName = "service_identity"
 	}
 
+	// Refuse to serve on an environment that is unsafe outside local
+	// development (docs/runbook/required-environment.md).
+	if err = bootcheck.Validate(tmpCtx, &cfg); err != nil {
+		util.Log(tmpCtx).WithError(err).Fatal("environment is not deployment-safe")
+	}
+
 	ctx, svc := frame.NewServiceWithContext(
 		tmpCtx,
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
 
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -93,6 +107,13 @@ func main() {
 	}
 
 	sm := svc.SecurityManager()
+
+	// RPC-level audit delivery. Required when running securely; a nil client
+	// is tolerated (and logged) only for local development.
+	auditCli, err := clients.ResolveAuditClient(ctx, &cfg, cfg.IsRunSecurely(), cfg.AuditConfig)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup audit client")
+	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
@@ -138,6 +159,7 @@ func main() {
 		partitionCli,
 		authContractCli,
 		profileCli,
+		auditCli,
 	)
 
 	svc.Init(ctx, serviceOptions...)
@@ -159,6 +181,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	partitionCli tenancyv1connect.TenancyServiceClient,
 	authContractCli tenancyv2connect.AuthContractServiceClient,
 	profileCli profilev1connect.ProfileServiceClient,
+	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	organizationRepo := repository.NewOrganizationRepository(ctx, dbPool, workMan)
 	orgUnitRepo := repository.NewOrgUnitRepository(ctx, dbPool, workMan)
@@ -230,7 +253,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		accessRoleAssignmentRepo,
 		partitionCli,
 	)
-	groupBusiness := business.NewClientGroupBusiness(ctx, evtsMan, agentRepo, groupRepo)
+	groupBusiness := business.NewClientGroupBusiness(ctx, evtsMan, workforceMemberRepo, orgUnitRepo, groupRepo)
 	membershipBusiness := business.NewMembershipBusiness(ctx, evtsMan, groupRepo, membershipRepo)
 	investorBusiness := business.NewInvestorBusiness(ctx, evtsMan, investorRepo)
 	clientDataBusiness := business.NewClientDataBusiness(ctx, evtsMan, clientDataEntryRepo, clientDataHistoryRepo)
@@ -243,6 +266,9 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	clientRelationshipRepo := repository.NewClientRelationshipRepository(ctx, dbPool, workMan)
 	clientRelationshipBusiness := business.NewClientRelationshipBusiness(ctx, evtsMan, clientRelationshipRepo)
 
+	if cfg.IsRunSecurely() && strings.TrimSpace(cfg.OAuthRedirectURIs) == "" {
+		util.Log(ctx).Fatal("main -- OAUTH_REDIRECT_URIS must be set when RUN_SERVICE_SECURELY=true")
+	}
 	oauthRedirectURIs := strings.Split(cfg.OAuthRedirectURIs, ",")
 	oauthAudiences := strings.Split(cfg.OAuthAudiences, ",")
 	loginClientBusiness := business.NewLoginClientBusiness(
@@ -256,6 +282,8 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		loginClientBusiness, clientDataBusiness,
 		formTemplateBusiness, formSubmissionBusiness,
 		clientRelationshipBusiness,
+		auditCli,
+		oauthRedirectURIs,
 	)
 
 	// Runtime options only — permissions are registered exclusively in the
@@ -349,6 +377,8 @@ func setupConnectServer(
 	formTemplateBusiness business.FormTemplateBusiness,
 	formSubmissionBusiness business.FormSubmissionBusiness,
 	clientRelationshipBusiness business.ClientRelationshipBusiness,
+	auditCli auditv1connect.AuditServiceClient,
+	loginRedirectURIs []string,
 ) http.Handler {
 	// Create handlers with injected dependencies
 	identityHandler := handlers.NewIdentityServer(
@@ -395,13 +425,14 @@ func setupConnectServer(
 	)
 
 	// Layer 3: Audit interceptor logs all non-idempotent calls and failed reads.
-	identityAuditInterceptor := audit.NewInterceptor("service_identity", nil)
-	fieldAuditInterceptor := audit.NewInterceptor("service_field", nil)
+	identityAuditInterceptor := clients.AuditInterceptor("service_identity", auditCli)
+	fieldAuditInterceptor := clients.AuditInterceptor("service_field", auditCli)
 
 	identityInterceptorList, err := connectInterceptors.DefaultList(
 		ctx,
 		sm.GetAuthenticator(ctx),
 		tenancyAccessInterceptor,
+		tenantassert.Interceptor(),
 		identityFunctionAccessInterceptor,
 		identityAuditInterceptor,
 	)
@@ -411,7 +442,7 @@ func setupConnectServer(
 
 	fieldInterceptorList, err := connectInterceptors.DefaultList(
 		ctx, sm.GetAuthenticator(ctx),
-		tenancyAccessInterceptor, fieldFunctionAccessInterceptor, fieldAuditInterceptor)
+		tenancyAccessInterceptor, tenantassert.Interceptor(), fieldFunctionAccessInterceptor, fieldAuditInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create field interceptors")
 	}
@@ -426,13 +457,29 @@ func setupConnectServer(
 	)
 	fieldPath, fieldServerHandler := fieldv1connect.NewFieldServiceHandler(fieldHandler, fieldInterceptorOption)
 
-	// Login targets endpoint — unauthenticated, no interceptors
-	loginTargetsHandler := handlers.NewLoginTargetsHandler(loginClientBusiness)
+	// Login targets: pre-login, so no authenticator; origin-restricted and rate limited instead.
+	loginTargetsHandler := handlers.NewLoginTargetsHandler(loginClientBusiness, loginRedirectURIs)
 
 	mux := http.NewServeMux()
 	mux.Handle(identityPath, identityServerHandler)
 	mux.Handle(fieldPath, fieldServerHandler)
 	mux.Handle("/api/v1/login-targets/", loginTargetsHandler)
+	mountUICapabilities(mux, sm.GetAuthenticator(ctx), auth)
 
 	return mux
+}
+
+// mountUICapabilities exposes the UI capability endpoints behind the same
+// authenticator the Connect handlers use, answered by the same authorizer the
+// function access interceptors check against.
+func mountUICapabilities(mux *http.ServeMux, authenticator security.Authenticator, auth security.Authorizer) {
+	capabilities := handlers.NewUICapabilitiesHandler(
+		handlers.NewCapabilityChecker(auth),
+		handlers.ServiceNamespaceCatalog(),
+	)
+	authenticated := func(next http.HandlerFunc) http.Handler {
+		return httptor.AuthenticationMiddleware(next, authenticator)
+	}
+	mux.Handle(handlers.CapabilitiesPath, authenticated(capabilities.List))
+	mux.Handle(handlers.CapabilitiesBatchCheckPath, authenticated(capabilities.BatchCheck))
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package events
+package events //nolint:dupl // similar event handlers for different entity types
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const BranchSaveEvent = "branch.save"
@@ -57,19 +58,9 @@ func (e *BranchSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "branch_id": branch.GetID()})
 	defer logger.Release()
 
-	_, getErr := e.branchRepo.GetByID(ctx, branch.GetID())
-	if getErr != nil {
-		err := e.branchRepo.Create(ctx, branch)
-		if err != nil {
-			logger.WithError(err).Error("could not create branch in db")
-			return err
-		}
-	} else {
-		_, err := e.branchRepo.Update(ctx, branch)
-		if err != nil {
-			logger.WithError(err).Error("could not update branch in db")
-			return err
-		}
+	if err := upsert.ByID(ctx, e.branchRepo, branch); err != nil {
+		logger.WithError(err).Error("could not save branch in db")
+		return err
 	}
 
 	return nil

@@ -27,9 +27,15 @@ import (
 // LoanAccount
 // ---------------------------------------------------------------------------
 
+// LoanAccount is a disbursed or pending loan.
+//
+// Uniqueness on this table, and on the others in this package, is
+// partition-scoped and lives in apps/loans/migrations rather than in these
+// tags: a unique index declared here is enforced across every tenant in the
+// table, which row-level security does not narrow.
 type LoanAccount struct {
 	data.BaseModel
-	LoanRequestID                 string `gorm:"type:varchar(50);uniqueIndex:uq_loan_request"`
+	LoanRequestID                 string `gorm:"type:varchar(50);index:idx_la_loan_request"`
 	ProductID                     string `gorm:"type:varchar(50);index:idx_la_product"`
 	ClientID                      string `gorm:"type:varchar(50);index:idx_la_client"`
 	AgentID                       string `gorm:"type:varchar(50);index:idx_la_agent"`
@@ -286,7 +292,7 @@ func ScheduleEntryFromAPI(ctx context.Context, obj *loansv1.ScheduleEntryObject)
 
 type LoanBalance struct {
 	data.BaseModel
-	LoanAccountID        string `gorm:"type:varchar(50);uniqueIndex:uq_lb_loan"`
+	LoanAccountID        string `gorm:"type:varchar(50);index:idx_lb_loan"`
 	CurrencyCode         string `gorm:"type:varchar(3)"`
 	PrincipalOutstanding int64
 	InterestAccrued      int64
@@ -323,7 +329,7 @@ type LoanProduct struct {
 	data.BaseModel
 	OrganizationID       string `gorm:"type:varchar(50);index:idx_lp_organization"`
 	Name                 string `gorm:"type:varchar(255)"`
-	Code                 string `gorm:"type:varchar(50);uniqueIndex:uq_lp_code"`
+	Code                 string `gorm:"type:varchar(50);index:idx_lp_code"`
 	Description          string `gorm:"type:text"`
 	ProductType          int32
 	CurrencyCode         string `gorm:"type:varchar(3)"`
@@ -442,7 +448,7 @@ type Repayment struct {
 	FeesApplied         int64
 	PenaltiesApplied    int64
 	ExcessAmount        int64
-	IdempotencyKey      string `gorm:"type:varchar(100);uniqueIndex:uq_rep_idem"`
+	IdempotencyKey      string `gorm:"type:varchar(100);index:idx_rep_idem"`
 	Properties          data.JSONMap
 }
 
@@ -701,7 +707,7 @@ type Disbursement struct {
 	Channel             string `gorm:"type:varchar(50)"`
 	RecipientReference  string `gorm:"type:varchar(100)"`
 	FailureReason       string `gorm:"type:text"`
-	IdempotencyKey      string `gorm:"type:varchar(100);uniqueIndex:uq_disb_idem"`
+	IdempotencyKey      string `gorm:"type:varchar(100);index:idx_disb_idem"`
 	Properties          data.JSONMap
 }
 

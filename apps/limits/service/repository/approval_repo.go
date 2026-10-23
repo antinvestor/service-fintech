@@ -16,6 +16,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/pitabwire/frame/v2/datastore"
@@ -24,18 +25,29 @@ import (
 	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 )
+
+// ErrApprovalNotPending is returned when a status transition finds no
+// pending row to act on (already decided, expired, or missing).
+var ErrApprovalNotPending = errors.New("approval request: not pending")
 
 // ApprovalRequestRepository persists ApprovalRequest rows.
 type ApprovalRequestRepository interface {
 	Create(ctx context.Context, ar *models.ApprovalRequest) error
 	GetByID(ctx context.Context, id string) (*models.ApprovalRequest, error)
 	ListByReservation(ctx context.Context, reservationID string) ([]*models.ApprovalRequest, error)
+	// SetStatus transitions a pending approval request. It is guarded on the
+	// current status so concurrent reaper replicas cannot double-transition
+	// the same row; ErrApprovalNotPending is returned when no row matched.
 	SetStatus(ctx context.Context, id string, status models.ApprovalStatus, decidedAt *time.Time) error
 	// SetStatusTx runs SetStatus inside caller-supplied tx.
 	SetStatusTx(ctx context.Context, tx *gorm.DB, id string, status models.ApprovalStatus, decidedAt *time.Time) error
+	// GetForUpdateTx reads an approval request inside tx with a row-level
+	// lock, serialising concurrent quorum decisions on the same request.
+	GetForUpdateTx(ctx context.Context, tx *gorm.DB, id string) (*models.ApprovalRequest, error)
 	ListExpired(ctx context.Context, before time.Time, limit int) ([]*models.ApprovalRequest, error)
 	Search(ctx context.Context, f ApprovalSearchFilter, limit int, cursor string) (*ApprovalSearchResult, error)
 }
@@ -59,6 +71,9 @@ type ApprovalDecisionRepository interface {
 	// RecordDecisionTx runs RecordDecision inside caller-supplied tx.
 	RecordDecisionTx(ctx context.Context, tx *gorm.DB, d *models.ApprovalDecision) error
 	ListDecisions(ctx context.Context, approvalRequestID string) ([]*models.ApprovalDecision, error)
+	// ListDecisionsFor loads the decisions for a whole page of approval
+	// requests in one query, keyed by approval_request_id.
+	ListDecisionsFor(ctx context.Context, approvalRequestIDs []string) (map[string][]*models.ApprovalDecision, error)
 	// ListDecisionsTx runs ListDecisions inside caller-supplied tx.
 	ListDecisionsTx(ctx context.Context, tx *gorm.DB, approvalRequestID string) ([]*models.ApprovalDecision, error)
 }
@@ -115,9 +130,16 @@ func (r *approvalRequestRepository) SetStatus(
 	if decidedAt != nil {
 		updates["decided_at"] = decidedAt
 	}
-	return db.Table(models.ApprovalRequest{}.TableName()).
-		Where("id = ?", id).
-		Updates(updates).Error
+	res := db.Table(models.ApprovalRequest{}.TableName()).
+		Where("id = ? AND status = ?", id, string(models.ApprovalStatusPending)).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrApprovalNotPending
+	}
+	return nil
 }
 
 func (r *approvalRequestRepository) SetStatusTx(
@@ -134,9 +156,32 @@ func (r *approvalRequestRepository) SetStatusTx(
 	if decidedAt != nil {
 		updates["decided_at"] = decidedAt
 	}
-	return tx.Table(models.ApprovalRequest{}.TableName()).
+	res := tx.Table(models.ApprovalRequest{}.TableName()).
+		Where("id = ? AND status = ?", id, string(models.ApprovalStatusPending)).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrApprovalNotPending
+	}
+	return nil
+}
+
+func (r *approvalRequestRepository) GetForUpdateTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	id string,
+) (*models.ApprovalRequest, error) {
+	var out models.ApprovalRequest
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id = ?", id).
-		Updates(updates).Error
+		First(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (r *approvalRequestRepository) ListExpired(
@@ -244,6 +289,28 @@ func (r *approvalDecisionRepository) ListDecisions(
 		Order("decided_at ASC").
 		Find(&rows).Error
 	return rows, err
+}
+
+func (r *approvalDecisionRepository) ListDecisionsFor(
+	ctx context.Context,
+	approvalRequestIDs []string,
+) (map[string][]*models.ApprovalDecision, error) {
+	out := map[string][]*models.ApprovalDecision{}
+	if len(approvalRequestIDs) == 0 {
+		return out, nil
+	}
+	var rows []*models.ApprovalDecision
+	err := r.dbPool.DB(ctx, true).
+		Where("approval_request_id IN ?", approvalRequestIDs).
+		Order("decided_at ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.ApprovalRequestID] = append(out[row.ApprovalRequestID], row)
+	}
+	return out, nil
 }
 
 func (r *approvalDecisionRepository) ListDecisionsTx(

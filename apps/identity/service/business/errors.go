@@ -86,7 +86,22 @@ var (
 		"member already has an active primary team membership",
 	)
 	ErrInvalidAccessScope = apperrors.NewError(apperrors.BadRequest, "invalid access scope")
-	ErrInvalidRoleKey     = apperrors.NewError(apperrors.BadRequest, "role key is required")
+	ErrInvalidRoleKey     = apperrors.NewError(
+		apperrors.BadRequest,
+		"role key is not one of the roles this service defines",
+	)
+	ErrGlobalScopeForbidden = apperrors.NewError(
+		apperrors.Forbidden,
+		"only a global identity administrator may grant a global scoped role",
+	)
+	ErrSelfRoleGrant = apperrors.NewError(
+		apperrors.Forbidden,
+		"a caller cannot grant an access role to itself",
+	)
+	ErrInvalidPlatformRole = apperrors.NewError(
+		apperrors.BadRequest,
+		"platform role is not one of the roles this service defines",
+	)
 
 	ErrCreditLimitNegative     = apperrors.NewError(apperrors.BadRequest, "credit limit cannot be negative")
 	ErrAgentLimitExceedsSystem = apperrors.NewError(
@@ -128,6 +143,10 @@ var (
 		apperrors.Unprocessable,
 		"approval case is not pending approval",
 	)
+	ErrApprovalCaseSelfReview = apperrors.NewError(
+		apperrors.Forbidden,
+		"an approval case cannot be reviewed by someone who already acted on it",
+	)
 	ErrClientPhoneChangePending = apperrors.NewError(
 		apperrors.Conflict,
 		"a phone number change case is already pending for this client",
@@ -143,7 +162,11 @@ var (
 		"failed to create login client for partition",
 	)
 
-	ErrClientDataEntryNotFound  = apperrors.NewError(apperrors.NotFound, "client data entry not found")
+	ErrClientDataEntryNotFound = apperrors.NewError(apperrors.NotFound, "client data entry not found")
+	ErrClientDataEntryConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"client data entry was submitted concurrently; retry against the new revision",
+	)
 	ErrFormTemplateNotFound     = apperrors.NewError(apperrors.NotFound, "form template not found")
 	ErrFormTemplateNotDraft     = apperrors.NewError(apperrors.Unprocessable, "form template is not in draft status")
 	ErrFormTemplateNotPublished = apperrors.NewError(
@@ -159,5 +182,40 @@ var (
 		apperrors.BadRequest,
 		"file fields must contain content URIs from the files service, not inline base64 or data URI data; upload files directly to the files service first",
 	)
+	ErrFormSubmissionInvalidFileURI = apperrors.NewError(
+		apperrors.BadRequest,
+		"file fields must reference an https content URI with a host and no credentials",
+	)
 	ErrClientRelationshipNotFound = apperrors.NewError(apperrors.NotFound, "client relationship not found")
+
+	ErrReviewerUnidentified = apperrors.NewError(
+		apperrors.Unauthorised,
+		"the caller identity could not be resolved from the request credentials",
+	)
+	ErrClientDataEntryNotReviewable = apperrors.NewError(
+		apperrors.Unprocessable,
+		"client data entry has already reached a final verification status",
+	)
+	ErrClientDataEntryReviewConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"another decision was recorded on this client data entry first",
+	)
+	ErrReviewerIsSubmitter = apperrors.NewError(
+		apperrors.Forbidden,
+		"the submitter of a client data entry cannot review it",
+	)
+
+	ErrGroupOwnerRequired = apperrors.NewError(
+		apperrors.BadRequest,
+		"client group requires an owning workforce member",
+	)
+	ErrWorkforceMemberInactive = apperrors.NewError(
+		apperrors.Unprocessable,
+		"workforce member is not active",
+	)
+
+	ErrInvalidPageToken = apperrors.NewError(
+		apperrors.BadRequest,
+		"cursor page must be a non-negative integer",
+	)
 )

@@ -118,6 +118,22 @@ func (r *stubTransferOrderRepo) GetByReference(_ context.Context, _ string) (*mo
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (r *stubTransferOrderRepo) CreateIfAbsent(_ context.Context, _ *models.TransferOrder) error {
+	return nil
+}
+
+func (r *stubTransferOrderRepo) ClaimState(
+	_ context.Context,
+	_ string,
+	_ []int32,
+	toState int32,
+) (bool, error) {
+	if r.order != nil {
+		r.order.State = toState
+	}
+	return true, nil
+}
+
 var _ repository.TransferOrderRepository = (*stubTransferOrderRepo)(nil)
 
 // stubTransferLimitsClient implements limitsv1connect.LimitsServiceClient.

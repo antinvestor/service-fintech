@@ -18,11 +18,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/util"
-
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const DepositSaveEvent = "deposit.save"
@@ -55,22 +53,5 @@ func (e *DepositSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.Deposit")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "deposit_id": d.GetID()})
-	defer logger.Release()
-
-	existing, getErr := e.repo.GetByID(ctx, d.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.repo.Update(ctx, d); err != nil {
-			logger.WithError(err).Error("could not update deposit in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.repo.Create(ctx, d); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create deposit in db")
-		return err
-	}
-
-	return nil
+	return upsert.ByID(ctx, e.repo, d)
 }

@@ -17,7 +17,6 @@ package business
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -88,6 +87,12 @@ func (b *organizationBusiness) Save(
 		organization.PartitionID = b.createChildPartition(
 			ctx, logger, tenantID, parentPartitionID, organization.Name,
 		)
+	} else {
+		existing, getErr := b.organizationRepo.GetByID(ctx, organization.GetID())
+		if getErr != nil {
+			return nil, ErrOrganizationNotFound
+		}
+		applyStoredTenancy(organization, existing)
 	}
 
 	err := b.eventsMan.Emit(ctx, events.OrganizationSaveEvent, organization)
@@ -144,14 +149,11 @@ func (b *organizationBusiness) Search(
 
 	var searchOpts []data.SearchOption
 
-	cursor := searchQuery.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+	cursorOpts, cursorErr := cursorSearchOptions(searchQuery.GetCursor())
+	if cursorErr != nil {
+		return cursorErr
 	}
+	searchOpts = append(searchOpts, cursorOpts...)
 
 	allowedExtras := map[string]bool{
 		"partition_id": true,

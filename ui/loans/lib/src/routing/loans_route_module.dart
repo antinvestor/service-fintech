@@ -1,7 +1,9 @@
 import 'package:antinvestor_ui_core/navigation/nav_items.dart';
 import 'package:antinvestor_ui_core/permissions/permission_manifest.dart';
+import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:antinvestor_ui_core/routing/route_module.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../screens/dashboard_screen.dart';
@@ -20,140 +22,163 @@ class LoansRouteModule extends RouteModule {
 
   @override
   List<RouteBase> buildRoutes() => [
+    GoRoute(
+      path: '/loans',
+      builder: (context, state) => const LoanAccountsScreen(),
+      routes: [
         GoRoute(
-          path: '/loans',
-          builder: (context, state) => const LoanAccountsScreen(),
+          path: 'dashboard',
+          builder: (context, state) => const LoansDashboardScreen(),
+        ),
+        GoRoute(
+          path: 'products',
+          builder: (context, state) => Consumer(
+            builder: (context, ref, _) => LoanProductsScreen(
+              canManage: ref.watch(
+                hasPermissionProvider('loan_product_manage'),
+              ),
+            ),
+          ),
           routes: [
             GoRoute(
-              path: 'dashboard',
-              builder: (context, state) => const LoansDashboardScreen(),
-            ),
-            GoRoute(
-              path: 'products',
-              builder: (context, state) => const LoanProductsScreen(),
-              routes: [
-                GoRoute(
-                  path: ':productId',
-                  builder: (context, state) => LoanProductDetailScreen(
-                    productId: state.pathParameters['productId']!,
-                  ),
-                ),
-              ],
-            ),
-            GoRoute(
-              path: 'requests',
-              builder: (context, state) => const LoanRequestsScreen(),
-              routes: [
-                GoRoute(
-                  path: 'pending',
-                  builder: (context, state) =>
-                      const LoanRequestsScreen(pendingOnly: true),
-                ),
-                GoRoute(
-                  path: ':requestId',
-                  builder: (context, state) => LoanRequestDetailScreen(
-                    requestId: state.pathParameters['requestId']!,
-                  ),
-                ),
-              ],
-            ),
-            GoRoute(
-              path: ':loanId',
-              builder: (context, state) => LoanAccountDetailScreen(
-                loanId: state.pathParameters['loanId']!,
+              path: ':productId',
+              builder: (context, state) => LoanProductDetailScreen(
+                productId: state.pathParameters['productId']!,
               ),
             ),
           ],
         ),
         GoRoute(
-          path: '/reports/portfolio',
-          builder: (context, state) => const PortfolioSummaryScreen(),
+          path: 'requests',
+          builder: (context, state) => const LoanRequestsScreen(),
+          routes: [
+            GoRoute(
+              path: 'pending',
+              builder: (context, state) =>
+                  const LoanRequestsScreen(pendingOnly: true),
+            ),
+            GoRoute(
+              path: ':requestId',
+              builder: (context, state) => LoanRequestDetailScreen(
+                requestId: state.pathParameters['requestId']!,
+              ),
+            ),
+          ],
         ),
         GoRoute(
-          path: '/reports/loan-book',
-          builder: (context, state) => const LoanBookScreen(),
+          path: ':loanId',
+          // The privileged actions on a loan are gated on the permissions
+          // the caller actually holds, not shown to everyone who can read
+          // the loan and rejected by the service afterwards.
+          builder: (context, state) => Consumer(
+            builder: (context, ref, _) => LoanAccountDetailScreen(
+              loanId: state.pathParameters['loanId']!,
+              canManage: ref.watch(hasPermissionProvider('loan_manage')),
+              canRecordPayment: ref.watch(
+                hasPermissionProvider('repayment_manage'),
+              ),
+              canDisburse: ref.watch(
+                hasPermissionProvider('disbursement_manage'),
+              ),
+            ),
+          ),
         ),
-      ];
+      ],
+    ),
+    GoRoute(
+      path: '/reports/portfolio',
+      builder: (context, state) => const PortfolioSummaryScreen(),
+    ),
+    GoRoute(
+      path: '/reports/loan-book',
+      builder: (context, state) => const LoanBookScreen(),
+    ),
+  ];
 
   @override
   List<NavItem> buildNavItems() => [
-        const NavItem(
-          id: 'loans',
-          label: 'Loans',
-          icon: Icons.account_balance_wallet_outlined,
-          activeIcon: Icons.account_balance_wallet,
-          route: '/loans',
-          requiredPermissions: {'loan_view'},
-        ),
-        const NavItem(
-          id: 'loans_dashboard',
-          label: 'Dashboard',
-          icon: Icons.dashboard_outlined,
-          activeIcon: Icons.dashboard,
-          route: '/loans/dashboard',
-          requiredPermissions: {'loan_view'},
-        ),
-      ];
+    const NavItem(
+      id: 'loans',
+      label: 'Loans',
+      icon: Icons.account_balance_wallet_outlined,
+      activeIcon: Icons.account_balance_wallet,
+      route: '/loans',
+      requiredPermissions: {'loan_view'},
+    ),
+    const NavItem(
+      id: 'loans_dashboard',
+      label: 'Dashboard',
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard,
+      route: '/loans/dashboard',
+      requiredPermissions: {'loan_view'},
+    ),
+  ];
 
   @override
   Map<String, Set<String>> get routePermissions => {
-        '/loans': {'loan_view'},
-        '/loans/dashboard': {'loan_view'},
-        '/loans/products': {'loan_product_view'},
-        '/loans/requests': {'loan_request_view'},
-        '/reports/portfolio': {'portfolio_view'},
-        '/reports/loan-book': {'portfolio_view'},
-      };
+    '/loans': {'loan_view'},
+    '/loans/dashboard': {'loan_view'},
+    '/loans/products': {'loan_product_view'},
+    '/loans/requests': {'loan_request_view'},
+    '/reports/portfolio': {'portfolio_view'},
+    '/reports/loan-book': {'portfolio_export'},
+  };
 
   @override
   PermissionManifest get permissionManifest => const PermissionManifest(
-        namespace: 'service_loans',
-        permissions: [
-          PermissionEntry(
-            key: 'loan_view',
-            label: 'View Loans',
-            scope: PermissionScope.service,
-          ),
-          PermissionEntry(
-            key: 'loan_manage',
-            label: 'Manage Loans',
-            scope: PermissionScope.action,
-          ),
-          PermissionEntry(
-            key: 'loan_product_view',
-            label: 'View Loan Products',
-            scope: PermissionScope.feature,
-          ),
-          PermissionEntry(
-            key: 'loan_product_manage',
-            label: 'Manage Loan Products',
-            scope: PermissionScope.action,
-          ),
-          PermissionEntry(
-            key: 'loan_request_view',
-            label: 'View Loan Requests',
-            scope: PermissionScope.feature,
-          ),
-          PermissionEntry(
-            key: 'loan_request_manage',
-            label: 'Manage Loan Requests',
-            scope: PermissionScope.action,
-          ),
-          PermissionEntry(
-            key: 'repayment_record',
-            label: 'Record Repayments',
-            scope: PermissionScope.action,
-          ),
-          PermissionEntry(
-            key: 'disbursement_manage',
-            label: 'Manage Disbursements',
-            scope: PermissionScope.action,
-          ),
-          PermissionEntry(
-            key: 'portfolio_view',
-            label: 'View Portfolio Reports',
-            scope: PermissionScope.feature,
-          ),
-        ],
-      );
+    namespace: 'service_loans',
+    permissions: [
+      PermissionEntry(
+        key: 'loan_view',
+        label: 'View Loans',
+        scope: PermissionScope.service,
+      ),
+      PermissionEntry(
+        key: 'loan_manage',
+        label: 'Manage Loans',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
+        key: 'loan_product_view',
+        label: 'View Loan Products',
+        scope: PermissionScope.feature,
+      ),
+      PermissionEntry(
+        key: 'loan_product_manage',
+        label: 'Manage Loan Products',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
+        key: 'loan_request_view',
+        label: 'View Loan Requests',
+        scope: PermissionScope.feature,
+      ),
+      PermissionEntry(
+        key: 'loan_request_manage',
+        label: 'Manage Loan Requests',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
+        key: 'repayment_manage',
+        label: 'Record Repayments',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
+        key: 'disbursement_manage',
+        label: 'Manage Disbursements',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
+        key: 'portfolio_view',
+        label: 'View Portfolio Reports',
+        scope: PermissionScope.feature,
+      ),
+      PermissionEntry(
+        key: 'portfolio_export',
+        label: 'Export the Loan Book',
+        scope: PermissionScope.action,
+      ),
+    ],
+  );
 }

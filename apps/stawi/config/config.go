@@ -18,10 +18,16 @@ import (
 	"github.com/pitabwire/frame/v2/config"
 
 	"github.com/antinvestor/service-fintech/pkg/clients"
+	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 )
 
 type StawiConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
+
+	// Product policy: group size, tenure shape, leverage bounds, loan terms
+	// and fee rates, tunable per deployment without a release.
+	stawiproduct.ProductConfig
 
 	// Identity service
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                   env:"IDENTITY_SERVICE_URI"`

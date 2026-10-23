@@ -22,6 +22,7 @@ import (
 
 type OperationsConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
 
 	// Identity service
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                  env:"IDENTITY_SERVICE_URI"`

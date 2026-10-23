@@ -33,7 +33,8 @@ type stubArchival struct{}
 
 func (s *stubArchival) Run(_ context.Context) (int, int, error) { return 0, 0, nil }
 
-// stubAuthenticator always rejects tokens unless they equal "valid-token".
+// stubAuthenticator recognises two tokens: "valid-token" authenticates a plain
+// human operator, "service-token" a machine principal.
 type stubAuthenticator struct{}
 
 func (s *stubAuthenticator) Authenticate(
@@ -41,10 +42,22 @@ func (s *stubAuthenticator) Authenticate(
 	jwtToken string,
 	_ ...security.AuthOption,
 ) (context.Context, error) {
-	if jwtToken == "valid-token" {
-		return ctx, nil
+	switch jwtToken {
+	case "valid-token":
+		claims := &security.AuthenticationClaims{TenantID: "tenant-a", PartitionID: "partition-a"}
+		claims.Subject = "operator-1"
+		return claims.ClaimsToContext(ctx), nil
+	case "service-token":
+		claims := &security.AuthenticationClaims{
+			TenantID:    "tenant-a",
+			PartitionID: "partition-a",
+			ServiceName: "service_trustage",
+		}
+		claims.Subject = "service-trustage"
+		return claims.ClaimsToContext(ctx), nil
+	default:
+		return ctx, &authError{"invalid token"}
 	}
-	return ctx, &authError{"invalid token"}
 }
 
 type authError struct{ msg string }
@@ -103,10 +116,10 @@ func TestArchivalHandler_RejectsInvalidBearerToken(t *testing.T) {
 		"expected 403 when the bearer token fails authenticator validation")
 }
 
-// TestArchivalHandler_AcceptsValidToken asserts that a POST with a recognised
-// Bearer token passes authentication and reaches the inner handler.
-// The inner handler returns 200 with a JSON body even when no rows are deleted.
-func TestArchivalHandler_AcceptsValidToken(t *testing.T) {
+// TestArchivalHandler_RejectsHumanPrincipal asserts that authentication alone
+// is not enough: archival hard-deletes across every tenant, so an ordinary
+// operator token must be refused even though it is perfectly valid.
+func TestArchivalHandler_RejectsHumanPrincipal(t *testing.T) {
 	handler := archiveHandlerWithAuth(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/archive", nil)
@@ -115,9 +128,24 @@ func TestArchivalHandler_AcceptsValidToken(t *testing.T) {
 
 	handler.ServeHTTP(rec, req)
 
+	assert.Equal(t, http.StatusForbidden, rec.Code,
+		"a human operator token must not be able to run cross-tenant archival")
+}
+
+// TestArchivalHandler_AcceptsServiceAccount asserts that a machine principal
+// reaches the inner handler, which returns 200 with a JSON body.
+func TestArchivalHandler_AcceptsServiceAccount(t *testing.T) {
+	handler := archiveHandlerWithAuth(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/archive", nil)
+	req.Header.Set("Authorization", "Bearer service-token")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
 	// The stub archival returns (0,0,nil) so the inner handler succeeds.
 	assert.Equal(t, http.StatusOK, rec.Code,
-		"expected 200 for a POST with a valid bearer token")
+		"expected 200 for a POST from a service-account principal")
 	assert.Contains(t, rec.Header().Get("Content-Type"), "application/json",
 		"response should be JSON")
 }
@@ -128,7 +156,7 @@ func TestArchivalHandler_RejectsGetMethod(t *testing.T) {
 	handler := archiveHandlerWithAuth(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/archive", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Authorization", "Bearer service-token")
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)

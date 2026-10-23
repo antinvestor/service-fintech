@@ -363,4 +363,12 @@ class AuthPlatformIO implements AuthPlatform {
 
   @override
   Future<TokenResponse?> getRedirectResult() async => null;
+
+  @override
+  Uri? get postLogoutRedirectUri => null;
+
+  @override
+  Future<void> navigateToEndSession(Uri uri) async {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 }

@@ -19,10 +19,10 @@ import (
 	"errors"
 
 	"github.com/pitabwire/util"
-	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const CreditLimitChangeRequestSaveEvent = "credit_limit_change_request.save"
@@ -65,24 +65,8 @@ func (e *CreditLimitChangeRequestSave) Execute(ctx context.Context, payload any)
 	}
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "client_id": req.ClientID})
 
-	existing, err := e.repo.GetByID(ctx, req.ID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		logger.WithError(err).Error("failed to check existing record")
-		return err
-	}
-
-	if existing != nil && existing.GetID() != "" {
-		_, err = e.repo.Update(ctx, req)
-		if err != nil {
-			logger.WithError(err).Error("failed to update record")
-			return err
-		}
-		return nil
-	}
-
-	err = e.repo.Create(ctx, req)
-	if err != nil {
-		logger.WithError(err).Error("failed to create record")
+	if err := upsert.ByID(ctx, e.repo, req); err != nil {
+		logger.WithError(err).Error("failed to save credit limit change request")
 		return err
 	}
 	return nil

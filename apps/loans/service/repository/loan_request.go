@@ -16,10 +16,14 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
 	"github.com/pitabwire/frame/v2/workerpool"
+	"gorm.io/gorm"
+
+	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 )
@@ -28,6 +32,16 @@ type LoanRequestRepository interface {
 	datastore.BaseRepository[*models.LoanRequest]
 	GetByIdempotencyKey(ctx context.Context, key string) (*models.LoanRequest, error)
 	GetByLoanAccountID(ctx context.Context, loanAccountID string) (*models.LoanRequest, error)
+	// ClaimForLoanCreation moves an APPROVED request to LOAN_CREATED and
+	// stamps the loan account onto it, in one conditional statement. Only the
+	// first caller wins, which is what stops a second LoanAccountCreate from
+	// reserving funding twice.
+	ClaimForLoanCreation(ctx context.Context, requestID, loanAccountID string) (bool, error)
+	// ReleaseLoanCreationClaim puts a claimed request back to APPROVED when
+	// the loan it was claimed for could not be written, so the request can be
+	// retried instead of being stranded pointing at an account that does not
+	// exist.
+	ReleaseLoanCreationClaim(ctx context.Context, requestID, loanAccountID string) error
 }
 
 type loanRequestRepository struct {
@@ -66,4 +80,40 @@ func (repo *loanRequestRepository) GetByLoanAccountID(
 		return nil, err
 	}
 	return &lr, nil
+}
+
+func (repo *loanRequestRepository) ClaimForLoanCreation(
+	ctx context.Context,
+	requestID, loanAccountID string,
+) (bool, error) {
+	result := repo.Pool().DB(ctx, false).
+		Table("loan_requests").
+		Where("id = ? AND status = ? AND deleted_at IS NULL", requestID,
+			int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED)).
+		Updates(map[string]any{
+			colStatus:         int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_LOAN_CREATED),
+			"loan_account_id": loanAccountID,
+			colModifiedAt:     time.Now().UTC(),
+			colVersion:        gorm.Expr(colVersion + " + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (repo *loanRequestRepository) ReleaseLoanCreationClaim(
+	ctx context.Context,
+	requestID, loanAccountID string,
+) error {
+	return repo.Pool().DB(ctx, false).
+		Table("loan_requests").
+		Where("id = ? AND status = ? AND loan_account_id = ? AND deleted_at IS NULL", requestID,
+			int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_LOAN_CREATED), loanAccountID).
+		Updates(map[string]any{
+			colStatus:         int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED),
+			"loan_account_id": "",
+			colModifiedAt:     time.Now().UTC(),
+			colVersion:        gorm.Expr(colVersion + " + 1"),
+		}).Error
 }

@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const ClientGroupSaveEvent = "client_group.save"
@@ -58,17 +58,8 @@ func (e *ClientGroupSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "group_id": group.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.clientGroupRepo.GetByID(ctx, group.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.clientGroupRepo.Update(ctx, group); err != nil {
-			logger.WithError(err).Error("could not update client group in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.clientGroupRepo.Create(ctx, group); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create client group in db")
+	if err := upsert.ByID(ctx, e.clientGroupRepo, group); err != nil {
+		logger.WithError(err).Error("could not save client group in db")
 		return err
 	}
 

@@ -1163,10 +1163,14 @@ class PolicySearchRequest extends $pb.GeneratedMessage {
 class PolicySearchResponse extends $pb.GeneratedMessage {
   factory PolicySearchResponse({
     $core.Iterable<PolicyObject>? data,
+    $8.PageCursor? nextCursor,
   }) {
     final $result = create();
     if (data != null) {
       $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
     }
     return $result;
   }
@@ -1176,6 +1180,7 @@ class PolicySearchResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PolicySearchResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'), createEmptyInstance: create)
     ..pc<PolicyObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: PolicyObject.create)
+    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -1202,6 +1207,18 @@ class PolicySearchResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<PolicyObject> get data => $_getList(0);
+
+  /// Cursor for the next page; unset when this is the last page.
+  @$pb.TagNumber(2)
+  $8.PageCursor get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($8.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $8.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 class PolicyDeleteRequest extends $pb.GeneratedMessage {
@@ -1284,6 +1301,233 @@ class PolicyDeleteResponse extends $pb.GeneratedMessage {
   @$core.pragma('dart2js:noInline')
   static PolicyDeleteResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PolicyDeleteResponse>(create);
   static PolicyDeleteResponse? _defaultInstance;
+}
+
+/// PolicyVersionObject is one immutable snapshot from a policy's history.
+class PolicyVersionObject extends $pb.GeneratedMessage {
+  factory PolicyVersionObject({
+    $core.String? policyId,
+    $core.int? version,
+    PolicyObject? snapshot,
+    $2.Timestamp? createdAt,
+  }) {
+    final $result = create();
+    if (policyId != null) {
+      $result.policyId = policyId;
+    }
+    if (version != null) {
+      $result.version = version;
+    }
+    if (snapshot != null) {
+      $result.snapshot = snapshot;
+    }
+    if (createdAt != null) {
+      $result.createdAt = createdAt;
+    }
+    return $result;
+  }
+  PolicyVersionObject._() : super();
+  factory PolicyVersionObject.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory PolicyVersionObject.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PolicyVersionObject', package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'policyId')
+    ..a<$core.int>(2, _omitFieldNames ? '' : 'version', $pb.PbFieldType.O3)
+    ..aOM<PolicyObject>(3, _omitFieldNames ? '' : 'snapshot', subBuilder: PolicyObject.create)
+    ..aOM<$2.Timestamp>(4, _omitFieldNames ? '' : 'createdAt', subBuilder: $2.Timestamp.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  PolicyVersionObject clone() => PolicyVersionObject()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  PolicyVersionObject copyWith(void Function(PolicyVersionObject) updates) => super.copyWith((message) => updates(message as PolicyVersionObject)) as PolicyVersionObject;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PolicyVersionObject create() => PolicyVersionObject._();
+  PolicyVersionObject createEmptyInstance() => create();
+  static $pb.PbList<PolicyVersionObject> createRepeated() => $pb.PbList<PolicyVersionObject>();
+  @$core.pragma('dart2js:noInline')
+  static PolicyVersionObject getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PolicyVersionObject>(create);
+  static PolicyVersionObject? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get policyId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set policyId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasPolicyId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPolicyId() => clearField(1);
+
+  /// Monotonic per-policy snapshot number, 1 for the first save.
+  @$pb.TagNumber(2)
+  $core.int get version => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set version($core.int v) { $_setSignedInt32(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasVersion() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearVersion() => clearField(2);
+
+  @$pb.TagNumber(3)
+  PolicyObject get snapshot => $_getN(2);
+  @$pb.TagNumber(3)
+  set snapshot(PolicyObject v) { setField(3, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasSnapshot() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSnapshot() => clearField(3);
+  @$pb.TagNumber(3)
+  PolicyObject ensureSnapshot() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  $2.Timestamp get createdAt => $_getN(3);
+  @$pb.TagNumber(4)
+  set createdAt($2.Timestamp v) { setField(4, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasCreatedAt() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCreatedAt() => clearField(4);
+  @$pb.TagNumber(4)
+  $2.Timestamp ensureCreatedAt() => $_ensure(3);
+}
+
+class PolicyHistoryRequest extends $pb.GeneratedMessage {
+  factory PolicyHistoryRequest({
+    $core.String? policyId,
+    $8.PageCursor? cursor,
+  }) {
+    final $result = create();
+    if (policyId != null) {
+      $result.policyId = policyId;
+    }
+    if (cursor != null) {
+      $result.cursor = cursor;
+    }
+    return $result;
+  }
+  PolicyHistoryRequest._() : super();
+  factory PolicyHistoryRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory PolicyHistoryRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PolicyHistoryRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'policyId')
+    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'cursor', subBuilder: $8.PageCursor.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  PolicyHistoryRequest clone() => PolicyHistoryRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  PolicyHistoryRequest copyWith(void Function(PolicyHistoryRequest) updates) => super.copyWith((message) => updates(message as PolicyHistoryRequest)) as PolicyHistoryRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PolicyHistoryRequest create() => PolicyHistoryRequest._();
+  PolicyHistoryRequest createEmptyInstance() => create();
+  static $pb.PbList<PolicyHistoryRequest> createRepeated() => $pb.PbList<PolicyHistoryRequest>();
+  @$core.pragma('dart2js:noInline')
+  static PolicyHistoryRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PolicyHistoryRequest>(create);
+  static PolicyHistoryRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get policyId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set policyId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasPolicyId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPolicyId() => clearField(1);
+
+  /// cursor.page carries the last version number seen; cursor.limit the page size.
+  @$pb.TagNumber(2)
+  $8.PageCursor get cursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set cursor($8.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $8.PageCursor ensureCursor() => $_ensure(1);
+}
+
+class PolicyHistoryResponse extends $pb.GeneratedMessage {
+  factory PolicyHistoryResponse({
+    $core.Iterable<PolicyVersionObject>? data,
+    $8.PageCursor? nextCursor,
+  }) {
+    final $result = create();
+    if (data != null) {
+      $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
+    }
+    return $result;
+  }
+  PolicyHistoryResponse._() : super();
+  factory PolicyHistoryResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory PolicyHistoryResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PolicyHistoryResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'), createEmptyInstance: create)
+    ..pc<PolicyVersionObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: PolicyVersionObject.create)
+    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  PolicyHistoryResponse clone() => PolicyHistoryResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  PolicyHistoryResponse copyWith(void Function(PolicyHistoryResponse) updates) => super.copyWith((message) => updates(message as PolicyHistoryResponse)) as PolicyHistoryResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PolicyHistoryResponse create() => PolicyHistoryResponse._();
+  PolicyHistoryResponse createEmptyInstance() => create();
+  static $pb.PbList<PolicyHistoryResponse> createRepeated() => $pb.PbList<PolicyHistoryResponse>();
+  @$core.pragma('dart2js:noInline')
+  static PolicyHistoryResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PolicyHistoryResponse>(create);
+  static PolicyHistoryResponse? _defaultInstance;
+
+  /// Newest first.
+  @$pb.TagNumber(1)
+  $core.List<PolicyVersionObject> get data => $_getList(0);
+
+  /// Cursor for the next page; unset when this is the last page.
+  @$pb.TagNumber(2)
+  $8.PageCursor get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($8.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $8.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 class ApprovalDecisionObject extends $pb.GeneratedMessage {
@@ -1739,10 +1983,14 @@ class ApprovalRequestListRequest extends $pb.GeneratedMessage {
 class ApprovalRequestListResponse extends $pb.GeneratedMessage {
   factory ApprovalRequestListResponse({
     $core.Iterable<ApprovalRequestObject>? data,
+    $8.PageCursor? nextCursor,
   }) {
     final $result = create();
     if (data != null) {
       $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
     }
     return $result;
   }
@@ -1752,6 +2000,7 @@ class ApprovalRequestListResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ApprovalRequestListResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'), createEmptyInstance: create)
     ..pc<ApprovalRequestObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: ApprovalRequestObject.create)
+    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -1778,6 +2027,18 @@ class ApprovalRequestListResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<ApprovalRequestObject> get data => $_getList(0);
+
+  /// Cursor for the next page; unset when this is the last page.
+  @$pb.TagNumber(2)
+  $8.PageCursor get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($8.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $8.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 class ApprovalRequestGetRequest extends $pb.GeneratedMessage {
@@ -2351,10 +2612,14 @@ class LedgerSearchRequest extends $pb.GeneratedMessage {
 class LedgerSearchResponse extends $pb.GeneratedMessage {
   factory LedgerSearchResponse({
     $core.Iterable<LedgerEntryObject>? data,
+    $8.PageCursor? nextCursor,
   }) {
     final $result = create();
     if (data != null) {
       $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
     }
     return $result;
   }
@@ -2364,6 +2629,7 @@ class LedgerSearchResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'LedgerSearchResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'), createEmptyInstance: create)
     ..pc<LedgerEntryObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: LedgerEntryObject.create)
+    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -2390,6 +2656,18 @@ class LedgerSearchResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<LedgerEntryObject> get data => $_getList(0);
+
+  /// Cursor for the next page; unset when this is the last page.
+  @$pb.TagNumber(2)
+  $8.PageCursor get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($8.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $8.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 class LimitsAuditEventObject extends $pb.GeneratedMessage {
@@ -2567,6 +2845,7 @@ class LimitsAuditSearchRequest extends $pb.GeneratedMessage {
     $2.Timestamp? from,
     $2.Timestamp? to,
     $8.PageCursor? cursor,
+    $core.String? tenantId,
   }) {
     final $result = create();
     if (actions != null) {
@@ -2590,6 +2869,9 @@ class LimitsAuditSearchRequest extends $pb.GeneratedMessage {
     if (cursor != null) {
       $result.cursor = cursor;
     }
+    if (tenantId != null) {
+      $result.tenantId = tenantId;
+    }
     return $result;
   }
   LimitsAuditSearchRequest._() : super();
@@ -2604,6 +2886,7 @@ class LimitsAuditSearchRequest extends $pb.GeneratedMessage {
     ..aOM<$2.Timestamp>(5, _omitFieldNames ? '' : 'from', subBuilder: $2.Timestamp.create)
     ..aOM<$2.Timestamp>(6, _omitFieldNames ? '' : 'to', subBuilder: $2.Timestamp.create)
     ..aOM<$8.PageCursor>(7, _omitFieldNames ? '' : 'cursor', subBuilder: $8.PageCursor.create)
+    ..aOS(8, _omitFieldNames ? '' : 'tenantId')
     ..hasRequiredFields = false
   ;
 
@@ -2692,15 +2975,30 @@ class LimitsAuditSearchRequest extends $pb.GeneratedMessage {
   void clearCursor() => clearField(7);
   @$pb.TagNumber(7)
   $8.PageCursor ensureCursor() => $_ensure(6);
+
+  /// Tenant whose audit feed is requested. Non-internal callers may only name
+  /// their own tenant; the server derives it from claims when unset.
+  @$pb.TagNumber(8)
+  $core.String get tenantId => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set tenantId($core.String v) { $_setString(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasTenantId() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearTenantId() => clearField(8);
 }
 
 class LimitsAuditSearchResponse extends $pb.GeneratedMessage {
   factory LimitsAuditSearchResponse({
     $core.Iterable<LimitsAuditEventObject>? data,
+    $8.PageCursor? nextCursor,
   }) {
     final $result = create();
     if (data != null) {
       $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
     }
     return $result;
   }
@@ -2710,6 +3008,7 @@ class LimitsAuditSearchResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'LimitsAuditSearchResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'), createEmptyInstance: create)
     ..pc<LimitsAuditEventObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: LimitsAuditEventObject.create)
+    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -2736,6 +3035,18 @@ class LimitsAuditSearchResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<LimitsAuditEventObject> get data => $_getList(0);
+
+  /// Cursor for the next page; unset when this is the last page.
+  @$pb.TagNumber(2)
+  $8.PageCursor get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($8.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $8.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 class CheckRequest extends $pb.GeneratedMessage {
@@ -2914,6 +3225,8 @@ class ReservationObject extends $pb.GeneratedMessage {
     $2.Timestamp? ttlAt,
     $2.Timestamp? committedAt,
     $2.Timestamp? releasedAt,
+    $core.String? reversesReservationId,
+    $core.String? notes,
   }) {
     final $result = create();
     if (id != null) {
@@ -2958,6 +3271,12 @@ class ReservationObject extends $pb.GeneratedMessage {
     if (releasedAt != null) {
       $result.releasedAt = releasedAt;
     }
+    if (reversesReservationId != null) {
+      $result.reversesReservationId = reversesReservationId;
+    }
+    if (notes != null) {
+      $result.notes = notes;
+    }
     return $result;
   }
   ReservationObject._() : super();
@@ -2979,6 +3298,8 @@ class ReservationObject extends $pb.GeneratedMessage {
     ..aOM<$2.Timestamp>(12, _omitFieldNames ? '' : 'ttlAt', subBuilder: $2.Timestamp.create)
     ..aOM<$2.Timestamp>(13, _omitFieldNames ? '' : 'committedAt', subBuilder: $2.Timestamp.create)
     ..aOM<$2.Timestamp>(14, _omitFieldNames ? '' : 'releasedAt', subBuilder: $2.Timestamp.create)
+    ..aOS(15, _omitFieldNames ? '' : 'reversesReservationId')
+    ..aOS(16, _omitFieldNames ? '' : 'notes')
     ..hasRequiredFields = false
   ;
 
@@ -3132,6 +3453,26 @@ class ReservationObject extends $pb.GeneratedMessage {
   void clearReleasedAt() => clearField(14);
   @$pb.TagNumber(14)
   $2.Timestamp ensureReleasedAt() => $_ensure(13);
+
+  /// Set on a reversal reservation: the committed reservation it reverses.
+  @$pb.TagNumber(15)
+  $core.String get reversesReservationId => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set reversesReservationId($core.String v) { $_setString(14, v); }
+  @$pb.TagNumber(15)
+  $core.bool hasReversesReservationId() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearReversesReservationId() => clearField(15);
+
+  /// Free-text reason recorded on release/reversal.
+  @$pb.TagNumber(16)
+  $core.String get notes => $_getSZ(15);
+  @$pb.TagNumber(16)
+  set notes($core.String v) { $_setString(15, v); }
+  @$pb.TagNumber(16)
+  $core.bool hasNotes() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearNotes() => clearField(16);
 }
 
 class ReserveRequest extends $pb.GeneratedMessage {
@@ -3204,6 +3545,8 @@ class ReserveRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearIdempotencyKey() => clearField(2);
 
+  /// Requested hold duration. The server applies its default when unset and
+  /// never honours more than one hour.
   @$pb.TagNumber(3)
   $0.Duration get ttl => $_getN(2);
   @$pb.TagNumber(3)
@@ -3684,6 +4027,9 @@ class LimitsAdminServiceApi {
   ;
   $async.Future<PolicyDeleteResponse> policyDelete($pb.ClientContext? ctx, PolicyDeleteRequest request) =>
     _client.invoke<PolicyDeleteResponse>(ctx, 'LimitsAdminService', 'PolicyDelete', request, PolicyDeleteResponse())
+  ;
+  $async.Future<PolicyHistoryResponse> policyHistory($pb.ClientContext? ctx, PolicyHistoryRequest request) =>
+    _client.invoke<PolicyHistoryResponse>(ctx, 'LimitsAdminService', 'PolicyHistory', request, PolicyHistoryResponse())
   ;
   $async.Future<ApprovalRequestListResponse> approvalRequestList($pb.ClientContext? ctx, ApprovalRequestListRequest request) =>
     _client.invoke<ApprovalRequestListResponse>(ctx, 'LimitsAdminService', 'ApprovalRequestList', request, ApprovalRequestListResponse())

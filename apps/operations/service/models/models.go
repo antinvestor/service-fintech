@@ -20,9 +20,7 @@ import (
 	"github.com/pitabwire/frame/v2/data"
 )
 
-// Transfer type constants live in pkg/constants/transfer_types.go and are
-// the single source of truth across the codebase. The duplicate block that
-// used to live here has been removed; use constants.TransferType* everywhere.
+// Transfer type constants live in pkg/constants/transfer_types.go.
 
 // ObligationType defines the type of financial obligation.
 type ObligationType int32

@@ -64,6 +64,17 @@ func (n *LoanNotifier) NotifyLoanFullyPaid(ctx context.Context, clientContact, c
 	n.send(ctx, "loan_fully_paid", clientContact, clientName, nil, notificationv1.PRIORITY_LOW)
 }
 
+// NotifyCollectionRequested asks a borrower to settle an amount now. The
+// contact detail is passed straight to the notification service and never
+// logged.
+func (n *LoanNotifier) NotifyCollectionRequested(ctx context.Context, clientContact, amount, currency string) {
+	data := map[string]string{
+		fieldAmount:   amount,
+		fieldCurrency: currency,
+	}
+	n.send(ctx, "collection_requested", clientContact, "", data, notificationv1.PRIORITY_HIGH)
+}
+
 // NotifyApplicationUnderReview sends a notification when an application is under review.
 func (n *LoanNotifier) NotifyApplicationUnderReview(ctx context.Context, clientContact, clientName string) {
 	n.send(ctx, "application_under_review", clientContact, clientName, nil, notificationv1.PRIORITY_LOW)

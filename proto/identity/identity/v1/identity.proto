@@ -186,8 +186,14 @@ message OrganizationObject {
   ]; // Partition this organization maps to. Server-minted on create
   // (child partition from the caller's claims), so a create request
   // may omit it; required shape only applies when a value is present.
-  string name = 3 [(buf.validate.field).string.min_len = 1]; // Display name
-  string code = 4 [(buf.validate.field).string.min_len = 1]; // Unique short code
+  string name = 3 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 255
+  ]; // Display name
+  string code = 4 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 50
+  ]; // Unique short code, scoped to the partition
   string profile_id = 5 [
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.min_len = 3,
@@ -239,8 +245,14 @@ message OrgUnitObject {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ]; // Partition this org unit maps to
-  string name = 5 [(buf.validate.field).string.min_len = 1]; // Display name
-  string code = 6 [(buf.validate.field).string.min_len = 1]; // Unique short code
+  string name = 5 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 255
+  ]; // Display name
+  string code = 6 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 50
+  ]; // Unique short code, scoped to the partition
   string geo_id = 7 [
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
@@ -525,7 +537,11 @@ message OrgUnitSearchRequest {
   ]; // Optional filter by direct parent
   bool root_only = 4; // When true, returns only top-level org units with no parent
   OrgUnitType type = 5; // Optional type filter
-  common.v1.PageCursor cursor = 6; // Pagination
+  common.v1.PageCursor cursor = 6 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
 }
 
 message OrgUnitSearchResponse {
@@ -555,7 +571,11 @@ message InvestorGetResponse {
 
 message InvestorSearchRequest {
   string query = 1; // Free-text search
-  common.v1.PageCursor cursor = 2; // Pagination
+  common.v1.PageCursor cursor = 2 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
 }
 
 message InvestorSearchResponse {
@@ -593,7 +613,11 @@ message WorkforceMemberSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 4;
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message WorkforceMemberSearchResponse {
@@ -632,7 +656,11 @@ message DepartmentSearchRequest {
     (buf.validate.field).string.max_len = 40
   ];
   DepartmentKind kind = 4;
-  common.v1.PageCursor cursor = 5;
+  common.v1.PageCursor cursor = 5 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message DepartmentSearchResponse {
@@ -678,7 +706,11 @@ message PositionSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 6;
+  common.v1.PageCursor cursor = 6 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message PositionSearchResponse {
@@ -716,7 +748,11 @@ message PositionAssignmentSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 4;
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message PositionAssignmentSearchResponse {
@@ -755,7 +791,11 @@ message InternalTeamSearchRequest {
     (buf.validate.field).string.max_len = 40
   ];
   string team_type = 4; // Filter by team type
-  common.v1.PageCursor cursor = 5;
+  common.v1.PageCursor cursor = 5 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message InternalTeamSearchResponse {
@@ -793,7 +833,11 @@ message TeamMembershipSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 4;
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message TeamMembershipSearchResponse {
@@ -833,7 +877,11 @@ message AccessRoleAssignmentSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 6;
+  common.v1.PageCursor cursor = 6 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message AccessRoleAssignmentSearchResponse {
@@ -913,7 +961,21 @@ message ClientGroupSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 4;
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
+  string parent_id = 5 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ]; // Optional filter by parent group
+  string product_id = 6 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ]; // Optional filter by product
+  int32 group_type = 7; // Optional filter by group type; zero means any
+  common.v1.STATE state = 8; // Optional filter by state; unspecified means any
 }
 
 message ClientGroupSearchResponse {
@@ -982,7 +1044,18 @@ message MembershipSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 4;
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
+  string contact_id = 5 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ]; // Optional filter by contact
+  int32 role = 6; // Optional filter by membership role; zero means any
+  int32 membership_type = 7; // Optional filter by membership type; zero means any
+  common.v1.STATE state = 8; // Optional filter by state; unspecified means any
 }
 
 message MembershipSearchResponse {
@@ -1043,7 +1116,11 @@ message InvestorAccountSearchRequest {
     (buf.validate.field).string.max_len = 40
   ];
   string currency_code = 2;
-  common.v1.PageCursor cursor = 3;
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 message InvestorAccountSearchResponse {
   repeated InvestorAccountObject data = 1;
@@ -1247,10 +1324,16 @@ message ClientDataListRequest {
     (buf.validate.field).string.max_len = 40
   ];
   DataVerificationStatus verification_status = 2; // Optional filter
-  common.v1.PageCursor cursor = 3;
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 message ClientDataListResponse {
   repeated ClientDataEntryObject data = 1;
+  // Cursor for the page after this one. Empty on the last page.
+  common.v1.PageCursor next_cursor = 2;
 }
 
 // Verifier approves a data entry
@@ -1259,8 +1342,11 @@ message ClientDataVerifyRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
+  // Deprecated: the reviewer is always the authenticated caller. The server
+  // ignores this field; it remains only so older clients keep compiling.
   string reviewer_id = 2 [
-    (buf.validate.field).string.min_len = 3,
+    deprecated = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
   string comment = 3;
@@ -1275,8 +1361,11 @@ message ClientDataRejectRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
+  // Deprecated: the reviewer is always the authenticated caller. The server
+  // ignores this field; it remains only so older clients keep compiling.
   string reviewer_id = 2 [
-    (buf.validate.field).string.min_len = 3,
+    deprecated = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
   string reason = 3 [(buf.validate.field).string.min_len = 1]; // Required: why it was rejected
@@ -1291,8 +1380,11 @@ message ClientDataRequestInfoRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
+  // Deprecated: the reviewer is always the authenticated caller. The server
+  // ignores this field; it remains only so older clients keep compiling.
   string reviewer_id = 2 [
-    (buf.validate.field).string.min_len = 3,
+    deprecated = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
   string comment = 3 [(buf.validate.field).string.min_len = 1]; // Required: what's needed
@@ -1342,7 +1434,11 @@ message FormTemplateSearchRequest {
     (buf.validate.field).string.max_len = 40
   ];
   FormTemplateStatus status = 3;
-  common.v1.PageCursor cursor = 4;
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
   // Filter templates by entity type (e.g. "client", "group", "loan_request").
   string entity_type = 5;
 }
@@ -1395,7 +1491,11 @@ message FormSubmissionSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 4;
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message FormSubmissionSearchResponse {
@@ -1438,6 +1538,10 @@ service IdentityService {
       "client_group_manage",
       "membership_view",
       "membership_manage",
+      // Deprecated: investor accounts, deposits and withdrawals are served by
+      // the funding service. No role is bound to these two entries any more;
+      // they remain declared only because the deprecated RPCs below still
+      // name them and the contract is checked at the file level.
       "investor_account_view",
       "investor_account_manage",
       "client_data_view",
@@ -1476,8 +1580,6 @@ service IdentityService {
           "client_group_manage",
           "membership_view",
           "membership_manage",
-          "investor_account_view",
-          "investor_account_manage",
           "client_data_view",
           "client_data_manage",
           "client_data_verify",
@@ -1514,8 +1616,6 @@ service IdentityService {
           "client_group_manage",
           "membership_view",
           "membership_manage",
-          "investor_account_view",
-          "investor_account_manage",
           "client_data_view",
           "client_data_manage",
           "client_data_verify",
@@ -1547,7 +1647,6 @@ service IdentityService {
           "access_role_assignment_view",
           "access_role_assignment_manage",
           "investor_view",
-          "investor_account_view",
           "client_group_view",
           "client_group_manage",
           "membership_view",
@@ -1574,7 +1673,6 @@ service IdentityService {
           "team_membership_view",
           "access_role_assignment_view",
           "investor_view",
-          "investor_account_view",
           "client_group_view",
           "membership_view",
           "client_data_view",
@@ -1595,7 +1693,6 @@ service IdentityService {
           "team_membership_view",
           "access_role_assignment_view",
           "investor_view",
-          "investor_account_view",
           "client_group_view",
           "membership_view",
           "client_data_view",
@@ -1630,8 +1727,6 @@ service IdentityService {
           "client_group_manage",
           "membership_view",
           "membership_manage",
-          "investor_account_view",
-          "investor_account_manage",
           "client_data_view",
           "client_data_manage",
           "client_data_verify",
@@ -1990,9 +2085,16 @@ service IdentityService {
   }
 
   // --- InvestorAccount RPCs ---
+  //
+  // Deprecated: the investor capital ledger is owned by the funding service
+  // (funding.v1.FundingService). Identity returns Unimplemented for every RPC
+  // in this block; they are retained, marked deprecated, only because the
+  // contract is checked for breaking changes at the file level.
 
   // InvestorAccountSave creates or updates an investor capital account.
+  // Deprecated: use funding.v1.FundingService instead.
   rpc InvestorAccountSave(InvestorAccountSaveRequest) returns (InvestorAccountSaveResponse) {
+    option deprecated = true;
     option (common.v1.method_permissions) = {
       permissions: ["investor_account_manage"]
     };
@@ -2005,7 +2107,9 @@ service IdentityService {
   }
 
   // InvestorAccountGet retrieves an investor account by its ID.
+  // Deprecated: use funding.v1.FundingService instead.
   rpc InvestorAccountGet(InvestorAccountGetRequest) returns (InvestorAccountGetResponse) {
+    option deprecated = true;
     option idempotency_level = NO_SIDE_EFFECTS;
     option (common.v1.method_permissions) = {
       permissions: ["investor_account_view"]
@@ -2019,7 +2123,9 @@ service IdentityService {
   }
 
   // InvestorAccountSearch finds investor accounts matching search criteria.
+  // Deprecated: use funding.v1.FundingService instead.
   rpc InvestorAccountSearch(InvestorAccountSearchRequest) returns (stream InvestorAccountSearchResponse) {
+    option deprecated = true;
     option idempotency_level = NO_SIDE_EFFECTS;
     option (common.v1.method_permissions) = {
       permissions: ["investor_account_view"]
@@ -2033,7 +2139,9 @@ service IdentityService {
   }
 
   // InvestorDeposit adds funds to an investor capital account.
+  // Deprecated: use funding.v1.FundingService instead.
   rpc InvestorDeposit(InvestorDepositRequest) returns (InvestorDepositResponse) {
+    option deprecated = true;
     option (common.v1.method_permissions) = {
       permissions: ["investor_account_manage"]
     };
@@ -2046,7 +2154,9 @@ service IdentityService {
   }
 
   // InvestorWithdraw removes funds from an investor capital account.
+  // Deprecated: use funding.v1.FundingService instead.
   rpc InvestorWithdraw(InvestorWithdrawRequest) returns (InvestorWithdrawResponse) {
+    option deprecated = true;
     option (common.v1.method_permissions) = {
       permissions: ["investor_account_manage"]
     };

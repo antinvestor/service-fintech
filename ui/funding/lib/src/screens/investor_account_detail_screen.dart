@@ -1,12 +1,15 @@
 import 'package:antinvestor_api_funding/antinvestor_api_funding.dart'
     hide PageCursor, STATE;
 import 'package:antinvestor_ui_core/antinvestor_ui_core.dart';
-
-import '../utils/money_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/funding_providers.dart';
+import '../utils/money_bridge.dart';
+import '../utils/money_display.dart';
+import '../widgets/absorb_loss_dialog.dart';
+import '../widgets/money_amount_dialog.dart';
+import 'investor_accounts_screen.dart' show accountLabel;
 
 class InvestorAccountDetailScreen extends ConsumerWidget {
   const InvestorAccountDetailScreen({super.key, required this.accountId});
@@ -24,7 +27,7 @@ class InvestorAccountDetailScreen extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Error: $err'),
+            Text('Could not load this account: $err'),
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () =>
@@ -45,9 +48,7 @@ class InvestorAccountDetailScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      account.accountName.isNotEmpty
-                          ? account.accountName
-                          : 'Investor Account',
+                      accountLabel(account),
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -109,41 +110,31 @@ class _BalanceSummary extends StatelessWidget {
           children: [
             _MetricCard(
               label: 'Available',
-              value: account.hasAvailableBalance()
-                  ? formatMoney(account.availableBalance)
-                  : '-',
+              value: displayMoney(account.availableBalance),
               icon: Icons.account_balance_wallet,
               color: Colors.green,
             ),
             _MetricCard(
               label: 'Reserved',
-              value: account.hasReservedBalance()
-                  ? formatMoney(account.reservedBalance)
-                  : '-',
+              value: displayMoney(account.reservedBalance),
               icon: Icons.lock_outline,
               color: Colors.orange,
             ),
             _MetricCard(
               label: 'Total Deployed',
-              value: account.hasTotalDeployed()
-                  ? formatMoney(account.totalDeployed)
-                  : '-',
+              value: displayMoney(account.totalDeployed),
               icon: Icons.trending_up,
               color: Colors.blue,
             ),
             _MetricCard(
               label: 'Total Returned',
-              value: account.hasTotalReturned()
-                  ? formatMoney(account.totalReturned)
-                  : '-',
+              value: displayMoney(account.totalReturned),
               icon: Icons.trending_down,
               color: Colors.purple,
             ),
             _MetricCard(
               label: 'Max Exposure',
-              value: account.hasMaxExposure()
-                  ? formatMoney(account.maxExposure)
-                  : '-',
+              value: displayMoney(account.maxExposure),
               icon: Icons.shield_outlined,
               color: Colors.red,
             ),
@@ -151,7 +142,7 @@ class _BalanceSummary extends StatelessWidget {
               label: 'Min Interest Rate',
               value: account.minInterestRate.isNotEmpty
                   ? '${account.minInterestRate}%'
-                  : '-',
+                  : '0.00%',
               icon: Icons.percent,
               color: Colors.teal,
             ),
@@ -231,187 +222,215 @@ class _ActionButtons extends ConsumerWidget {
       runSpacing: 8,
       children: [
         FilledButton.icon(
+          key: const Key('funding-action-deposit'),
           onPressed: () => _showDepositDialog(context, ref),
           icon: const Icon(Icons.add),
           label: const Text('Deposit'),
         ),
         OutlinedButton.icon(
+          key: const Key('funding-action-withdraw'),
           onPressed: () => _showWithdrawDialog(context, ref),
           icon: const Icon(Icons.remove),
           label: const Text('Withdraw'),
         ),
         OutlinedButton.icon(
+          key: const Key('funding-action-fund-loan'),
           onPressed: () => _showFundLoanDialog(context, ref),
           icon: const Icon(Icons.send),
           label: const Text('Fund Loan'),
+        ),
+        OutlinedButton.icon(
+          key: const Key('funding-action-absorb-loss'),
+          onPressed: () => _showAbsorbLossDialog(context, ref),
+          icon: const Icon(Icons.trending_down),
+          label: const Text('Absorb Loss'),
         ),
       ],
     );
   }
 
-  void _showDepositDialog(BuildContext context, WidgetRef ref) {
-    final amountCtrl = TextEditingController();
-    showDialog<void>(
+  Future<void> _showDepositDialog(BuildContext context, WidgetRef ref) async {
+    final done = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Deposit Funds'),
-        content: SizedBox(
-          width: 380,
-          child: FormFieldCard(
-            label: 'Amount',
-            child: TextFormField(
-              controller: amountCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(hintText: '0.00'),
+      builder: (ctx) => MoneyAmountDialog(
+        title: 'Deposit Funds',
+        confirmLabel: 'Deposit',
+        currencyCode: currencyCode,
+        description: 'Capital added to this investor account.',
+        onSubmit: (amount, _, idempotencyKey) => ref
+            .read(investorAccountNotifierProvider.notifier)
+            .deposit(
+              accountId: accountId,
+              amount: amount,
+              currencyCode: currencyCode,
+              idempotencyKey: idempotencyKey,
             ),
-          ),
+      ),
+    );
+    if (!context.mounted) return;
+    _toast(context, done, 'Deposit recorded');
+  }
+
+  Future<void> _showWithdrawDialog(BuildContext context, WidgetRef ref) async {
+    final done = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => MoneyAmountDialog(
+        title: 'Withdraw Funds',
+        confirmLabel: 'Withdraw',
+        currencyCode: currencyCode,
+        description: 'Capital returned out of this investor account.',
+        onSubmit: (amount, _, idempotencyKey) => ref
+            .read(investorAccountNotifierProvider.notifier)
+            .withdraw(
+              accountId: accountId,
+              amount: amount,
+              currencyCode: currencyCode,
+              idempotencyKey: idempotencyKey,
+            ),
+      ),
+    );
+    if (!context.mounted) return;
+    _toast(context, done, 'Withdrawal processed');
+  }
+
+  Future<void> _showFundLoanDialog(BuildContext context, WidgetRef ref) async {
+    final loanRequestId = await showDialog<String>(
+      context: context,
+      builder: (ctx) =>
+          const _LoanRequestDialog(title: 'Fund Loan', confirmLabel: 'Fund'),
+    );
+    if (loanRequestId == null || !context.mounted) return;
+
+    try {
+      final result = await ref
+          .read(investorAccountNotifierProvider.notifier)
+          .fundLoan(loanRequestId: loanRequestId, accountId: accountId);
+      if (!context.mounted) return;
+      final message = result.fullyFunded
+          ? 'Loan fully funded (${displayMoney(result.totalAllocated)})'
+          : 'Partially funded, deficit ${displayMoney(result.deficit)}';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!context.mounted) return;
+      _toast(context, false, '', error: error);
+    }
+  }
+
+  Future<void> _showAbsorbLossDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    AbsorbLossResponse? outcome;
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AbsorbLossDialog(
+        currencyCode: currencyCode,
+        onSubmit: (loanRequestId, amount, idempotencyKey) async {
+          outcome = await ref
+              .read(investorAccountNotifierProvider.notifier)
+              .absorbLoss(
+                loanRequestId: loanRequestId,
+                amount: amount,
+                currencyCode: currencyCode,
+                idempotencyKey: idempotencyKey,
+                accountId: accountId,
+              );
+        },
+      ),
+    );
+
+    final result = outcome;
+    if (result == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Absorbed ${displayMoney(result.absorbed)}, '
+          'unrecoverable ${displayMoney(result.unrecoverable)}',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final amount = amountCtrl.text.trim();
-              Navigator.pop(ctx);
-              try {
-                await ref
-                    .read(investorAccountNotifierProvider.notifier)
-                    .deposit(
-                      accountId: accountId,
-                      amount: amount,
-                      currencyCode: currencyCode,
-                    );
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Deposit recorded')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Deposit'),
-          ),
-        ],
       ),
     );
   }
 
-  void _showWithdrawDialog(BuildContext context, WidgetRef ref) {
-    final amountCtrl = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Withdraw Funds'),
-        content: SizedBox(
-          width: 380,
-          child: FormFieldCard(
-            label: 'Amount',
-            child: TextFormField(
-              controller: amountCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(hintText: '0.00'),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final amount = amountCtrl.text.trim();
-              Navigator.pop(ctx);
-              try {
-                await ref
-                    .read(investorAccountNotifierProvider.notifier)
-                    .withdraw(
-                      accountId: accountId,
-                      amount: amount,
-                      currencyCode: currencyCode,
-                    );
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Withdrawal processed')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Withdraw'),
-          ),
-        ],
-      ),
-    );
+  void _toast(
+    BuildContext context,
+    bool? done,
+    String message, {
+    Object? error,
+  }) {
+    if (!context.mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed: $error')));
+      return;
+    }
+    if (done != true) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+/// Asks for the loan request an action applies to.
+class _LoanRequestDialog extends StatefulWidget {
+  const _LoanRequestDialog({required this.title, required this.confirmLabel});
+
+  final String title;
+  final String confirmLabel;
+
+  @override
+  State<_LoanRequestDialog> createState() => _LoanRequestDialogState();
+}
+
+class _LoanRequestDialogState extends State<_LoanRequestDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  void _showFundLoanDialog(BuildContext context, WidgetRef ref) {
-    final loanReqCtrl = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Fund Loan'),
-        content: SizedBox(
-          width: 380,
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 380,
+        child: Form(
+          key: _formKey,
           child: FormFieldCard(
             label: 'Loan Request ID',
+            isRequired: true,
             child: TextFormField(
-              controller: loanReqCtrl,
+              key: const Key('loan-request-id-field'),
+              controller: _controller,
+              autofocus: true,
               decoration: const InputDecoration(
-                hintText: 'Enter loan request ID to fund',
+                hintText: 'Enter loan request ID',
               ),
+              validator: (v) => validateRequired(v, 'Loan request ID'),
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final loanRequestId = loanReqCtrl.text.trim();
-              if (loanRequestId.isEmpty) return;
-              Navigator.pop(ctx);
-              try {
-                final result = await ref
-                    .read(investorAccountNotifierProvider.notifier)
-                    .fundLoan(
-                      loanRequestId: loanRequestId,
-                      accountId: accountId,
-                    );
-                if (context.mounted) {
-                  final msg = result.fullyFunded
-                      ? 'Loan fully funded (${formatMoney(result.totalAllocated)})'
-                      : 'Partially funded (deficit: ${formatMoney(result.deficit)})';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(msg)),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Fund'),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('loan-request-submit'),
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.pop(context, _controller.text.trim());
+          },
+          child: Text(widget.confirmLabel),
+        ),
+      ],
     );
   }
 }
@@ -477,9 +496,7 @@ class _DetailRow extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            child: Text(value, style: theme.textTheme.bodyMedium),
-          ),
+          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
       ),
     );

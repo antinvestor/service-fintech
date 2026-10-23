@@ -19,13 +19,15 @@ import (
 	"time"
 
 	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v2/tenancy"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 )
 
 // CandidatePolicyRepository finds every policy applicable to a given intent.
-// Bypasses the TenancyPartition scope deliberately to union platform-scoped
-// policies (tenant_id = ”) with the calling tenant's own policies.
+// Row-level tenancy enforcement is skipped for this query so platform-scoped
+// policies (tenant_id = "") are visible to every tenant; the SQL below carries
+// the explicit tenant predicates that replace it.
 type CandidatePolicyRepository interface {
 	FindCandidates(ctx context.Context, q CandidateQuery) ([]*models.Policy, error)
 }
@@ -46,6 +48,9 @@ func NewCandidatePolicyRepository(p pool.Pool) CandidatePolicyRepository {
 }
 
 func (r *candidatePolicyRepository) FindCandidates(ctx context.Context, q CandidateQuery) ([]*models.Policy, error) {
+	// Platform-scoped policies carry tenant_id = "" and are therefore invisible
+	// under RLS. Skip enforcement and scope explicitly in SQL instead.
+	ctx = tenancy.WithSkipEnforcement(ctx)
 	db := r.dbPool.DB(ctx, true)
 	var rows []*models.Policy
 	now := time.Now().UTC()

@@ -641,6 +641,8 @@ extension type IdentityServiceClient (connect.Transport _transport) {
   }
 
   /// InvestorAccountSave creates or updates an investor capital account.
+  /// Deprecated: use funding.v1.FundingService instead.
+@deprecated
   Future<identityv1identity.InvestorAccountSaveResponse> investorAccountSave(
     identityv1identity.InvestorAccountSaveRequest input, {
     connect.Headers? headers,
@@ -659,6 +661,8 @@ extension type IdentityServiceClient (connect.Transport _transport) {
   }
 
   /// InvestorAccountGet retrieves an investor account by its ID.
+  /// Deprecated: use funding.v1.FundingService instead.
+@deprecated
   Future<identityv1identity.InvestorAccountGetResponse> investorAccountGet(
     identityv1identity.InvestorAccountGetRequest input, {
     connect.Headers? headers,
@@ -677,6 +681,8 @@ extension type IdentityServiceClient (connect.Transport _transport) {
   }
 
   /// InvestorAccountSearch finds investor accounts matching search criteria.
+  /// Deprecated: use funding.v1.FundingService instead.
+@deprecated
   Stream<identityv1identity.InvestorAccountSearchResponse> investorAccountSearch(
     identityv1identity.InvestorAccountSearchRequest input, {
     connect.Headers? headers,
@@ -695,6 +701,8 @@ extension type IdentityServiceClient (connect.Transport _transport) {
   }
 
   /// InvestorDeposit adds funds to an investor capital account.
+  /// Deprecated: use funding.v1.FundingService instead.
+@deprecated
   Future<identityv1identity.InvestorDepositResponse> investorDeposit(
     identityv1identity.InvestorDepositRequest input, {
     connect.Headers? headers,
@@ -713,6 +721,8 @@ extension type IdentityServiceClient (connect.Transport _transport) {
   }
 
   /// InvestorWithdraw removes funds from an investor capital account.
+  /// Deprecated: use funding.v1.FundingService instead.
+@deprecated
   Future<identityv1identity.InvestorWithdrawResponse> investorWithdraw(
     identityv1identity.InvestorWithdrawRequest input, {
     connect.Headers? headers,

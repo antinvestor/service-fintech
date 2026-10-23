@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const DisbursementSaveEvent = "disbursement.save"
@@ -58,17 +58,8 @@ func (e *DisbursementSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "disbursement_id": d.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.repo.GetByID(ctx, d.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.repo.Update(ctx, d); err != nil {
-			logger.WithError(err).Error("could not update disbursement in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.repo.Create(ctx, d); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create disbursement in db")
+	if err := upsert.ByID(ctx, e.repo, d); err != nil {
+		logger.WithError(err).Error("could not persist disbursement")
 		return err
 	}
 

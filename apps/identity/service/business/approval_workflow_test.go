@@ -63,8 +63,14 @@ type approvalWorkflowEnv struct {
 	internalTeamRepo repository.InternalTeamRepository
 	clcrRepo         repository.CreditLimitChangeRequestRepository
 	approvalCaseRepo repository.ApprovalCaseRepository
+	clientDataRepo   repository.ClientDataEntryRepository
+	clientDataHist   repository.ClientDataEntryHistoryRepository
+	formTemplateRepo repository.FormTemplateRepository
+	formSubmissions  repository.FormSubmissionRepository
 	orgUnitBusiness  OrgUnitBusiness
 	clientBusiness   ClientBusiness
+
+	workforceBusiness WorkforceBusiness
 }
 
 func TestApprovalWorkflowSuite(t *testing.T) {
@@ -94,9 +100,6 @@ func (s *approvalWorkflowSuite) TestBranchSaveCreatesPendingApprovalCaseInParent
 		Name:           "Central Branch",
 		Code:           "central-branch",
 		GeoId:          "kampala",
-		Properties: propertiesStruct(map[string]any{
-			caseActorIDKey: "profile-requestor",
-		}),
 	})
 	s.Require().NoError(err)
 	s.Require().NotEmpty(result.GetId())
@@ -118,7 +121,7 @@ func (s *approvalWorkflowSuite) TestBranchSaveCreatesPendingApprovalCaseInParent
 	s.Equal("profile-requestor", approvalCase.RequestedBy)
 }
 
-func (s *approvalWorkflowSuite) TestBranchSaveWithoutCaseActorUsesAuthenticatedCreator() {
+func (s *approvalWorkflowSuite) TestBranchSaveUsesAuthenticatedCreatorAsRequester() {
 	env := s.newEnv()
 	org := env.createOrganization("Org Branch Actor Fallback", "org-branch-actor-fallback")
 
@@ -211,13 +214,10 @@ func (s *approvalWorkflowSuite) TestBranchVerificationTransitionsCaseToPendingAp
 		Name:           "North Branch",
 		Code:           "north-branch",
 		GeoId:          "gulu",
-		Properties: propertiesStruct(map[string]any{
-			caseActorIDKey: "profile-requestor",
-		}),
 	})
 	s.Require().NoError(err)
 
-	verified, err := env.orgUnitBusiness.Save(env.ctx, &identityv1.OrgUnitObject{
+	verified, err := env.orgUnitBusiness.Save(env.asProfile("profile-verifier"), &identityv1.OrgUnitObject{
 		Id:             result.GetId(),
 		OrganizationId: org.GetID(),
 		Name:           "North Branch",
@@ -225,7 +225,6 @@ func (s *approvalWorkflowSuite) TestBranchVerificationTransitionsCaseToPendingAp
 		GeoId:          "gulu",
 		Properties: propertiesStruct(map[string]any{
 			caseActionKey:  approvalCaseActionVerify,
-			caseActorIDKey: "profile-verifier",
 			caseCommentKey: "documents checked",
 		}),
 	})
@@ -260,7 +259,6 @@ func (s *approvalWorkflowSuite) TestClientPhoneChangeActualizesOnlyAfterApproval
 		Name:         client.Name,
 		Properties: propertiesStruct(map[string]any{
 			clientPhoneNumberKey: "+256700000222",
-			caseActorIDKey:       "agent-profile-1",
 			caseCommentKey:       "customer requested number change",
 		}),
 	})
@@ -273,14 +271,13 @@ func (s *approvalWorkflowSuite) TestClientPhoneChangeActualizesOnlyAfterApproval
 	s.Equal("+256700000222", pendingClient.Properties.GetString(clientPendingPhoneNumberKey))
 	s.Equal(approvalCaseStatusPendingVerification, pendingClient.Properties.GetString(approvalCaseStatusKey))
 
-	verified, err := env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{
+	verified, err := env.clientBusiness.Save(env.asProfile("profile-verifier"), &fieldv1.ClientObject{
 		Id:           client.GetID(),
 		AgentId:      agent.GetID(),
 		OwningTeamId: client.OwningTeamID,
 		Name:         client.Name,
 		Properties: propertiesStruct(map[string]any{
 			caseActionKey:  approvalCaseActionVerify,
-			caseActorIDKey: "profile-verifier",
 			caseCommentKey: "identity cross-check complete",
 		}),
 	})
@@ -293,14 +290,13 @@ func (s *approvalWorkflowSuite) TestClientPhoneChangeActualizesOnlyAfterApproval
 	s.Equal("+256700000111", verifiedClient.Properties.GetString(clientPhoneNumberKey))
 	s.Equal("+256700000222", verifiedClient.Properties.GetString(clientPendingPhoneNumberKey))
 
-	approved, err := env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{
+	approved, err := env.clientBusiness.Save(env.asProfile("profile-approver"), &fieldv1.ClientObject{
 		Id:           client.GetID(),
 		AgentId:      agent.GetID(),
 		OwningTeamId: client.OwningTeamID,
 		Name:         client.Name,
 		Properties: propertiesStruct(map[string]any{
 			caseActionKey:  approvalCaseActionApprove,
-			caseActorIDKey: "profile-approver",
 			caseCommentKey: "approved after review",
 		}),
 	})
@@ -402,12 +398,29 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		&models.CreditLimitChangeRequest{},
 		&models.ApprovalCase{},
 		&models.WorkforceMember{},
+		&models.Department{},
+		&models.Position{},
+		&models.PositionAssignment{},
 		&models.InternalTeam{},
 		&models.TeamMembership{},
+		&models.AccessRoleAssignment{},
+		&models.ClientDataEntry{},
+		&models.ClientDataEntryHistory{},
+		&models.FormTemplate{},
+		&models.FormSubmission{},
 	}
 
 	superDB := dbPool.DB(ctx, false)
 	s.Require().NoError(superDB.AutoMigrate(migrationModels...))
+
+	// The open-case uniqueness lives in a SQL migration, and this suite migrates
+	// straight from the models, so the index is created explicitly here.
+	s.Require().NoError(superDB.Exec(
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_approval_case_open_subject
+		   ON approval_cases (subject_type, subject_id, case_type)
+		   WHERE deleted_at IS NULL
+		     AND status IN ('pending_verification', 'pending_approval')`,
+	).Error)
 
 	// Raw AutoMigrate does not run frame's tenancy install, so install
 	// the RLS policies explicitly, grant the test role access, then
@@ -430,12 +443,25 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 	workforceMemberRepo := repository.NewWorkforceMemberRepository(ctx, dbPool, workMan)
 	internalTeamRepo := repository.NewInternalTeamRepository(ctx, dbPool, workMan)
 	teamMembershipRepo := repository.NewTeamMembershipRepository(ctx, dbPool, workMan)
+	departmentRepo := repository.NewDepartmentRepository(ctx, dbPool, workMan)
+	positionRepo := repository.NewPositionRepository(ctx, dbPool, workMan)
+	positionAssignmentRepo := repository.NewPositionAssignmentRepository(ctx, dbPool, workMan)
+	accessRoleRepo := repository.NewAccessRoleAssignmentRepository(ctx, dbPool, workMan)
+	clientDataRepo := repository.NewClientDataEntryRepository(ctx, dbPool, workMan)
+	clientDataHist := repository.NewClientDataEntryHistoryRepository(ctx, dbPool, workMan)
+	formTemplateRepo := repository.NewFormTemplateRepository(ctx, dbPool, workMan)
+	formSubmissionRepo := repository.NewFormSubmissionRepository(ctx, dbPool, workMan)
 
 	evtsMan := newImmediateEventsManager(
 		identityevents.NewOrganizationSave(ctx, organizationRepo, nil),
 		identityevents.NewBranchSave(ctx, branchRepo),
 		identityevents.NewClientSave(ctx, clientRepo),
 		identityevents.NewApprovalCaseSave(ctx, approvalCaseRepo),
+		identityevents.NewInternalTeamSave(ctx, internalTeamRepo),
+		identityevents.NewClientDataEntrySave(ctx, clientDataRepo),
+		identityevents.NewClientDataEntryHistorySave(ctx, clientDataHist),
+		identityevents.NewFormTemplateSave(ctx, formTemplateRepo),
+		identityevents.NewFormSubmissionSave(ctx, formSubmissionRepo),
 	)
 
 	approvalCaseBusiness := NewApprovalCaseBusiness(ctx, evtsMan, approvalCaseRepo, nil)
@@ -472,8 +498,25 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		internalTeamRepo: internalTeamRepo,
 		clcrRepo:         clcrRepo,
 		approvalCaseRepo: approvalCaseRepo,
+		clientDataRepo:   clientDataRepo,
+		clientDataHist:   clientDataHist,
+		formTemplateRepo: formTemplateRepo,
+		formSubmissions:  formSubmissionRepo,
 		orgUnitBusiness:  orgUnitBusiness,
 		clientBusiness:   clientBusiness,
+		workforceBusiness: NewWorkforceBusiness(
+			evtsMan,
+			organizationRepo,
+			orgUnitRepo,
+			workforceMemberRepo,
+			departmentRepo,
+			positionRepo,
+			positionAssignmentRepo,
+			internalTeamRepo,
+			teamMembershipRepo,
+			accessRoleRepo,
+			nil,
+		),
 	}
 }
 
@@ -533,6 +576,19 @@ func (s *approvalWorkflowSuite) databaseResource(ctx context.Context) definition
 	}
 	s.T().Fatal("postgres test resource not found")
 	return nil
+}
+
+// asProfile returns the env context with a different acting profile but the
+// same tenant and partition, so maker/checker separation can be exercised.
+func (e *approvalWorkflowEnv) asProfile(profileID string) context.Context {
+	claims := security.ClaimsFromContext(e.ctx)
+	return (&security.AuthenticationClaims{
+		TenantID:    claims.GetTenantID(),
+		PartitionID: claims.GetPartitionID(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: profileID,
+		},
+	}).ClaimsToContext(e.ctx)
 }
 
 func (e *approvalWorkflowEnv) createOrganization(name, code string) *models.Organization {
@@ -663,21 +719,21 @@ func (s *approvalCaseBusinessStub) Submit(
 
 func (s *approvalCaseBusinessStub) Verify(
 	_ context.Context,
-	_, _, _ string,
+	_, _ string,
 ) (*models.ApprovalCase, error) {
 	panic("unexpected Verify call")
 }
 
 func (s *approvalCaseBusinessStub) Approve(
 	_ context.Context,
-	_, _, _ string,
+	_, _ string,
 ) (*models.ApprovalCase, error) {
 	panic("unexpected Approve call")
 }
 
 func (s *approvalCaseBusinessStub) Reject(
 	_ context.Context,
-	_, _, _ string,
+	_, _ string,
 ) (*models.ApprovalCase, error) {
 	panic("unexpected Reject call")
 }

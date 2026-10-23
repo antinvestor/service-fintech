@@ -17,7 +17,9 @@ package business
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/frame/v2/datastore/pool"
@@ -171,8 +173,16 @@ func TestAllocatePaymentUsesPersistedPayment(t *testing.T) {
 	}
 }
 
+// emittedEvent is one recorded Emit call, so a test can assert what a business
+// method published rather than only what it returned.
+type emittedEvent struct {
+	name    string
+	payload any
+}
+
 type paymentEventsManagerStub struct {
 	paymentRepo *incomingPaymentRepoStub
+	emitted     []emittedEvent
 }
 
 func (e *paymentEventsManagerStub) Add(fevents.EventI) {}
@@ -182,6 +192,8 @@ func (e *paymentEventsManagerStub) Get(string) (fevents.EventI, error) {
 }
 
 func (e *paymentEventsManagerStub) Emit(_ context.Context, name string, payload any) error {
+	e.emitted = append(e.emitted, emittedEvent{name: name, payload: payload})
+
 	switch name {
 	case events.IncomingPaymentSaveEvent:
 		payment, ok := payload.(*models.IncomingPayment)
@@ -236,6 +248,88 @@ func (r *incomingPaymentRepoStub) GetByTransactionID(
 	return cloneIncomingPayment(payment), nil
 }
 
+func (r *incomingPaymentRepoStub) CreateIfAbsent(
+	_ context.Context,
+	payment *models.IncomingPayment,
+) (*models.IncomingPayment, error) {
+	if existing, ok := r.byTransactionID[payment.TransactionID]; ok {
+		return cloneIncomingPayment(existing), nil
+	}
+	r.store(payment)
+
+	return cloneIncomingPayment(payment), nil
+}
+
+func (r *incomingPaymentRepoStub) ClaimState(
+	_ context.Context,
+	paymentID string,
+	fromStates []int32,
+	toState int32,
+) (bool, error) {
+	payment, ok := r.byID[paymentID]
+	if !ok {
+		return false, nil
+	}
+	if !slices.Contains(fromStates, payment.State) {
+		return false, nil
+	}
+	payment.State = toState
+
+	return true, nil
+}
+
+func (r *incomingPaymentRepoStub) SetAllocationOutcome(
+	_ context.Context,
+	paymentID string,
+	state int32,
+	remaining int64,
+) error {
+	payment, ok := r.byID[paymentID]
+	if !ok {
+		return gorm.ErrRecordNotFound
+	}
+	payment.State = state
+	if payment.Properties == nil {
+		payment.Properties = data.JSONMap{}
+	}
+	payment.Properties["remaining_amount"] = remaining
+
+	return nil
+}
+
+func (r *incomingPaymentRepoStub) GetWithSuspenseByOwnerID(
+	_ context.Context,
+	ownerID string,
+) ([]*models.IncomingPayment, error) {
+	var found []*models.IncomingPayment
+	for _, payment := range r.byID {
+		if payment.OwnerID == ownerID && paymentRemainder(payment) > 0 {
+			found = append(found, payment)
+		}
+	}
+	return found, nil
+}
+
+func (r *incomingPaymentRepoStub) MarkConfirmed(
+	_ context.Context,
+	paymentID string,
+	at time.Time,
+) (bool, error) {
+	payment, ok := r.byID[paymentID]
+	if !ok {
+		return false, gorm.ErrRecordNotFound
+	}
+	if payment.Properties == nil {
+		payment.Properties = data.JSONMap{}
+	}
+	if _, already := payment.Properties["confirmed_at"]; already {
+		return false, nil
+	}
+	payment.Properties["confirmed_at"] = at.Format(time.RFC3339)
+
+	return true, nil
+}
+
 func (r *incomingPaymentRepoStub) store(payment *models.IncomingPayment) {
 	clone := cloneIncomingPayment(payment)
 	r.byID[clone.GetID()] = clone
@@ -256,6 +350,10 @@ func (r *obligationRepoStub) GetByPeriodID(context.Context, string) ([]*models.O
 
 func (r *obligationRepoStub) GetByCauseID(context.Context, string) ([]*models.Obligation, error) {
 	return nil, errUnexpectedStubCall
+}
+
+func (r *obligationRepoStub) ConsumeAmount(context.Context, string, int64) (bool, error) {
+	return false, errUnexpectedStubCall
 }
 
 type baseRepositoryStub[T any] struct{}

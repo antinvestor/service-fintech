@@ -45,7 +45,10 @@ class VerdictDetailCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            const Text('Per-policy verdicts', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Per-policy verdicts',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
             if (check.verdicts.isEmpty)
               const Text(
@@ -68,7 +71,9 @@ class VerdictDetailCard extends StatelessWidget {
         : (v.wouldRequireApproval ? 'NEEDS APPROVAL' : 'MATCHED OK');
     final statusColor = v.breached
         ? Colors.red.shade700
-        : (v.wouldRequireApproval ? Colors.orange.shade700 : Colors.green.shade700);
+        : (v.wouldRequireApproval
+              ? Colors.orange.shade700
+              : Colors.green.shade700);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -83,13 +88,20 @@ class VerdictDetailCard extends StatelessWidget {
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                 ),
               ),
-              Text('v${v.policyVersion}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                'v${v.policyVersion}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
               const SizedBox(width: 8),
               PolicyModeBadge(mode: v.mode),
               const SizedBox(width: 8),
               Text(
                 statusText,
-                style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 11),
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
               ),
             ],
           ),
@@ -101,10 +113,7 @@ class VerdictDetailCard extends StatelessWidget {
           if (v.hasCapAmount() || v.hasCurrentUsage())
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: UsageBar(
-                currentUsage: v.currentUsage,
-                cap: v.capAmount,
-              ),
+              child: UsageBar(currentUsage: v.currentUsage, cap: v.capAmount),
             ),
           if (v.capCount.toInt() > 0)
             Padding(

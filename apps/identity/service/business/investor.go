@@ -16,7 +16,6 @@ package business
 
 import (
 	"context"
-	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
@@ -61,6 +60,9 @@ func (b *investorBusiness) Save(
 
 	isNew := obj.GetId() == ""
 	investor := models.InvestorFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.investorRepo, investor); err != nil {
+		return nil, err
+	}
 
 	if isNew && investor.State == 0 {
 		investor.State = int32(commonv1.STATE_CREATED.Number())
@@ -92,14 +94,11 @@ func (b *investorBusiness) Search(
 
 	var searchOpts []data.SearchOption
 
-	cursor := req.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+	cursorOpts, cursorErr := cursorSearchOptions(req.GetCursor())
+	if cursorErr != nil {
+		return cursorErr
 	}
+	searchOpts = append(searchOpts, cursorOpts...)
 
 	if req.GetQuery() != "" {
 		searchOpts = append(searchOpts,

@@ -21,6 +21,7 @@ import (
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
 	"github.com/pitabwire/frame/v2/workerpool"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 )
@@ -33,6 +34,11 @@ type ScheduleEntryRepository interface {
 	GetByScheduleID(ctx context.Context, scheduleID string) ([]*models.ScheduleEntry, error)
 	GetByLoanAccountID(ctx context.Context, loanAccountID string) ([]*models.ScheduleEntry, error)
 	GetOverdueEntries(ctx context.Context, loanAccountID string, asOf time.Time) ([]*models.ScheduleEntry, error)
+	// MarkPenaltyApplied records on the entry that a late penalty has already
+	// been charged for it, conditionally, so a repeated delinquency scan
+	// cannot charge the same installment twice. It reports whether this call
+	// was the one that marked it.
+	MarkPenaltyApplied(ctx context.Context, entryID string) (bool, error)
 }
 
 type scheduleEntryRepository struct {
@@ -96,4 +102,24 @@ func (repo *scheduleEntryRepository) GetByLoanAccountID(
 		return nil, err
 	}
 	return entries, nil
+}
+
+func (repo *scheduleEntryRepository) MarkPenaltyApplied(
+	ctx context.Context,
+	entryID string,
+) (bool, error) {
+	result := repo.Pool().DB(ctx, false).
+		Table("schedule_entries").
+		Where("id = ? AND COALESCE((properties ->> 'penalty_applied')::boolean, false) = false AND deleted_at IS NULL", entryID).
+		Updates(map[string]any{
+			"properties": gorm.Expr(
+				`COALESCE(properties, '{}'::jsonb) || jsonb_build_object('penalty_applied', true)`,
+			),
+			colModifiedAt: time.Now().UTC(),
+			colVersion:    gorm.Expr(colVersion + " + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }

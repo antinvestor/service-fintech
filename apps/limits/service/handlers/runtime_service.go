@@ -25,8 +25,14 @@ import (
 	"github.com/antinvestor/service-fintech/apps/limits/service/business"
 )
 
-// defaultReserveTTL applies when the caller does not provide a reservation TTL.
-const defaultReserveTTL = 5 * time.Minute
+const (
+	// defaultReserveTTL applies when the caller does not provide a reservation TTL.
+	defaultReserveTTL = 5 * time.Minute
+	// maxReserveTTL is the server-side ceiling on a caller-requested TTL. The
+	// proto carries no bound, so a client could otherwise pin cap space for
+	// years by asking for a long-lived reservation.
+	maxReserveTTL = time.Hour
+)
 
 // RuntimeService implements limitsv1connect.LimitsServiceHandler. It
 // wraps ReservationBusiness in connect-rpc shape; all business logic
@@ -48,7 +54,7 @@ func (s *RuntimeService) Check(
 ) (*connect.Response[limitsv1.CheckResponse], error) {
 	out, err := s.biz.Check(ctx, req.Msg.GetIntent())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
 	return connect.NewResponse(out), nil
 }
@@ -59,12 +65,15 @@ func (s *RuntimeService) Reserve(
 	req *connect.Request[limitsv1.ReserveRequest],
 ) (*connect.Response[limitsv1.ReserveResponse], error) {
 	ttl := req.Msg.GetTtl().AsDuration()
-	if ttl <= 0 {
+	switch {
+	case ttl <= 0:
 		ttl = defaultReserveTTL
+	case ttl > maxReserveTTL:
+		ttl = maxReserveTTL
 	}
 	out, err := s.biz.Reserve(ctx, req.Msg.GetIntent(), req.Msg.GetIdempotencyKey(), ttl)
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
 	return connect.NewResponse(out), nil
 }
@@ -76,7 +85,7 @@ func (s *RuntimeService) Commit(
 ) (*connect.Response[limitsv1.CommitResponse], error) {
 	out, err := s.biz.Commit(ctx, req.Msg.GetReservationId())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
 	return connect.NewResponse(out), nil
 }
@@ -88,7 +97,7 @@ func (s *RuntimeService) Release(
 ) (*connect.Response[limitsv1.ReleaseResponse], error) {
 	out, err := s.biz.Release(ctx, req.Msg.GetReservationId(), req.Msg.GetReason())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
 	return connect.NewResponse(out), nil
 }
@@ -100,7 +109,7 @@ func (s *RuntimeService) Reverse(
 ) (*connect.Response[limitsv1.ReverseResponse], error) {
 	out, err := s.biz.Reverse(ctx, req.Msg.GetReservationId(), req.Msg.GetIdempotencyKey(), req.Msg.GetReason())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
 	return connect.NewResponse(out), nil
 }

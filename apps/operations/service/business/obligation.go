@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -78,7 +79,10 @@ func NewObligationBusiness(
 
 // CalculateForGroup computes financial obligations for all active members of
 // the given group in the current period.
-func (b *obligationBusiness) CalculateForGroup(ctx context.Context, groupID string) error {
+func (b *obligationBusiness) CalculateForGroup(
+	ctx context.Context,
+	groupID string,
+) (map[string]interface{}, error) {
 	logger := util.Log(ctx).WithField("method", "ObligationBusiness.CalculateForGroup").
 		WithField("group_id", groupID)
 
@@ -87,13 +91,13 @@ func (b *obligationBusiness) CalculateForGroup(ctx context.Context, groupID stri
 		&identityv1.ClientGroupGetRequest{Id: groupID},
 	))
 	if err != nil {
-		return fmt.Errorf("group not found: %w", err)
+		return nil, fmt.Errorf("group not found: %w", err)
 	}
 	group := grpResp.Msg.GetData()
 
 	if group.GetState() != commonv1.STATE_ACTIVE {
 		logger.Warn("group is not active, skipping obligation calculation")
-		return nil
+		return emptyObligationSummary(groupID, ""), nil
 	}
 
 	savingAmount := group.GetSavingAmount()
@@ -102,7 +106,7 @@ func (b *obligationBusiness) CalculateForGroup(ctx context.Context, groupID stri
 	// Get the current period for the group
 	period, err := b.perRepo.GetCurrentByGroupID(ctx, groupID)
 	if err != nil {
-		return fmt.Errorf("current period not found for group %s: %w", groupID, err)
+		return nil, fmt.Errorf("current period not found for group %s: %w", groupID, err)
 	}
 
 	logger = logger.WithField("period_id", period.GetID())
@@ -111,18 +115,18 @@ func (b *obligationBusiness) CalculateForGroup(ctx context.Context, groupID stri
 	// Get all active memberships via identity SDK
 	memberships, err := b.getMembersByGroupID(ctx, groupID)
 	if err != nil {
-		return fmt.Errorf("could not load memberships for group %s: %w", groupID, err)
+		return nil, fmt.Errorf("could not load memberships for group %s: %w", groupID, err)
 	}
 
 	if len(memberships) == 0 {
 		logger.Warn("no active memberships found, skipping")
-		return nil
+		return emptyObligationSummary(groupID, period.GetID()), nil
 	}
 
 	// Check for existing obligations in this period to avoid duplicates
 	existingObs, err := b.obRepo.GetByPeriodID(ctx, period.GetID())
 	if err != nil {
-		return fmt.Errorf("could not check existing obligations: %w", err)
+		return nil, fmt.Errorf("could not check existing obligations: %w", err)
 	}
 
 	existingByMember := make(map[string]map[string]bool) // memberID -> causeType -> exists
@@ -133,50 +137,163 @@ func (b *obligationBusiness) CalculateForGroup(ctx context.Context, groupID stri
 		existingByMember[ob.MembershipID][ob.CauseType] = true
 	}
 
-	var created int
-	for _, mem := range memberships {
-		memberID := mem.GetId()
-
-		// Skip members that are not in a regular member role (agents, registrars)
-		if mem.GetMembershipType() != MembershipTypeMember {
-			continue
-		}
-
-		// Periodic savings obligation
-		if !existingByMember[memberID]["periodic_saving"] && savingAmount > 0 {
-			ob := &models.Obligation{
-				MembershipID:   memberID,
-				CauseType:      obligationPeriodicSaving,
-				CauseID:        groupID,
-				ObligationType: int32(models.ObligationTypePeriodic),
-				PeriodID:       period.GetID(),
-				Amount:         savingAmount,
-				Currency:       currencyCode,
-				Deadline:       period.EndDate,
-				Description:    fmt.Sprintf("Periodic savings for period %d", period.Position),
-				State:          int32(constants.StateActive),
-			}
-			ob.GenID(ctx)
-			// Partition info is set from the request context by the frame middleware.
-
-			if emitErr := b.eventsMan.Emit(ctx, events.ObligationSaveEvent, ob); emitErr != nil {
-				logger.WithError(emitErr).
-					WithField("member_id", memberID).
-					Error("could not create savings obligation")
-				continue
-			}
-			created++
-		}
-
-		// NOTE: Loan repayment obligations are created separately by
-		// CreateLoanObligations when amortization schedule entries become due.
-	}
+	created := b.raiseSavingsObligations(ctx, logger, savingsRun{
+		groupID:          groupID,
+		currencyCode:     currencyCode,
+		savingAmount:     savingAmount,
+		period:           period,
+		memberships:      memberships,
+		existingByMember: existingByMember,
+	})
 
 	logger.WithField("obligations_created", created).
 		WithField("members_processed", len(memberships)).
 		Info("obligation calculation completed")
 
-	return nil
+	periodObs, err := b.obRepo.GetByPeriodID(ctx, period.GetID())
+	if err != nil {
+		return nil, fmt.Errorf("could not read the period's obligations: %w", err)
+	}
+
+	summary := emptyObligationSummary(groupID, period.GetID())
+	summary["obligations_created"] = created
+	summary["members_processed"] = len(memberships)
+	summary["member_obligations"] = summariseMemberObligations(periodObs)
+	return summary, nil
+}
+
+// savingsRun carries the inputs of one periodic-savings obligation run.
+type savingsRun struct {
+	groupID          string
+	currencyCode     string
+	savingAmount     int64
+	period           *PeriodInfo
+	memberships      []*identityv1.MembershipObject
+	existingByMember map[string]map[string]bool
+}
+
+// raiseSavingsObligations creates the period's periodic savings obligation for
+// every regular member that does not already have one, and reports how many
+// were raised. Loan repayment obligations are raised separately by
+// CreateLoanObligations as schedule entries become due.
+func (b *obligationBusiness) raiseSavingsObligations(
+	ctx context.Context,
+	logger *util.LogEntry,
+	run savingsRun,
+) int {
+	if run.savingAmount <= 0 {
+		return 0
+	}
+
+	created := 0
+	for _, mem := range run.memberships {
+		memberID := mem.GetId()
+		if mem.GetMembershipType() != MembershipTypeMember {
+			continue
+		}
+		if run.existingByMember[memberID][obligationPeriodicSaving] {
+			continue
+		}
+
+		ob := &models.Obligation{
+			MembershipID:   memberID,
+			CauseType:      obligationPeriodicSaving,
+			CauseID:        run.groupID,
+			ObligationType: int32(models.ObligationTypePeriodic),
+			PeriodID:       run.period.GetID(),
+			Amount:         run.savingAmount,
+			Currency:       run.currencyCode,
+			Deadline:       run.period.EndDate,
+			Description:    fmt.Sprintf("Periodic savings for period %d", run.period.Position),
+			State:          int32(constants.StateActive),
+			Properties: data.JSONMap{
+				fieldGroupID:           run.groupID,
+				propertyOriginalAmount: run.savingAmount,
+			},
+		}
+		ob.GenID(ctx)
+
+		if emitErr := b.eventsMan.Emit(ctx, events.ObligationSaveEvent, ob); emitErr != nil {
+			logger.WithError(emitErr).
+				WithField(fieldMemberID, memberID).
+				Error("could not create savings obligation")
+			continue
+		}
+		created++
+	}
+	return created
+}
+
+// emptyObligationSummary is the shape every CalculateForGroup return follows,
+// so a workflow reading member_obligations never sees a missing key.
+func emptyObligationSummary(groupID, periodID string) map[string]interface{} {
+	return map[string]interface{}{
+		fieldGroupID:          groupID,
+		fieldPeriodID:         periodID,
+		"obligations_created": 0,
+		"members_processed":   0,
+		"member_obligations":  []map[string]interface{}{},
+	}
+}
+
+// summariseMemberObligations folds a period's obligations into one row per
+// member, splitting savings from loan repayment so a reminder can name both.
+func summariseMemberObligations(obligations []*models.Obligation) []map[string]interface{} {
+	type memberDue struct {
+		savings int64
+		loan    int64
+		other   int64
+		due     *time.Time
+	}
+
+	order := make([]string, 0, len(obligations))
+	byMember := map[string]*memberDue{}
+	for _, obl := range obligations {
+		if obl.State != int32(constants.StateActive) || obl.Amount <= 0 {
+			continue
+		}
+		entry, seen := byMember[obl.MembershipID]
+		if !seen {
+			entry = &memberDue{}
+			byMember[obl.MembershipID] = entry
+			order = append(order, obl.MembershipID)
+		}
+		switch {
+		case obl.CauseType == obligationPeriodicSaving || obl.CauseType == obligationSaving:
+			entry.savings += obl.Amount
+		case strings.HasPrefix(obl.CauseType, "loan_"):
+			entry.loan += obl.Amount
+		default:
+			entry.other += obl.Amount
+		}
+		if obl.Deadline != nil && (entry.due == nil || obl.Deadline.Before(*entry.due)) {
+			entry.due = obl.Deadline
+		}
+	}
+
+	result := make([]map[string]interface{}, 0, len(order))
+	for _, memberID := range order {
+		entry := byMember[memberID]
+		row := map[string]interface{}{
+			fieldMemberID:        memberID,
+			fieldMembershipID:    memberID,
+			"savings_due":        entry.savings,
+			"loan_repayment_due": entry.loan,
+			"other_due":          entry.other,
+			"total_due":          entry.savings + entry.loan + entry.other,
+			fieldDueDate:         formatDeadline(entry.due),
+		}
+		result = append(result, row)
+	}
+	return result
+}
+
+// formatDeadline renders an obligation deadline for a workflow template.
+func formatDeadline(deadline *time.Time) string {
+	if deadline == nil {
+		return ""
+	}
+	return deadline.UTC().Format(time.RFC3339)
 }
 
 // CreateLoanObligations creates obligations for due schedule entries.

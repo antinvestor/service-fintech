@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/util"
 )
 
@@ -41,9 +42,19 @@ func NewArchivalHandler(archival ArchivalRunner) *ArchivalHandler {
 }
 
 // ServeHTTP implements http.Handler.
+//
+// Archival hard-deletes rows across every tenant, so beyond the route's
+// function-access permission the caller must be a machine principal: an
+// ordinary operator token, however privileged inside its own tenant, must not
+// be able to destroy another tenant's ledger.
 func (h *ArchivalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !isServiceAccount(r.Context()) {
+		util.Log(r.Context()).Warn("archival: rejected non-service principal")
+		http.Error(w, "archival requires a service-account principal", http.StatusForbidden)
 		return
 	}
 	resvN, ledgerN, err := h.archival.Run(r.Context())
@@ -57,4 +68,15 @@ func (h *ArchivalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"reservations_deleted": resvN,
 		"ledger_deleted":       ledgerN,
 	})
+}
+
+// isServiceAccount reports whether the caller's claims belong to a machine
+// principal (internal-system role or a service token), as required by
+// apps/limits/docs/runbook/archival-trustage.md.
+func isServiceAccount(ctx context.Context) bool {
+	claims := security.ClaimsFromContext(ctx)
+	if claims == nil {
+		return false
+	}
+	return claims.IsInternalSystem() || claims.GetServiceName() != ""
 }

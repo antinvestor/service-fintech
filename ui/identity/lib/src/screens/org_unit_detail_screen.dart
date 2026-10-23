@@ -17,6 +17,7 @@ import '../providers/workforce_member_providers.dart';
 import '../widgets/org_unit_helpers.dart';
 import '../widgets/state_helpers.dart';
 import 'org_unit_form_dialog.dart';
+import '../widgets/async_state_views.dart';
 
 class OrgUnitDetailScreen extends ConsumerWidget {
   const OrgUnitDetailScreen({
@@ -32,19 +33,14 @@ class OrgUnitDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<OrgUnitObject>(
-      future: _loadOrgUnit(ref),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final orgUnit = snapshot.data;
-        if (orgUnit == null) {
-          return const Center(child: Text('Org unit not found'));
-        }
+    final orgUnitAsync = ref.watch(orgUnitByIdProvider(orgUnitId));
+    return orgUnitAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => DetailErrorView(
+        error: error,
+        onRetry: () => ref.invalidate(orgUnitByIdProvider(orgUnitId)),
+      ),
+      data: (orgUnit) {
         return _OrgUnitDetailContent(
           orgUnit: orgUnit,
           organizationId: organizationId,
@@ -52,13 +48,6 @@ class OrgUnitDetailScreen extends ConsumerWidget {
         );
       },
     );
-  }
-
-  Future<OrgUnitObject> _loadOrgUnit(WidgetRef ref) async {
-    final client = ref.read(identityServiceClientProvider);
-    final response =
-        await client.orgUnitGet(OrgUnitGetRequest(id: orgUnitId));
-    return response.data;
   }
 }
 
@@ -78,8 +67,7 @@ class _OrgUnitDetailContent extends ConsumerStatefulWidget {
       _OrgUnitDetailContentState();
 }
 
-class _OrgUnitDetailContentState
-    extends ConsumerState<_OrgUnitDetailContent> {
+class _OrgUnitDetailContentState extends ConsumerState<_OrgUnitDetailContent> {
   late OrgUnitObject _orgUnit;
 
   @override
@@ -110,11 +98,13 @@ class _OrgUnitDetailContentState
       )),
     );
     final organizationsAsync = ref.watch(organizationListProvider(''));
-    final membersAsync = ref.watch(workforceMemberListProvider((
-      query: '',
-      homeOrgUnitId: _orgUnit.id,
-      organizationId: '',
-    )));
+    final membersAsync = ref.watch(
+      workforceMemberListProvider((
+        query: '',
+        homeOrgUnitId: _orgUnit.id,
+        organizationId: '',
+      )),
+    );
     final tenancy = ref.watch(tenancyContextProvider);
     final isActiveBranch = tenancy.branchId == _orgUnit.id;
 
@@ -143,8 +133,7 @@ class _OrgUnitDetailContentState
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer
-                            .withAlpha(80),
+                        color: theme.colorScheme.primaryContainer.withAlpha(80),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -170,8 +159,7 @@ class _OrgUnitDetailContentState
                           Text(
                             '${orgUnitTypeLabel(_orgUnit.type)}${_orgUnit.code.isNotEmpty ? ' \u2022 ${_orgUnit.code}' : ''}',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface
-                                  .withAlpha(140),
+                              color: theme.colorScheme.onSurface.withAlpha(140),
                             ),
                           ),
                         ],
@@ -193,7 +181,8 @@ class _OrgUnitDetailContentState
                             ? OutlinedButton.styleFrom(
                                 foregroundColor: theme.colorScheme.tertiary,
                                 side: BorderSide(
-                                    color: theme.colorScheme.tertiary),
+                                  color: theme.colorScheme.tertiary,
+                                ),
                               )
                             : null,
                       ),
@@ -224,8 +213,7 @@ class _OrgUnitDetailContentState
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: ProfileInlineManager(
-                      profileId: _orgUnit.profileId),
+                  child: ProfileInlineManager(profileId: _orgUnit.profileId),
                 ),
               ),
 
@@ -239,15 +227,15 @@ class _OrgUnitDetailContentState
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                       side: BorderSide(
-                        color: theme.colorScheme.outlineVariant
-                            .withAlpha(38),
+                        color: theme.colorScheme.outlineVariant.withAlpha(38),
                       ),
                     ),
-                    color:
-                        theme.colorScheme.primaryContainer.withAlpha(40),
+                    color: theme.colorScheme.primaryContainer.withAlpha(40),
                     child: ListTile(
-                      leading: Icon(Icons.link,
-                          color: theme.colorScheme.primary),
+                      leading: Icon(
+                        Icons.link,
+                        color: theme.colorScheme.primary,
+                      ),
                       title: const Text('Client ID'),
                       subtitle: SelectableText(
                         _orgUnit.clientId,
@@ -262,8 +250,7 @@ class _OrgUnitDetailContentState
                             ClipboardData(text: _orgUnit.clientId),
                           );
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Client ID copied')),
+                            const SnackBar(content: Text('Client ID copied')),
                           );
                         },
                       ),
@@ -278,8 +265,11 @@ class _OrgUnitDetailContentState
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.account_tree_outlined,
-                        size: 20, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.account_tree_outlined,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -333,14 +323,12 @@ class _OrgUnitDetailContentState
                       child: Card(
                         child: ListTile(
                           leading: Icon(
-                            child.type ==
-                                    OrgUnitType.ORG_UNIT_TYPE_BRANCH
+                            child.type == OrgUnitType.ORG_UNIT_TYPE_BRANCH
                                 ? Icons.store_outlined
                                 : Icons.account_tree_outlined,
                           ),
                           title: Text(child.name),
-                          subtitle:
-                              Text(orgUnitTypeLabel(child.type)),
+                          subtitle: Text(orgUnitTypeLabel(child.type)),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => context.go(
                             '/organizations/${_orgUnit.organizationId}/org-units/${child.id}',
@@ -359,8 +347,11 @@ class _OrgUnitDetailContentState
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.badge_outlined,
-                        size: 20, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.badge_outlined,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -391,22 +382,20 @@ class _OrgUnitDetailContentState
                 if (members.isEmpty) {
                   return SliverToBoxAdapter(
                     child: Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                       child: Center(
                         child: Column(
                           children: [
-                            Icon(Icons.badge_outlined,
-                                size: 40,
-                                color: theme.colorScheme.onSurface
-                                    .withAlpha(60)),
+                            Icon(
+                              Icons.badge_outlined,
+                              size: 40,
+                              color: theme.colorScheme.onSurface.withAlpha(60),
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               'No members assigned to this unit',
-                              style:
-                                  theme.textTheme.bodySmall?.copyWith(
-                                color: theme
-                                    .colorScheme.onSurfaceVariant,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -417,24 +406,21 @@ class _OrgUnitDetailContentState
                 }
                 return SliverToBoxAdapter(
                   child: Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                     child: Card(
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                         side: BorderSide(
-                          color: theme.colorScheme.outlineVariant
-                              .withAlpha(38),
+                          color: theme.colorScheme.outlineVariant.withAlpha(38),
                         ),
                       ),
                       child: Column(
                         children: members.map((member) {
-                          final name = member.hasProperties() &&
-                                  member.properties.fields
-                                      .containsKey('name')
-                              ? member.properties.fields['name']!
-                                  .stringValue
+                          final name =
+                              member.hasProperties() &&
+                                  member.properties.fields.containsKey('name')
+                              ? member.properties.fields['name']!.stringValue
                               : member.profileId;
                           return ListTile(
                             leading: ProfileAvatar(
@@ -444,17 +430,13 @@ class _OrgUnitDetailContentState
                             ),
                             title: Text(name),
                             subtitle: Text(
-                              engagementLabel(
-                                  member.engagementType),
+                              engagementLabel(member.engagementType),
                               style: theme.textTheme.bodySmall,
                             ),
                             trailing: StateBadge(
-                              state:
-                                  toCommonState(member.state),
+                              state: toCommonState(member.state),
                             ),
-                            onTap: () => context.go(
-                              '/workforce/${member.id}',
-                            ),
+                            onTap: () => context.go('/workforce/${member.id}'),
                           );
                         }).toList(),
                       ),
@@ -516,9 +498,7 @@ class _OrgUnitDetailContentState
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withAlpha(38),
-        ),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(38)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -527,23 +507,20 @@ class _OrgUnitDetailContentState
           children: [
             LayoutBuilder(
               builder: (context, constraints) {
-                if (constraints.maxWidth >= 480 &&
-                    rightItems.isNotEmpty) {
+                if (constraints.maxWidth >= 480 && rightItems.isNotEmpty) {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: leftItems,
                         ),
                       ),
                       const SizedBox(width: 24),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: rightItems,
                         ),
                       ),
@@ -593,11 +570,11 @@ class _OrgUnitDetailContentState
   Future<void> _editOrgUnit(BuildContext context) async {
     final organizations =
         ref.read(organizationListProvider('')).value ??
-            const <OrganizationObject>[];
+        const <OrganizationObject>[];
     final result = await showDialog<OrgUnitObject>(
       context: context,
-      builder: (context) => OrgUnitFormDialog(
-          orgUnit: _orgUnit, organizations: organizations),
+      builder: (context) =>
+          OrgUnitFormDialog(orgUnit: _orgUnit, organizations: organizations),
     );
     if (result == null || !context.mounted) return;
     await _saveOrgUnit(
@@ -651,9 +628,9 @@ class _OrgUnitDetailContentState
         setState(() => _orgUnit = response.data);
       }
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(successMessage)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

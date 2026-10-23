@@ -16,7 +16,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
@@ -32,7 +31,8 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/fundingcompat"
 )
 
-const moneyDecimalPlaces = 2
+// idempotencyHeader carries the caller's replay key for money movements.
+const idempotencyHeader = "Idempotency-Key"
 
 // FundingServer implements the FundingService RPC handler.
 // Tenant-level permission checks are handled by the FunctionAccessInterceptor.
@@ -59,9 +59,12 @@ func (s *FundingServer) InvestorAccountSave(
 	ctx context.Context,
 	req *connect.Request[fundingv1.InvestorAccountSaveRequest],
 ) (*connect.Response[fundingv1.InvestorAccountSaveResponse], error) {
-	account := investorAccountFromAPI(ctx, req.Msg.GetData())
+	account, err := investorAccountFromAPI(ctx, req.Msg.GetData())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
 
-	result, err := s.iaBusiness.Create(ctx, account)
+	result, err := s.iaBusiness.Save(ctx, account)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
@@ -93,23 +96,13 @@ func (s *FundingServer) InvestorAccountSearch(
 	req *connect.Request[fundingv1.InvestorAccountSearchRequest],
 	stream *connect.ServerStream[fundingv1.InvestorAccountSearchResponse],
 ) error {
-	investorID := req.Msg.GetInvestorId()
-	if investorID == "" {
-		return apperrors.CleanErr(apperrors.ErrMissingRequiredData.Extend("investor_id is required"))
-	}
-
-	accounts, err := s.iaBusiness.GetByInvestorID(ctx, investorID)
+	accounts, err := s.iaBusiness.Search(ctx, req.Msg)
 	if err != nil {
 		return apperrors.CleanErr(err)
 	}
 
-	// Filter by currency if specified.
-	currencyCode := req.Msg.GetCurrencyCode()
-	var apiResults []*fundingv1.InvestorAccountObject
+	apiResults := make([]*fundingv1.InvestorAccountObject, 0, len(accounts))
 	for _, acct := range accounts {
-		if currencyCode != "" && acct.Currency != currencyCode {
-			continue
-		}
 		apiResults = append(apiResults, investorAccountToAPI(acct))
 	}
 
@@ -123,16 +116,12 @@ func (s *FundingServer) InvestorDeposit(
 	ctx context.Context,
 	req *connect.Request[fundingv1.InvestorDepositRequest],
 ) (*connect.Response[fundingv1.InvestorDepositResponse], error) {
-	idemKey := req.Header().Get("Idempotency-Key")
+	idemKey := req.Header().Get(idempotencyHeader)
 	if idemKey == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			errors.New("Idempotency-Key header required"))
+		return nil, apperrors.CleanErr(business.ErrIdempotencyKeyRequired)
 	}
 
-	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyDecimalPlaces)
-
-	err := s.iaBusiness.Deposit(ctx, req.Msg.GetAccountId(), amount, idemKey)
-	if err != nil {
+	if err := s.iaBusiness.Deposit(ctx, req.Msg.GetAccountId(), req.Msg.GetAmount(), idemKey); err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 
@@ -153,16 +142,12 @@ func (s *FundingServer) InvestorWithdraw(
 	ctx context.Context,
 	req *connect.Request[fundingv1.InvestorWithdrawRequest],
 ) (*connect.Response[fundingv1.InvestorWithdrawResponse], error) {
-	idemKey := req.Header().Get("Idempotency-Key")
+	idemKey := req.Header().Get(idempotencyHeader)
 	if idemKey == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			errors.New("Idempotency-Key header required"))
+		return nil, apperrors.CleanErr(business.ErrIdempotencyKeyRequired)
 	}
 
-	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyDecimalPlaces)
-
-	err := s.iaBusiness.Withdraw(ctx, req.Msg.GetAccountId(), amount, idemKey)
-	if err != nil {
+	if err := s.iaBusiness.Withdraw(ctx, req.Msg.GetAccountId(), req.Msg.GetAmount(), idemKey); err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 
@@ -199,18 +184,23 @@ func (s *FundingServer) AbsorbLoss(
 	ctx context.Context,
 	req *connect.Request[fundingv1.AbsorbLossRequest],
 ) (*connect.Response[fundingv1.AbsorbLossResponse], error) {
-	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyDecimalPlaces)
+	currency := req.Msg.GetAmount().GetCurrencyCode()
+	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyx.Decimals(currency))
 
 	loanRequestID := fundingcompat.LoanRequestIDFromAbsorbLossRequest(req.Msg)
-	err := s.faBusiness.AbsorbLoss(ctx, loanRequestID, amount)
+	result, err := s.faBusiness.AbsorbLoss(ctx, loanRequestID, amount)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
+	}
+	if result.Currency == "" {
+		result.Currency = currency
 	}
 
 	audit.WithResource(ctx, audit.ResourceFundingAllocation, loanRequestID)
 	audit.WithAction(ctx, "absorb_loss")
 	return connect.NewResponse(&fundingv1.AbsorbLossResponse{
-		Absorbed: req.Msg.GetAmount(),
+		Absorbed:      moneyx.FromMinorUnitsByCurrency(result.Currency, result.Absorbed),
+		Unrecoverable: moneyx.FromMinorUnitsByCurrency(result.Currency, result.Unrecoverable),
 	}), nil
 }
 
@@ -222,11 +212,11 @@ func investorAccountToAPI(m *models.InvestorAccount) *fundingv1.InvestorAccountO
 		Id:                m.GetID(),
 		InvestorId:        m.InvestorID,
 		AccountName:       m.AccountName,
-		AvailableBalance:  moneyx.FromSmallestUnit(m.Currency, m.AvailableBalance, moneyDecimalPlaces),
-		ReservedBalance:   moneyx.FromSmallestUnit(m.Currency, m.ReservedBalance, moneyDecimalPlaces),
-		TotalDeployed:     moneyx.FromSmallestUnit(m.Currency, m.TotalDeployed, moneyDecimalPlaces),
-		TotalReturned:     moneyx.FromSmallestUnit(m.Currency, m.TotalReturned, moneyDecimalPlaces),
-		MaxExposure:       moneyx.FromSmallestUnit(m.Currency, m.MaxExposure, moneyDecimalPlaces),
+		AvailableBalance:  models.MinorUnitsToMoney(m.AvailableBalance, m.Currency),
+		ReservedBalance:   models.MinorUnitsToMoney(m.ReservedBalance, m.Currency),
+		TotalDeployed:     models.MinorUnitsToMoney(m.TotalDeployed, m.Currency),
+		TotalReturned:     models.MinorUnitsToMoney(m.TotalReturned, m.Currency),
+		MaxExposure:       models.MinorUnitsToMoney(m.MaxExposure, m.Currency),
 		MinInterestRate:   models.BasisPointsToString(m.MinInterestRate),
 		AllowedProducts:   m.AllowedProducts.ToProtoStruct(),
 		AllowedRegions:    m.AllowedRegions.ToProtoStruct(),
@@ -236,24 +226,36 @@ func investorAccountToAPI(m *models.InvestorAccount) *fundingv1.InvestorAccountO
 	}
 }
 
-// investorAccountFromAPI converts a proto InvestorAccountObject to a model InvestorAccount.
-func investorAccountFromAPI(ctx context.Context, obj *fundingv1.InvestorAccountObject) *models.InvestorAccount {
+// investorAccountFromAPI converts a proto InvestorAccountObject to a model
+// InvestorAccount. Balances are deliberately not read: available_balance
+// contributes only its currency_code, which is how the contract carries the
+// account's denomination. Capital moves through Deposit and Withdraw alone.
+// A min_interest_rate that is not a decimal percentage is rejected rather
+// than silently stored as "no minimum".
+func investorAccountFromAPI(
+	ctx context.Context,
+	obj *fundingv1.InvestorAccountObject,
+) (*models.InvestorAccount, error) {
 	if obj == nil {
-		return nil
+		return nil, business.ErrMissingInvestorContext
 	}
 
-	availBalance := moneyx.ToSmallestUnit(obj.GetAvailableBalance(), moneyDecimalPlaces)
 	currency := obj.GetAvailableBalance().GetCurrencyCode()
-	maxExposure := moneyx.ToSmallestUnit(obj.GetMaxExposure(), moneyDecimalPlaces)
+	if currency == "" {
+		currency = obj.GetMaxExposure().GetCurrencyCode()
+	}
+	maxExposure, _ := models.MoneyToMinorUnits(obj.GetMaxExposure())
+	minRate, err := models.ParseRate(obj.GetMinInterestRate())
+	if err != nil {
+		return nil, business.ErrInvalidInterestRate.Extend(err.Error())
+	}
 
 	model := &models.InvestorAccount{
-		InvestorID:       obj.GetInvestorId(),
-		AccountName:      obj.GetAccountName(),
-		Currency:         currency,
-		AvailableBalance: availBalance,
-		MaxExposure:      maxExposure,
-		MinInterestRate:  models.StringToBasisPoints(obj.GetMinInterestRate()),
-		State:            int32(obj.GetState()),
+		InvestorID:      obj.GetInvestorId(),
+		AccountName:     obj.GetAccountName(),
+		Currency:        currency,
+		MaxExposure:     maxExposure,
+		MinInterestRate: minRate,
 	}
 
 	if obj.GetAllowedProducts() != nil {
@@ -274,66 +276,29 @@ func investorAccountFromAPI(ctx context.Context, obj *fundingv1.InvestorAccountO
 		model.ID = obj.GetId()
 	}
 
-	return model
+	return model, nil
 }
 
-// fundLoanResultToAPI converts the SourceForRequest result map to a FundLoanResponse.
-func fundLoanResultToAPI(result map[string]interface{}) *fundingv1.FundLoanResponse {
-	resp := &fundingv1.FundLoanResponse{}
-	currency, _ := result["currency"].(string)
-
-	if fullyFunded, ok := result["fully_funded"].(bool); ok {
-		resp.FullyFunded = fullyFunded
+// fundLoanResultToAPI renders the allocation result on the wire.
+func fundLoanResultToAPI(result *business.AllocationResult) *fundingv1.FundLoanResponse {
+	resp := &fundingv1.FundLoanResponse{
+		FullyFunded:    result.FullyFunded,
+		TotalAllocated: models.MinorUnitsToMoney(result.TotalAllocated, result.Currency),
+		Deficit:        models.MinorUnitsToMoney(result.Deficit, result.Currency),
 	}
 
-	if totalAllocated, ok := result["total_allocated"].(int64); ok {
-		resp.TotalAllocated = moneyx.FromSmallestUnit(currency, totalAllocated, moneyDecimalPlaces)
+	resp.Allocations = make([]*fundingv1.FundingAllocationObject, 0, len(result.Allocations))
+	for _, allocation := range result.Allocations {
+		obj := &fundingv1.FundingAllocationObject{
+			Id:           allocation.ID,
+			SourceId:     allocation.SourceID,
+			SourceType:   allocation.SourceType,
+			TrancheLevel: allocation.TrancheLevel,
+			Amount:       models.MinorUnitsToMoney(allocation.Amount, allocation.Currency),
+		}
+		fundingcompat.SetAllocationLoanRequestID(obj, allocation.LoanRequestID)
+		resp.Allocations = append(resp.Allocations, obj)
 	}
-
-	if deficit, ok := result["deficit"].(int64); ok {
-		resp.Deficit = moneyx.FromSmallestUnit(currency, deficit, moneyDecimalPlaces)
-	}
-
-	resp.Allocations = fundingAllocationsToAPI(result["allocations"])
 
 	return resp
-}
-
-func fundingAllocationsToAPI(value interface{}) []*fundingv1.FundingAllocationObject {
-	allocations, ok := value.([]map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	apiAllocations := make([]*fundingv1.FundingAllocationObject, 0, len(allocations))
-	for _, allocation := range allocations {
-		apiAllocations = append(apiAllocations, fundingAllocationToAPI(allocation))
-	}
-
-	return apiAllocations
-}
-
-func fundingAllocationToAPI(allocation map[string]interface{}) *fundingv1.FundingAllocationObject {
-	obj := &fundingv1.FundingAllocationObject{}
-	if id, found := allocation["id"].(string); found {
-		obj.Id = id
-	}
-	if loanRequestID, found := allocation["loan_request_id"].(string); found {
-		fundingcompat.SetAllocationLoanRequestID(obj, loanRequestID)
-	}
-	if sourceID, found := allocation["source_id"].(string); found {
-		obj.SourceId = sourceID
-	}
-	if sourceType, found := allocation["source_type"].(string); found {
-		obj.SourceType = sourceType
-	}
-	if trancheLevel, found := allocation["tranche_level"].(int32); found {
-		obj.TrancheLevel = trancheLevel
-	}
-	if amount, found := allocation["amount"].(int64); found {
-		currency, _ := allocation["currency"].(string)
-		obj.Amount = moneyx.FromSmallestUnit(currency, amount, moneyDecimalPlaces)
-	}
-
-	return obj
 }

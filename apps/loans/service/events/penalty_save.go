@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const PenaltySaveEvent = "penalty.save"
@@ -58,17 +58,8 @@ func (e *PenaltySave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "penalty_id": p.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.penaltyRepo.GetByID(ctx, p.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.penaltyRepo.Update(ctx, p); err != nil {
-			logger.WithError(err).Error("could not update penalty in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.penaltyRepo.Create(ctx, p); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create penalty in db")
+	if err := upsert.ByID(ctx, e.penaltyRepo, p); err != nil {
+		logger.WithError(err).Error("could not persist penalty")
 		return err
 	}
 

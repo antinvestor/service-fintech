@@ -5,19 +5,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'loans_transport_provider.dart';
 
 final restructureListProvider =
-    FutureProvider.family<List<LoanRestructureObject>, String>(
-  (ref, loanAccountId) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final request = LoanRestructureSearchRequest(
-      loanAccountId: loanAccountId,
-      cursor: PageCursor(limit: 50),
-    );
-    return collectStream(
-      client.loanRestructureSearch(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+    FutureProvider.family<List<LoanRestructureObject>, String>((
+      ref,
+      loanAccountId,
+    ) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      final request = LoanRestructureSearchRequest(
+        loanAccountId: loanAccountId,
+        cursor: PageCursor(limit: 50),
+      );
+      return collectStream(
+        client.loanRestructureSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 /// Notifier for restructure mutations.
 class RestructureNotifier extends Notifier<AsyncValue<void>> {
@@ -75,5 +76,5 @@ class RestructureNotifier extends Notifier<AsyncValue<void>> {
 
 final restructureNotifierProvider =
     NotifierProvider<RestructureNotifier, AsyncValue<void>>(
-  RestructureNotifier.new,
-);
+      RestructureNotifier.new,
+    );

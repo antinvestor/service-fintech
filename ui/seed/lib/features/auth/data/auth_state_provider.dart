@@ -1,6 +1,10 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/logging/app_logger.dart';
+
+import '../../../core/auth/permission_provider.dart';
+import '../../../core/auth/tenancy_bootstrap.dart';
 import 'auth_repository.dart';
 
 part 'auth_state_provider.g.dart';
@@ -14,16 +18,15 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final authRepo = ref.watch(authRepositoryProvider);
     final isLoggedIn = await authRepo.isLoggedIn();
 
-    if (isLoggedIn) {
-      final token = await authRepo.ensureValidAccessToken();
-      if (token != null) {
-        return AuthState.authenticated;
-      }
-      // Transient failure - keep session alive
-      return AuthState.authenticated;
-    }
+    if (!isLoggedIn) return AuthState.unauthenticated;
 
-    return AuthState.unauthenticated;
+    // A session with no obtainable access token is not a session. Reporting
+    // it as authenticated leaves the user inside a fully rendered app where
+    // every request 401s and nothing sends them back to login.
+    final token = await authRepo.ensureValidAccessToken();
+    return token == null || token.isEmpty
+        ? AuthState.unauthenticated
+        : AuthState.authenticated;
   }
 
   Future<void> login({String? clientId}) async {
@@ -60,6 +63,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       await authRepo.logout();
 
       if (!ref.mounted) return;
+
+      // Drop every piece of the previous user's session so signing in as a
+      // different user does not inherit their tenancy or capabilities.
+      ref.read(tenancyContextProvider).clear();
+      ref.read(tenancyBootstrapProvider).reset();
+      ref.invalidate(permissionResolutionProvider);
 
       state = const AsyncValue.data(AuthState.unauthenticated);
       AppLogger.info('Logout successful');

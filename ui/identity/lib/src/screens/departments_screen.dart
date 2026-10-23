@@ -6,25 +6,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/department_providers.dart';
-import '../providers/identity_transport_provider.dart';
 import '../providers/organization_providers.dart';
-import '../widgets/state_helpers.dart';
+import '../widgets/async_state_views.dart';
 
 // ---------------------------------------------------------------------------
 // Department & Position hierarchy helpers
 // ---------------------------------------------------------------------------
 
 String departmentKindLabel(DepartmentKind kind) => switch (kind) {
-      DepartmentKind.DEPARTMENT_KIND_FUNCTION => 'Function',
-      DepartmentKind.DEPARTMENT_KIND_DEPARTMENT => 'Department',
-      _ => 'Unspecified',
-    };
+  DepartmentKind.DEPARTMENT_KIND_FUNCTION => 'Function',
+  DepartmentKind.DEPARTMENT_KIND_DEPARTMENT => 'Department',
+  _ => 'Unspecified',
+};
 
 IconData departmentKindIcon(DepartmentKind kind) => switch (kind) {
-      DepartmentKind.DEPARTMENT_KIND_FUNCTION => Icons.hub_outlined,
-      DepartmentKind.DEPARTMENT_KIND_DEPARTMENT => Icons.folder_outlined,
-      _ => Icons.folder_open_outlined,
-    };
+  DepartmentKind.DEPARTMENT_KIND_FUNCTION => Icons.hub_outlined,
+  DepartmentKind.DEPARTMENT_KIND_DEPARTMENT => Icons.folder_outlined,
+  _ => Icons.folder_open_outlined,
+};
 
 // ---------------------------------------------------------------------------
 // Departments list screen
@@ -43,13 +42,36 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final depsAsync = ref.watch(departmentListProvider((
-      query: _query,
-      organizationId: '',
-      parentId: '',
-      kind: DepartmentKind.DEPARTMENT_KIND_UNSPECIFIED,
-    )));
-    final departments = depsAsync.whenOrNull(data: (d) => d) ?? [];
+    final depsAsync = ref.watch(
+      departmentListProvider((
+        query: _query,
+        organizationId: '',
+        parentId: '',
+        kind: DepartmentKind.DEPARTMENT_KIND_UNSPECIFIED,
+      )),
+    );
+    if (depsAsync.hasError) {
+      return ListErrorView(
+        title: 'Departments & Functions',
+        breadcrumbs: const ['Identity', 'Departments'],
+        error: depsAsync.error!,
+        onRetry: () => ref.invalidate(
+          departmentListProvider((
+            query: _query,
+            organizationId: '',
+            parentId: '',
+            kind: DepartmentKind.DEPARTMENT_KIND_UNSPECIFIED,
+          )),
+        ),
+      );
+    }
+    if (depsAsync.isLoading && !depsAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'Departments & Functions',
+        breadcrumbs: ['Identity', 'Departments'],
+      );
+    }
+    final departments = depsAsync.requireValue;
 
     return AdminEntityListPage<DepartmentObject>(
       title: 'Departments & Functions',
@@ -69,15 +91,20 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
           selected: selected,
           onSelectChanged: (_) => onSelect(),
           cells: [
-            DataCell(Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(departmentKindIcon(dep.kind),
-                    size: 18, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(dep.name),
-              ],
-            )),
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    departmentKindIcon(dep.kind),
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(dep.name),
+                ],
+              ),
+            ),
             DataCell(Text(departmentKindLabel(dep.kind))),
             DataCell(Text(dep.code)),
             DataCell(_StatePill(dep.state)),
@@ -104,9 +131,9 @@ class _DepartmentsScreenState extends ConsumerState<DepartmentsScreen> {
         onSave: (dep) async {
           await ref.read(departmentNotifierProvider.notifier).save(dep);
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Department created')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Department created')));
           }
         },
       ),
@@ -133,29 +160,36 @@ class _DepartmentInlineDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(departmentKindIcon(department.kind),
-                  color: theme.colorScheme.primary),
+              child: Icon(
+                departmentKindIcon(department.kind),
+                color: theme.colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(department.name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(department.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    department.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    department.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
           ],
         ),
         const SizedBox(height: 20),
-        _DetailRow(
-            label: 'Kind', value: departmentKindLabel(department.kind)),
+        _DetailRow(label: 'Kind', value: departmentKindLabel(department.kind)),
         if (department.code.isNotEmpty)
           _DetailRow(label: 'Code', value: department.code),
         if (department.organizationId.isNotEmpty)
@@ -183,36 +217,24 @@ class DepartmentDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<DepartmentObject>(
-      future: _load(ref),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final dep = snapshot.data;
-        if (dep == null) {
-          return const Center(child: Text('Department not found'));
-        }
-        return _DepartmentDetailContent(
-            department: dep, canManage: canManage);
-      },
+    final departmentAsync = ref.watch(departmentByIdProvider(departmentId));
+    return departmentAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => DetailErrorView(
+        error: error,
+        onRetry: () => ref.invalidate(departmentByIdProvider(departmentId)),
+      ),
+      data: (dep) =>
+          _DepartmentDetailContent(department: dep, canManage: canManage),
     );
-  }
-
-  Future<DepartmentObject> _load(WidgetRef ref) async {
-    final client = ref.read(identityServiceClientProvider);
-    final response =
-        await client.departmentGet(DepartmentGetRequest(id: departmentId));
-    return response.data;
   }
 }
 
 class _DepartmentDetailContent extends ConsumerStatefulWidget {
-  const _DepartmentDetailContent(
-      {required this.department, required this.canManage});
+  const _DepartmentDetailContent({
+    required this.department,
+    required this.canManage,
+  });
   final DepartmentObject department;
   final bool canManage;
 
@@ -237,21 +259,25 @@ class _DepartmentDetailContentState
     final theme = Theme.of(context);
 
     // Child departments (same parent)
-    final childDepsAsync = ref.watch(departmentListProvider((
-      query: '',
-      organizationId: _department.organizationId,
-      parentId: _department.id,
-      kind: DepartmentKind.DEPARTMENT_KIND_UNSPECIFIED,
-    )));
+    final childDepsAsync = ref.watch(
+      departmentListProvider((
+        query: '',
+        organizationId: _department.organizationId,
+        parentId: _department.id,
+        kind: DepartmentKind.DEPARTMENT_KIND_UNSPECIFIED,
+      )),
+    );
 
     // Positions in this department
-    final positionsAsync = ref.watch(positionListProvider((
-      query: '',
-      organizationId: _department.organizationId,
-      orgUnitId: '',
-      departmentId: _department.id,
-      reportsToPositionId: '',
-    )));
+    final positionsAsync = ref.watch(
+      positionListProvider((
+        query: '',
+        organizationId: _department.organizationId,
+        orgUnitId: '',
+        departmentId: _department.id,
+        reportsToPositionId: '',
+      )),
+    );
 
     return Center(
       child: ConstrainedBox(
@@ -273,27 +299,32 @@ class _DepartmentDetailContentState
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer
-                            .withAlpha(80),
+                        color: theme.colorScheme.primaryContainer.withAlpha(80),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(departmentKindIcon(_department.kind),
-                          size: 24, color: theme.colorScheme.primary),
+                      child: Icon(
+                        departmentKindIcon(_department.kind),
+                        size: 24,
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_department.name,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.5)),
+                          Text(
+                            _department.name,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
                           Text(
                             '${departmentKindLabel(_department.kind)}${_department.code.isNotEmpty ? ' \u2022 ${_department.code}' : ''}',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface
-                                    .withAlpha(140)),
+                              color: theme.colorScheme.onSurface.withAlpha(140),
+                            ),
                           ),
                         ],
                       ),
@@ -321,7 +352,8 @@ class _DepartmentDetailContentState
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                     side: BorderSide(
-                        color: theme.colorScheme.outlineVariant.withAlpha(38)),
+                      color: theme.colorScheme.outlineVariant.withAlpha(38),
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -329,18 +361,21 @@ class _DepartmentDetailContentState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _InfoTile(
-                            label: 'Kind',
-                            value: departmentKindLabel(_department.kind)),
+                          label: 'Kind',
+                          value: departmentKindLabel(_department.kind),
+                        ),
                         if (_department.code.isNotEmpty)
                           _InfoTile(label: 'Code', value: _department.code),
                         if (_department.organizationId.isNotEmpty)
                           _InfoTile(
-                              label: 'Organization',
-                              value: _department.organizationId),
+                            label: 'Organization',
+                            value: _department.organizationId,
+                          ),
                         if (_department.parentId.isNotEmpty)
                           _InfoTile(
-                              label: 'Parent Department',
-                              value: _department.parentId),
+                            label: 'Parent Department',
+                            value: _department.parentId,
+                          ),
                       ],
                     ),
                   ),
@@ -354,13 +389,19 @@ class _DepartmentDetailContentState
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.folder_outlined,
-                        size: 20, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.folder_outlined,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('Sub-Departments',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Sub-Departments',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     if (widget.canManage)
                       FilledButton.icon(
@@ -374,19 +415,25 @@ class _DepartmentDetailContentState
             ),
             childDepsAsync.when(
               loading: () => const SliverToBoxAdapter(
-                  child: Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()))),
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
               error: (e, _) => SliverToBoxAdapter(
-                  child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text('Error: $e'))),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Error: $e'),
+                ),
+              ),
               data: (children) {
                 if (children.isEmpty) {
                   return const SliverToBoxAdapter(
-                      child: Padding(
-                          padding: EdgeInsets.fromLTRB(24, 8, 24, 16),
-                          child: Text('No sub-departments')));
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(24, 8, 24, 16),
+                      child: Text('No sub-departments'),
+                    ),
+                  );
                 }
                 return SliverList.builder(
                   itemCount: children.length,
@@ -400,8 +447,7 @@ class _DepartmentDetailContentState
                           title: Text(child.name),
                           subtitle: Text(departmentKindLabel(child.kind)),
                           trailing: const Icon(Icons.chevron_right),
-                          onTap: () =>
-                              context.go('/departments/${child.id}'),
+                          onTap: () => context.go('/departments/${child.id}'),
                         ),
                       ),
                     );
@@ -416,13 +462,19 @@ class _DepartmentDetailContentState
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.work_outline,
-                        size: 20, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.work_outline,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('Positions',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Positions',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     if (widget.canManage)
                       FilledButton.icon(
@@ -444,22 +496,26 @@ class _DepartmentDetailContentState
                     prefixIcon: const Icon(Icons.search, size: 20),
                     isDense: true,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                  onChanged: (v) =>
-                      setState(() => _positionFilter = v.trim()),
+                  onChanged: (v) => setState(() => _positionFilter = v.trim()),
                 ),
               ),
             ),
             positionsAsync.when(
               loading: () => const SliverToBoxAdapter(
-                  child: Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()))),
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
               error: (e, _) => SliverToBoxAdapter(
-                  child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text('Error: $e'))),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Error: $e'),
+                ),
+              ),
               data: (positions) {
                 // Client-side filter preserving departmentId constraint
                 final filtered = _positionFilter.isEmpty
@@ -477,18 +533,19 @@ class _DepartmentDetailContentState
                       child: Center(
                         child: Column(
                           children: [
-                            Icon(Icons.work_outline,
-                                size: 40,
-                                color: theme.colorScheme.onSurface
-                                    .withAlpha(60)),
+                            Icon(
+                              Icons.work_outline,
+                              size: 40,
+                              color: theme.colorScheme.onSurface.withAlpha(60),
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               _positionFilter.isNotEmpty
                                   ? 'No positions matching "$_positionFilter"'
                                   : 'No positions defined yet',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                  color:
-                                      theme.colorScheme.onSurfaceVariant),
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         ),
@@ -505,8 +562,8 @@ class _DepartmentDetailContentState
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                         side: BorderSide(
-                            color: theme.colorScheme.outlineVariant
-                                .withAlpha(38)),
+                          color: theme.colorScheme.outlineVariant.withAlpha(38),
+                        ),
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: DataTable(
@@ -520,25 +577,31 @@ class _DepartmentDetailContentState
                         rows: filtered.map((pos) {
                           return DataRow(
                             cells: [
-                              DataCell(Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.work_outline,
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.work_outline,
                                       size: 18,
-                                      color: theme.colorScheme.primary),
-                                  const SizedBox(width: 8),
-                                  Text(pos.name),
-                                ],
-                              )),
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(pos.name),
+                                  ],
+                                ),
+                              ),
                               DataCell(Text(pos.code)),
-                              DataCell(Text(
-                                pos.reportsToPositionId.isNotEmpty
-                                    ? pos.reportsToPositionId
-                                    : '\u2014',
-                                style: TextStyle(
-                                    color: theme
-                                        .colorScheme.onSurfaceVariant),
-                              )),
+                              DataCell(
+                                Text(
+                                  pos.reportsToPositionId.isNotEmpty
+                                      ? pos.reportsToPositionId
+                                      : '\u2014',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
                               DataCell(_StatePill(pos.state)),
                             ],
                           );
@@ -600,9 +663,9 @@ class _DepartmentDetailContentState
         onSave: (pos) async {
           await ref.read(positionNotifierProvider.notifier).save(pos);
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Position created')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Position created')));
           }
         },
       ),
@@ -648,11 +711,10 @@ class _DepartmentFormDialogState extends ConsumerState<DepartmentFormDialog> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.department?.name ?? '');
     _codeCtrl = TextEditingController(text: widget.department?.code ?? '');
-    _kind = widget.department?.kind ??
-        DepartmentKind.DEPARTMENT_KIND_DEPARTMENT;
-    _orgId = widget.fixedOrganizationId ??
-        widget.department?.organizationId ??
-        '';
+    _kind =
+        widget.department?.kind ?? DepartmentKind.DEPARTMENT_KIND_DEPARTMENT;
+    _orgId =
+        widget.fixedOrganizationId ?? widget.department?.organizationId ?? '';
   }
 
   @override
@@ -685,9 +747,8 @@ class _DepartmentFormDialogState extends ConsumerState<DepartmentFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final orgsAsync = ref.watch(organizationListProvider(''));
-    final orgs = orgsAsync.whenOrNull(data: (d) => d) ?? [];
+    final orgs = orgsAsync.value ?? const <OrganizationObject>[];
 
     return Dialog(
       clipBehavior: Clip.antiAlias,
@@ -746,19 +807,17 @@ class _DepartmentFormDialogState extends ConsumerState<DepartmentFormDialog> {
                             'Function = top-level business function. Department = nested grouping.',
                         isRequired: true,
                         child: DropdownButtonFormField<DepartmentKind>(
-                          value: _kind,
+                          initialValue: _kind,
                           decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.category_outlined),
                           ),
                           items: const [
                             DropdownMenuItem(
-                              value:
-                                  DepartmentKind.DEPARTMENT_KIND_FUNCTION,
+                              value: DepartmentKind.DEPARTMENT_KIND_FUNCTION,
                               child: Text('Function'),
                             ),
                             DropdownMenuItem(
-                              value: DepartmentKind
-                                  .DEPARTMENT_KIND_DEPARTMENT,
+                              value: DepartmentKind.DEPARTMENT_KIND_DEPARTMENT,
                               child: Text('Department'),
                             ),
                           ],
@@ -771,17 +830,20 @@ class _DepartmentFormDialogState extends ConsumerState<DepartmentFormDialog> {
                         FormFieldCard(
                           label: 'Organization',
                           child: DropdownButtonFormField<String>(
-                            value: _orgId.isNotEmpty ? _orgId : null,
+                            initialValue: _orgId.isNotEmpty ? _orgId : null,
                             decoration: const InputDecoration(
                               hintText: 'Select organization',
                               prefixIcon: Icon(Icons.business_outlined),
                             ),
                             items: orgs
-                                .map((o) => DropdownMenuItem(
-                                    value: o.id, child: Text(o.name)))
+                                .map(
+                                  (o) => DropdownMenuItem(
+                                    value: o.id,
+                                    child: Text(o.name),
+                                  ),
+                                )
                                 .toList(),
-                            onChanged: (v) =>
-                                setState(() => _orgId = v ?? ''),
+                            onChanged: (v) => setState(() => _orgId = v ?? ''),
                           ),
                         ),
                     ],
@@ -841,9 +903,11 @@ class _PositionFormDialogState extends State<PositionFormDialog> {
     _nameCtrl = TextEditingController(text: widget.position?.name ?? '');
     _codeCtrl = TextEditingController(text: widget.position?.code ?? '');
     _reportsToCtrl = TextEditingController(
-        text: widget.position?.reportsToPositionId ?? '');
-    _orgUnitCtrl =
-        TextEditingController(text: widget.position?.orgUnitId ?? '');
+      text: widget.position?.reportsToPositionId ?? '',
+    );
+    _orgUnitCtrl = TextEditingController(
+      text: widget.position?.orgUnitId ?? '',
+    );
   }
 
   @override
@@ -998,7 +1062,8 @@ class _DialogHeader extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-              color: theme.colorScheme.outlineVariant.withAlpha(60)),
+            color: theme.colorScheme.outlineVariant.withAlpha(60),
+          ),
         ),
       ),
       child: Row(
@@ -1017,12 +1082,18 @@ class _DialogHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                Text(subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
+                Text(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1057,7 +1128,8 @@ class _DialogActions extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-              color: theme.colorScheme.outlineVariant.withAlpha(60)),
+            color: theme.colorScheme.outlineVariant.withAlpha(60),
+          ),
         ),
       ),
       child: Row(
@@ -1075,11 +1147,12 @@ class _DialogActions extends StatelessWidget {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : Icon(isEditing ? Icons.save : Icons.add, size: 18),
-            label: Text(
-                isEditing ? 'Update' : 'Create $entityLabel'),
+            label: Text(isEditing ? 'Update' : 'Create $entityLabel'),
           ),
         ],
       ),
@@ -1101,29 +1174,33 @@ class _StatePill extends StatelessWidget {
     final theme = Theme.of(context);
     final (Color bg, Color fg) = switch (label) {
       'ACTIVE' => (
-          theme.colorScheme.tertiary.withAlpha(20),
-          theme.colorScheme.tertiary
-        ),
+        theme.colorScheme.tertiary.withAlpha(20),
+        theme.colorScheme.tertiary,
+      ),
       'CREATED' => (
-          theme.colorScheme.secondary.withAlpha(20),
-          theme.colorScheme.secondary
-        ),
+        theme.colorScheme.secondary.withAlpha(20),
+        theme.colorScheme.secondary,
+      ),
       'INACTIVE' || 'DELETED' => (
-          theme.colorScheme.error.withAlpha(20),
-          theme.colorScheme.error
-        ),
-      _ => (
-          theme.colorScheme.outline.withAlpha(20),
-          theme.colorScheme.outline
-        ),
+        theme.colorScheme.error.withAlpha(20),
+        theme.colorScheme.error,
+      ),
+      _ => (theme.colorScheme.outline.withAlpha(20), theme.colorScheme.outline),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-      child: Text(label,
-          style: theme.textTheme.labelSmall?.copyWith(
-              color: fg, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+      ),
     );
   }
 }
@@ -1143,14 +1220,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -1171,14 +1254,20 @@ class _InfoTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            value,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

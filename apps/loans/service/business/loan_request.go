@@ -17,13 +17,13 @@ package business
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
+	"connectrpc.com/connect"
 	"github.com/pitabwire/frame/v2/data"
 	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
@@ -32,6 +32,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
@@ -50,6 +51,7 @@ type LoanRequestBusiness interface {
 }
 
 type loanRequestBusiness struct {
+	scope             *ReadScope
 	eventsMan         fevents.Manager
 	loanRequestRepo   repository.LoanRequestRepository
 	loanProductRepo   repository.LoanProductRepository
@@ -66,8 +68,10 @@ func NewLoanRequestBusiness(
 	limitsCli limitsv1connect.LimitsServiceClient,
 	limitsGateEnabled bool,
 	limitsGateMode string,
+	opts ...Option,
 ) LoanRequestBusiness {
 	return &loanRequestBusiness{
+		scope:             applyOptions(opts).scope,
 		eventsMan:         eventsMan,
 		loanRequestRepo:   loanRequestRepo,
 		loanProductRepo:   loanProductRepo,
@@ -84,13 +88,54 @@ func (b *loanRequestBusiness) Save(
 	logger := util.Log(ctx).WithField("method", "LoanRequestBusiness.Save")
 
 	lr := models.LoanRequestFromAPI(ctx, obj)
+	if lr == nil {
+		return nil, apperrors.NewError(apperrors.BadRequest, "loan request payload is required")
+	}
 
-	if lr.Status == 0 {
+	if lr.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_UNSPECIFIED) {
 		lr.Status = int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_DRAFT)
 	}
 
-	err := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr)
-	if err != nil {
+	// Save is the borrower-facing write. Everything past SUBMITTED is a
+	// decision, and decisions are made by Approve/Reject/Cancel where the
+	// limits gate and the product requirement checks live. Accepting a
+	// client-supplied APPROVED here would route around both.
+	if !isClientSettableRequestStatus(lr.Status) {
+		return nil, ErrLoanRequestStatusNotSettable
+	}
+
+	existing, existErr := b.loanRequestRepo.GetByID(ctx, lr.GetID())
+	if existErr == nil && existing != nil {
+		if isTerminalLoanRequestStatus(existing.Status) ||
+			existing.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED) {
+			return nil, ErrLoanRequestTerminal
+		}
+		if lr.Status < existing.Status {
+			return nil, ErrLoanRequestStatusRegression
+		}
+		// Decision fields belong to the reviewer, not to the submitter.
+		lr.ApprovedAmount = existing.ApprovedAmount
+		lr.ApprovedTermDays = existing.ApprovedTermDays
+		lr.RejectionReason = existing.RejectionReason
+		lr.DecidedAt = existing.DecidedAt
+		lr.LoanAccountID = existing.LoanAccountID
+	} else {
+		lr.ApprovedAmount = 0
+		lr.ApprovedTermDays = 0
+		lr.DecidedAt = nil
+		lr.LoanAccountID = ""
+	}
+
+	if lr.Status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED) && lr.SubmittedAt == nil {
+		now := time.Now().UTC()
+		lr.SubmittedAt = &now
+	}
+
+	if err := b.validateAgainstProduct(ctx, lr); err != nil {
+		return nil, err
+	}
+
+	if err := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); err != nil {
 		logger.WithError(err).Error("could not emit loan request save event")
 		return nil, err
 	}
@@ -98,10 +143,58 @@ func (b *loanRequestBusiness) Save(
 	return lr.ToAPI(), nil
 }
 
+// isClientSettableRequestStatus reports whether a caller of Save may put a
+// request into this status directly.
+func isClientSettableRequestStatus(status int32) bool {
+	return status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_DRAFT) ||
+		status == int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED)
+}
+
+// validateAgainstProduct rejects a request whose amount or term falls outside
+// the product's configured envelope. A request that cannot become a legal loan
+// should never reach an approver's queue.
+func (b *loanRequestBusiness) validateAgainstProduct(ctx context.Context, lr *models.LoanRequest) error {
+	if lr.RequestedAmount <= 0 {
+		return ErrLoanRequestAmountInvalid
+	}
+	if lr.RequestedTermDays <= 0 {
+		return ErrLoanRequestTermInvalid
+	}
+	if lr.ProductID == "" {
+		return nil
+	}
+
+	product, err := b.loanProductRepo.GetByID(ctx, lr.ProductID)
+	if err != nil || product == nil {
+		return ErrLoanProductNotFound
+	}
+
+	if product.CurrencyCode != "" && lr.CurrencyCode != "" && product.CurrencyCode != lr.CurrencyCode {
+		return ErrLoanRequestCurrencyMismatch
+	}
+	if product.MinAmount > 0 && lr.RequestedAmount < product.MinAmount {
+		return ErrLoanRequestAmountOutOfRange
+	}
+	if product.MaxAmount > 0 && lr.RequestedAmount > product.MaxAmount {
+		return ErrLoanRequestAmountOutOfRange
+	}
+	if product.MinTermDays > 0 && lr.RequestedTermDays < product.MinTermDays {
+		return ErrLoanRequestTermOutOfRange
+	}
+	if product.MaxTermDays > 0 && lr.RequestedTermDays > product.MaxTermDays {
+		return ErrLoanRequestTermOutOfRange
+	}
+
+	return nil
+}
+
 func (b *loanRequestBusiness) Get(ctx context.Context, id string) (*loansv1.LoanRequestObject, error) {
 	lr, err := b.loanRequestRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, ErrLoanRequestNotFound
+	}
+	if scopeErr := b.scope.AuthorizeClient(ctx, lr.ClientID); scopeErr != nil {
+		return nil, scopeErr
 	}
 	return lr.ToAPI(), nil
 }
@@ -219,8 +312,9 @@ func (b *loanRequestBusiness) Approve(ctx context.Context, id string) (*loansv1.
 
 	var pendingErr *limits.PendingApprovalError
 	if errors.As(gateErr, &pendingErr) {
-		return nil, fmt.Errorf("loan request approval requires approval (reservation %s): %w",
-			pendingErr.ReservationID, gateErr)
+		// Wrapped rather than replaced, so callers that inspect the chain for
+		// a pending reservation still find it.
+		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr)
 	}
 	if gateErr != nil {
 		return nil, gateErr
@@ -248,7 +342,25 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 		return nil, errReq
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
+	if lr.OfferExpiresAt != nil && lr.OfferExpiresAt.Before(now) {
+		return nil, ErrLoanRequestOfferExpired
+	}
+
+	// Approval confirms what was requested unless a reviewer has already
+	// recorded different terms. Deriving the approved terms here keeps the
+	// amount that becomes a loan tied to the amount that was validated
+	// against the product on submission.
+	if lr.ApprovedAmount == 0 {
+		lr.ApprovedAmount = lr.RequestedAmount
+	}
+	if lr.ApprovedTermDays == 0 {
+		lr.ApprovedTermDays = lr.RequestedTermDays
+	}
+	if err = b.validateApprovedTerms(ctx, lr); err != nil {
+		return nil, err
+	}
+
 	lr.Status = int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED)
 	lr.DecidedAt = &now
 
@@ -258,6 +370,38 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 	}
 
 	return lr.ToAPI(), nil
+}
+
+// validateApprovedTerms checks the terms a loan will actually be written on
+// against the product envelope, not just the terms that were asked for.
+func (b *loanRequestBusiness) validateApprovedTerms(ctx context.Context, lr *models.LoanRequest) error {
+	if lr.ApprovedAmount <= 0 {
+		return ErrLoanRequestAmountInvalid
+	}
+	if lr.ApprovedTermDays <= 0 {
+		return ErrLoanRequestTermInvalid
+	}
+	if lr.ProductID == "" {
+		return nil
+	}
+
+	product, err := b.loanProductRepo.GetByID(ctx, lr.ProductID)
+	if err != nil || product == nil {
+		return ErrLoanProductNotFound
+	}
+	if product.MinAmount > 0 && lr.ApprovedAmount < product.MinAmount {
+		return ErrLoanRequestAmountOutOfRange
+	}
+	if product.MaxAmount > 0 && lr.ApprovedAmount > product.MaxAmount {
+		return ErrLoanRequestAmountOutOfRange
+	}
+	if product.MinTermDays > 0 && lr.ApprovedTermDays < product.MinTermDays {
+		return ErrLoanRequestTermOutOfRange
+	}
+	if product.MaxTermDays > 0 && lr.ApprovedTermDays > product.MaxTermDays {
+		return ErrLoanRequestTermOutOfRange
+	}
+	return nil
 }
 
 func (b *loanRequestBusiness) Reject(

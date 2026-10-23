@@ -45,47 +45,40 @@ func NewLedgerSearchBusiness(repo repository.LedgerRepository) LedgerSearchBusin
 	return &ledgerSearchBusiness{repo: repo}
 }
 
+// Search returns a single page of committed ledger entries. The page size
+// comes from cursor.limit; the caller pages by re-issuing the request with the
+// last id it saw rather than the server draining the table into one stream.
 func (b *ledgerSearchBusiness) Search(
 	ctx context.Context,
 	req *limitsv1.LedgerSearchRequest,
 	batch func(ctx context.Context, items []*limitsv1.LedgerEntryObject) error,
 ) error {
-	const pageSize = 50
-	cursor := ""
-	if req.GetCursor() != nil {
-		cursor = req.GetCursor().GetPage()
+	if err := assertRequestTenant(ctx, req.GetTenantId()); err != nil {
+		return err
 	}
-	for {
-		filter := repository.LedgerSearchFilter{
-			SubjectID:    req.GetSubjectId(),
-			CurrencyCode: req.GetCurrencyCode(),
-		}
-		if a, _ := models.ActionFromAPISafe(req.GetAction()); a != "" {
-			filter.Action = a
-		}
-		if s, _ := models.SubjectFromAPISafe(req.GetSubjectType()); s != "" {
-			filter.SubjectType = s
-		}
-		if t := req.GetFrom(); t != nil {
-			filter.From = t.AsTime()
-		}
-		if t := req.GetTo(); t != nil {
-			filter.To = t.AsTime()
-		}
-		out, err := b.repo.Search(ctx, filter, pageSize, cursor)
-		if err != nil {
-			return err
-		}
-		api := make([]*limitsv1.LedgerEntryObject, len(out.Items))
-		for i, e := range out.Items {
-			api[i] = e.ToAPI()
-		}
-		if batchErr := batch(ctx, api); batchErr != nil {
-			return batchErr
-		}
-		if out.NextCursor == "" {
-			return nil
-		}
-		cursor = out.NextCursor
+	filter := repository.LedgerSearchFilter{
+		SubjectID:    req.GetSubjectId(),
+		CurrencyCode: req.GetCurrencyCode(),
 	}
+	if a, _ := models.ActionFromAPISafe(req.GetAction()); a != "" {
+		filter.Action = a
+	}
+	if s, _ := models.SubjectFromAPISafe(req.GetSubjectType()); s != "" {
+		filter.SubjectType = s
+	}
+	if t := req.GetFrom(); t != nil {
+		filter.From = t.AsTime()
+	}
+	if t := req.GetTo(); t != nil {
+		filter.To = t.AsTime()
+	}
+	out, err := b.repo.Search(ctx, filter, pageSizeFor(req.GetCursor()), req.GetCursor().GetPage())
+	if err != nil {
+		return err
+	}
+	api := make([]*limitsv1.LedgerEntryObject, len(out.Items))
+	for i, e := range out.Items {
+		api[i] = e.ToAPI()
+	}
+	return batch(ctx, api)
 }

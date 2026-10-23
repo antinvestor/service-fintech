@@ -22,17 +22,17 @@ class ShadowBreachAlert extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(auditSearchProvider(
-      const AuditSearchParams(actions: ['limits.breach.shadow']),
-    ));
+    // Ask the server for the last 24 hours directly rather than filtering a
+    // page client-side: the feed is newest-first and capped, so a client-side
+    // window silently reports zero on any busy tenant.
+    final since = DateTime.now().subtract(const Duration(hours: 24));
+    final async = ref.watch(
+      auditSearchProvider(
+        AuditSearchParams(actions: const ['limits.breach.shadow'], from: since),
+      ),
+    );
     final events = async.whenOrNull(data: (e) => e) ?? [];
-    if (events.isEmpty) return const SizedBox.shrink();
-
-    final recent = events
-        .where((e) => DateTime.now()
-            .difference(e.occurredAt.toDateTime().toLocal())
-            .inHours < 24)
-        .length;
+    final recent = events.length;
     if (recent == 0) return const SizedBox.shrink();
 
     return Container(
@@ -50,7 +50,8 @@ class ShadowBreachAlert extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '$recent shadow-mode breach event${recent == 1 ? "" : "s"} '
+              '$recent${recent == auditPageSize ? '+' : ''} shadow-mode breach '
+              'event${recent == 1 ? "" : "s"} '
               'in the last 24 hours. Review for tuning before flipping to enforce.',
               style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
             ),

@@ -43,33 +43,38 @@ class PolicySearchParams {
   int get hashCode => Object.hash(query, action, subjectType, mode);
 }
 
-/// Streaming search of policies. Cached by params for navigation back/forward.
-final policyListProvider =
-    FutureProvider.family<List<PolicyObject>, PolicySearchParams>(
-  (ref, params) async {
-    final client = ref.watch(limitsAdminServiceClientProvider);
-    final request = PolicySearchRequest(
-      query: params.query,
-      action: params.action,
-      subjectType: params.subjectType,
-      mode: params.mode,
-      cursor: PageCursor(limit: 50),
-    );
-    return collectStream(
-      client.policySearch(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+/// How many policies one page holds. The server returns a single page, so
+/// this is the ceiling on what the list shows for a given filter.
+const int policyPageSize = 200;
 
-final policyDetailProvider =
-    FutureProvider.family<PolicyObject, String>(
-  (ref, id) async {
-    final client = ref.watch(limitsAdminServiceClientProvider);
-    final response = await client.policyGet(PolicyGetRequest(id: id));
-    return response.data;
-  },
-);
+/// One page of matching policies. Cached by params for navigation back/forward.
+final policyListProvider =
+    FutureProvider.family<List<PolicyObject>, PolicySearchParams>((
+      ref,
+      params,
+    ) async {
+      final client = ref.watch(limitsAdminServiceClientProvider);
+      final request = PolicySearchRequest(
+        query: params.query,
+        action: params.action,
+        subjectType: params.subjectType,
+        mode: params.mode,
+        cursor: PageCursor(limit: policyPageSize),
+      );
+      return collectStream(
+        client.policySearch(request),
+        extract: (response) => response.data,
+      );
+    });
+
+final policyDetailProvider = FutureProvider.family<PolicyObject, String>((
+  ref,
+  id,
+) async {
+  final client = ref.watch(limitsAdminServiceClientProvider);
+  final response = await client.policyGet(PolicyGetRequest(id: id));
+  return response.data;
+});
 
 class PolicyMutationNotifier extends Notifier<AsyncValue<void>> {
   @override
@@ -81,8 +86,9 @@ class PolicyMutationNotifier extends Notifier<AsyncValue<void>> {
   Future<PolicyObject> save(PolicyObject policy) async {
     state = const AsyncValue.loading();
     try {
-      final response =
-          await _client.policySave(PolicySaveRequest(data: policy));
+      final response = await _client.policySave(
+        PolicySaveRequest(data: policy),
+      );
       state = const AsyncValue.data(null);
       ref.invalidate(policyListProvider);
       if (response.data.id.isNotEmpty) {
@@ -111,4 +117,5 @@ class PolicyMutationNotifier extends Notifier<AsyncValue<void>> {
 
 final policyMutationProvider =
     NotifierProvider<PolicyMutationNotifier, AsyncValue<void>>(
-        PolicyMutationNotifier.new);
+      PolicyMutationNotifier.new,
+    );

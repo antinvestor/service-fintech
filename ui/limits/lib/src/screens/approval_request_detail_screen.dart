@@ -21,6 +21,8 @@ import '../utils/enum_labels.dart';
 import '../widgets/approval_decision_form.dart';
 import '../widgets/approval_decision_timeline.dart';
 import '../widgets/currency_amount_text.dart';
+import '../utils/formatting.dart';
+import '../capabilities.dart';
 
 class ApprovalRequestDetailScreen extends ConsumerWidget {
   final String requestId;
@@ -61,19 +63,15 @@ class ApprovalRequestDetailScreen extends ConsumerWidget {
                       _kv('Status', approvalStatusLabel(req.status)),
                       _kv(
                         'Submitted',
-                        req.submittedAt
-                            .toDateTime()
-                            .toLocal()
-                            .toString()
-                            .substring(0, 19),
+                        formatTimestamp(
+                          req.hasSubmittedAt() ? req.submittedAt : null,
+                        ),
                       ),
                       _kv(
                         'Expires',
-                        req.expiresAt
-                            .toDateTime()
-                            .toLocal()
-                            .toString()
-                            .substring(0, 19),
+                        formatTimestamp(
+                          req.hasExpiresAt() ? req.expiresAt : null,
+                        ),
                       ),
                     ],
                   ),
@@ -91,7 +89,8 @@ class ApprovalRequestDetailScreen extends ConsumerWidget {
                   child: ApprovalDecisionTimeline(decisions: req.decisions),
                 ),
               ),
-              if (req.status == ApprovalStatus.APPROVAL_STATUS_PENDING) ...[
+              if (req.status == ApprovalStatus.APPROVAL_STATUS_PENDING &&
+                  ref.watch(limitsCapabilitiesProvider).approvalAct) ...[
                 const SizedBox(height: 16),
                 ApprovalDecisionForm(approvalId: req.id),
               ],
@@ -105,22 +104,22 @@ class ApprovalRequestDetailScreen extends ConsumerWidget {
   Widget _kv(String key, String value) => _kvWidget(key, Text(value));
 
   Widget _kvWidget(String key, Widget value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 140,
-              child: Text(
-                key,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black54,
-                ),
-              ),
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(
+            key,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              color: Colors.black54,
             ),
-            Expanded(child: value),
-          ],
+          ),
         ),
-      );
+        Expanded(child: value),
+      ],
+    ),
+  );
 }

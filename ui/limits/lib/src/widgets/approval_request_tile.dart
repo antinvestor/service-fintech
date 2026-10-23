@@ -17,6 +17,7 @@ import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 
 import '../utils/enum_labels.dart';
 import 'currency_amount_text.dart';
+import '../utils/formatting.dart';
 
 class ApprovalRequestTile extends StatelessWidget {
   final ApprovalRequestObject request;
@@ -53,7 +54,7 @@ class ApprovalRequestTile extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               Text(
-                'Submitted: ${request.submittedAt.toDateTime().toLocal().toString().substring(0, 19)}',
+                'Submitted: ${formatTimestamp(request.hasSubmittedAt() ? request.submittedAt : null)}',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               Container(

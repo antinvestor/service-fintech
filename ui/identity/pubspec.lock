@@ -36,11 +36,17 @@ packages:
   antinvestor_api_field:
     dependency: "direct main"
     description:
-      name: antinvestor_api_field
-      sha256: d1757f3e0d7c42ca4c7deac014e79d99ad4f2819ec2e1fb6ca768ffdc2ffb3c6
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0"
+      path: "../../sdk/dart/field"
+      relative: true
+    source: path
+    version: "0.3.0"
+  antinvestor_api_funding:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/funding"
+      relative: true
+    source: path
+    version: "0.3.0"
   antinvestor_api_geolocation:
     dependency: transitive
     description:
@@ -52,19 +58,46 @@ packages:
   antinvestor_api_identity:
     dependency: "direct main"
     description:
-      name: antinvestor_api_identity
-      sha256: d88b46e61205dd42cf9fe28b5163584c3f760fb4f8c2d7f4847584034abd3abd
-      url: "https://pub.dev"
-    source: hosted
+      path: "../../sdk/dart/identity"
+      relative: true
+    source: path
+    version: "0.6.0"
+  antinvestor_api_limits:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/limits"
+      relative: true
+    source: path
+    version: "0.2.0"
+  antinvestor_api_loans:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/loans"
+      relative: true
+    source: path
     version: "0.4.0"
+  antinvestor_api_operations:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/operations"
+      relative: true
+    source: path
+    version: "0.3.0"
   antinvestor_api_profile:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: antinvestor_api_profile
       sha256: fb540379b01a5c2b899a74a4ef0c8ceec96ff43846d9b18488a628cf0ab734c5
       url: "https://pub.dev"
     source: hosted
     version: "1.53.0"
+  antinvestor_api_savings:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/savings"
+      relative: true
+    source: path
+    version: "0.3.0"
   antinvestor_api_tenancy:
     dependency: "direct main"
     description:
@@ -77,34 +110,33 @@ packages:
     dependency: "direct main"
     description:
       name: antinvestor_ui_audit
-      sha256: a770db59522f436d3505262a630aaebea8975ba3cc33d342c4bbb76abf975d3f
+      sha256: c6fd175f5bc4f755c155798690b596adb60f884d47751012e5edfe84ca962694
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.0"
+    version: "0.3.2"
   antinvestor_ui_core:
     dependency: "direct main"
     description:
-      name: antinvestor_ui_core
-      sha256: "7b8a0cdc83cfef3781e4c9f77a4ae7fb238267ed0f2cb40a8d3a2b43d1a6c5a8"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0"
+      path: "../../../common/ui_core"
+      relative: true
+    source: path
+    version: "0.5.1"
   antinvestor_ui_geolocation:
     dependency: "direct main"
     description:
       name: antinvestor_ui_geolocation
-      sha256: "0749c910bc93579325d67278a5de199236deab82d65abd40b6e4de3b47db7402"
+      sha256: a46266ffb849187b6bee69b67c1ba4d4fef3fc8a922ee0522a47c14032598f80
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.1"
+    version: "0.2.3"
   antinvestor_ui_profile:
     dependency: "direct main"
     description:
       name: antinvestor_ui_profile
-      sha256: "8384e49afe44cf628b0e7b1c8e5c90fbbbf9205ba9f145098d2b0fccca5f99a1"
+      sha256: "7d30c7fbf3b2c2bba1f45ef9902f9d4879f13d95890febe48cad7f6bfd7ffe2b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.1"
+    version: "0.2.5"
   args:
     dependency: transitive
     description:
@@ -732,10 +764,10 @@ packages:
     dependency: transitive
     description:
       name: meta
-      sha256: "23f08335362185a5ea2ad3a4e597f1375e78bce8a040df5c600c8d3552ef2394"
+      sha256: "1741988757a65eb6b36abe716829688cf01910bbf91c34354ff7ec1c3de2b349"
       url: "https://pub.dev"
     source: hosted
-    version: "1.17.0"
+    version: "1.18.0"
   mime:
     dependency: transitive
     description:
@@ -1025,26 +1057,26 @@ packages:
     dependency: transitive
     description:
       name: test
-      sha256: "280d6d890011ca966ad08df7e8a4ddfab0fb3aa49f96ed6de56e3521347a9ae7"
+      sha256: "8d9ceddbab833f180fbefed08afa76d7c03513dfdba87ffcec2718b02bbcbf20"
       url: "https://pub.dev"
     source: hosted
-    version: "1.30.0"
+    version: "1.31.0"
   test_api:
     dependency: transitive
     description:
       name: test_api
-      sha256: "8161c84903fd860b26bfdefb7963b3f0b68fee7adea0f59ef805ecca346f0c7a"
+      sha256: "949a932224383300f01be9221c39180316445ecb8e7547f70a41a35bf421fb9e"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.10"
+    version: "0.7.11"
   test_core:
     dependency: transitive
     description:
       name: test_core
-      sha256: "0381bd1585d1a924763c308100f2138205252fb90c9d4eeaf28489ee65ccde51"
+      sha256: "1991d4cfe85d5043241acac92962c3977c8d2f2add1ee73130c7b286417d1d34"
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.16"
+    version: "0.6.17"
   typed_data:
     dependency: transitive
     description:

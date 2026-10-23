@@ -15,6 +15,7 @@
 syntax = "proto3";
 package funding.v1;
 
+import "buf/validate/validate.proto";
 import "common/v1/common.proto";
 import "common/v1/money.proto";
 import "common/v1/permissions.proto";
@@ -26,21 +27,41 @@ option java_package = "fundingv1";
 
 // InvestorAccountObject represents a pre-funded investor capital account.
 message InvestorAccountObject {
-  string id = 1;
-  string investor_id = 2;
-  string account_name = 3;
+  string id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  string investor_id = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  string account_name = 3 [(buf.validate.field).string.max_len = 200];
   reserved 4;
   common.v1.Money available_balance = 5;
   common.v1.Money reserved_balance = 6;
   common.v1.Money total_deployed = 7;
   common.v1.Money total_returned = 8;
   common.v1.Money max_exposure = 9;
-  string min_interest_rate = 10;
+  // Minimum acceptable loan interest rate as a decimal percentage with up to
+  // two decimals, e.g. "12.50" for 12.5%. The same shape savings and loans
+  // use. Empty means no minimum. A raw basis-point integer is not accepted.
+  string min_interest_rate = 10 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^[0-9]+(\\.[0-9]+)?$"
+  ];
   google.protobuf.Struct allowed_products = 11;
   google.protobuf.Struct allowed_regions = 12;
   google.protobuf.Struct group_affiliations = 13;
   common.v1.STATE state = 14;
   google.protobuf.Struct properties = 15;
+  // ISO 4217 code the account is denominated in. Explicit so a caller no
+  // longer has to smuggle the currency through available_balance on create.
+  // When empty, the server falls back to available_balance.currency_code.
+  string currency_code = 16 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.len = 3
+  ];
 }
 
 // FundingAllocationObject represents how a loan is funded across tranches.
@@ -63,39 +84,74 @@ message InvestorAccountSaveResponse {
   InvestorAccountObject data = 1;
 }
 message InvestorAccountGetRequest {
-  string id = 1;
+  string id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
 }
 message InvestorAccountGetResponse {
   InvestorAccountObject data = 1;
 }
 message InvestorAccountSearchRequest {
-  string investor_id = 1;
-  string currency_code = 2;
+  string investor_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  string currency_code = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.len = 3
+  ];
   common.v1.PageCursor cursor = 3;
 }
 message InvestorAccountSearchResponse {
   repeated InvestorAccountObject data = 1;
+  // Cursor for the next page; unset when this page is the last.
+  common.v1.PageCursor next_cursor = 2;
 }
 
 message InvestorDepositRequest {
-  string account_id = 1;
-  common.v1.Money amount = 2;
+  string account_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  common.v1.Money amount = 2 [(buf.validate.field).required = true];
   reserved 3;
+  // Replay key for this movement. Optional on the wire because the
+  // Idempotency-Key header is also honoured; when both are present the
+  // header wins. Non-empty values must be at least 8 characters.
+  string idempotency_key = 4 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 8,
+    (buf.validate.field).string.max_len = 128
+  ];
 }
 message InvestorDepositResponse {
   InvestorAccountObject data = 1;
 }
 
 message InvestorWithdrawRequest {
-  string account_id = 1;
-  common.v1.Money amount = 2;
+  string account_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  common.v1.Money amount = 2 [(buf.validate.field).required = true];
+  // See InvestorDepositRequest.idempotency_key.
+  string idempotency_key = 3 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 8,
+    (buf.validate.field).string.max_len = 128
+  ];
 }
 message InvestorWithdrawResponse {
   InvestorAccountObject data = 1;
 }
 
 message FundLoanRequest {
-  string loan_request_id = 1;
+  string loan_request_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
 }
 message FundLoanResponse {
   repeated FundingAllocationObject allocations = 1;
@@ -105,8 +161,19 @@ message FundLoanResponse {
 }
 
 message AbsorbLossRequest {
-  string loan_request_id = 1;
-  common.v1.Money amount = 2;
+  string loan_request_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  common.v1.Money amount = 2 [(buf.validate.field).required = true];
+  // Identifies the loss event (write-off reference, default notice id) so a
+  // repeated call for the same event absorbs once. Empty keeps the current
+  // per-loan idempotency.
+  string loss_reference = 3 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 128
+  ];
 }
 message AbsorbLossResponse {
   common.v1.Money absorbed = 1;

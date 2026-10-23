@@ -50,7 +50,7 @@ type LoanRequest struct {
 	LoanAccountID     string `gorm:"type:varchar(50);index:idx_lr_loan"`
 	SourceService     string `gorm:"type:varchar(50);index:idx_lr_source"`
 	SourceRequestID   string `gorm:"type:varchar(50)"`
-	IdempotencyKey    string `gorm:"type:varchar(255);uniqueIndex:uq_lr_idempotency"`
+	IdempotencyKey    string `gorm:"type:varchar(255);index:idx_lr_idempotency"`
 	Properties        data.JSONMap
 }
 
@@ -134,8 +134,8 @@ func LoanRequestFromAPI(ctx context.Context, obj *loansv1.LoanRequestObject) *Lo
 
 type ClientProductAccess struct {
 	data.BaseModel
-	ClientID  string `gorm:"type:varchar(50);index:idx_cpa_client;uniqueIndex:uq_cpa_client_product"`
-	ProductID string `gorm:"type:varchar(50);index:idx_cpa_product;uniqueIndex:uq_cpa_client_product"`
+	ClientID  string `gorm:"type:varchar(50);index:idx_cpa_client"`
+	ProductID string `gorm:"type:varchar(50);index:idx_cpa_product"`
 	GrantedBy string `gorm:"type:varchar(50)"`
 	State     int32
 }

@@ -8,14 +8,20 @@ part of 'nav_state.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Provides the filtered navigation items based on current user roles
-/// AND granted permissions (batch-checked at startup).
+/// Navigation items filtered by the caller's granted permissions.
+///
+/// Fails **closed**: an empty grant set, a capability service that cannot be
+/// reached, and a provider-level error are all treated identically — every
+/// permission-gated item is hidden and only unrestricted items remain.
 
 @ProviderFor(filteredNavItems)
 final filteredNavItemsProvider = FilteredNavItemsProvider._();
 
-/// Provides the filtered navigation items based on current user roles
-/// AND granted permissions (batch-checked at startup).
+/// Navigation items filtered by the caller's granted permissions.
+///
+/// Fails **closed**: an empty grant set, a capability service that cannot be
+/// reached, and a provider-level error are all treated identically — every
+/// permission-gated item is hidden and only unrestricted items remain.
 
 final class FilteredNavItemsProvider
     extends
@@ -25,8 +31,11 @@ final class FilteredNavItemsProvider
           FutureOr<List<NavItem>>
         >
     with $FutureModifier<List<NavItem>>, $FutureProvider<List<NavItem>> {
-  /// Provides the filtered navigation items based on current user roles
-  /// AND granted permissions (batch-checked at startup).
+  /// Navigation items filtered by the caller's granted permissions.
+  ///
+  /// Fails **closed**: an empty grant set, a capability service that cannot be
+  /// reached, and a provider-level error are all treated identically — every
+  /// permission-gated item is hidden and only unrestricted items remain.
   FilteredNavItemsProvider._()
     : super(
         from: null,
@@ -53,7 +62,7 @@ final class FilteredNavItemsProvider
   }
 }
 
-String _$filteredNavItemsHash() => r'46624ead32bd92b75016ea81325e62801a045f1e';
+String _$filteredNavItemsHash() => r'd6415ee2978d07cc5e9042b15d2ee3ca50035a84';
 
 @ProviderFor(sidebarExpansion)
 final sidebarExpansionProvider = SidebarExpansionProvider._();

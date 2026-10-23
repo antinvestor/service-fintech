@@ -30,6 +30,7 @@ import (
 	"github.com/pitabwire/frame/v2/frametests"
 	"github.com/pitabwire/frame/v2/frametests/definition"
 	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -56,6 +57,20 @@ type AdminHandlerSuite struct {
 	resvBiz      business.ReservationBusiness
 	approvalRepo repository.ApprovalRequestRepository
 	ledgerRepo   repository.LedgerRepository
+}
+
+// approverCtx builds claims that carry the approver tier's role, which the
+// Decide path enforces.
+func approverCtx(ctx context.Context, profileID string) context.Context {
+	claims := &security.AuthenticationClaims{
+		TenantID:    "tenant-a",
+		PartitionID: "partition-a",
+		AccessID:    util.IDString(),
+		ContactID:   profileID,
+		Roles:       []string{"branch_manager"},
+	}
+	claims.Subject = profileID
+	return claims.ClaimsToContext(ctx)
 }
 
 func (s *AdminHandlerSuite) SetupSuite() {
@@ -117,6 +132,7 @@ func (s *AdminHandlerSuite) SetupTest() {
 		auditing,
 		nil,
 		dbPool,
+		nil,
 	)
 	ledgerBiz := business.NewLedgerSearchBusiness(ledgerRepo)
 	resvBiz := business.NewReservationBusiness(
@@ -366,7 +382,7 @@ func (s *AdminHandlerSuite) TestApprovalRequestDecide_Approve() {
 	arID := rows[0].ID
 
 	// Approver context: different from maker.
-	ctxApprover := s.WithAuthClaims(s.T().Context(), "tenant-a", "partition-a", "wf-approver-distinct")
+	ctxApprover := approverCtx(s.T().Context(), "wf-approver-distinct")
 
 	resp, err := s.handler.ApprovalRequestDecide(ctxApprover, connect.NewRequest(&limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,

@@ -16,6 +16,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
@@ -25,6 +27,15 @@ import (
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+)
+
+const (
+	exprCoalesceName           = "coalesce(%sname, '')"
+	exprCoalesceCode           = "coalesce(%scode, '')"
+	exprCoalesceClientID       = "coalesce(%sclient_id, '')"
+	exprCoalesceOrganizationID = "coalesce(%sorganization_id, '')"
+	exprCoalesceCurrencyCode   = "coalesce(%scurrency_code, '')"
+	exprCoalesceProperties     = "coalesce(%sproperties::text, '')"
 )
 
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath string) error {
@@ -38,7 +49,7 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		util.Log(ctx).WithError(preErr).Warn("preMigrate -- non-fatal pre-migration issue")
 	}
 
-	return dbManager.Migrate(ctx, dbPool, migrationPath,
+	if migrateErr := dbManager.Migrate(ctx, dbPool, migrationPath,
 		&models.LoanProduct{},
 		&models.LoanRequest{},
 		&models.ClientProductAccess{},
@@ -53,7 +64,152 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		&models.Reconciliation{},
 		&models.Disbursement{},
 		&audit.Event{},
+	); migrateErr != nil {
+		return migrateErr
+	}
+
+	if postErr := postMigrate(ctx, dbPool); postErr != nil {
+		util.Log(ctx).WithError(postErr).Error("postMigrate -- failed")
+		return postErr
+	}
+
+	return nil
+}
+
+type searchableTerm struct {
+	Weight string
+	Expr   string
+}
+
+type searchableSpec struct {
+	Table string
+	Terms []searchableTerm
+}
+
+// postMigrate creates the generated full-text column the search RPCs query.
+// Frame does not manage it, so without this step every search with a text
+// query fails against a column that does not exist.
+func postMigrate(ctx context.Context, dbPool pool.Pool) error {
+	db := dbPool.DB(ctx, false)
+	if db == nil {
+		return nil
+	}
+
+	specs := []searchableSpec{
+		{
+			Table: "loan_products",
+			Terms: []searchableTerm{
+				{Weight: "A", Expr: exprCoalesceName},
+				{Weight: "A", Expr: exprCoalesceCode},
+				{Weight: "B", Expr: "coalesce(%sdescription, '')"},
+				{Weight: "B", Expr: exprCoalesceOrganizationID},
+				{Weight: "C", Expr: exprCoalesceCurrencyCode},
+				{Weight: "C", Expr: exprCoalesceProperties},
+			},
+		},
+		{
+			Table: "loan_requests",
+			Terms: []searchableTerm{
+				{Weight: "A", Expr: exprCoalesceClientID},
+				{Weight: "A", Expr: "coalesce(%ssource_request_id, '')"},
+				{Weight: "B", Expr: "coalesce(%spurpose, '')"},
+				{Weight: "B", Expr: exprCoalesceOrganizationID},
+				{Weight: "C", Expr: "coalesce(%sagent_id, '')"},
+				{Weight: "C", Expr: "coalesce(%sbranch_id, '')"},
+				{Weight: "C", Expr: "coalesce(%ssource_service, '')"},
+				{Weight: "C", Expr: exprCoalesceProperties},
+			},
+		},
+		{
+			Table: "loan_accounts",
+			Terms: []searchableTerm{
+				{Weight: "A", Expr: exprCoalesceClientID},
+				{Weight: "A", Expr: "coalesce(%sloan_request_id, '')"},
+				{Weight: "B", Expr: exprCoalesceOrganizationID},
+				{Weight: "B", Expr: "coalesce(%sproduct_id, '')"},
+				{Weight: "C", Expr: "coalesce(%sagent_id, '')"},
+				{Weight: "C", Expr: "coalesce(%sbranch_id, '')"},
+				{Weight: "C", Expr: "coalesce(%spayment_account_ref, '')"},
+				{Weight: "C", Expr: exprCoalesceProperties},
+			},
+		},
+	}
+
+	for _, spec := range specs {
+		if err := ensureSearchableColumn(ctx, db, spec); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ensureSearchableColumn(ctx context.Context, db *gorm.DB, spec searchableSpec) error {
+	functionName := spec.Table + "_searchable_update"
+	triggerName := spec.Table + "_searchable_trigger"
+	indexName := "idx_" + spec.Table + "_searchable"
+
+	if err := db.Exec("ALTER TABLE " + spec.Table + " ADD COLUMN IF NOT EXISTS searchable tsvector").Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to add searchable column")
+		return err
+	}
+
+	functionSQL := fmt.Sprintf(
+		`CREATE OR REPLACE FUNCTION %s() RETURNS trigger AS $$
+BEGIN
+  NEW.searchable := %s;
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;`,
+		functionName,
+		buildSearchableExpression(spec.Terms, "NEW."),
 	)
+	if err := db.Exec(functionSQL).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).
+			Error("failed to create searchable trigger function")
+		return err
+	}
+
+	if err := db.Exec("DROP TRIGGER IF EXISTS " + triggerName + " ON " + spec.Table).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to drop searchable trigger")
+		return err
+	}
+
+	triggerSQL := fmt.Sprintf(
+		"CREATE TRIGGER %s BEFORE INSERT OR UPDATE ON %s FOR EACH ROW EXECUTE FUNCTION %s()",
+		triggerName, spec.Table, functionName,
+	)
+	if err := db.Exec(triggerSQL).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to create searchable trigger")
+		return err
+	}
+
+	backfillSQL := fmt.Sprintf("UPDATE %s SET searchable = %s", spec.Table, buildSearchableExpression(spec.Terms, ""))
+	if err := db.Exec(backfillSQL).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to backfill searchable column")
+		return err
+	}
+
+	indexSQL := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s USING GIN (searchable)", indexName, spec.Table)
+	if err := db.Exec(indexSQL).Error; err != nil {
+		util.Log(ctx).WithField("table", spec.Table).WithError(err).Error("failed to create searchable index")
+		return err
+	}
+
+	return nil
+}
+
+func buildSearchableExpression(terms []searchableTerm, prefix string) string {
+	parts := make([]string, 0, len(terms))
+	for _, term := range terms {
+		parts = append(parts, fmt.Sprintf(
+			"setweight(to_tsvector('english', %s), '%s')",
+			fmt.Sprintf(term.Expr, prefix),
+			term.Weight,
+		))
+	}
+
+	return strings.Join(parts, " || ")
 }
 
 // preMigrate renames bank_id columns to organization_id across loan tables.

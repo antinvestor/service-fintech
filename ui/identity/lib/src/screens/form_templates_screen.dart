@@ -4,19 +4,19 @@ import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../providers/form_template_providers.dart';
+import '../widgets/async_state_views.dart';
 
 /// Lists all form templates with search, status filter, and create action.
 class FormTemplatesScreen extends ConsumerStatefulWidget {
-  const FormTemplatesScreen({
-    super.key,
-    this.onNavigateToDesigner,
-  });
+  const FormTemplatesScreen({super.key, this.onNavigateToDesigner});
 
-  /// Optional callback for navigating to the template designer.
-  /// If null, uses `context.go('/admin/form-templates/$id')`.
+  /// Navigates to the template designer, with null meaning "new template".
+  ///
+  /// This package ships no designer screen and no host route is guaranteed to
+  /// exist, so when this is null the create action is hidden and rows open the
+  /// inline detail panel instead of navigating nowhere.
   final void Function(String? templateId)? onNavigateToDesigner;
 
   @override
@@ -24,13 +24,11 @@ class FormTemplatesScreen extends ConsumerStatefulWidget {
       _FormTemplatesScreenState();
 }
 
-class _FormTemplatesScreenState
-    extends ConsumerState<FormTemplatesScreen> {
+class _FormTemplatesScreenState extends ConsumerState<FormTemplatesScreen> {
   Timer? _debounce;
   String _query = '';
 
-  FormTemplateListParams get _params =>
-      (query: _query, organizationId: '');
+  FormTemplateListParams get _params => (query: _query, organizationId: '');
 
   @override
   void dispose() {
@@ -49,10 +47,22 @@ class _FormTemplatesScreenState
 
   @override
   Widget build(BuildContext context) {
-    final templatesAsync =
-        ref.watch(formTemplateListProvider(_params));
-    final items =
-        templatesAsync.whenOrNull(data: (d) => d) ?? [];
+    final templatesAsync = ref.watch(formTemplateListProvider(_params));
+    if (templatesAsync.hasError) {
+      return ListErrorView(
+        title: 'KYC Form Templates',
+        breadcrumbs: const ['Identity', 'Form Templates'],
+        error: templatesAsync.error!,
+        onRetry: () => ref.invalidate(formTemplateListProvider(_params)),
+      );
+    }
+    if (templatesAsync.isLoading && !templatesAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'KYC Form Templates',
+        breadcrumbs: ['Identity', 'Form Templates'],
+      );
+    }
+    final items = templatesAsync.requireValue;
 
     return AdminEntityListPage<FormTemplateObject>(
       title: 'KYC Form Templates',
@@ -65,14 +75,10 @@ class _FormTemplatesScreenState
       ],
       items: items,
       onSearch: _onSearch,
-      addLabel: 'New Template',
-      onAdd: () {
-        if (widget.onNavigateToDesigner != null) {
-          widget.onNavigateToDesigner!(null);
-        } else {
-          context.go('/admin/form-templates/new');
-        }
-      },
+      addLabel: widget.onNavigateToDesigner != null ? 'New Template' : null,
+      onAdd: widget.onNavigateToDesigner != null
+          ? () => widget.onNavigateToDesigner!(null)
+          : null,
       rowBuilder: (template, selected, onSelect) {
         return DataRow(
           selected: selected,
@@ -84,16 +90,17 @@ class _FormTemplatesScreenState
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.dynamic_form,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.primary),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.dynamic_form,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(width: 10),
-                  Text(template.name.isNotEmpty
-                      ? template.name
-                      : '(untitled)'),
+                  Text(template.name.isNotEmpty ? template.name : '(untitled)'),
                 ],
               ),
             ),
@@ -103,15 +110,10 @@ class _FormTemplatesScreenState
           ],
         );
       },
-      onRowNavigate: (template) {
-        if (widget.onNavigateToDesigner != null) {
-          widget.onNavigateToDesigner!(template.id);
-        } else {
-          context.go('/admin/form-templates/${template.id}');
-        }
-      },
-      detailBuilder: (template) =>
-          _FormTemplateDetail(template: template),
+      onRowNavigate: widget.onNavigateToDesigner != null
+          ? (template) => widget.onNavigateToDesigner!(template.id)
+          : null,
+      detailBuilder: (template) => _FormTemplateDetail(template: template),
       exportRow: (template) => [
         template.name,
         '${template.fields.length}',
@@ -124,11 +126,11 @@ class _FormTemplatesScreenState
 }
 
 String _statusLabel(FormTemplateStatus status) => switch (status) {
-      FormTemplateStatus.FORM_TEMPLATE_STATUS_DRAFT => 'DRAFT',
-      FormTemplateStatus.FORM_TEMPLATE_STATUS_PUBLISHED => 'PUBLISHED',
-      FormTemplateStatus.FORM_TEMPLATE_STATUS_ARCHIVED => 'ARCHIVED',
-      _ => 'UNKNOWN',
-    };
+  FormTemplateStatus.FORM_TEMPLATE_STATUS_DRAFT => 'DRAFT',
+  FormTemplateStatus.FORM_TEMPLATE_STATUS_PUBLISHED => 'PUBLISHED',
+  FormTemplateStatus.FORM_TEMPLATE_STATUS_ARCHIVED => 'ARCHIVED',
+  _ => 'UNKNOWN',
+};
 
 class _FormTemplateDetail extends StatelessWidget {
   const _FormTemplateDetail({required this.template});
@@ -145,8 +147,7 @@ class _FormTemplateDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(Icons.dynamic_form,
-                  color: theme.colorScheme.primary),
+              child: Icon(Icons.dynamic_form, color: theme.colorScheme.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -154,16 +155,18 @@ class _FormTemplateDetail extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    template.name.isNotEmpty
-                        ? template.name
-                        : '(untitled)',
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    template.name.isNotEmpty ? template.name : '(untitled)',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  Text(template.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    template.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -171,12 +174,9 @@ class _FormTemplateDetail extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 20),
-        _DetailRow(
-            label: 'Fields', value: '${template.fields.length}'),
+        _DetailRow(label: 'Fields', value: '${template.fields.length}'),
         _DetailRow(label: 'Version', value: 'v${template.version}'),
-        _DetailRow(
-            label: 'Status',
-            value: _statusLabel(template.status)),
+        _DetailRow(label: 'Status', value: _statusLabel(template.status)),
       ],
     );
   }
@@ -196,14 +196,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -218,18 +224,20 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      FormTemplateStatus.FORM_TEMPLATE_STATUS_DRAFT =>
-        ('DRAFT', Colors.orange),
-      FormTemplateStatus.FORM_TEMPLATE_STATUS_PUBLISHED =>
-        ('PUBLISHED', Colors.green),
-      FormTemplateStatus.FORM_TEMPLATE_STATUS_ARCHIVED =>
-        ('ARCHIVED', Colors.grey),
+      FormTemplateStatus.FORM_TEMPLATE_STATUS_DRAFT => ('DRAFT', Colors.orange),
+      FormTemplateStatus.FORM_TEMPLATE_STATUS_PUBLISHED => (
+        'PUBLISHED',
+        Colors.green,
+      ),
+      FormTemplateStatus.FORM_TEMPLATE_STATUS_ARCHIVED => (
+        'ARCHIVED',
+        Colors.grey,
+      ),
       _ => ('UNKNOWN', Colors.grey),
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(4),

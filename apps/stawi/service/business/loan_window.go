@@ -16,68 +16,211 @@ package business
 
 import (
 	"context"
+	"time"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
+	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
+	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/calculation"
-)
-
-const (
-	// defaultMaturityPeriod is the default number of periods before loan maturity.
-	defaultMaturityPeriod = int32(4)
-	// defaultGracePeriod is the default grace period in number of periods.
-	defaultGracePeriod = int32(1)
-	// defaultLoanTenure is the default loan tenure in number of periods.
-	defaultLoanTenure = int32(4)
-	// defaultCoolOff is the default cool-off period in number of periods.
-	defaultCoolOff = int32(0)
+	"github.com/antinvestor/service-fintech/pkg/constants"
+	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 )
 
 type loanWindowBusiness struct {
-	eventsMan fevents.Manager
-	lwRepo    repository.LoanWindowRepository
+	product     stawiproduct.ProductConfig
+	identityCli identityv1connect.IdentityServiceClient
+	lwRepo      repository.LoanWindowRepository
+	perRepo     repository.PeriodRepository
+	tenRepo     repository.TenureRepository
 }
 
 func NewLoanWindowBusiness(
 	_ context.Context,
-	eventsMan fevents.Manager,
+	product stawiproduct.ProductConfig,
+	identityCli identityv1connect.IdentityServiceClient,
 	lwRepo repository.LoanWindowRepository,
+	perRepo repository.PeriodRepository,
+	tenRepo repository.TenureRepository,
 ) LoanWindowBusiness {
-	return &loanWindowBusiness{eventsMan: eventsMan, lwRepo: lwRepo}
+	return &loanWindowBusiness{
+		product:     product,
+		identityCli: identityCli,
+		lwRepo:      lwRepo,
+		perRepo:     perRepo,
+		tenRepo:     tenRepo,
+	}
 }
 
+// Evaluate reports whether the group's cycle position allows a new loan window
+// to open. The cycle parameters come from product configuration, overridable
+// per group through group properties.
 func (b *loanWindowBusiness) Evaluate(ctx context.Context, groupID string) (map[string]interface{}, error) {
 	logger := util.Log(ctx).WithField("method", "LoanWindowBusiness.Evaluate")
 
-	// Count existing loan windows for this group to determine completed periods
-	completedPeriods, err := b.lwRepo.CountByGroupID(ctx, groupID)
+	group, err := b.getGroup(ctx, groupID)
 	if err != nil {
-		logger.WithError(err).Warn("could not count loan windows, defaulting to 0")
-		completedPeriods = 0
+		return nil, err
 	}
 
-	// Default cycle parameters from product config
-	// These would typically come from group properties or product configuration
-	maturityPeriod := defaultMaturityPeriod
-	gracePeriod := defaultGracePeriod
-	loanTenure := defaultLoanTenure
-	coolOff := defaultCoolOff
+	completedPeriods, err := b.lwRepo.CountByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	maturityPeriod := groupInt32Property(group, "loan_maturity_periods", b.product.LoanMaturityPeriods)
+	gracePeriod := groupInt32Property(group, "loan_grace_period", b.product.LoanGracePeriod)
+	loanTenure := groupInt32Property(group, "loan_tenure_periods", b.product.LoanTenurePeriods)
+	coolOff := groupInt32Property(group, "loan_cool_off_periods", 0)
 
 	shouldOpen := calculation.ShouldOpenLoanWindow(completedPeriods, maturityPeriod, gracePeriod, loanTenure, coolOff)
 	cycle := calculation.ActiveLoanWindowCycle(completedPeriods, maturityPeriod, gracePeriod, loanTenure, coolOff)
 
-	logger.WithField("group_id", groupID).
+	logger.WithField(fieldGroupID, groupID).
 		WithField("completed_periods", completedPeriods).
-		WithField("should_open", shouldOpen).
+		WithField("eligible", shouldOpen).
 		WithField("cycle_position", cycle).
 		Info("loan window evaluation completed")
 
+	// The workflow reads `eligible`, `window_duration` and `window_closes_at`;
+	// `should_open` and `cycle_position` are kept for operators reading the raw
+	// response. The window closes when the group's current period ends, which
+	// is the deadline members are told about.
 	return map[string]interface{}{
 		fieldGroupID:        groupID,
+		fieldEligible:       shouldOpen,
 		"should_open":       shouldOpen,
+		"window_duration":   loanTenure,
+		"window_closes_at":  b.currentPeriodEnd(ctx, groupID),
 		"cycle_position":    cycle,
 		"completed_periods": completedPeriods,
 	}, nil
+}
+
+// currentPeriodEnd renders the group's current period end date, or an empty
+// string when the group has no open period.
+func (b *loanWindowBusiness) currentPeriodEnd(ctx context.Context, groupID string) string {
+	period, err := b.perRepo.GetCurrentByGroupID(ctx, groupID)
+	if err != nil || period == nil || period.EndDate == nil {
+		return ""
+	}
+	return period.EndDate.UTC().Format(time.RFC3339)
+}
+
+// Open creates the group-scoped loan window that GenerateForWindow then prices
+// offers against. It is idempotent: an active window for the group's current
+// period is returned as-is rather than duplicated.
+func (b *loanWindowBusiness) Open(ctx context.Context, groupID string) (*models.LoanWindow, error) {
+	logger := util.Log(ctx).WithField("method", "LoanWindowBusiness.Open").WithField(fieldGroupID, groupID)
+
+	group, err := b.getGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	period, err := b.perRepo.GetCurrentByGroupID(ctx, groupID)
+	if err != nil || period == nil || period.GetID() == "" {
+		return nil, apperrors.ErrDataNotFound.Extend("current period for group")
+	}
+	if period.State != int32(constants.StateActive) {
+		return nil, apperrors.NewError(apperrors.Unprocessable, "the group's current period is not active")
+	}
+
+	existing, err := b.lwRepo.GetByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	var maxPosition int32
+	for _, w := range existing {
+		if w.PeriodID == period.GetID() && w.State == int32(constants.StateActive) {
+			return w, nil
+		}
+		if w.Position > maxPosition {
+			maxPosition = w.Position
+		}
+	}
+
+	periodicAmount := groupInt64Property(group, "periodic_amount", 0)
+	if periodicAmount <= 0 {
+		return nil, apperrors.NewError(apperrors.Unprocessable,
+			"group has no periodic savings amount configured")
+	}
+
+	leverage := groupInt64Property(group, "leverage", b.product.MinLeverage)
+	if leverage < b.product.MinLeverage {
+		leverage = b.product.MinLeverage
+	}
+	if b.product.MaxLeverage >= b.product.MinLeverage && leverage > b.product.MaxLeverage {
+		leverage = b.product.MaxLeverage
+	}
+
+	window := &models.LoanWindow{
+		GroupID:            groupID,
+		TenureID:           period.TenureID,
+		PeriodID:           period.GetID(),
+		GracePeriod:        groupInt32Property(group, "loan_grace_period", b.product.LoanGracePeriod),
+		LoanTenure:         groupInt32Property(group, "loan_tenure_periods", b.product.LoanTenurePeriods),
+		Position:           maxPosition + 1,
+		PeriodicAmount:     periodicAmount,
+		LeverageHundredths: leverage,
+		Currency:           group.GetCurrencyCode(),
+		State:              int32(constants.StateActive),
+	}
+	window.GenID(ctx)
+	window.CopyPartitionInfo(&period.BaseModel)
+
+	if createErr := b.lwRepo.Create(ctx, window); createErr != nil {
+		return nil, createErr
+	}
+
+	logger.WithField("window_id", window.GetID()).Info("loan window opened")
+	return window, nil
+}
+
+func (b *loanWindowBusiness) getGroup(
+	ctx context.Context,
+	groupID string,
+) (*identityv1.ClientGroupObject, error) {
+	if b.identityCli == nil {
+		return nil, apperrors.NewError(apperrors.ServiceUnavailable, "identity service is not available")
+	}
+	resp, err := b.identityCli.ClientGroupGet(ctx, connect.NewRequest(
+		&identityv1.ClientGroupGetRequest{Id: groupID},
+	))
+	if err != nil {
+		return nil, apperrors.ErrDataNotFound.Extend("client group")
+	}
+	return resp.Msg.GetData(), nil
+}
+
+// groupInt32Property reads a numeric group property, falling back to the
+// product default when it is absent or non-positive.
+func groupInt32Property(group *identityv1.ClientGroupObject, key string, fallback int32) int32 {
+	if v, ok := groupNumberProperty(group, key); ok {
+		return int32(v)
+	}
+	return fallback
+}
+
+func groupInt64Property(group *identityv1.ClientGroupObject, key string, fallback int64) int64 {
+	if v, ok := groupNumberProperty(group, key); ok {
+		return int64(v)
+	}
+	return fallback
+}
+
+func groupNumberProperty(group *identityv1.ClientGroupObject, key string) (float64, bool) {
+	props := group.GetProperties()
+	if props == nil {
+		return 0, false
+	}
+	v, ok := props.GetFields()[key]
+	if !ok || v.GetNumberValue() <= 0 {
+		return 0, false
+	}
+	return v.GetNumberValue(), true
 }

@@ -307,6 +307,7 @@ abstract final class IdentityService {
   );
 
   /// InvestorAccountSave creates or updates an investor capital account.
+  /// Deprecated: use funding.v1.FundingService instead.
   static const investorAccountSave = connect.Spec(
     '/$name/InvestorAccountSave',
     connect.StreamType.unary,
@@ -315,6 +316,7 @@ abstract final class IdentityService {
   );
 
   /// InvestorAccountGet retrieves an investor account by its ID.
+  /// Deprecated: use funding.v1.FundingService instead.
   static const investorAccountGet = connect.Spec(
     '/$name/InvestorAccountGet',
     connect.StreamType.unary,
@@ -324,6 +326,7 @@ abstract final class IdentityService {
   );
 
   /// InvestorAccountSearch finds investor accounts matching search criteria.
+  /// Deprecated: use funding.v1.FundingService instead.
   static const investorAccountSearch = connect.Spec(
     '/$name/InvestorAccountSearch',
     connect.StreamType.server,
@@ -333,6 +336,7 @@ abstract final class IdentityService {
   );
 
   /// InvestorDeposit adds funds to an investor capital account.
+  /// Deprecated: use funding.v1.FundingService instead.
   static const investorDeposit = connect.Spec(
     '/$name/InvestorDeposit',
     connect.StreamType.unary,
@@ -341,6 +345,7 @@ abstract final class IdentityService {
   );
 
   /// InvestorWithdraw removes funds from an investor capital account.
+  /// Deprecated: use funding.v1.FundingService instead.
   static const investorWithdraw = connect.Spec(
     '/$name/InvestorWithdraw',
     connect.StreamType.unary,

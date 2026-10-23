@@ -17,6 +17,7 @@ package handlers
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
@@ -34,17 +35,19 @@ import (
 // LoanManagementServer implements the LoanManagementService RPC handler.
 // Tenant-level permission checks are handled by the FunctionAccessInterceptor.
 type LoanManagementServer struct {
-	lpBusiness        business.LoanProductBusiness
-	lrBusiness        business.LoanRequestBusiness
-	laBusiness        business.LoanAccountBusiness
-	repBusiness       business.RepaymentBusiness
-	scheduleBusiness  business.RepaymentScheduleBusiness
-	penaltyBusiness   business.PenaltyBusiness
-	restructBusiness  business.LoanRestructureBusiness
-	reconBusiness     business.ReconciliationBusiness
-	portfolioBusiness business.PortfolioBusiness
-	disbBusiness      business.DisbursementBusiness
-	statusChangeRepo  repository.LoanStatusChangeRepository
+	lpBusiness         business.LoanProductBusiness
+	lrBusiness         business.LoanRequestBusiness
+	laBusiness         business.LoanAccountBusiness
+	repBusiness        business.RepaymentBusiness
+	scheduleBusiness   business.RepaymentScheduleBusiness
+	penaltyBusiness    business.PenaltyBusiness
+	restructBusiness   business.LoanRestructureBusiness
+	reconBusiness      business.ReconciliationBusiness
+	portfolioBusiness  business.PortfolioBusiness
+	disbBusiness       business.DisbursementBusiness
+	cpaBusiness        business.ClientProductAccessBusiness
+	collectionBusiness business.CollectionBusiness
+	statusChangeRepo   repository.LoanStatusChangeRepository
 
 	loansv1connect.UnimplementedLoanManagementServiceHandler
 }
@@ -60,20 +63,24 @@ func NewLoanManagementServer(
 	reconBusiness business.ReconciliationBusiness,
 	portfolioBusiness business.PortfolioBusiness,
 	disbBusiness business.DisbursementBusiness,
+	cpaBusiness business.ClientProductAccessBusiness,
+	collectionBusiness business.CollectionBusiness,
 	statusChangeRepo repository.LoanStatusChangeRepository,
 ) loansv1connect.LoanManagementServiceHandler {
 	return &LoanManagementServer{
-		lpBusiness:        lpBusiness,
-		lrBusiness:        lrBusiness,
-		laBusiness:        laBusiness,
-		repBusiness:       repBusiness,
-		scheduleBusiness:  scheduleBusiness,
-		penaltyBusiness:   penaltyBusiness,
-		restructBusiness:  restructBusiness,
-		reconBusiness:     reconBusiness,
-		portfolioBusiness: portfolioBusiness,
-		disbBusiness:      disbBusiness,
-		statusChangeRepo:  statusChangeRepo,
+		lpBusiness:         lpBusiness,
+		lrBusiness:         lrBusiness,
+		laBusiness:         laBusiness,
+		repBusiness:        repBusiness,
+		scheduleBusiness:   scheduleBusiness,
+		penaltyBusiness:    penaltyBusiness,
+		restructBusiness:   restructBusiness,
+		reconBusiness:      reconBusiness,
+		portfolioBusiness:  portfolioBusiness,
+		disbBusiness:       disbBusiness,
+		cpaBusiness:        cpaBusiness,
+		collectionBusiness: collectionBusiness,
+		statusChangeRepo:   statusChangeRepo,
 	}
 }
 
@@ -109,9 +116,13 @@ func (s *LoanManagementServer) LoanProductSearch(
 	req *connect.Request[loansv1.LoanProductSearchRequest],
 	stream *connect.ServerStream[loansv1.LoanProductSearchResponse],
 ) error {
-	return s.lpBusiness.Search(ctx, req.Msg, func(_ context.Context, batch []*loansv1.LoanProductObject) error {
+	err := s.lpBusiness.Search(ctx, req.Msg, func(_ context.Context, batch []*loansv1.LoanProductObject) error {
 		return stream.Send(&loansv1.LoanProductSearchResponse{Data: batch})
 	})
+	if err != nil {
+		return apperrors.CleanErr(err)
+	}
+	return nil
 }
 
 // --- LoanRequest RPCs ---
@@ -145,9 +156,13 @@ func (s *LoanManagementServer) LoanRequestSearch(
 	req *connect.Request[loansv1.LoanRequestSearchRequest],
 	stream *connect.ServerStream[loansv1.LoanRequestSearchResponse],
 ) error {
-	return s.lrBusiness.Search(ctx, req.Msg, func(_ context.Context, batch []*loansv1.LoanRequestObject) error {
+	err := s.lrBusiness.Search(ctx, req.Msg, func(_ context.Context, batch []*loansv1.LoanRequestObject) error {
 		return stream.Send(&loansv1.LoanRequestSearchResponse{Data: batch})
 	})
+	if err != nil {
+		return apperrors.CleanErr(err)
+	}
+	return nil
 }
 
 func (s *LoanManagementServer) LoanRequestApprove(
@@ -474,13 +489,16 @@ func (s *LoanManagementServer) LoanStatusChangeSearch(
 		return apperrors.CleanErr(err)
 	}
 
-	return workerpool.ConsumeResultStream(ctx, results, func(res []*models.LoanStatusChange) error {
+	if consumeErr := workerpool.ConsumeResultStream(ctx, results, func(res []*models.LoanStatusChange) error {
 		var apiResults []*loansv1.LoanStatusChangeObject
 		for _, sc := range res {
 			apiResults = append(apiResults, sc.ToAPI())
 		}
 		return stream.Send(&loansv1.LoanStatusChangeSearchResponse{Data: apiResults})
-	})
+	}); consumeErr != nil {
+		return apperrors.CleanErr(consumeErr)
+	}
+	return nil
 }
 
 // --- Disbursement RPCs ---
@@ -523,4 +541,131 @@ func (s *LoanManagementServer) DisbursementSearch(
 		return apperrors.CleanErr(err)
 	}
 	return nil
+}
+
+// --- ClientProductAccess RPCs ---
+
+func (s *LoanManagementServer) ClientProductAccessSave(
+	ctx context.Context,
+	req *connect.Request[loansv1.ClientProductAccessSaveRequest],
+) (*connect.Response[loansv1.ClientProductAccessSaveResponse], error) {
+	result, err := s.cpaBusiness.Save(ctx, req.Msg.GetData())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceLoanProduct, result.GetProductId())
+	audit.WithAction(ctx, audit.ActionSave)
+	audit.WithDetail(ctx, "client_id", result.GetClientId())
+	return connect.NewResponse(&loansv1.ClientProductAccessSaveResponse{Data: result}), nil
+}
+
+func (s *LoanManagementServer) ClientProductAccessGet(
+	ctx context.Context,
+	req *connect.Request[loansv1.ClientProductAccessGetRequest],
+) (*connect.Response[loansv1.ClientProductAccessGetResponse], error) {
+	result, err := s.cpaBusiness.Get(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return connect.NewResponse(&loansv1.ClientProductAccessGetResponse{Data: result}), nil
+}
+
+func (s *LoanManagementServer) ClientProductAccessSearch(
+	ctx context.Context,
+	req *connect.Request[loansv1.ClientProductAccessSearchRequest],
+	stream *connect.ServerStream[loansv1.ClientProductAccessSearchResponse],
+) error {
+	err := s.cpaBusiness.Search(ctx, req.Msg,
+		func(_ context.Context, batch []*loansv1.ClientProductAccessObject) error {
+			return stream.Send(&loansv1.ClientProductAccessSearchResponse{Data: batch})
+		})
+	if err != nil {
+		return apperrors.CleanErr(err)
+	}
+	return nil
+}
+
+// --- Collections RPC ---
+
+func (s *LoanManagementServer) InitiateCollection(
+	ctx context.Context,
+	req *connect.Request[loansv1.InitiateCollectionRequest],
+) (*connect.Response[loansv1.InitiateCollectionResponse], error) {
+	result, err := s.collectionBusiness.Initiate(ctx, req.Msg)
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceLoanAccount, req.Msg.GetLoanAccountId())
+	audit.WithAction(ctx, audit.ActionCreate)
+	audit.WithDetail(ctx, "payment_prompt_id", result.GetPaymentPromptId())
+	return connect.NewResponse(result), nil
+}
+
+// --- Portfolio RPCs ---
+
+func (s *LoanManagementServer) PortfolioSummary(
+	ctx context.Context,
+	req *connect.Request[loansv1.PortfolioSummaryRequest],
+) (*connect.Response[loansv1.PortfolioSummaryResponse], error) {
+	filter := business.PortfolioFilter{
+		OrganizationID: req.Msg.GetOrganizationId(),
+		BranchID:       req.Msg.GetBranchId(),
+		AgentID:        req.Msg.GetAgentId(),
+		ProductID:      req.Msg.GetProductId(),
+		ClientID:       req.Msg.GetClientId(),
+		CurrencyCode:   req.Msg.GetCurrencyCode(),
+	}
+
+	result, err := s.portfolioBusiness.GetSummary(ctx, filter)
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+
+	currency := result.CurrencyCode
+	return connect.NewResponse(&loansv1.PortfolioSummaryResponse{
+		Data: &loansv1.PortfolioSummary{
+			TotalLoans:           result.TotalLoans,
+			ActiveLoans:          result.ActiveLoans,
+			DelinquentLoans:      result.DelinquentLoans,
+			DefaultLoans:         result.DefaultLoans,
+			PaidOffLoans:         result.PaidOffLoans,
+			WrittenOffLoans:      result.WrittenOffLoans,
+			TotalDisbursed:       models.MinorUnitsToMoney(result.TotalDisbursed, currency),
+			TotalOutstanding:     models.MinorUnitsToMoney(result.TotalOutstanding, currency),
+			TotalCollected:       models.MinorUnitsToMoney(result.TotalCollected, currency),
+			PrincipalOutstanding: models.MinorUnitsToMoney(result.PrincipalOutstanding, currency),
+			InterestOutstanding:  models.MinorUnitsToMoney(result.InterestOutstanding, currency),
+			FeesOutstanding:      models.MinorUnitsToMoney(result.FeesOutstanding, currency),
+			PenaltiesOutstanding: models.MinorUnitsToMoney(result.PenaltiesOutstanding, currency),
+			CurrencyCode:         currency,
+			CollectionRate:       result.CollectionRate,
+			Par_30:               result.PAR30,
+		},
+	}), nil
+}
+
+func (s *LoanManagementServer) PortfolioExport(
+	ctx context.Context,
+	req *connect.Request[loansv1.PortfolioExportRequest],
+) (*connect.Response[loansv1.PortfolioExportResponse], error) {
+	filter := business.PortfolioFilter{
+		OrganizationID: req.Msg.GetOrganizationId(),
+		BranchID:       req.Msg.GetBranchId(),
+		AgentID:        req.Msg.GetAgentId(),
+		ProductID:      req.Msg.GetProductId(),
+		ClientID:       req.Msg.GetClientId(),
+		CurrencyCode:   req.Msg.GetCurrencyCode(),
+	}
+
+	csvData, err := s.portfolioBusiness.ExportCSV(ctx, filter)
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+
+	audit.WithAction(ctx, "export")
+	return connect.NewResponse(&loansv1.PortfolioExportResponse{
+		Data:        csvData,
+		Filename:    "loan_book_" + time.Now().UTC().Format("20060102_150405") + ".csv",
+		ContentType: "text/csv",
+	}), nil
 }

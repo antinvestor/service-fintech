@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const ClientDataEntrySaveEvent = "client_data_entry.save"
@@ -58,17 +58,8 @@ func (e *ClientDataEntrySave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "entry_id": entry.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.entryRepo.GetByID(ctx, entry.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.entryRepo.Update(ctx, entry); err != nil {
-			logger.WithError(err).Error("could not update client data entry in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.entryRepo.Create(ctx, entry); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create client data entry in db")
+	if err := upsert.ByID(ctx, e.entryRepo, entry); err != nil {
+		logger.WithError(err).Error("could not save client data entry in db")
 		return err
 	}
 

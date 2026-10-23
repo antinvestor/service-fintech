@@ -20,9 +20,11 @@ import (
 
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v2/tenancy"
 	"github.com/pitabwire/frame/v2/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 )
@@ -49,6 +51,13 @@ type PolicyRepository interface {
 	// Use this when the policy mutation must be atomic with an audit write.
 	SaveTx(ctx context.Context, tx *gorm.DB, p *models.Policy) error
 	Get(ctx context.Context, id string) (*models.Policy, error)
+	// GetForUpdateTx reads a policy inside tx with a row-level lock so a
+	// read-modify-write cycle cannot interleave with a concurrent save.
+	GetForUpdateTx(ctx context.Context, tx *gorm.DB, id string) (*models.Policy, error)
+	// MaxLiveWindowSeconds returns the largest rolling window declared by any
+	// live (non-deleted, non-off) policy across all tenants. Archival uses it
+	// to refuse deleting ledger rows a live cap still reads.
+	MaxLiveWindowSeconds(ctx context.Context) (int64, error)
 	Search(ctx context.Context, f PolicySearchFilter, limit int, cursor string) (*PolicySearchResult, error)
 	Delete(ctx context.Context, id string) error
 	// DeleteTx soft-deletes the policy within the caller's DB transaction.
@@ -83,12 +92,43 @@ func (r *policyRepository) Save(ctx context.Context, p *models.Policy) error {
 
 // SaveTx creates or updates a Policy within the caller's DB transaction.
 // GORM's BeforeCreate/BeforeUpdate hooks fire normally on the tx session.
+// Platform-scoped rows carry no tenant, so RLS enforcement is skipped for
+// them — the WITH CHECK predicate would otherwise reject the empty tenant.
 func (r *policyRepository) SaveTx(ctx context.Context, tx *gorm.DB, p *models.Policy) error {
+	if p.Scope == models.ScopePlatform {
+		ctx = tenancy.WithSkipEnforcement(ctx)
+		tx = tx.WithContext(ctx)
+	}
 	if p.ID == "" {
 		p.GenID(ctx)
 		return tx.Create(p).Error
 	}
 	return tx.Save(p).Error
+}
+
+// GetForUpdateTx reads a policy with SELECT ... FOR UPDATE inside tx.
+func (r *policyRepository) GetForUpdateTx(ctx context.Context, tx *gorm.DB, id string) (*models.Policy, error) {
+	var out models.Policy
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", id).
+		First(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MaxLiveWindowSeconds returns the widest rolling window in use, cross-tenant.
+func (r *policyRepository) MaxLiveWindowSeconds(ctx context.Context) (int64, error) {
+	ctx = tenancy.WithSkipEnforcement(ctx)
+	var maxWindow int64
+	err := r.dbPool.DB(ctx, true).
+		Table(models.Policy{}.TableName()).
+		Where("deleted_at IS NULL AND mode != ?", string(models.ModeOff)).
+		Select("COALESCE(MAX(window_seconds), 0)").
+		Scan(&maxWindow).Error
+	return maxWindow, err
 }
 
 // DeleteTx soft-deletes a Policy within the caller's DB transaction.
@@ -130,7 +170,7 @@ func (r *policyRepository) Search(
 		db = db.Where("mode = ?", string(f.Mode))
 	}
 	if f.Query != "" {
-		db = db.Where("notes ILIKE ?", "%"+strings.ToLower(f.Query)+"%")
+		db = db.Where(`notes ILIKE ? ESCAPE '\'`, "%"+escapeLike(f.Query)+"%")
 	}
 	if cursor != "" {
 		db = db.Where("id > ?", cursor)
@@ -150,6 +190,13 @@ func (r *policyRepository) Search(
 	return out, nil
 }
 
+// escapeLike neutralises the LIKE wildcards a user may type into a free-text
+// search box so they match literally.
+func escapeLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+	return r.Replace(s)
+}
+
 // Delete soft-deletes a Policy by its ID.
 func (r *policyRepository) Delete(ctx context.Context, id string) error {
 	return r.BaseRepository.Delete(ctx, id)
@@ -158,8 +205,20 @@ func (r *policyRepository) Delete(ctx context.Context, id string) error {
 // PolicyVersionRepository persists immutable policy snapshots.
 type PolicyVersionRepository interface {
 	Append(ctx context.Context, v *models.PolicyVersion) error
+	// AppendTx writes the snapshot inside the caller's transaction so the
+	// history row commits with the policy change it describes.
+	AppendTx(ctx context.Context, tx *gorm.DB, v *models.PolicyVersion) error
 	List(ctx context.Context, policyID string) ([]*models.PolicyVersion, error)
+	// ListPage returns one page of snapshots newest-first. beforeVersion is
+	// the keyset cursor: only versions strictly below it are returned; zero
+	// means start from the latest.
+	ListPage(ctx context.Context, policyID string, limit int, beforeVersion int32) ([]*models.PolicyVersion, error)
+	// ListTx reads the snapshots inside the caller's transaction.
+	ListTx(ctx context.Context, tx *gorm.DB, policyID string) ([]*models.PolicyVersion, error)
 }
+
+// defaultVersionPageSize is the history page size when the caller sets none.
+const defaultVersionPageSize = 50
 
 type policyVersionRepository struct {
 	datastore.BaseRepository[*models.PolicyVersion]
@@ -183,6 +242,28 @@ func (r *policyVersionRepository) Append(ctx context.Context, v *models.PolicyVe
 	return r.BaseRepository.Create(ctx, v)
 }
 
+func (r *policyVersionRepository) AppendTx(ctx context.Context, tx *gorm.DB, v *models.PolicyVersion) error {
+	if v.ID == "" {
+		v.ID = util.IDString()
+	}
+	v.GenID(ctx)
+	return tx.WithContext(ctx).Create(v).Error
+}
+
+func (r *policyVersionRepository) ListTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	policyID string,
+) ([]*models.PolicyVersion, error) {
+	var rows []*models.PolicyVersion
+	err := tx.WithContext(ctx).
+		Model(&models.PolicyVersion{}).
+		Where("policy_id = ?", policyID).
+		Order("version ASC").
+		Find(&rows).Error
+	return rows, err
+}
+
 func (r *policyVersionRepository) List(ctx context.Context, policyID string) ([]*models.PolicyVersion, error) {
 	var rows []*models.PolicyVersion
 	db := r.dbPool.DB(ctx, true)
@@ -190,5 +271,25 @@ func (r *policyVersionRepository) List(ctx context.Context, policyID string) ([]
 		Where("policy_id = ?", policyID).
 		Order("version ASC").
 		Find(&rows).Error
+	return rows, err
+}
+
+func (r *policyVersionRepository) ListPage(
+	ctx context.Context,
+	policyID string,
+	limit int,
+	beforeVersion int32,
+) ([]*models.PolicyVersion, error) {
+	if limit <= 0 {
+		limit = defaultVersionPageSize
+	}
+	db := r.dbPool.DB(ctx, true).
+		Model(&models.PolicyVersion{}).
+		Where("policy_id = ?", policyID)
+	if beforeVersion > 0 {
+		db = db.Where("version < ?", beforeVersion)
+	}
+	var rows []*models.PolicyVersion
+	err := db.Order("version DESC").Limit(limit).Find(&rows).Error
 	return rows, err
 }

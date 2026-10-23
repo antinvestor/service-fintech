@@ -18,11 +18,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/util"
-
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const InterestAccrualSaveEvent = "interest_accrual.save"
@@ -55,22 +53,5 @@ func (e *InterestAccrualSave) Execute(ctx context.Context, payload any) error {
 		return errors.New("payload is not of type models.InterestAccrual")
 	}
 
-	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "interest_accrual_id": ia.GetID()})
-	defer logger.Release()
-
-	existing, getErr := e.repo.GetByID(ctx, ia.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.repo.Update(ctx, ia); err != nil {
-			logger.WithError(err).Error("could not update interest accrual in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.repo.Create(ctx, ia); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create interest accrual in db")
-		return err
-	}
-
-	return nil
+	return upsert.ByID(ctx, e.repo, ia)
 }

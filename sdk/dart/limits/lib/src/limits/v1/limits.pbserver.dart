@@ -58,6 +58,7 @@ abstract class LimitsAdminServiceBase extends $pb.GeneratedService {
   $async.Future<$9.PolicyGetResponse> policyGet($pb.ServerContext ctx, $9.PolicyGetRequest request);
   $async.Future<$9.PolicySearchResponse> policySearch($pb.ServerContext ctx, $9.PolicySearchRequest request);
   $async.Future<$9.PolicyDeleteResponse> policyDelete($pb.ServerContext ctx, $9.PolicyDeleteRequest request);
+  $async.Future<$9.PolicyHistoryResponse> policyHistory($pb.ServerContext ctx, $9.PolicyHistoryRequest request);
   $async.Future<$9.ApprovalRequestListResponse> approvalRequestList($pb.ServerContext ctx, $9.ApprovalRequestListRequest request);
   $async.Future<$9.ApprovalRequestGetResponse> approvalRequestGet($pb.ServerContext ctx, $9.ApprovalRequestGetRequest request);
   $async.Future<$9.ApprovalRequestDecideResponse> approvalRequestDecide($pb.ServerContext ctx, $9.ApprovalRequestDecideRequest request);
@@ -70,6 +71,7 @@ abstract class LimitsAdminServiceBase extends $pb.GeneratedService {
       case 'PolicyGet': return $9.PolicyGetRequest();
       case 'PolicySearch': return $9.PolicySearchRequest();
       case 'PolicyDelete': return $9.PolicyDeleteRequest();
+      case 'PolicyHistory': return $9.PolicyHistoryRequest();
       case 'ApprovalRequestList': return $9.ApprovalRequestListRequest();
       case 'ApprovalRequestGet': return $9.ApprovalRequestGetRequest();
       case 'ApprovalRequestDecide': return $9.ApprovalRequestDecideRequest();
@@ -85,6 +87,7 @@ abstract class LimitsAdminServiceBase extends $pb.GeneratedService {
       case 'PolicyGet': return this.policyGet(ctx, request as $9.PolicyGetRequest);
       case 'PolicySearch': return this.policySearch(ctx, request as $9.PolicySearchRequest);
       case 'PolicyDelete': return this.policyDelete(ctx, request as $9.PolicyDeleteRequest);
+      case 'PolicyHistory': return this.policyHistory(ctx, request as $9.PolicyHistoryRequest);
       case 'ApprovalRequestList': return this.approvalRequestList(ctx, request as $9.ApprovalRequestListRequest);
       case 'ApprovalRequestGet': return this.approvalRequestGet(ctx, request as $9.ApprovalRequestGetRequest);
       case 'ApprovalRequestDecide': return this.approvalRequestDecide(ctx, request as $9.ApprovalRequestDecideRequest);

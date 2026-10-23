@@ -31,4 +31,18 @@ var (
 	ErrProductRateZero         = apperrors.NewError(apperrors.Unprocessable, "product interest rate is zero")
 	ErrBalanceZero             = apperrors.NewError(apperrors.Unprocessable, "savings account balance is zero")
 	ErrAccrualAmountZero       = apperrors.NewError(apperrors.Unprocessable, "computed accrual amount is zero")
+	ErrBalanceNotProvisioned   = apperrors.NewError(
+		apperrors.Unprocessable, "savings account has no balance record")
+
+	ErrIdempotencyKeyRequired = apperrors.NewError(apperrors.BadRequest, "idempotency_key is required")
+	ErrAmountCurrencyRequired = apperrors.NewError(apperrors.BadRequest, "amount currency_code is required")
+	ErrCurrencyMismatch       = apperrors.NewError(
+		apperrors.BadRequest, "amount currency does not match the account currency")
+	ErrAmountNotPositive    = apperrors.NewError(apperrors.BadRequest, "amount must be positive")
+	ErrProductNotForAccount = apperrors.NewError(
+		apperrors.BadRequest, "account currency does not match the product currency")
+	ErrAccountHasBalance = apperrors.NewError(
+		apperrors.Unprocessable, "savings account cannot be closed while it holds funds or open reservations")
+	ErrSavingsAccountLedgerRefsMissing = apperrors.NewError(
+		apperrors.Unprocessable, "savings account is missing product routing information")
 )

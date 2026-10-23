@@ -59,6 +59,16 @@ func isPlatformRole(name string) bool {
 	}
 }
 
+// validatePlatformRole rejects a platform_role a caller invented. An unknown
+// value would otherwise be created as a brand new partition role and assigned,
+// letting a caller name any role it wants on the tenancy side.
+func validatePlatformRole(role string) error {
+	if role == "" || isPlatformRole(role) {
+		return nil
+	}
+	return ErrInvalidPlatformRole
+}
+
 // platformAccessRole is one role assignment held by an access grant.
 type platformAccessRole struct {
 	AccessRoleID    string

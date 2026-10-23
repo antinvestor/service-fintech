@@ -14,6 +14,8 @@
 
 package constants
 
+import "sort"
+
 // Transfer order type constants matching Java OrderType enum values exactly.
 const (
 	TransferTypePayment                                   = 1
@@ -86,6 +88,24 @@ var transferTypeNames = map[int]string{ //nolint:gochecknoglobals // package-lev
 	TransferTypePlatformFirstLossAbsorption:               "PLATFORM_FIRST_LOSS_ABSORPTION",
 	TransferTypeInvestorLossAbsorption:                    "INVESTOR_LOSS_ABSORPTION",
 	TransferTypeInterSubscriptionPayment:                  "INTER_SUBSCRIPTION_PAYMENT",
+}
+
+// TransferTypeEntry pairs a transfer type value with its canonical name.
+type TransferTypeEntry struct {
+	Value int
+	Name  string
+}
+
+// TransferTypes returns the whole transfer type table ordered by value. It is
+// the single source of truth for any surface that has to render or filter by
+// transfer type, including the Dart mirror in ui/operations.
+func TransferTypes() []TransferTypeEntry {
+	entries := make([]TransferTypeEntry, 0, len(transferTypeNames))
+	for value, name := range transferTypeNames {
+		entries = append(entries, TransferTypeEntry{Value: value, Name: name})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Value < entries[j].Value })
+	return entries
 }
 
 // TransferTypeName returns a human-readable name for a transfer type.

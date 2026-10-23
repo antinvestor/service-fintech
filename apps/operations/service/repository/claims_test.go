@@ -1,0 +1,297 @@
+// Copyright 2023-2026 Ant Investor Ltd
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package repository_test
+
+import (
+	"context"
+	"sync"
+	"testing"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/pitabwire/frame/v2"
+	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v2/frametests"
+	"github.com/pitabwire/frame/v2/frametests/definition"
+	"github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/suite"
+
+	"github.com/antinvestor/service-fintech/apps/operations/service/models"
+	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/constants"
+)
+
+type claimsSuite struct {
+	frametests.FrameBaseTestSuite
+}
+
+func TestClaimsSuite(t *testing.T) {
+	suite.Run(t, new(claimsSuite))
+}
+
+func (s *claimsSuite) SetupSuite() {
+	s.InitResourceFunc = func(_ context.Context) []definition.TestResource {
+		return []definition.TestResource{
+			testpostgres.NewWithOpts(
+				"operations_claims",
+				definition.WithUserName("ant"),
+				definition.WithCredential("s3cr3t"),
+				definition.WithEnableLogging(false),
+			),
+		}
+	}
+	s.FrameBaseTestSuite.SetupSuite()
+}
+
+type claimsEnv struct {
+	ctx      context.Context
+	orders   repository.TransferOrderRepository
+	payments repository.IncomingPaymentRepository
+	obs      repository.ObligationRepository
+}
+
+func (s *claimsSuite) newEnv() *claimsEnv {
+	s.T().Helper()
+
+	ctx := (&security.AuthenticationClaims{
+		TenantID:         "tenant-ops",
+		PartitionID:      "partition-ops",
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "profile-ops"},
+	}).ClaimsToContext(s.T().Context())
+
+	var db definition.DependancyConn
+	for _, r := range s.Resources() {
+		if r.Name() == testpostgres.PostgresqlDBImage && r.GetDS(ctx).IsDB() {
+			db = r
+		}
+	}
+	s.Require().NotNil(db, "postgres resource not found")
+
+	dsn, cleanup, err := db.GetRandomisedDS(ctx, util.RandomAlphaNumericString(8))
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { cleanup(ctx) })
+
+	ctx, svc := frame.NewServiceWithContext(
+		ctx,
+		frame.WithName("operations-claims-test"),
+		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
+	)
+	s.T().Cleanup(func() { svc.Stop(ctx) })
+	svc.Init(ctx)
+
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+	s.Require().NotNil(dbPool)
+	s.Require().NoError(repository.MigrateForTest(ctx, dbPool))
+
+	workMan := svc.WorkManager()
+	return &claimsEnv{
+		ctx:      ctx,
+		orders:   repository.NewTransferOrderRepository(ctx, dbPool, workMan),
+		payments: repository.NewIncomingPaymentRepository(ctx, dbPool, workMan),
+		obs:      repository.NewObligationRepository(ctx, dbPool, workMan),
+	}
+}
+
+func (s *claimsSuite) newOrder(ctx context.Context, reference string) *models.TransferOrder {
+	s.T().Helper()
+	order := &models.TransferOrder{
+		DebitAccountRef:  "debit",
+		CreditAccountRef: "credit",
+		Amount:           1000,
+		Currency:         "KES",
+		OrderType:        constants.TransferTypeLoanRepayment,
+		Reference:        reference,
+		State:            int32(constants.StateJustCreated),
+	}
+	order.GenID(ctx)
+	return order
+}
+
+// A retried Save with the same reference must converge on one row, not create
+// a second ledger posting.
+func (s *claimsSuite) TestCreateIfAbsentConvergesOnReference() {
+	e := s.newEnv()
+
+	first := s.newOrder(e.ctx, "repayment:1:principal")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, first))
+
+	second := s.newOrder(e.ctx, "repayment:1:principal")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, second))
+
+	s.Require().Equal(first.GetID(), second.GetID(),
+		"a retry must resolve to the row that already owns the reference")
+
+	count, err := e.orders.CountBy(e.ctx, map[string]any{"reference": "repayment:1:principal"})
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), count)
+}
+
+// An empty reference carries no idempotency, so those rows must still insert.
+func (s *claimsSuite) TestCreateIfAbsentAllowsEmptyReferences() {
+	e := s.newEnv()
+
+	for range 3 {
+		order := s.newOrder(e.ctx, "")
+		s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+	}
+
+	count, err := e.orders.CountBy(e.ctx, map[string]any{"reference": ""})
+	s.Require().NoError(err)
+	s.Require().Equal(int64(3), count)
+}
+
+// Only one of two concurrent executions may claim an order.
+func (s *claimsSuite) TestClaimStateIsExclusive() {
+	e := s.newEnv()
+
+	order := s.newOrder(e.ctx, "repayment:2:principal")
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+
+	const racers = 8
+	var (
+		wg    sync.WaitGroup
+		mu    sync.Mutex
+		winst int
+	)
+	for range racers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			claimed, err := e.orders.ClaimState(
+				e.ctx,
+				order.GetID(),
+				[]int32{int32(constants.StateJustCreated)},
+				int32(constants.StateCheckCreated),
+			)
+			if err == nil && claimed {
+				mu.Lock()
+				winst++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+
+	s.Require().Equal(1, winst, "exactly one caller may claim a transfer order")
+
+	stored, err := e.orders.GetByID(e.ctx, order.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(int32(constants.StateCheckCreated), stored.State)
+}
+
+// The unique index on transaction_id is what makes payment dedupe real.
+func (s *claimsSuite) TestIncomingPaymentDedupesOnTransactionID() {
+	e := s.newEnv()
+
+	first := &models.IncomingPayment{
+		Amount:        5000,
+		Currency:      "KES",
+		TransactionID: "txn-dedupe",
+		State:         int32(constants.StateJustCreated),
+	}
+	first.GenID(e.ctx)
+	stored, err := e.payments.CreateIfAbsent(e.ctx, first)
+	s.Require().NoError(err)
+	s.Require().Equal(first.GetID(), stored.GetID())
+
+	second := &models.IncomingPayment{
+		Amount:        5000,
+		Currency:      "KES",
+		TransactionID: "txn-dedupe",
+		State:         int32(constants.StateJustCreated),
+	}
+	second.GenID(e.ctx)
+	stored, err = e.payments.CreateIfAbsent(e.ctx, second)
+	s.Require().NoError(err)
+	s.Require().Equal(first.GetID(), stored.GetID(),
+		"a repeated notification must resolve to the first payment row")
+
+	count, err := e.payments.CountBy(e.ctx, map[string]any{"transaction_id": "txn-dedupe"})
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), count)
+}
+
+// Two concurrent allocations of the same obligation must not both succeed
+// against the same balance.
+func (s *claimsSuite) TestConsumeAmountIsExclusive() {
+	e := s.newEnv()
+
+	obligation := &models.Obligation{
+		MembershipID: "member-1",
+		Amount:       1000,
+		Currency:     "KES",
+		State:        int32(constants.StateActive),
+	}
+	obligation.GenID(e.ctx)
+	s.Require().NoError(e.obs.Create(e.ctx, obligation))
+
+	const racers = 6
+	var (
+		wg    sync.WaitGroup
+		mu    sync.Mutex
+		wins  int
+		total int64
+	)
+	for range racers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			consumed, err := e.obs.ConsumeAmount(e.ctx, obligation.GetID(), 600)
+			if err == nil && consumed {
+				mu.Lock()
+				wins++
+				total += 600
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+
+	s.Require().Equal(1, wins, "only one allocation may consume more than half the obligation")
+
+	stored, err := e.obs.GetByID(e.ctx, obligation.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1000)-total, stored.Amount)
+}
+
+// Consuming the whole balance retires the obligation.
+func (s *claimsSuite) TestConsumeAmountDeactivatesWhenFullyPaid() {
+	e := s.newEnv()
+
+	obligation := &models.Obligation{
+		MembershipID: "member-2",
+		Amount:       750,
+		Currency:     "KES",
+		State:        int32(constants.StateActive),
+	}
+	obligation.GenID(e.ctx)
+	s.Require().NoError(e.obs.Create(e.ctx, obligation))
+
+	consumed, err := e.obs.ConsumeAmount(e.ctx, obligation.GetID(), 750)
+	s.Require().NoError(err)
+	s.Require().True(consumed)
+
+	stored, err := e.obs.GetByID(e.ctx, obligation.GetID())
+	s.Require().NoError(err)
+	s.Require().Equal(int64(0), stored.Amount)
+	s.Require().Equal(int32(constants.StateInactive), stored.State)
+
+	// A second allocation finds nothing left.
+	consumed, err = e.obs.ConsumeAmount(e.ctx, obligation.GetID(), 1)
+	s.Require().NoError(err)
+	s.Require().False(consumed)
+}

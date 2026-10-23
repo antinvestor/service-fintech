@@ -17,7 +17,9 @@ package main
 import (
 	"context"
 	"net/http"
+	"time"
 
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
 	"buf.build/gen/go/antinvestor/savings/connectrpc/go/savings/v1/savingsv1connect"
@@ -37,18 +39,23 @@ import (
 	"github.com/pitabwire/frame/v2/setup"
 	"github.com/pitabwire/util"
 
-	auditmw "github.com/antinvestor/common/audit"
-
 	aconfig "github.com/antinvestor/service-fintech/apps/savings/config"
 	"github.com/antinvestor/service-fintech/apps/savings/service/authz"
 	"github.com/antinvestor/service-fintech/apps/savings/service/business"
 	savingsevents "github.com/antinvestor/service-fintech/apps/savings/service/events"
 	"github.com/antinvestor/service-fintech/apps/savings/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/bootcheck"
+	"github.com/antinvestor/service-fintech/pkg/clients"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 )
+
+// accrualPeriod is the closing period the accrual engine settles: one UTC day.
+const accrualPeriod = 24 * time.Hour
 
 //nolint:funlen // linear service wiring; splitting hurts readability
 func main() {
@@ -64,14 +71,24 @@ func main() {
 		cfg.ServiceName = "service_savings"
 	}
 
+	// Refuse to serve on an environment that is unsafe outside local
+	// development (docs/runbook/required-environment.md).
+	if err = bootcheck.Validate(tmpCtx, &cfg); err != nil {
+		util.Log(tmpCtx).WithError(err).Fatal("environment is not deployment-safe")
+	}
+
 	ctx, svc := frame.NewServiceWithContext(
 		tmpCtx,
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
 
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -88,6 +105,13 @@ func main() {
 	}
 
 	sm := svc.SecurityManager()
+
+	// RPC-level audit delivery. Required when running securely; a nil client
+	// is tolerated (and logged) only for local development.
+	auditCli, err := clients.ResolveAuditClient(ctx, &cfg, cfg.IsRunSecurely(), cfg.AuditConfig)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup audit client")
+	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
@@ -129,18 +153,15 @@ func main() {
 
 	// Create business logic with all dependencies
 	spBusiness := business.NewSavingsProductBusiness(ctx, evtsMan, spRepo)
-	saBusiness := business.NewSavingsAccountBusiness(ctx, evtsMan, saRepo, depRepo, wdRepo, iaRepo, sbRepo)
+	saBusiness := business.NewSavingsAccountBusiness(ctx, evtsMan, saRepo, spRepo, depRepo, wdRepo, iaRepo, sbRepo)
 	depBusiness := business.NewDepositBusiness(
-		ctx, evtsMan, depRepo, saRepo, sbRepo, operationsCli, auditWriter,
+		ctx, depRepo, saRepo, operationsCli, auditWriter,
 		limitsCli, cfg.LimitsGateEnabledSavingsDeposit, cfg.LimitsGateModeSavingsDeposit,
 	)
 	wdBusiness := business.NewWithdrawalBusiness(
 		ctx,
-		evtsMan,
 		wdRepo,
 		saRepo,
-		sbRepo,
-		saBusiness,
 		operationsCli,
 		auditWriter,
 		limitsCli,
@@ -160,7 +181,7 @@ func main() {
 
 	// Setup Connect RPC servers
 	connectHandler := setupConnectServer(ctx, sm, dbPool,
-		spBusiness, saBusiness, depBusiness, wdBusiness, iaBusiness)
+		spBusiness, saBusiness, depBusiness, wdBusiness, iaBusiness, auditCli)
 
 	// Runtime: HTTP + queue handlers only. Permissions/migrate are setup-only.
 	serviceOptions := []frame.Option{
@@ -171,16 +192,47 @@ func main() {
 			savingsevents.NewDepositSave(ctx, depRepo),
 			savingsevents.NewWithdrawalSave(ctx, wdRepo),
 			savingsevents.NewInterestAccrualSave(ctx, iaRepo),
-			savingsevents.NewSavingsBalanceSave(ctx, sbRepo),
 			audit.NewEventSave(ctx, auditRepo),
 		),
 	}
 
 	svc.Init(ctx, serviceOptions...)
 
+	if cfg.InterestAccrualEnabled {
+		go runInterestAccrual(ctx, iaBusiness, cfg.InterestAccrualInterval)
+	}
+
 	err = svc.Run(ctx, "")
 	if err != nil {
 		log.WithError(err).Fatal("could not run Server")
+	}
+}
+
+// runInterestAccrual drives the accrual engine until ctx is cancelled. Each
+// pass accrues the most recently closed UTC day; Accrue is idempotent on
+// (savings_account_id, period_end), so overlapping passes and restarts post
+// interest exactly once per account per day.
+func runInterestAccrual(ctx context.Context, iaBusiness business.InterestAccrualBusiness, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Hour
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			periodEnd := time.Now().UTC().Truncate(accrualPeriod)
+			periodStart := periodEnd.Add(-accrualPeriod)
+			processed, errs := iaBusiness.AccrueAllActive(ctx, periodStart, periodEnd)
+			util.Log(ctx).
+				WithField("processed", processed).
+				WithField("errors", len(errs)).
+				WithField("period_end", periodEnd.Format(time.RFC3339)).
+				Info("interest accrual pass complete")
+		}
 	}
 }
 
@@ -219,6 +271,7 @@ func setupConnectServer(
 	depBusiness business.DepositBusiness,
 	wdBusiness business.WithdrawalBusiness,
 	iaBusiness business.InterestAccrualBusiness,
+	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	// Create handler with injected dependencies
 	savingsHandler := handlers.NewSavingsServer(
@@ -242,11 +295,11 @@ func setupConnectServer(
 	functionChecker := authorizer.NewFunctionChecker(auth, svcPerms.Namespace)
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
-	savingsAuditInterceptor := auditmw.NewInterceptor("service_savings", nil)
+	savingsAuditInterceptor := clients.AuditInterceptor("service_savings", auditCli)
 
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
 		ctx, sm.GetAuthenticator(ctx),
-		tenancyAccessInterceptor, functionAccessInterceptor, savingsAuditInterceptor)
+		tenancyAccessInterceptor, tenantassert.Interceptor(), functionAccessInterceptor, savingsAuditInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}

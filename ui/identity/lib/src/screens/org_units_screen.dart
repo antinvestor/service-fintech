@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
+import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,13 +11,11 @@ import '../providers/org_unit_providers.dart';
 import '../providers/organization_providers.dart';
 import '../widgets/org_unit_helpers.dart';
 import 'org_unit_form_dialog.dart';
+import '../widgets/async_state_views.dart';
+import '../widgets/load_more_action.dart';
 
 class OrgUnitsScreen extends ConsumerStatefulWidget {
-  const OrgUnitsScreen({
-    super.key,
-    this.canManage = true,
-    this.onNavigate,
-  });
+  const OrgUnitsScreen({super.key, this.canManage = true, this.onNavigate});
 
   final bool canManage;
   final void Function(String id)? onNavigate;
@@ -47,20 +46,36 @@ class _OrgUnitsScreenState extends ConsumerState<OrgUnitsScreen> {
   }
 
   OrgUnitListParams get _params => (
-        query: _searchQuery,
-        organizationId: _selectedOrganizationId,
-        type: _selectedType,
-        parentId: '',
-        rootOnly: false,
-      );
+    query: _searchQuery,
+    organizationId: _selectedOrganizationId,
+    type: _selectedType,
+    parentId: '',
+    rootOnly: false,
+  );
 
   @override
   Widget build(BuildContext context) {
-    final orgUnitsAsync = ref.watch(orgUnitListProvider(_params));
-    final orgUnits = orgUnitsAsync.whenOrNull(data: (d) => d) ?? [];
+    final provider = orgUnitPagedListProvider(_params);
+    final orgUnitsAsync = ref.watch(provider);
+    if (orgUnitsAsync.hasError) {
+      return ListErrorView(
+        title: 'Org Units',
+        breadcrumbs: const ['Identity', 'Org Units'],
+        error: orgUnitsAsync.error!,
+        onRetry: () => ref.invalidate(provider),
+      );
+    }
+    if (orgUnitsAsync.isLoading && !orgUnitsAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'Org Units',
+        breadcrumbs: ['Identity', 'Org Units'],
+      );
+    }
+    final page = orgUnitsAsync.requireValue;
+    final orgUnits = page.items;
     final organizationsAsync = ref.watch(organizationListProvider(''));
     final organizations =
-        organizationsAsync.whenOrNull(data: (d) => d) ?? const <OrganizationObject>[];
+        organizationsAsync.value ?? const <OrganizationObject>[];
 
     return AdminEntityListPage<OrgUnitObject>(
       title: 'Org Units',
@@ -77,7 +92,19 @@ class _OrgUnitsScreenState extends ConsumerState<OrgUnitsScreen> {
       onAdd: widget.canManage
           ? () => _showOrgUnitDialog(context, organizations: organizations)
           : null,
-      actions: [_buildFilters(organizations)],
+      actions: [
+        _buildFilters(organizations),
+        const SizedBox(width: 8),
+        LoadMoreAction(
+          loadedCount: orgUnits.length,
+          hasMore: page.hasMore,
+          isLoading: page.isLoadingMore,
+          errorMessage: page.loadMoreError == null
+              ? null
+              : friendlyError(page.loadMoreError!),
+          onLoadMore: () => ref.read(provider.notifier).loadMore(),
+        ),
+      ],
       rowBuilder: (orgUnit, selected, onSelect) {
         return DataRow(
           selected: selected,
@@ -89,8 +116,9 @@ class _OrgUnitsScreenState extends ConsumerState<OrgUnitsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
                     child: Icon(
                       orgUnit.type == OrgUnitType.ORG_UNIT_TYPE_BRANCH
                           ? Icons.store_outlined
@@ -141,11 +169,9 @@ class _OrgUnitsScreenState extends ConsumerState<OrgUnitsScreen> {
           value: _selectedOrganizationId,
           underline: const SizedBox.shrink(),
           items: [
-            const DropdownMenuItem(
-                value: '', child: Text('All Organizations')),
+            const DropdownMenuItem(value: '', child: Text('All Organizations')),
             ...organizations.map(
-              (org) =>
-                  DropdownMenuItem(value: org.id, child: Text(org.name)),
+              (org) => DropdownMenuItem(value: org.id, child: Text(org.name)),
             ),
           ],
           onChanged: (value) =>
@@ -168,8 +194,8 @@ class _OrgUnitsScreenState extends ConsumerState<OrgUnitsScreen> {
             ),
           ],
           onChanged: (value) => setState(
-            () => _selectedType =
-                value ?? OrgUnitType.ORG_UNIT_TYPE_UNSPECIFIED,
+            () =>
+                _selectedType = value ?? OrgUnitType.ORG_UNIT_TYPE_UNSPECIFIED,
           ),
         ),
       ],
@@ -240,13 +266,19 @@ class _OrgUnitDetail extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(orgUnit.name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(orgUnit.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    orgUnit.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    orgUnit.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -277,14 +309,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),

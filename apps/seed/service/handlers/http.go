@@ -35,50 +35,171 @@
 //	  reaches PAID_OFF. Updates the seed credit profile accordingly.
 //	  Idempotent on loan_account_id.
 //
-// All endpoints are registered on the standard http.ServeMux so they
-// compose with any additional middleware the host process wires up.
+//	POST /api/v1/seed/credit-profiles/{client_id}/{currency}/suspend
+//	POST /api/v1/seed/credit-profiles/{client_id}/{currency}/block
+//	POST /api/v1/seed/credit-profiles/{client_id}/{currency}/reinstate
+//	  Operator status changes. Body is {"reason": "..."}; the reason is
+//	  required and lands on the audit row. Gated by the
+//	  seed_credit_profile_admin permission.
+//
+// Every endpoint is served behind the frame authentication, tenancy and
+// per-route function access middleware wired in cmd/main.go. The route →
+// permission map comes from the seed.v1 proto manifest (see
+// function_access.go); a route that is not in the manifest is refused. The acting principal always comes from the
+// caller's claims; the request body never names the actor. The client a
+// customer borrows as is resolved from their profile via the identity
+// platform, not read off the token. A body-supplied client_id is only honoured
+// for staff and internal-system callers, who are allowed to act on another
+// client's behalf.
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 
+	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/business"
+	"github.com/antinvestor/service-fintech/apps/seed/service/models"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
 // Server is the HTTP handler collection. One server instance exposes
 // every seed HTTP endpoint; a single http.ServeMux registration hooks
 // them all up.
 type Server struct {
-	loanRequest   business.LoanRequestBusiness
-	creditProfile business.CreditProfileBusiness
+	loanRequest    business.LoanRequestBusiness
+	creditProfile  business.CreditProfileBusiness
+	clientResolver business.ClientResolver
+	// staffRole is the role that lets a caller act on another client's behalf.
+	staffRole string
 }
 
 // NewServer builds a Server with the given business dependencies.
 func NewServer(
 	loanRequest business.LoanRequestBusiness,
 	creditProfile business.CreditProfileBusiness,
+	clientResolver business.ClientResolver,
+	staffRole string,
 ) *Server {
 	return &Server{
-		loanRequest:   loanRequest,
-		creditProfile: creditProfile,
+		loanRequest:    loanRequest,
+		creditProfile:  creditProfile,
+		clientResolver: clientResolver,
+		staffRole:      staffRole,
 	}
+}
+
+// principal is the authenticated caller, resolved from claims only. The client
+// it borrows as is not in the token: it is looked up from the profile, at most
+// once per request, and cached on these fields.
+type principal struct {
+	actorID   string
+	actorType string
+	profileID string
+	isStaff   bool
+	isService bool
+
+	clientID   string
+	resolved   bool
+	resolveErr error
+}
+
+// callerPrincipal derives the acting identity from the request's claims. The
+// request body is never consulted: a body-supplied actor would let any caller
+// attribute a loan to somebody else.
+func (s *Server) callerPrincipal(r *http.Request) (*principal, error) {
+	claims := security.ClaimsFromContext(r.Context())
+	if claims == nil || claims.GetProfileID() == "" {
+		return nil, apperrors.NewError(apperrors.Unauthorised, "an authenticated caller is required")
+	}
+
+	p := &principal{
+		actorID:   claims.GetProfileID(),
+		actorType: actorTypeUser,
+		profileID: claims.GetProfileID(),
+		isService: claims.IsInternalSystem(),
+	}
+	if p.isService {
+		p.actorType = actorTypeService
+	}
+	if s.staffRole != "" && slices.Contains(claims.GetRoles(), s.staffRole) {
+		p.isStaff = true
+	}
+	return p, nil
+}
+
+// resolveTargetClient decides which client a request acts on. Staff and
+// internal-system callers may name any client outright; everybody else acts on
+// the client their own profile owns, and naming a different one is refused.
+func (s *Server) resolveTargetClient(
+	ctx context.Context,
+	p *principal,
+	requested string,
+) (string, error) {
+	requested = strings.TrimSpace(requested)
+	if requested != "" && (p.isStaff || p.isService) {
+		return requested, nil
+	}
+
+	own, err := s.callerClientID(ctx, p)
+	if err != nil {
+		return "", err
+	}
+	if requested != "" && requested != own {
+		return "", apperrors.NewError(apperrors.Forbidden,
+			"acting on another client requires staff permission")
+	}
+	return own, nil
+}
+
+// callerClientID resolves, and memoises, the client the caller's profile owns.
+// The lookup crosses a service boundary, so a request that consults it twice
+// still costs one call.
+func (s *Server) callerClientID(ctx context.Context, p *principal) (string, error) {
+	if !p.resolved {
+		p.clientID, p.resolveErr = s.clientResolver.ResolveByProfileID(ctx, p.profileID)
+		p.resolved = true
+	}
+
+	switch {
+	case errors.Is(p.resolveErr, business.ErrNoClientForProfile):
+		return "", apperrors.NewError(apperrors.Forbidden,
+			"the caller is not registered as a borrowing client")
+	case p.resolveErr != nil:
+		util.Log(ctx).WithError(p.resolveErr).Error("could not resolve the caller's client")
+		return "", apperrors.NewError(apperrors.ServiceUnavailable,
+			"the client directory is unavailable")
+	case p.clientID == "":
+		return "", apperrors.NewError(apperrors.Forbidden,
+			"the caller is not registered as a borrowing client")
+	}
+	return p.clientID, nil
 }
 
 // Register wires every seed HTTP route onto the supplied mux.
 func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/seed/loan-requests", s.handleRequestLoan)
-	mux.HandleFunc("GET /api/v1/seed/credit-profiles/", s.handleGetCreditProfile)
+	mux.HandleFunc("GET /api/v1/seed/credit-profiles/{clientId}/{currency}", s.handleGetCreditProfile)
 	mux.HandleFunc("POST /api/v1/seed/internal/paid-off", s.handlePaidOff)
+	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/suspend",
+		s.handleSetStatus(models.CreditProfileStatusSuspended))
+	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/block",
+		s.handleSetStatus(models.CreditProfileStatusBlocked))
+	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/reinstate",
+		s.handleSetStatus(models.CreditProfileStatusActive))
 }
 
 // RequestLoanPayload is the wire format of a customer-initiated loan
 // request. Amount is in minor units (cents) to avoid float
 // representation issues in the request/response path.
+// The actor is never part of the payload: it comes from the caller's claims.
 type RequestLoanPayload struct {
 	ClientID       string `json:"client_id"`
 	ProductID      string `json:"product_id"`
@@ -86,8 +207,6 @@ type RequestLoanPayload struct {
 	CurrencyCode   string `json:"currency_code"`
 	Purpose        string `json:"purpose"`
 	IdempotencyKey string `json:"idempotency_key"`
-	ActorID        string `json:"actor_id,omitempty"`
-	ActorType      string `json:"actor_type,omitempty"`
 }
 
 func (s *Server) handleRequestLoan(w http.ResponseWriter, r *http.Request) {
@@ -95,44 +214,43 @@ func (s *Server) handleRequestLoan(w http.ResponseWriter, r *http.Request) {
 	logger := util.Log(ctx).WithField("handler", "handleRequestLoan")
 	defer logger.Release()
 
-	var payload RequestLoanPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json body", err)
+	caller, callerErr := s.callerPrincipal(r)
+	if callerErr != nil {
+		writeError(ctx, w, callerErr)
 		return
 	}
-	if payload.ActorType == "" {
-		payload.ActorType = "user"
+
+	var payload RequestLoanPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON"))
+		return
+	}
+
+	clientID, clientErr := s.resolveTargetClient(ctx, caller, payload.ClientID)
+	if clientErr != nil {
+		writeError(ctx, w, clientErr)
+		return
 	}
 
 	result, err := s.loanRequest.RequestLoan(ctx, business.RequestLoanInput{
-		ClientID:       payload.ClientID,
+		ClientID:       clientID,
 		ProductID:      payload.ProductID,
 		Amount:         payload.Amount,
 		CurrencyCode:   payload.CurrencyCode,
 		Purpose:        payload.Purpose,
 		IdempotencyKey: payload.IdempotencyKey,
-		ActorID:        payload.ActorID,
-		ActorType:      payload.ActorType,
+		ActorID:        caller.actorID,
+		ActorType:      caller.actorType,
 	})
 	if err != nil {
-		status := http.StatusInternalServerError
-		switch {
-		case errors.Is(err, business.ErrClientNotKYCVerified):
-			status = http.StatusForbidden
-		case errors.Is(err, business.ErrProfileSuspended):
-			status = http.StatusForbidden
-		case errors.Is(err, business.ErrAmountExceedsLimit):
-			status = http.StatusUnprocessableEntity
-		case errors.Is(err, business.ErrLoanAlreadyOutstanding):
-			status = http.StatusConflict
-		}
-		writeError(w, status, "loan request rejected", err)
+		logger.WithError(err).Info("loan request rejected")
+		writeError(ctx, w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(ctx, w, http.StatusOK, map[string]any{
 		"id":               result.GetID(),
-		"client_id":        result.ClientID,
+		fieldClientID:      result.ClientID,
 		"product_id":       result.ProductID,
 		"amount":           result.Amount,
 		"currency_code":    result.CurrencyCode,
@@ -151,26 +269,79 @@ func (s *Server) handleRequestLoan(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetCreditProfile(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Expect /api/v1/seed/credit-profiles/{client_id}/{currency}
-	const prefix = "/api/v1/seed/credit-profiles/"
-	path := strings.TrimPrefix(r.URL.Path, prefix)
-	const expectedPathParts = 2
-	parts := strings.SplitN(path, "/", expectedPathParts)
-	if len(parts) != expectedPathParts || parts[0] == "" || parts[1] == "" {
-		writeError(w, http.StatusBadRequest, "path must be /{client_id}/{currency}", nil)
+	caller, callerErr := s.callerPrincipal(r)
+	if callerErr != nil {
+		writeError(ctx, w, callerErr)
 		return
 	}
-	clientID, currency := parts[0], parts[1]
+
+	requestedClient, currency := r.PathValue("clientId"), r.PathValue("currency")
+	if requestedClient == "" || currency == "" {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest,
+			"path must be /{client_id}/{currency}"))
+		return
+	}
+
+	clientID, clientErr := s.resolveTargetClient(ctx, caller, requestedClient)
+	if clientErr != nil {
+		writeError(ctx, w, clientErr)
+		return
+	}
 
 	profile, err := s.creditProfile.GetProfile(ctx, clientID, currency)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "credit profile not found", err)
+		writeError(ctx, w, apperrors.ErrDataNotFound.Extend("credit profile"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(ctx, w, http.StatusOK, creditProfileResponse(profile))
+}
+
+// StatusChangePayload is the wire format of the suspend, block and reinstate
+// endpoints. The reason is mandatory and is written to the audit row.
+type StatusChangePayload struct {
+	Reason string `json:"reason"`
+}
+
+// handleSetStatus builds the operator status-change handler for one target
+// status. The route is gated by seed_credit_profile_admin through the
+// function access middleware; the handler itself only needs an authenticated
+// principal to attribute the audit row to.
+func (s *Server) handleSetStatus(target models.CreditProfileStatus) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		if _, callerErr := s.callerPrincipal(r); callerErr != nil {
+			writeError(ctx, w, callerErr)
+			return
+		}
+
+		clientID, currency := r.PathValue("clientId"), r.PathValue("currency")
+		if clientID == "" || currency == "" {
+			writeError(ctx, w, apperrors.NewError(apperrors.BadRequest,
+				"path must be /{client_id}/{currency}/<action>"))
+			return
+		}
+
+		var payload StatusChangePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON"))
+			return
+		}
+
+		profile, err := s.creditProfile.SetStatus(ctx, clientID, currency, target, payload.Reason)
+		if err != nil {
+			writeError(ctx, w, err)
+			return
+		}
+		writeJSON(ctx, w, http.StatusOK, creditProfileResponse(profile))
+	}
+}
+
+func creditProfileResponse(profile *models.CreditProfile) map[string]any {
+	return map[string]any{
 		"id":                     profile.GetID(),
-		"client_id":              profile.ClientID,
+		fieldClientID:            profile.ClientID,
 		"currency_code":          profile.CurrencyCode,
 		"product_id":             profile.ProductID,
 		"tier":                   profile.Tier,
@@ -183,7 +354,7 @@ func (s *Server) handleGetCreditProfile(w http.ResponseWriter, r *http.Request) 
 		"first_borrowed_at":      profile.FirstBorrowedAt,
 		"last_borrowed_at":       profile.LastBorrowedAt,
 		"last_repaid_at":         profile.LastRepaidAt,
-	})
+	}
 }
 
 // PaidOffPayload is the wire format of the internal paid-off hook.
@@ -197,34 +368,74 @@ type PaidOffPayload struct {
 func (s *Server) handlePaidOff(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var payload PaidOffPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json body", err)
+	caller, callerErr := s.callerPrincipal(r)
+	if callerErr != nil {
+		writeError(ctx, w, callerErr)
 		return
 	}
-	if payload.LoanAccountID == "" {
-		writeError(w, http.StatusBadRequest, "loan_account_id is required", nil)
+	// This hook promotes credit tiers off claimed repayments. Only the loans
+	// service (or an operator tool running as one) may call it.
+	if !caller.isService && !caller.isStaff {
+		writeError(ctx, w, apperrors.NewError(apperrors.Forbidden,
+			"the paid-off hook is restricted to internal callers"))
+		return
+	}
+
+	var payload PaidOffPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON"))
+		return
+	}
+	if strings.TrimSpace(payload.LoanAccountID) == "" {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "loan_account_id is required"))
 		return
 	}
 
 	if err := s.loanRequest.HandlePaidOff(ctx, payload.LoanAccountID, payload.TotalRepaid); err != nil {
-		writeError(w, http.StatusInternalServerError, "paid-off hook failed", err)
+		writeError(ctx, w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{fieldStatus: "ok"})
+	writeJSON(ctx, w, http.StatusOK, map[string]any{fieldStatus: "ok"})
 }
 
-func writeJSON(w http.ResponseWriter, status int, payload any) {
+// errorBody is the JSON shape every seed error response uses.
+type errorBody struct {
+	Error string `json:"error"`
+}
+
+func writeJSON(ctx context.Context, w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		util.Log(ctx).WithError(err).Warn("failed to encode JSON response")
+	}
 }
 
-func writeError(w http.ResponseWriter, status int, message string, cause error) {
-	body := map[string]any{"error": message}
-	if cause != nil {
-		body["detail"] = cause.Error()
+// writeError maps a business error onto an HTTP status and a caller-safe
+// message. Internal error text is never echoed back to the client.
+func writeError(ctx context.Context, w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	message := "an internal error occurred"
+
+	var appErr *apperrors.Error
+	switch {
+	case errors.As(err, &appErr):
+		status = appErr.ErrorCode()
+		message = appErr.Message()
+	case errors.Is(err, business.ErrClientNotKYCVerified):
+		status = http.StatusForbidden
+		message = "the client is not KYC verified"
+	case errors.Is(err, business.ErrAmountExceedsLimit):
+		status = http.StatusUnprocessableEntity
+		message = "the requested amount exceeds the client's credit limit"
+	case errors.Is(err, business.ErrLoanAlreadyOutstanding):
+		status = http.StatusConflict
+		message = "the client already has an outstanding loan"
+	case data.ErrorIsNoRows(err):
+		status = http.StatusNotFound
+		message = apperrors.ErrDataNotFound.Message()
 	}
-	writeJSON(w, status, body)
+
+	writeJSON(ctx, w, status, errorBody{Error: message})
 }

@@ -1,13 +1,17 @@
-# Composite action for Flutter setup with caching
-# Reduces duplication across all workflows
+# Composite action for Flutter setup with caching.
+# Works for any package under ui/ — pass `package-dir`.
 name: 'Flutter Setup'
-description: 'Setup Flutter with dependency caching and code generation'
+description: 'Setup Flutter, resolve dependencies and optionally run code generation'
 
 inputs:
   flutter-version:
     description: 'Flutter version to use'
     required: false
     default: '3.41.6'
+  package-dir:
+    description: 'Directory of the Flutter package to set up'
+    required: false
+    default: 'ui/seed'
   java-version:
     description: 'Java version (for Android builds)'
     required: false
@@ -19,7 +23,7 @@ inputs:
 
 outputs:
   cache-hit:
-    description: 'Whether the cache was hit'
+    description: 'Whether the pub cache was hit'
     value: ${{ steps.cache-deps.outputs.cache-hit }}
 
 runs:
@@ -39,37 +43,54 @@ runs:
         channel: 'stable'
         cache: true
 
-    # Cache pub dependencies
     - name: Cache pub dependencies
       id: cache-deps
       uses: actions/cache@v4
       with:
         path: ~/.pub-cache
-        key: pub-${{ runner.os }}-${{ hashFiles('ui/seed/pubspec.lock') }}
+        key: pub-${{ runner.os }}-${{ inputs.package-dir }}-${{ hashFiles(format('{0}/pubspec.yaml', inputs.package-dir)) }}
         restore-keys: |
+          pub-${{ runner.os }}-${{ inputs.package-dir }}-
           pub-${{ runner.os }}-
+
+    # The generated Dart SDKs under sdk/dart/ are the contract this repo is
+    # built against and may be ahead of what is published to pub.dev. Every
+    # package resolves them by path (pub ignores overrides for packages that
+    # are not in the dependency graph). Developers get the same override from
+    # their own (gitignored) pubspec_overrides.yaml.
+    - name: Write in-repo dependency overrides
+      shell: bash
+      env:
+        PKG_DIR: ${{ inputs.package-dir }}
+      run: |
+        set -euo pipefail
+        {
+          echo "dependency_overrides:"
+          for spec in sdk/dart/*/pubspec.yaml; do
+            dir=$(dirname "$spec")
+            name=$(sed -n 's/^name:[[:space:]]*//p' "$spec" | head -n1)
+            rel=$(realpath --relative-to="$PKG_DIR" "$dir")
+            echo "  $name:"
+            echo "    path: $rel"
+          done
+        } > "$PKG_DIR/pubspec_overrides.yaml"
+        cat "$PKG_DIR/pubspec_overrides.yaml"
 
     - name: Get dependencies
       shell: bash
       run: flutter pub get
-      working-directory: ui/seed
-
-    # Cache generated code
-    - name: Cache generated code
-      if: inputs.run-codegen == 'true'
-      id: cache-codegen
-      uses: actions/cache@v4
-      with:
-        path: |
-          ui/seed/lib/**/*.g.dart
-          ui/seed/lib/**/*.freezed.dart
-          ui/seed/test/**/*.mocks.dart
-        key: codegen-${{ runner.os }}-${{ hashFiles('ui/seed/lib/**/*.dart', 'ui/seed/pubspec.lock') }}
-        restore-keys: |
-          codegen-${{ runner.os }}-
+      working-directory: ${{ inputs.package-dir }}
 
     - name: Generate code
-      if: inputs.run-codegen == 'true' && steps.cache-codegen.outputs.cache-hit != 'true'
+      if: inputs.run-codegen == 'true'
       shell: bash
-      run: dart run build_runner build --delete-conflicting-outputs
-      working-directory: ui/seed
+      env:
+        PKG_DIR: ${{ inputs.package-dir }}
+      run: |
+        set -euo pipefail
+        if grep -qE '^[[:space:]]*build_runner:' pubspec.yaml; then
+          dart run build_runner build --delete-conflicting-outputs
+        else
+          echo "no build_runner dev dependency in $PKG_DIR, skipping codegen"
+        fi
+      working-directory: ${{ inputs.package-dir }}

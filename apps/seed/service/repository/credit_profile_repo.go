@@ -89,6 +89,19 @@ type CreditProfileRepository interface {
 		newMaxLoanAmount int64,
 	) (*models.CreditProfile, error)
 
+	// AtomicReserveLoanSlot claims the client's single outstanding-loan slot
+	// before any money moves. It reports false when the slot is already taken,
+	// so two concurrent requests cannot both pass the eligibility check.
+	AtomicReserveLoanSlot(ctx context.Context, profileID string) (bool, error)
+
+	// AtomicReleaseLoanSlot gives the slot back when origination failed before
+	// the money left the platform.
+	AtomicReleaseLoanSlot(ctx context.Context, profileID string) error
+
+	// AtomicRecordBorrowedAmount stamps the lifetime borrow counters once the
+	// disbursement has completed. The slot itself was already reserved.
+	AtomicRecordBorrowedAmount(ctx context.Context, profileID string, amount int64) (*models.CreditProfile, error)
+
 	// AtomicSetStatus transitions Status independent of counters: used
 	// by operator-triggered suspend / block / unblock flows.
 	AtomicSetStatus(
@@ -178,18 +191,78 @@ func (r *creditProfileRepository) AtomicMarkBorrowed(
 		return nil, errors.New("borrow amount must be positive")
 	}
 	now := time.Now().UTC()
-	// GORM "Updates" with a map preserves zero-value writes for the
-	// last_borrowed_at timestamp, which is what we want here.
+	// Table, not Model: an empty model instance has its primary key filled in
+	// by the frame BaseModel hooks, which would add a bogus id to the WHERE
+	// and silently match no row.
 	result := r.dbPool.DB(ctx, false).
-		Model(&models.CreditProfile{}).
-		Where("id = ?", profileID).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ?", profileID).
 		Updates(map[string]any{
-			"outstanding_loan_count": gorm.Expr("outstanding_loan_count + 1"),
-			"total_borrowed":         gorm.Expr("total_borrowed + ?", amount),
-			"last_borrowed_at":       now,
-			"first_borrowed_at":      gorm.Expr("COALESCE(first_borrowed_at, ?)", now),
-			colModifiedAt:            now,
-			colVersion:               gorm.Expr("version + 1"),
+			colOutstandingLoanCount: gorm.Expr("outstanding_loan_count + 1"),
+			"total_borrowed":        gorm.Expr("total_borrowed + ?", amount),
+			"last_borrowed_at":      now,
+			"first_borrowed_at":     gorm.Expr("COALESCE(first_borrowed_at, ?)", now),
+			colModifiedAt:           now,
+			colVersion:              gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrCreditProfileNotFound
+	}
+	return r.GetByID(ctx, profileID)
+}
+
+func (r *creditProfileRepository) AtomicReserveLoanSlot(
+	ctx context.Context,
+	profileID string,
+) (bool, error) {
+	now := time.Now().UTC()
+	result := r.dbPool.DB(ctx, false).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ? AND outstanding_loan_count = 0", profileID).
+		Updates(map[string]any{
+			colOutstandingLoanCount: 1,
+			colModifiedAt:           now,
+			colVersion:              gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func (r *creditProfileRepository) AtomicReleaseLoanSlot(ctx context.Context, profileID string) error {
+	now := time.Now().UTC()
+	return r.dbPool.DB(ctx, false).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ?", profileID).
+		Updates(map[string]any{
+			colOutstandingLoanCount: gorm.Expr("GREATEST(outstanding_loan_count - 1, 0)"),
+			colModifiedAt:           now,
+			colVersion:              gorm.Expr("version + 1"),
+		}).Error
+}
+
+func (r *creditProfileRepository) AtomicRecordBorrowedAmount(
+	ctx context.Context,
+	profileID string,
+	amount int64,
+) (*models.CreditProfile, error) {
+	if amount <= 0 {
+		return nil, errors.New("borrow amount must be positive")
+	}
+	now := time.Now().UTC()
+	result := r.dbPool.DB(ctx, false).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ?", profileID).
+		Updates(map[string]any{
+			"total_borrowed":    gorm.Expr("total_borrowed + ?", amount),
+			"last_borrowed_at":  now,
+			"first_borrowed_at": gorm.Expr("COALESCE(first_borrowed_at, ?)", now),
+			colModifiedAt:       now,
+			colVersion:          gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -210,15 +283,15 @@ func (r *creditProfileRepository) AtomicRecordRepayment(
 	}
 	now := time.Now().UTC()
 	result := r.dbPool.DB(ctx, false).
-		Model(&models.CreditProfile{}).
-		Where("id = ?", profileID).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ?", profileID).
 		Updates(map[string]any{
-			"outstanding_loan_count": gorm.Expr("GREATEST(outstanding_loan_count - 1, 0)"),
-			"successful_repayments":  gorm.Expr("successful_repayments + 1"),
-			"total_repaid":           gorm.Expr("total_repaid + ?", amount),
-			"last_repaid_at":         now,
-			colModifiedAt:            now,
-			colVersion:               gorm.Expr("version + 1"),
+			colOutstandingLoanCount: gorm.Expr("GREATEST(outstanding_loan_count - 1, 0)"),
+			"successful_repayments": gorm.Expr("successful_repayments + 1"),
+			"total_repaid":          gorm.Expr("total_repaid + ?", amount),
+			"last_repaid_at":        now,
+			colModifiedAt:           now,
+			colVersion:              gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -237,8 +310,8 @@ func (r *creditProfileRepository) AtomicPromoteTier(
 ) (*models.CreditProfile, error) {
 	now := time.Now().UTC()
 	result := r.dbPool.DB(ctx, false).
-		Model(&models.CreditProfile{}).
-		Where("id = ?", profileID).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ?", profileID).
 		Updates(map[string]any{
 			"tier":            newTier,
 			"max_loan_amount": newMaxLoanAmount,
@@ -261,8 +334,8 @@ func (r *creditProfileRepository) AtomicSetStatus(
 ) (*models.CreditProfile, error) {
 	now := time.Now().UTC()
 	result := r.dbPool.DB(ctx, false).
-		Model(&models.CreditProfile{}).
-		Where("id = ?", profileID).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ?", profileID).
 		Updates(map[string]any{
 			"status":      int32(status),
 			colModifiedAt: now,

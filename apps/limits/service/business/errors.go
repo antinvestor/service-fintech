@@ -21,4 +21,10 @@ var (
 	ErrInvalidPolicy        = errors.New("limits: invalid policy")
 	ErrCurrencyMismatch     = errors.New("limits: cap amount currency does not match policy currency")
 	ErrApproverTiersInvalid = errors.New("limits: approver_tiers misconfigured")
+	// ErrPolicyVersionConflict is returned when the version the caller edited
+	// is no longer the stored one — another operator saved in between.
+	ErrPolicyVersionConflict = errors.New("limits: policy version conflict")
+	// ErrPolicyScopeForbidden is returned when a caller without platform
+	// authority tries to create or edit a platform-scoped policy.
+	ErrPolicyScopeForbidden = errors.New("limits: platform scope not permitted for this caller")
 )

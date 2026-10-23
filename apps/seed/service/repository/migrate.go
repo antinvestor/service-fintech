@@ -18,6 +18,8 @@ import (
 	"context"
 
 	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
@@ -34,10 +36,51 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		return err
 	}
 
-	return dbManager.Migrate(ctx, dbPool, migrationPath,
+	if migrateErr := dbManager.Migrate(ctx, dbPool, migrationPath,
 		&models.CreditProfile{},
 		&models.CreditTierConfig{},
 		&models.LoanRequest{},
 		&audit.Event{},
-	)
+	); migrateErr != nil {
+		return migrateErr
+	}
+
+	return postMigrate(ctx, dbPool)
+}
+
+// MigrateForTest applies the schema plus postMigrate against an already-open
+// pool, so tests exercise the partial indexes the production path relies on.
+func MigrateForTest(ctx context.Context, dbPool pool.Pool) error {
+	if err := dbPool.DB(ctx, false).AutoMigrate(
+		&models.CreditProfile{},
+		&models.CreditTierConfig{},
+		&models.LoanRequest{},
+		&audit.Event{},
+	); err != nil {
+		return err
+	}
+	return postMigrate(ctx, dbPool)
+}
+
+// postMigrate replaces the plain unique index AutoMigrate builds for
+// idempotency_key with a partial one. Every loan request that never carried a
+// key stores an empty string, and a plain unique index would let only one such
+// row exist in the whole table.
+func postMigrate(ctx context.Context, dbPool pool.Pool) error {
+	db := dbPool.DB(ctx, false)
+	if db == nil {
+		return nil
+	}
+
+	if err := db.Exec("DROP INDEX IF EXISTS uq_lr_idempotency").Error; err != nil {
+		return err
+	}
+
+	stmt := "CREATE UNIQUE INDEX IF NOT EXISTS uq_seed_loan_requests_idempotency_key " +
+		"ON seed_loan_requests (idempotency_key) WHERE idempotency_key <> ''"
+	if err := db.Exec(stmt).Error; err != nil {
+		util.Log(ctx).WithError(err).Error("postMigrate -- could not create idempotency key index")
+		return err
+	}
+	return nil
 }

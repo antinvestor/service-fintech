@@ -22,6 +22,7 @@ import (
 
 type FundingConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
 
 	// Identity service
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                  env:"IDENTITY_SERVICE_URI"`
@@ -30,6 +31,11 @@ type FundingConfig struct {
 	// Loan management service
 	LoanMgmtServiceURI                   string `envDefault:"127.0.0.1:7011"                 env:"LOAN_MGMT_SERVICE_URI"`
 	LoanMgmtServiceWorkloadAPITargetPath string `envDefault:"/ns/loans/sa/service-loan-mgmt" env:"LOAN_MGMT_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
+	// Savings service: the source of truth for group savings balances, which
+	// back the first-loss tranche of a group loan.
+	SavingsServiceURI                   string `envDefault:"127.0.0.1:7050"                 env:"SAVINGS_SERVICE_URI"`
+	SavingsServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-savings" env:"SAVINGS_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
 	// Ledger service
 	LedgerServiceURI                   string `envDefault:"127.0.0.1:7020"               env:"LEDGER_SERVICE_URI"`
@@ -74,6 +80,7 @@ func (c *FundingConfig) ServiceEndpoints() clients.ServiceEndpoints {
 	return clients.ServiceEndpoints{
 		IdentityURI:     c.IdentityServiceURI,
 		LoanMgmtURI:     c.LoanMgmtServiceURI,
+		SavingsURI:      c.SavingsServiceURI,
 		LedgerURI:       c.LedgerServiceURI,
 		PaymentURI:      c.PaymentServiceURI,
 		NotificationURI: c.NotificationServiceURI,

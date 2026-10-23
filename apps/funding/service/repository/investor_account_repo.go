@@ -56,7 +56,9 @@ func sanitizeJSONKey(s string) string {
 // InvestorAccountRepository provides data access for investor accounts.
 type InvestorAccountRepository interface {
 	datastore.BaseRepository[*models.InvestorAccount]
-	GetByInvestorID(ctx context.Context, investorID string) ([]*models.InvestorAccount, error)
+	// List returns accounts matching an optional investor and currency,
+	// bounded by the caller's page window.
+	List(ctx context.Context, filter InvestorAccountFilter) ([]*models.InvestorAccount, error)
 	GetEligibleForLoan(
 		ctx context.Context,
 		currency string,
@@ -83,8 +85,11 @@ type InvestorAccountRepository interface {
 	// serialize correctly, with losers receiving ErrInvestorInsufficientFunds.
 	AtomicWithdraw(ctx context.Context, accountID string, amount int64) (*models.InvestorAccount, error)
 
-	// AtomicAbsorbLoss decrements reserved_balance (clamped at zero) when a
-	// loan tranche held by the investor is written off.
+	// AtomicAbsorbLoss writes off capital the investor will not get back.
+	// The loss leaves both the reservation and the capital itself: reserved
+	// and available are each reduced (clamped at zero) and total_lost keeps
+	// the lifetime figure. Reducing only the reservation would hand the
+	// investor the written-off money back as free capital.
 	AtomicAbsorbLoss(ctx context.Context, accountID string, lossAmount int64) (*models.InvestorAccount, error)
 
 	// AtomicReserve moves funds from available to reserved when capital is
@@ -98,9 +103,11 @@ type InvestorAccountRepository interface {
 	AtomicRelease(ctx context.Context, accountID string, amount int64) (*models.InvestorAccount, error)
 
 	// AtomicReleaseWithReturn settles a reservation after loan principal is
-	// returned (and optionally interest earned). Principal reduces reserved
-	// and increases available; interest only increases available. Total
-	// returned counter tracks lifetime.
+	// returned (and optionally interest earned). The principal was never
+	// taken out of available_balance when it was reserved, so releasing the
+	// reservation is all that is needed to make it free capital again; only
+	// the interest is new money and grows available_balance. The lifetime
+	// total_returned counter tracks both.
 	AtomicReleaseWithReturn(
 		ctx context.Context,
 		accountID string,
@@ -126,12 +133,33 @@ type investorAccountRepository struct {
 	datastore.BaseRepository[*models.InvestorAccount]
 }
 
-func (r *investorAccountRepository) GetByInvestorID(
+// InvestorAccountFilter narrows and pages an investor account listing. Both
+// filters are optional; the page window is always applied.
+type InvestorAccountFilter struct {
+	InvestorID string
+	Currency   string
+	Limit      int
+	Offset     int
+}
+
+func (r *investorAccountRepository) List(
 	ctx context.Context,
-	investorID string,
+	filter InvestorAccountFilter,
 ) ([]*models.InvestorAccount, error) {
 	var accounts []*models.InvestorAccount
-	err := r.Pool().DB(ctx, true).Where("investor_id = ?", investorID).Find(&accounts).Error
+
+	db := r.Pool().DB(ctx, true)
+	if filter.InvestorID != "" {
+		db = db.Where("investor_id = ?", filter.InvestorID)
+	}
+	if filter.Currency != "" {
+		db = db.Where("currency = ?", filter.Currency)
+	}
+
+	err := db.Order("created_at DESC, id DESC").
+		Limit(filter.Limit).
+		Offset(filter.Offset).
+		Find(&accounts).Error
 	return accounts, err
 }
 
@@ -207,8 +235,8 @@ func (r *investorAccountRepository) AtomicDeposit(
 	}
 	now := time.Now().UTC()
 	result := r.Pool().DB(ctx, false).
-		Model(&models.InvestorAccount{}).
-		Where("id = ?", accountID).
+		Table("investor_accounts").
+		Where("id = ? AND deleted_at IS NULL", accountID).
 		Updates(map[string]any{
 			colAvailableBalance: gorm.Expr("available_balance + ?", amount),
 			colModifiedAt:       now,
@@ -233,8 +261,8 @@ func (r *investorAccountRepository) AtomicWithdraw(
 	}
 	now := time.Now().UTC()
 	result := r.Pool().DB(ctx, false).
-		Model(&models.InvestorAccount{}).
-		Where("id = ? AND (available_balance - reserved_balance) >= ?", accountID, amount).
+		Table("investor_accounts").
+		Where("deleted_at IS NULL AND id = ? AND (available_balance - reserved_balance) >= ?", accountID, amount).
 		Updates(map[string]any{
 			colAvailableBalance: gorm.Expr("available_balance - ?", amount),
 			colModifiedAt:       now,
@@ -268,12 +296,14 @@ func (r *investorAccountRepository) AtomicAbsorbLoss(
 	}
 	now := time.Now().UTC()
 	result := r.Pool().DB(ctx, false).
-		Model(&models.InvestorAccount{}).
-		Where("id = ?", accountID).
+		Table("investor_accounts").
+		Where("id = ? AND deleted_at IS NULL", accountID).
 		Updates(map[string]any{
-			colReservedBalance: gorm.Expr("GREATEST(reserved_balance - ?, 0)", lossAmount),
-			colModifiedAt:      now,
-			colVersion:         gorm.Expr("version + 1"),
+			colReservedBalance:  gorm.Expr("GREATEST(reserved_balance - ?, 0)", lossAmount),
+			colAvailableBalance: gorm.Expr("GREATEST(available_balance - ?, 0)", lossAmount),
+			"total_lost":        gorm.Expr("total_lost + ?", lossAmount),
+			colModifiedAt:       now,
+			colVersion:          gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
@@ -294,8 +324,8 @@ func (r *investorAccountRepository) AtomicReserve(
 	}
 	now := time.Now().UTC()
 	result := r.Pool().DB(ctx, false).
-		Model(&models.InvestorAccount{}).
-		Where("id = ? AND (available_balance - reserved_balance) >= ?", accountID, amount).
+		Table("investor_accounts").
+		Where("deleted_at IS NULL AND id = ? AND (available_balance - reserved_balance) >= ?", accountID, amount).
 		Updates(map[string]any{
 			colReservedBalance: gorm.Expr("reserved_balance + ?", amount),
 			"total_deployed":   gorm.Expr("total_deployed + ?", amount),
@@ -330,8 +360,8 @@ func (r *investorAccountRepository) AtomicRelease(
 	}
 	now := time.Now().UTC()
 	result := r.Pool().DB(ctx, false).
-		Model(&models.InvestorAccount{}).
-		Where("id = ? AND reserved_balance >= ?", accountID, amount).
+		Table("investor_accounts").
+		Where("deleted_at IS NULL AND id = ? AND reserved_balance >= ?", accountID, amount).
 		Updates(map[string]any{
 			colReservedBalance: gorm.Expr("reserved_balance - ?", amount),
 			colModifiedAt:      now,
@@ -369,11 +399,11 @@ func (r *investorAccountRepository) AtomicReleaseWithReturn(
 
 	now := time.Now().UTC()
 	result := r.Pool().DB(ctx, false).
-		Model(&models.InvestorAccount{}).
-		Where("id = ?", accountID).
+		Table("investor_accounts").
+		Where("id = ? AND deleted_at IS NULL", accountID).
 		Updates(map[string]any{
 			colReservedBalance:  gorm.Expr("GREATEST(reserved_balance - ?, 0)", principalReturned),
-			colAvailableBalance: gorm.Expr("available_balance + ?", principalReturned+interestEarned),
+			colAvailableBalance: gorm.Expr("available_balance + ?", interestEarned),
 			"total_returned":    gorm.Expr("total_returned + ?", principalReturned+interestEarned),
 			colModifiedAt:       now,
 			colVersion:          gorm.Expr("version + 1"),

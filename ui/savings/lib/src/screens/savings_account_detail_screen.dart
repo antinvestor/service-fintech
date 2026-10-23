@@ -1,12 +1,14 @@
 import 'package:antinvestor_api_savings/antinvestor_api_savings.dart'
     hide PageCursor, STATE;
 import 'package:antinvestor_ui_core/antinvestor_ui_core.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/savings_providers.dart';
+import '../utils/money_display.dart';
+import '../widgets/money_amount_dialog.dart';
+import 'savings_accounts_screen.dart' show statusInfo;
 
 class SavingsAccountDetailScreen extends ConsumerStatefulWidget {
   const SavingsAccountDetailScreen({super.key, required this.accountId});
@@ -25,7 +27,7 @@ class _SavingsAccountDetailScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -40,7 +42,6 @@ class _SavingsAccountDetailScreenState
     final accountAsync = ref.watch(
       savingsAccountDetailProvider(widget.accountId),
     );
-    final balanceAsync = ref.watch(savingsBalanceProvider(widget.accountId));
 
     return accountAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -53,6 +54,7 @@ class _SavingsAccountDetailScreenState
             Text('Failed to load account: $error'),
             const SizedBox(height: 16),
             FilledButton.tonal(
+              key: const Key('account-detail-retry'),
               onPressed: () => ref.invalidate(
                 savingsAccountDetailProvider(widget.accountId),
               ),
@@ -61,393 +63,468 @@ class _SavingsAccountDetailScreenState
           ],
         ),
       ),
-      data: (account) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => context.go('/savings'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Savings Account',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
+      data: _buildAccount,
+    );
+  }
+
+  Widget _buildAccount(SavingsAccountObject account) {
+    final theme = Theme.of(context);
+    final (statusLabel, statusColor) = statusInfo(account.status);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.go('/savings'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Savings Account',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Wrap(
+                      spacing: 6,
+                      children: [
+                        EntityChip(
+                          config: const EntityChipConfig(
+                            icon: Icons.person_outline,
+                            color: Colors.indigo,
+                          ),
+                          id: account.ownerId,
                         ),
-                      ),
-                      Wrap(
-                        spacing: 6,
-                        children: [
-                          EntityChip(
-                            config: const EntityChipConfig(
-                              icon: Icons.person_outline,
-                              color: Colors.indigo,
-                            ),
-                            id: account.ownerId,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                _StatusBadge(status: account.status),
-              ],
-            ),
-          ),
-
-          // Balance card
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: balanceAsync.when(
-              loading: () => const Card(
-                elevation: 0,
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              error: (e, _) => Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text('Balance unavailable: $e'),
-                ),
-              ),
-              data: (balance) => Card(
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Balance',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Available',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                Text(
-                                  formatMoney(balance.availableBalance),
-                                  style: theme.textTheme.headlineSmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.green,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Deposits',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                Text(
-                                  formatMoney(balance.totalDeposits),
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Withdrawals',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                Text(
-                                  formatMoney(balance.totalWithdrawals),
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Actions
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (account.status ==
-                    SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_ACTIVE) ...[
-                  FilledButton.icon(
-                    onPressed: () => _showDepositDialog(context, account),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Record Deposit'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _showWithdrawalDialog(context, account),
-                    icon: const Icon(Icons.remove, size: 18),
-                    label: const Text('Request Withdrawal'),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Tabs
-          TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(text: 'Deposits'),
-              Tab(text: 'Withdrawals'),
+              _Pill(label: statusLabel, color: statusColor),
             ],
           ),
-
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _DepositsTab(accountId: widget.accountId),
-                _WithdrawalsTab(accountId: widget.accountId),
-              ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          child: _BalanceCard(accountId: widget.accountId),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+          child: _AccountActions(
+            account: account,
+            onDeposit: () => _showDepositDialog(account),
+            onWithdraw: () => _showWithdrawalDialog(account),
+            onFreeze: () => _confirmLifecycle(
+              account,
+              title: 'Freeze account',
+              prompt:
+                  'Freezing blocks deposits and withdrawals until the account '
+                  'is reactivated.',
+              confirmLabel: 'Freeze',
+              action: (reason) => ref
+                  .read(savingsAccountNotifierProvider.notifier)
+                  .freeze(account.id, reason),
+            ),
+            onClose: () => _confirmLifecycle(
+              account,
+              title: 'Close account',
+              prompt:
+                  'Closing is permanent. The account must hold no funds and no '
+                  'pending withdrawals.',
+              confirmLabel: 'Close',
+              action: (reason) => ref
+                  .read(savingsAccountNotifierProvider.notifier)
+                  .close(account.id, reason),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  void _showDepositDialog(BuildContext context, SavingsAccountObject account) {
-    final amountCtrl = TextEditingController();
-    final refCtrl = TextEditingController();
-    var saving = false;
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Record Deposit'),
-          content: SizedBox(
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FormFieldCard(
-                  label: 'Amount',
-                  description:
-                      'The amount to deposit into this savings account.',
-                  isRequired: true,
-                  child: TextField(
-                    controller: amountCtrl,
-                    decoration: const InputDecoration(hintText: '0.00'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                  ),
-                ),
-                FormFieldCard(
-                  label: 'Payment Reference',
-                  description:
-                      'Optional description or reason for this transaction.',
-                  child: TextField(
-                    controller: refCtrl,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. TXN-12345',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      setDialogState(() => saving = true);
-                      try {
-                        await ref
-                            .read(depositNotifierProvider.notifier)
-                            .record(
-                              savingsAccountId: account.id,
-                              amount: amountCtrl.text.trim(),
-                              currencyCode: account.currencyCode,
-                              paymentReference: refCtrl.text.trim(),
-                            );
-                        if (ctx.mounted) Navigator.of(ctx).pop();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Deposit recorded')),
-                          );
-                        }
-                      } catch (e) {
-                        setDialogState(() => saving = false);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Failed: $e')));
-                        }
-                      }
-                    },
-              child: saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Record'),
-            ),
+        ),
+        const SizedBox(height: 12),
+        TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Deposits'),
+            Tab(text: 'Withdrawals'),
+            Tab(text: 'Interest'),
           ],
         ),
-      ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _DepositsTab(accountId: widget.accountId),
+              _WithdrawalsTab(account: account),
+              _InterestTab(accountId: widget.accountId),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  void _showWithdrawalDialog(
-    BuildContext context,
-    SavingsAccountObject account,
-  ) {
-    final amountCtrl = TextEditingController();
-    var saving = false;
-
-    showDialog<void>(
+  Future<void> _showDepositDialog(SavingsAccountObject account) async {
+    final done = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Request Withdrawal'),
-          content: SizedBox(
-            width: 400,
-            child: FormFieldCard(
-              label: 'Amount',
-              description: 'The amount to withdraw from this savings account.',
-              isRequired: true,
-              child: TextField(
-                controller: amountCtrl,
-                decoration: const InputDecoration(hintText: '0.00'),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+      builder: (ctx) => MoneyAmountDialog(
+        title: 'Record Deposit',
+        confirmLabel: 'Record',
+        currencyCode: account.currencyCode,
+        description: 'The amount to deposit into this savings account.',
+        referenceLabel: 'Payment Reference',
+        referenceHint: 'e.g. TXN-12345',
+        onSubmit: (amount, reference, idempotencyKey) => ref
+            .read(depositNotifierProvider.notifier)
+            .record(
+              savingsAccountId: account.id,
+              amount: amount,
+              currencyCode: account.currencyCode,
+              idempotencyKey: idempotencyKey,
+              paymentReference: reference,
+            ),
+      ),
+    );
+    _notify(done, 'Deposit recorded');
+  }
+
+  Future<void> _showWithdrawalDialog(SavingsAccountObject account) async {
+    final done = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => MoneyAmountDialog(
+        title: 'Request Withdrawal',
+        confirmLabel: 'Request',
+        currencyCode: account.currencyCode,
+        description: 'The amount to withdraw from this savings account.',
+        referenceLabel: 'Reason',
+        referenceHint: 'Why is this withdrawal being made?',
+        onSubmit: (amount, reference, idempotencyKey) => ref
+            .read(withdrawalNotifierProvider.notifier)
+            .request(
+              savingsAccountId: account.id,
+              amount: amount,
+              currencyCode: account.currencyCode,
+              idempotencyKey: idempotencyKey,
+              reason: reference,
+            ),
+      ),
+    );
+    _notify(done, 'Withdrawal requested');
+  }
+
+  Future<void> _confirmLifecycle(
+    SavingsAccountObject account, {
+    required String title,
+    required String prompt,
+    required String confirmLabel,
+    required Future<void> Function(String reason) action,
+  }) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => _ReasonDialog(
+        title: title,
+        prompt: prompt,
+        confirmLabel: confirmLabel,
+      ),
+    );
+    if (reason == null) return;
+
+    try {
+      await action(reason);
+      _notify(true, '$confirmLabel complete');
+    } catch (error) {
+      _notify(false, '', error: error);
+    }
+  }
+
+  void _notify(bool? done, String message, {Object? error}) {
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed: $error')));
+      return;
+    }
+    if (done != true) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Balance card
+// ---------------------------------------------------------------------------
+
+class _BalanceCard extends ConsumerWidget {
+  const _BalanceCard({required this.accountId});
+  final String accountId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final balanceAsync = ref.watch(savingsBalanceProvider(accountId));
+
+    return balanceAsync.when(
+      loading: () => const Card(
+        elevation: 0,
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+      error: (error, _) => Card(
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(child: Text('Balance unavailable: $error')),
+              TextButton(
+                key: const Key('balance-retry'),
+                onPressed: () =>
+                    ref.invalidate(savingsBalanceProvider(accountId)),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (balance) => Card(
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Balance',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _BalanceFigure(
+                      label: 'Available',
+                      value: displayMoney(balance.availableBalance),
+                      emphasise: true,
+                    ),
+                  ),
+                  Expanded(
+                    child: _BalanceFigure(
+                      label: 'Total Deposits',
+                      value: displayMoney(balance.totalDeposits),
+                    ),
+                  ),
+                  Expanded(
+                    child: _BalanceFigure(
+                      label: 'Total Withdrawals',
+                      value: displayMoney(balance.totalWithdrawals),
+                    ),
+                  ),
+                  Expanded(
+                    child: _BalanceFigure(
+                      label: 'Total Interest',
+                      value: displayMoney(balance.totalInterest),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      setDialogState(() => saving = true);
-                      try {
-                        await ref
-                            .read(withdrawalNotifierProvider.notifier)
-                            .request(
-                              savingsAccountId: account.id,
-                              amount: amountCtrl.text.trim(),
-                              currencyCode: account.currencyCode,
-                            );
-                        if (ctx.mounted) Navigator.of(ctx).pop();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Withdrawal requested'),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        setDialogState(() => saving = false);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Failed: $e')));
-                        }
-                      }
-                    },
-              child: saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Request'),
-            ),
-          ],
         ),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
+class _BalanceFigure extends StatelessWidget {
+  const _BalanceFigure({
+    required this.label,
+    required this.value,
+    this.emphasise = false,
+  });
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status});
-  final SavingsAccountStatus status;
+  final String label;
+  final String value;
+  final bool emphasise;
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_ACTIVE => (
-        'Active',
-        Colors.green,
-      ),
-      SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_FROZEN => (
-        'Frozen',
-        Colors.blue,
-      ),
-      SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_CLOSED => (
-        'Closed',
-        Colors.grey,
-      ),
-      _ => ('Unknown', Colors.grey),
-    };
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          value,
+          style: emphasise
+              ? theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.green,
+                )
+              : theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+        ),
+      ],
+    );
+  }
+}
 
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+class _AccountActions extends StatelessWidget {
+  const _AccountActions({
+    required this.account,
+    required this.onDeposit,
+    required this.onWithdraw,
+    required this.onFreeze,
+    required this.onClose,
+  });
+
+  final SavingsAccountObject account;
+  final VoidCallback onDeposit;
+  final VoidCallback onWithdraw;
+  final VoidCallback onFreeze;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive =
+        account.status == SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_ACTIVE;
+    final isClosed =
+        account.status == SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_CLOSED;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (isActive) ...[
+          FilledButton.icon(
+            key: const Key('action-deposit'),
+            onPressed: onDeposit,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Record Deposit'),
+          ),
+          OutlinedButton.icon(
+            key: const Key('action-withdraw'),
+            onPressed: onWithdraw,
+            icon: const Icon(Icons.remove, size: 18),
+            label: const Text('Request Withdrawal'),
+          ),
+          OutlinedButton.icon(
+            key: const Key('action-freeze'),
+            onPressed: onFreeze,
+            icon: const Icon(Icons.ac_unit, size: 18),
+            label: const Text('Freeze'),
+          ),
+        ],
+        if (!isClosed)
+          OutlinedButton.icon(
+            key: const Key('action-close'),
+            onPressed: onClose,
+            icon: const Icon(Icons.lock_outline, size: 18),
+            label: const Text('Close'),
+          ),
+        OutlinedButton.icon(
+          key: const Key('action-statement'),
+          onPressed: () => context.go('/savings/${account.id}/statement'),
+          icon: const Icon(Icons.receipt_long_outlined, size: 18),
+          label: const Text('Statement'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReasonDialog extends StatefulWidget {
+  const _ReasonDialog({
+    required this.title,
+    required this.prompt,
+    required this.confirmLabel,
+  });
+
+  final String title;
+  final String prompt;
+  final String confirmLabel;
+
+  @override
+  State<_ReasonDialog> createState() => _ReasonDialogState();
+}
+
+class _ReasonDialogState extends State<_ReasonDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _reasonCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 400,
+        child: Form(
+          key: _formKey,
+          child: FormFieldCard(
+            label: 'Reason',
+            description: widget.prompt,
+            isRequired: true,
+            child: TextFormField(
+              key: const Key('reason-field'),
+              controller: _reasonCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: 'Why?'),
+              validator: (v) => validateRequired(v, 'Reason'),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('reason-submit'),
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.of(context).pop(_reasonCtrl.text.trim());
+          },
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -468,8 +545,49 @@ class _StatusBadge extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Deposits Tab
+// Tabs
 // ---------------------------------------------------------------------------
+
+class _TabStates extends StatelessWidget {
+  const _TabStates({
+    required this.child,
+    required this.onRetry,
+    required this.error,
+    required this.loading,
+    required this.empty,
+    required this.emptyMessage,
+  });
+
+  final Widget child;
+  final VoidCallback onRetry;
+  final Object? error;
+  final bool loading;
+  final bool empty;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Could not load: $error'),
+            const SizedBox(height: 12),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+    if (empty) {
+      return Center(child: Text(emptyMessage));
+    }
+    return child;
+  }
+}
 
 class _DepositsTab extends ConsumerWidget {
   const _DepositsTab({required this.accountId});
@@ -478,173 +596,260 @@ class _DepositsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final depositsAsync = ref.watch(depositListProvider(accountId));
+    final async = ref.watch(depositListProvider(accountId));
+    final deposits = async.asData?.value ?? const <DepositObject>[];
 
-    return depositsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (deposits) {
-        if (deposits.isEmpty) {
-          return const Center(child: Text('No deposits recorded'));
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          itemCount: deposits.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final d = deposits[index];
-            return Card(
-              elevation: 0,
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.green.withAlpha(20),
-                  child: const Icon(
-                    Icons.arrow_downward,
-                    color: Colors.green,
-                    size: 20,
-                  ),
+    return _TabStates(
+      loading: async.isLoading && !async.hasValue,
+      error: async.hasError ? async.error : null,
+      empty: deposits.isEmpty,
+      emptyMessage: 'No deposits recorded',
+      onRetry: () => ref.invalidate(depositListProvider(accountId)),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        itemCount: deposits.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final d = deposits[index];
+          return Card(
+            elevation: 0,
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.green.withAlpha(20),
+                child: const Icon(
+                  Icons.arrow_downward,
+                  color: Colors.green,
+                  size: 20,
                 ),
-                title: Text(
-                  formatMoney(d.amount),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  'Ref: ${d.paymentReference}  |  ${d.channel}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                trailing: _DepositStatusChip(status: d.status),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _DepositStatusChip extends StatelessWidget {
-  const _DepositStatusChip({required this.status});
-  final DepositStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      DepositStatus.DEPOSIT_STATUS_PENDING => ('Pending', Colors.orange),
-      DepositStatus.DEPOSIT_STATUS_COMPLETED => ('Completed', Colors.green),
-      DepositStatus.DEPOSIT_STATUS_REVERSED => ('Reversed', Colors.red),
-      _ => ('Unknown', Colors.grey),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+              title: Text(
+                displayMoney(d.amount),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                'Ref: ${d.paymentReference}  |  ${d.channel}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              trailing: _Pill(
+                label: depositStatusLabel(d.status).$1,
+                color: depositStatusLabel(d.status).$2,
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Withdrawals Tab
-// ---------------------------------------------------------------------------
+/// Label and colour for every deposit status the contract defines.
+(String, Color) depositStatusLabel(DepositStatus status) {
+  return switch (status) {
+    DepositStatus.DEPOSIT_STATUS_PENDING => ('Pending', Colors.orange),
+    DepositStatus.DEPOSIT_STATUS_COMPLETED => ('Completed', Colors.green),
+    DepositStatus.DEPOSIT_STATUS_REVERSED => ('Reversed', Colors.red),
+    DepositStatus.DEPOSIT_STATUS_UNSPECIFIED => ('Unspecified', Colors.grey),
+    _ => ('Unknown', Colors.grey),
+  };
+}
 
 class _WithdrawalsTab extends ConsumerWidget {
-  const _WithdrawalsTab({required this.accountId});
+  const _WithdrawalsTab({required this.account});
+  final SavingsAccountObject account;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final async = ref.watch(withdrawalListProvider(account.id));
+    final withdrawals = async.asData?.value ?? const <WithdrawalObject>[];
+
+    return _TabStates(
+      loading: async.isLoading && !async.hasValue,
+      error: async.hasError ? async.error : null,
+      empty: withdrawals.isEmpty,
+      emptyMessage: 'No withdrawals recorded',
+      onRetry: () => ref.invalidate(withdrawalListProvider(account.id)),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        itemCount: withdrawals.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final w = withdrawals[index];
+          final pending =
+              w.status == WithdrawalStatus.WITHDRAWAL_STATUS_PENDING;
+          return Card(
+            elevation: 0,
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.red.withAlpha(20),
+                child: const Icon(
+                  Icons.arrow_upward,
+                  color: Colors.red,
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                displayMoney(w.amount),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                w.reason.isNotEmpty ? w.reason : w.channel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (pending) ...[
+                    TextButton(
+                      key: Key('withdrawal-approve-${w.id}'),
+                      onPressed: () => _approve(context, ref, w),
+                      child: const Text('Approve'),
+                    ),
+                    TextButton(
+                      key: Key('withdrawal-cancel-${w.id}'),
+                      onPressed: () => _cancel(context, ref, w),
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                  _Pill(
+                    label: withdrawalStatusLabel(w.status).$1,
+                    color: withdrawalStatusLabel(w.status).$2,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _approve(
+    BuildContext context,
+    WidgetRef ref,
+    WithdrawalObject withdrawal,
+  ) async {
+    try {
+      await ref
+          .read(withdrawalNotifierProvider.notifier)
+          .approve(withdrawal.id, account.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Withdrawal approved')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $error')));
+      }
+    }
+  }
+
+  Future<void> _cancel(
+    BuildContext context,
+    WidgetRef ref,
+    WithdrawalObject withdrawal,
+  ) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => const _ReasonDialog(
+        title: 'Cancel withdrawal',
+        prompt: 'The held funds are returned to the member immediately.',
+        confirmLabel: 'Cancel withdrawal',
+      ),
+    );
+    if (reason == null) return;
+
+    try {
+      await ref
+          .read(withdrawalNotifierProvider.notifier)
+          .cancel(withdrawal.id, account.id, reason);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Withdrawal cancelled')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $error')));
+      }
+    }
+  }
+}
+
+/// Label and colour for every withdrawal status the contract defines.
+(String, Color) withdrawalStatusLabel(WithdrawalStatus status) {
+  return switch (status) {
+    WithdrawalStatus.WITHDRAWAL_STATUS_PENDING => ('Pending', Colors.orange),
+    WithdrawalStatus.WITHDRAWAL_STATUS_APPROVED => ('Approved', Colors.blue),
+    WithdrawalStatus.WITHDRAWAL_STATUS_COMPLETED => ('Completed', Colors.green),
+    WithdrawalStatus.WITHDRAWAL_STATUS_REJECTED => ('Rejected', Colors.red),
+    WithdrawalStatus.WITHDRAWAL_STATUS_REVERSED => ('Reversed', Colors.grey),
+    WithdrawalStatus.WITHDRAWAL_STATUS_UNSPECIFIED => (
+      'Unspecified',
+      Colors.grey,
+    ),
+    _ => ('Unknown', Colors.grey),
+  };
+}
+
+class _InterestTab extends ConsumerWidget {
+  const _InterestTab({required this.accountId});
   final String accountId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final withdrawalsAsync = ref.watch(withdrawalListProvider(accountId));
+    final async = ref.watch(interestAccrualListProvider(accountId));
+    final accruals = async.asData?.value ?? const <InterestAccrualObject>[];
 
-    return withdrawalsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (withdrawals) {
-        if (withdrawals.isEmpty) {
-          return const Center(child: Text('No withdrawals recorded'));
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          itemCount: withdrawals.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final w = withdrawals[index];
-            return Card(
-              elevation: 0,
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.red.withAlpha(20),
-                  child: const Icon(
-                    Icons.arrow_upward,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                ),
-                title: Text(
-                  formatMoney(w.amount),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  w.reason.isNotEmpty ? w.reason : w.channel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                trailing: _WithdrawalStatusChip(status: w.status),
+    return _TabStates(
+      loading: async.isLoading && !async.hasValue,
+      error: async.hasError ? async.error : null,
+      empty: accruals.isEmpty,
+      emptyMessage: 'No interest accrued yet',
+      onRetry: () => ref.invalidate(interestAccrualListProvider(accountId)),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        itemCount: accruals.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final accrual = accruals[index];
+          return Card(
+            elevation: 0,
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.teal.withAlpha(20),
+                child: const Icon(Icons.percent, color: Colors.teal, size: 20),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _WithdrawalStatusChip extends StatelessWidget {
-  const _WithdrawalStatusChip({required this.status});
-  final WithdrawalStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      WithdrawalStatus.WITHDRAWAL_STATUS_PENDING => ('Pending', Colors.orange),
-      WithdrawalStatus.WITHDRAWAL_STATUS_APPROVED => ('Approved', Colors.blue),
-      WithdrawalStatus.WITHDRAWAL_STATUS_COMPLETED => (
-        'Completed',
-        Colors.green,
-      ),
-      WithdrawalStatus.WITHDRAWAL_STATUS_REJECTED => ('Rejected', Colors.red),
-      WithdrawalStatus.WITHDRAWAL_STATUS_REVERSED => ('Reversed', Colors.grey),
-      _ => ('Unknown', Colors.grey),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+              title: Text(
+                displayMoney(accrual.amount),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                '${accrual.periodStart} → ${accrual.periodEnd} '
+                'at ${accrual.rateApplied}%',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

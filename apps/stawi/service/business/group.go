@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -25,11 +26,14 @@ import (
 	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/constants"
+	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 )
 
 type groupBusiness struct {
+	product     stawiproduct.ProductConfig
 	identityCli identityv1connect.IdentityServiceClient
 	clients     *clients.PlatformClients
 }
@@ -38,19 +42,20 @@ const membershipSearchLimit int32 = 1000
 
 func NewClientGroupBusiness(
 	_ context.Context,
+	product stawiproduct.ProductConfig,
 	identityCli identityv1connect.IdentityServiceClient,
 	pc *clients.PlatformClients,
 ) ClientGroupBusiness {
-	return &groupBusiness{identityCli: identityCli, clients: pc}
+	return &groupBusiness{product: product, identityCli: identityCli, clients: pc}
 }
 
 func (b *groupBusiness) Create(
 	ctx context.Context,
 	group *identityv1.ClientGroupObject,
 ) (*identityv1.ClientGroupObject, error) {
-	if group.GetState() == commonv1.STATE_CREATED {
-		group.State = commonv1.STATE_CREATED
-	}
+	// A group always starts in CREATED. Accepting a caller-supplied state would
+	// let a group skip formation checks, ledger setup and lender registration.
+	group.State = commonv1.STATE_CREATED
 
 	resp, err := b.identityCli.ClientGroupSave(ctx, connect.NewRequest(
 		&identityv1.ClientGroupSaveRequest{Data: group},
@@ -67,7 +72,7 @@ func (b *groupBusiness) Get(ctx context.Context, id string) (*identityv1.ClientG
 		&identityv1.ClientGroupGetRequest{Id: id},
 	))
 	if err != nil {
-		return nil, fmt.Errorf("client group not found: %w", err)
+		return nil, apperrors.ErrDataNotFound.Extend("client group")
 	}
 	return resp.Msg.GetData(), nil
 }
@@ -92,13 +97,17 @@ func (b *groupBusiness) Transition(ctx context.Context, groupID string, newState
 	case int32(constants.StateInactive):
 		valid = currentState == int32(constants.StateActive)
 	case int32(constants.StateShutdown):
-		valid = true
+		valid = currentState == int32(constants.StateJustCreated) ||
+			currentState == int32(constants.StateCheckCreated) ||
+			currentState == int32(constants.StateActive) ||
+			currentState == int32(constants.StateInactive)
 	case int32(constants.StateDeleted):
 		valid = currentState == int32(constants.StateShutdown)
 	}
 
 	if !valid {
-		return fmt.Errorf("invalid state transition from %d to %d", currentState, newState)
+		return apperrors.NewError(apperrors.Unprocessable,
+			fmt.Sprintf("invalid group state transition from %d to %d", currentState, newState))
 	}
 
 	group.State = commonv1.STATE(newState)
@@ -128,7 +137,7 @@ func (b *groupBusiness) CheckFormation(ctx context.Context, groupID string) (map
 	}
 
 	memberCount := len(members)
-	minMembers := 5
+	minMembers := int(b.product.MinGroupSize)
 	if group.GetMinMembers() > 0 {
 		minMembers = int(group.GetMinMembers())
 	}
@@ -159,19 +168,18 @@ func (b *groupBusiness) CheckFormation(ctx context.Context, groupID string) (map
 }
 
 func (b *groupBusiness) WelcomeGroup(ctx context.Context, groupID string) error {
-	logger := util.Log(ctx).WithField("method", "GroupBusiness.WelcomeGroup")
-
 	group, err := b.Get(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
 	if int32(group.GetState()) != int32(constants.StateCheckCreated) {
-		return fmt.Errorf("group must be in CHECK_CREATED state, currently %d", int32(group.GetState()))
+		return apperrors.NewError(apperrors.Unprocessable,
+			"group must have passed formation checks before it can be welcomed")
 	}
 
 	if regErr := b.RegisterWithLender(ctx, groupID); regErr != nil {
-		logger.WithError(regErr).Warn("could not register with lender during welcome")
+		return fmt.Errorf("could not register group with lender: %w", regErr)
 	}
 
 	return b.Transition(ctx, groupID, int32(constants.StateActive), "group welcomed and activated")
@@ -181,8 +189,8 @@ func (b *groupBusiness) SetupLedgerAccounts(ctx context.Context, groupID string)
 	logger := util.Log(ctx).WithField("method", "GroupBusiness.SetupLedgerAccounts")
 
 	if b.clients == nil || b.clients.LedgerClient == nil {
-		logger.Warn("ledger client not available, skipping")
-		return nil
+		return apperrors.NewError(apperrors.ServiceUnavailable,
+			"ledger service is required to set up group accounts")
 	}
 
 	group, err := b.Get(ctx, groupID)
@@ -200,6 +208,11 @@ func (b *groupBusiness) SetupLedgerAccounts(ctx context.Context, groupID string)
 		constants.GroupSavingsInterestIncomeAccount(groupID),
 	}
 
+	// Every failure is collected and returned: activating a group whose bank
+	// account does not exist breaks every later transfer, long after obligations
+	// and offers have been generated. CreateAccount is idempotent on Id, so the
+	// step is safe to re-run.
+	var failures []error
 	for _, acctName := range accountNames {
 		req := connect.NewRequest(&ledgerv1.CreateAccountRequest{
 			Id:       acctName,
@@ -207,8 +220,12 @@ func (b *groupBusiness) SetupLedgerAccounts(ctx context.Context, groupID string)
 			Currency: group.GetCurrencyCode(),
 		})
 		if _, createErr := b.clients.LedgerClient.CreateAccount(ctx, req); createErr != nil {
-			logger.WithError(createErr).WithField("account", acctName).Warn("could not create ledger account")
+			logger.WithError(createErr).WithField("account", acctName).Error("could not create ledger account")
+			failures = append(failures, fmt.Errorf("account %s: %w", acctName, createErr))
 		}
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("ledger account setup failed: %w", errors.Join(failures...))
 	}
 
 	logger.Info("ledger account setup completed")
@@ -224,8 +241,8 @@ func (b *groupBusiness) RegisterWithLender(ctx context.Context, groupID string) 
 	}
 
 	if b.clients == nil || b.clients.LenderIdentity == nil {
-		logger.Warn("lender field client not available, skipping registration")
-		return nil
+		return apperrors.NewError(apperrors.ServiceUnavailable,
+			"lender identity service is required to register group members")
 	}
 
 	members, err := b.searchMembers(ctx, groupID)
@@ -233,9 +250,7 @@ func (b *groupBusiness) RegisterWithLender(ctx context.Context, groupID string) 
 		return fmt.Errorf("could not get members: %w", err)
 	}
 
-	agentID := group.GetAgentId()
-	b.registerMembers(ctx, logger, members, agentID)
-	return nil
+	return b.registerMembers(ctx, logger, members, group.GetAgentId())
 }
 
 func (b *groupBusiness) searchMembers(ctx context.Context, groupID string) ([]*identityv1.MembershipObject, error) {
@@ -264,7 +279,12 @@ func (b *groupBusiness) registerMembers(
 	logger *util.LogEntry,
 	members []*identityv1.MembershipObject,
 	agentID string,
-) {
+) error {
+	if agentID == "" {
+		return apperrors.NewError(apperrors.Unprocessable, "group has no lending agent assigned")
+	}
+
+	var failures []error
 	for _, m := range members {
 		if m.GetProperties() != nil {
 			if _, ok := m.GetProperties().GetFields()["client_id"]; ok {
@@ -272,15 +292,20 @@ func (b *groupBusiness) registerMembers(
 			}
 		}
 
-		if agentID != "" && b.clients != nil {
-			clientID, cliErr := b.clients.RegisterClient(ctx, agentID, m.GetProfileId(), m.GetName())
-			if cliErr != nil {
-				logger.WithError(cliErr).WithField("membership_id", m.GetId()).Warn("could not register client")
-			} else if clientID != "" {
-				logger.WithField("membership_id", m.GetId()).
-					WithField("client_id", clientID).
-					Info("member registered as client")
-			}
+		clientID, cliErr := b.clients.RegisterClient(ctx, agentID, m.GetProfileId(), m.GetName())
+		if cliErr != nil {
+			logger.WithError(cliErr).WithField("membership_id", m.GetId()).Error("could not register client")
+			failures = append(failures, fmt.Errorf("membership %s: %w", m.GetId(), cliErr))
+			continue
+		}
+		if clientID != "" {
+			logger.WithField("membership_id", m.GetId()).
+				WithField("client_id", clientID).
+				Info("member registered as client")
 		}
 	}
+	if len(failures) > 0 {
+		return errors.Join(failures...)
+	}
+	return nil
 }

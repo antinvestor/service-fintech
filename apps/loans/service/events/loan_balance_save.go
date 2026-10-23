@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package events
+package events //nolint:dupl // similar event handlers for different entity types
 
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const LoanBalanceSaveEvent = "loan_balance.save"
@@ -59,25 +58,8 @@ func (e *LoanBalanceSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "loan_balance_id": lb.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.loanBalanceRepo.GetByID(ctx, lb.GetID())
-	if getErr == nil && existing != nil {
-		rowsAffected, err := e.loanBalanceRepo.Update(ctx, lb)
-		if err != nil {
-			logger.WithError(err).Error("could not update loan balance in db")
-			return err
-		}
-		if rowsAffected == 0 {
-			return fmt.Errorf(
-				"optimistic lock conflict: loan balance %s was modified concurrently (version %d)",
-				lb.GetID(),
-				lb.GetVersion(),
-			)
-		}
-		return nil
-	}
-
-	if err := e.loanBalanceRepo.Create(ctx, lb); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create loan balance in db")
+	if err := upsert.ByID(ctx, e.loanBalanceRepo, lb); err != nil {
+		logger.WithError(err).Error("could not persist loan balance")
 		return err
 	}
 

@@ -28,24 +28,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _loading = true;
   String? _error;
 
+  // Every tile below is nullable: a metric whose query failed shows as
+  // unavailable while the rest of the dashboard keeps working. One bad
+  // query used to blank the whole page.
+
   // Row 1: Business health KPIs
-  double _totalCustomers = 0;
-  double _activeLoans = 0;
-  double _portfolioValue = 0;
-  double _defaultRate = 0;
+  double? _totalCustomers;
+  double? _activeLoans;
+  double? _portfolioValue;
+  double? _defaultRate;
 
   // Row 2: Today's snapshot
-  double _loansDisbursedToday = 0;
-  double _amountDisbursedToday = 0;
-  double _amountRepaidToday = 0;
-  double _defaultsToday = 0;
+  double? _loansDisbursedToday;
+  double? _amountDisbursedToday;
+  double? _amountRepaidToday;
+  double? _defaultsToday;
 
   // Row 3: Time series
-  List<TimeSeriesPoint> _customerGrowthSeries = const [];
-  List<TimeSeriesPoint> _portfolioGrowthSeries = const [];
+  List<TimeSeriesPoint>? _customerGrowthSeries;
+  List<TimeSeriesPoint>? _portfolioGrowthSeries;
 
   // Row 4: Distribution
-  List<DistributionSegment> _orgUnitSegments = const [];
+  List<DistributionSegment>? _orgUnitSegments;
 
   @override
   void initState() {
@@ -67,105 +71,140 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  /// Runs [query] and reports failure instead of propagating it, so one
+  /// unavailable metric cannot take the page down with it.
+  Future<T?> _settle<T>(Future<T> query, List<Object> failures) async {
+    try {
+      return await query;
+    } on Exception catch (e) {
+      failures.add(e);
+      return null;
+    }
+  }
+
   Future<void> _fetchAll() async {
     setState(() {
       _loading = true;
       _error = null;
     });
 
-    try {
-      final ds = _ds;
-      final tr = _timeRange;
-      final today = _todayRange;
+    final ds = _ds;
+    final tr = _timeRange;
+    final today = _todayRange;
+    final failures = <Object>[];
 
-      final results = await Future.wait<Object>([
-        // 0: Total customers
-        ds.queryScalar(
-          metric: 'identity_organizations_created_total',
-          timeRange: tr,
-        ),
-        // 1: Loans created
-        ds.queryScalar(metric: 'loans_created_total', timeRange: tr),
-        // 2: Loans closed
-        ds.queryScalar(metric: 'loans_closed_total', timeRange: tr),
-        // 3: Loans defaulted
-        ds.queryScalar(metric: 'loans_defaulted_total', timeRange: tr),
-        // 4: Loans written off
-        ds.queryScalar(metric: 'loans_written_off_total', timeRange: tr),
-        // 5: Disbursed amount
-        ds.queryScalar(metric: 'loans_disbursed_amount_total', timeRange: tr),
-        // 6: Repaid amount
-        ds.queryScalar(metric: 'loans_repaid_amount_total', timeRange: tr),
-        // 7-10: Today's snapshot
-        ds.queryScalar(metric: 'loans_disbursed_total', timeRange: today),
-        ds.queryScalar(
-          metric: 'loans_disbursed_amount_total',
-          timeRange: today,
-        ),
-        ds.queryScalar(metric: 'loans_repaid_amount_total', timeRange: today),
-        ds.queryScalar(metric: 'loans_defaulted_total', timeRange: today),
-        // 11: Customer growth time series
-        ds.queryTimeSeries(
-          metric: 'identity_organizations_created_total',
-          timeRange: tr,
-        ),
-        // 12: Portfolio growth time series
-        ds.queryTimeSeries(
-          metric: 'loans_disbursed_amount_total',
-          timeRange: tr,
-        ),
-        // 13: Org unit distribution across all accessible org units
-        ds.queryGroupedAllPartitions(
-          metric: 'loans_disbursed_amount_total',
-          groupBy: 'partition_id',
-          timeRange: tr,
-        ),
-      ]);
+    Future<double?> scalar(String metric, AnalyticsTimeRange range) =>
+        _settle(ds.queryScalar(metric: metric, timeRange: range), failures);
 
-      if (!mounted) return;
+    final totalCustomers = scalar('identity_organizations_created_total', tr);
+    final loansCreated = scalar('loans_created_total', tr);
+    final loansClosed = scalar('loans_closed_total', tr);
+    final loansDefaulted = scalar('loans_defaulted_total', tr);
+    final loansWrittenOff = scalar('loans_written_off_total', tr);
+    final disbursedAmount = scalar('loans_disbursed_amount_total', tr);
+    final repaidAmount = scalar('loans_repaid_amount_total', tr);
+    final disbursedToday = scalar('loans_disbursed_total', today);
+    final amountDisbursedToday = scalar('loans_disbursed_amount_total', today);
+    final amountRepaidToday = scalar('loans_repaid_amount_total', today);
+    final defaultsToday = scalar('loans_defaulted_total', today);
+    final customerGrowth = _settle(
+      ds.queryTimeSeries(
+        metric: 'identity_organizations_created_total',
+        timeRange: tr,
+      ),
+      failures,
+    );
+    final portfolioGrowth = _settle(
+      ds.queryTimeSeries(metric: 'loans_disbursed_amount_total', timeRange: tr),
+      failures,
+    );
+    final orgUnits = _settle(
+      ds.queryGroupedAllPartitions(
+        metric: 'loans_disbursed_amount_total',
+        groupBy: 'partition_id',
+        timeRange: tr,
+      ),
+      failures,
+    );
 
-      final loansCreated = results[1] as double;
-      final loansClosed = results[2] as double;
-      final loansDefaulted = results[3] as double;
-      final loansWrittenOff = results[4] as double;
-      final disbursedAmount = results[5] as double;
-      final repaidAmount = results[6] as double;
+    final created = await loansCreated;
+    final closed = await loansClosed;
+    final defaulted = await loansDefaulted;
+    final writtenOff = await loansWrittenOff;
+    final disbursed = await disbursedAmount;
+    final repaid = await repaidAmount;
 
-      setState(() {
-        _totalCustomers = results[0] as double;
-        _activeLoans =
-            loansCreated - loansClosed - loansDefaulted - loansWrittenOff;
-        _portfolioValue = disbursedAmount - repaidAmount;
-        // Default rate computed client-side from the scalars above; the
-        // standard gate contract has no ratio query.
-        _defaultRate = loansCreated > 0
-            ? (loansDefaulted / loansCreated) * 100
-            : 0;
-        _loansDisbursedToday = results[7] as double;
-        _amountDisbursedToday = results[8] as double;
-        _amountRepaidToday = results[9] as double;
-        _defaultsToday = results[10] as double;
-        _customerGrowthSeries = results[11] as List<TimeSeriesPoint>;
-        _portfolioGrowthSeries = results[12] as List<TimeSeriesPoint>;
-        _orgUnitSegments = results[13] as List<DistributionSegment>;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = friendlyAnalyticsMessage(e);
-        _loading = false;
-      });
-    }
+    final resolved = (
+      totalCustomers: await totalCustomers,
+      activeLoans:
+          (created == null ||
+              closed == null ||
+              defaulted == null ||
+              writtenOff == null)
+          ? null
+          : created - closed - defaulted - writtenOff,
+      portfolioValue: (disbursed == null || repaid == null)
+          ? null
+          : disbursed - repaid,
+      // Default rate is computed client-side from the scalars above; the
+      // standard gate contract has no ratio query.
+      defaultRate: (created == null || defaulted == null)
+          ? null
+          : (created > 0 ? (defaulted / created) * 100 : 0.0),
+      disbursedToday: await disbursedToday,
+      amountDisbursedToday: await amountDisbursedToday,
+      amountRepaidToday: await amountRepaidToday,
+      defaultsToday: await defaultsToday,
+      customerGrowth: await customerGrowth,
+      portfolioGrowth: await portfolioGrowth,
+      orgUnits: await orgUnits,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _totalCustomers = resolved.totalCustomers;
+      _activeLoans = resolved.activeLoans;
+      _portfolioValue = resolved.portfolioValue;
+      _defaultRate = resolved.defaultRate;
+      _loansDisbursedToday = resolved.disbursedToday;
+      _amountDisbursedToday = resolved.amountDisbursedToday;
+      _amountRepaidToday = resolved.amountRepaidToday;
+      _defaultsToday = resolved.defaultsToday;
+      _customerGrowthSeries = resolved.customerGrowth;
+      _portfolioGrowthSeries = resolved.portfolioGrowth;
+      _orgUnitSegments = resolved.orgUnits;
+      _error = failures.isEmpty
+          ? null
+          : friendlyAnalyticsMessage(failures.first);
+      _loading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final width = MediaQuery.sizeOf(context).width;
-    final isDesktop = AppBreakpoints.isDesktop(width);
 
+    // Breakpoints are measured against the content pane, not the window: the
+    // sidebar takes 260px, so MediaQuery would apply the desktop 4-across
+    // layout to a pane far narrower than it assumes.
+    return LayoutBuilder(
+      builder: (context, constraints) => _buildBody(
+        context,
+        theme,
+        cs,
+        AppBreakpoints.isDesktop(constraints.maxWidth),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme cs,
+    bool isDesktop,
+  ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -203,7 +242,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 24),
 
           if (_error != null) ...[
-            _ErrorBanner(message: _error!, onRetry: _fetchAll),
+            _ErrorBanner(
+              message: 'Some metrics are unavailable: ${_error!}',
+              onRetry: _fetchAll,
+            ),
             const SizedBox(height: 16),
           ],
 
@@ -311,25 +353,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // ── Row 3: Trend Charts ──────────────────────────────────────────────
 
   Widget _buildTrendCharts(bool isDesktop, ColorScheme cs, ThemeData theme) {
-    Widget buildChart(String title, List<TimeSeriesPoint> points, String key) {
-      return _ChartCard(
-        title: title,
-        loading: _loading,
-        child: points.isEmpty && !_loading
-            ? SizedBox(
-                height: 240,
-                child: Center(
-                  child: Text(
-                    'No data',
-                    style: TextStyle(color: cs.onSurfaceVariant),
-                  ),
-                ),
-              )
-            : TimeSeriesChart(
-                series: [TimeSeries(key: key, label: title, points: points)],
-                granularity: _timeRange.granularity,
-              ),
-      );
+    Widget buildChart(String title, List<TimeSeriesPoint>? points, String key) {
+      Widget body;
+      if (points == null) {
+        body = _ChartPlaceholder(
+          message: 'Unavailable',
+          color: cs.onSurfaceVariant,
+        );
+      } else if (points.isEmpty) {
+        body = _ChartPlaceholder(
+          message: 'No data',
+          color: cs.onSurfaceVariant,
+        );
+      } else {
+        body = TimeSeriesChart(
+          series: [TimeSeries(key: key, label: title, points: points)],
+          granularity: _timeRange.granularity,
+        );
+      }
+      return _ChartCard(title: title, loading: _loading, child: body);
     }
 
     final customerChart = buildChart(
@@ -364,21 +406,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // ── Row 4: Distribution ──────────────────────────────────────────────
 
   Widget _buildDistributionSection(ColorScheme cs, ThemeData theme) {
+    final segments = _orgUnitSegments;
     return _ChartCard(
       title: 'Disbursements by Org Unit',
       loading: _loading,
-      child: DistributionChart(segments: _orgUnitSegments),
+      child: segments == null
+          ? _ChartPlaceholder(
+              message: 'Unavailable',
+              color: cs.onSurfaceVariant,
+            )
+          : DistributionChart(segments: segments),
     );
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
-  MetricCard _kpiMetric(
-    String label,
-    double value,
-    String unit,
-    IconData icon,
-  ) {
+  Widget _kpiMetric(String label, double? value, String unit, IconData icon) {
+    if (value == null) return _UnavailableMetric(label: label, icon: icon);
     return MetricCard(
       compact: true,
       metric: MetricValue(
@@ -534,6 +578,77 @@ class _ChartCard extends StatelessWidget {
           else
             child,
         ],
+      ),
+    );
+  }
+}
+
+/// Placeholder for a single metric whose query failed. The tile keeps its
+/// place in the grid so the layout does not shift when a metric is missing.
+class _UnavailableMetric extends StatelessWidget {
+  const _UnavailableMetric({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      height: 100,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Unavailable',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartPlaceholder extends StatelessWidget {
+  const _ChartPlaceholder({required this.message, required this.color});
+
+  final String message;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 240,
+      child: Center(
+        child: Text(message, style: TextStyle(color: color)),
       ),
     );
   }

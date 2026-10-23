@@ -19,6 +19,8 @@ import (
 	"errors"
 	"time"
 
+	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
+
 	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
@@ -28,9 +30,9 @@ import (
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 )
 
-// ErrSavingsBalanceNotFound is returned by mutation methods when no balance
-// row exists for the target savings account. Callers should provision the row
-// via Ensure before any deposit/withdrawal flow runs.
+// ErrSavingsBalanceNotFound is returned when no balance row exists for the
+// target savings account. Callers should provision the row via Ensure before
+// any deposit/withdrawal flow runs.
 var ErrSavingsBalanceNotFound = errors.New("savings balance not found for account")
 
 // ErrInsufficientFunds is returned when a withdrawal reservation cannot be
@@ -39,10 +41,13 @@ var ErrSavingsBalanceNotFound = errors.New("savings balance not found for accoun
 // caller.
 var ErrInsufficientFunds = errors.New("insufficient available balance")
 
-// SavingsBalanceRepository exposes atomic balance mutations for a savings
-// account. All mutation methods are implemented as single-statement SQL
-// UPDATEs guarded by row-level locking in Postgres; no application-side
-// optimistic locking is required to keep concurrent flows correct.
+// SavingsBalanceRepository exposes the running-balance row for a savings
+// account. Balance mutations do not live here: every one of them belongs to
+// a money movement and is applied in the same transaction as that movement's
+// row, by DepositRepository.Settle, WithdrawalRepository.ClaimWithHold /
+// Settle / ReleaseHold, and InterestAccrualRepository.Settle. Keeping a
+// single write path is what makes the row and the movement impossible to
+// disagree.
 type SavingsBalanceRepository interface {
 	datastore.BaseRepository[*models.SavingsBalance]
 
@@ -60,31 +65,10 @@ type SavingsBalanceRepository interface {
 		parent *data.BaseModel,
 	) (*models.SavingsBalance, error)
 
-	// Credit atomically increases the balance and the lifetime total_deposits
-	// counter. Used to settle deposits after the corresponding transfer
-	// order has reached the Ledger successfully.
-	Credit(ctx context.Context, savingsAccountID string, amount int64) (*models.SavingsBalance, error)
-
-	// CreditInterest atomically increases the balance and the lifetime
-	// total_interest counter. Used by the interest accrual job so interest
-	// income is distinguishable from principal deposits in the running
-	// balance snapshot.
-	CreditInterest(ctx context.Context, savingsAccountID string, amount int64) (*models.SavingsBalance, error)
-
-	// Reserve atomically places a hold on funds for a pending withdrawal.
-	// The UPDATE only matches rows where (balance - reserved_balance) >= amount,
-	// so two concurrent reservations against overlapping funds serialize
-	// correctly and one of them receives ErrInsufficientFunds.
-	Reserve(ctx context.Context, savingsAccountID string, amount int64) (*models.SavingsBalance, error)
-
-	// DebitReserved settles a previously reserved withdrawal after its
-	// transfer order has reached the Ledger successfully. It decrements both
-	// balance and reserved_balance in a single statement.
-	DebitReserved(ctx context.Context, savingsAccountID string, amount int64) (*models.SavingsBalance, error)
-
-	// ReleaseReserved rolls back a reservation whose withdrawal was rejected,
-	// cancelled, or failed before settlement.
-	ReleaseReserved(ctx context.Context, savingsAccountID string, amount int64) (*models.SavingsBalance, error)
+	// OpeningBalance is the settled balance the account held immediately
+	// before `at`, summed from the completed movements that preceded it. It
+	// is the anchor a statement's running balance is computed from.
+	OpeningBalance(ctx context.Context, savingsAccountID string, at time.Time) (int64, error)
 }
 
 type savingsBalanceRepository struct {
@@ -155,147 +139,43 @@ func (r *savingsBalanceRepository) Ensure(
 	return row, nil
 }
 
-func (r *savingsBalanceRepository) Credit(
+func (r *savingsBalanceRepository) OpeningBalance(
 	ctx context.Context,
 	savingsAccountID string,
-	amount int64,
-) (*models.SavingsBalance, error) {
-	if amount < 0 {
-		return nil, errors.New("credit amount must be non-negative")
-	}
-	now := time.Now().UTC()
-	result := r.dbPool.DB(ctx, false).
-		Model(&models.SavingsBalance{}).
-		Where("savings_account_id = ?", savingsAccountID).
-		Updates(map[string]any{
-			colBalance:       gorm.Expr("balance + ?", amount),
-			"total_deposits": gorm.Expr("total_deposits + ?", amount),
-			colModifiedAt:    now,
-			colVersion:       gorm.Expr("version + 1"),
-		})
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	if result.RowsAffected == 0 {
-		return nil, ErrSavingsBalanceNotFound
-	}
-	return r.GetBySavingsAccountID(ctx, savingsAccountID)
-}
+	at time.Time,
+) (int64, error) {
+	db := r.dbPool.DB(ctx, true)
 
-func (r *savingsBalanceRepository) CreditInterest(
-	ctx context.Context,
-	savingsAccountID string,
-	amount int64,
-) (*models.SavingsBalance, error) {
-	if amount < 0 {
-		return nil, errors.New("interest credit amount must be non-negative")
-	}
-	now := time.Now().UTC()
-	result := r.dbPool.DB(ctx, false).
-		Model(&models.SavingsBalance{}).
-		Where("savings_account_id = ?", savingsAccountID).
-		Updates(map[string]any{
-			colBalance:       gorm.Expr("balance + ?", amount),
-			"total_interest": gorm.Expr("total_interest + ?", amount),
-			colModifiedAt:    now,
-			colVersion:       gorm.Expr("version + 1"),
-		})
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	if result.RowsAffected == 0 {
-		return nil, ErrSavingsBalanceNotFound
-	}
-	return r.GetBySavingsAccountID(ctx, savingsAccountID)
-}
-
-func (r *savingsBalanceRepository) Reserve(
-	ctx context.Context,
-	savingsAccountID string,
-	amount int64,
-) (*models.SavingsBalance, error) {
-	if amount <= 0 {
-		return nil, errors.New("reserve amount must be positive")
-	}
-	now := time.Now().UTC()
-	result := r.dbPool.DB(ctx, false).
-		Model(&models.SavingsBalance{}).
-		Where("savings_account_id = ? AND (balance - reserved_balance) >= ?", savingsAccountID, amount).
-		Updates(map[string]any{
-			colReservedBalance: gorm.Expr("reserved_balance + ?", amount),
-			colModifiedAt:      now,
-			colVersion:         gorm.Expr("version + 1"),
-		})
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	if result.RowsAffected == 0 {
-		// Either the row does not exist at all or the balance guard failed.
-		// Distinguish between the two so callers get a useful error.
-		if _, lookupErr := r.GetBySavingsAccountID(ctx, savingsAccountID); lookupErr != nil {
-			return nil, lookupErr
+	sum := func(table, statusColumn string, status int32) (int64, error) {
+		var total *int64
+		q := db.Table(table).
+			Where("savings_account_id = ? AND created_at < ?", savingsAccountID, at)
+		if statusColumn != "" {
+			q = q.Where(statusColumn, status)
 		}
-		return nil, ErrInsufficientFunds
-	}
-	return r.GetBySavingsAccountID(ctx, savingsAccountID)
-}
-
-func (r *savingsBalanceRepository) DebitReserved(
-	ctx context.Context,
-	savingsAccountID string,
-	amount int64,
-) (*models.SavingsBalance, error) {
-	if amount <= 0 {
-		return nil, errors.New("debit amount must be positive")
-	}
-	now := time.Now().UTC()
-	result := r.dbPool.DB(ctx, false).
-		Model(&models.SavingsBalance{}).
-		Where("savings_account_id = ? AND reserved_balance >= ? AND balance >= ?", savingsAccountID, amount, amount).
-		Updates(map[string]any{
-			colBalance:          gorm.Expr("balance - ?", amount),
-			colReservedBalance:  gorm.Expr("reserved_balance - ?", amount),
-			"total_withdrawals": gorm.Expr("total_withdrawals + ?", amount),
-			colModifiedAt:       now,
-			colVersion:          gorm.Expr("version + 1"),
-		})
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	if result.RowsAffected == 0 {
-		if _, lookupErr := r.GetBySavingsAccountID(ctx, savingsAccountID); lookupErr != nil {
-			return nil, lookupErr
+		if err := q.Select("SUM(amount)").Scan(&total).Error; err != nil {
+			return 0, err
 		}
-		return nil, errors.New("debit violated reservation invariant: reserved or balance below requested amount")
-	}
-	return r.GetBySavingsAccountID(ctx, savingsAccountID)
-}
-
-func (r *savingsBalanceRepository) ReleaseReserved(
-	ctx context.Context,
-	savingsAccountID string,
-	amount int64,
-) (*models.SavingsBalance, error) {
-	if amount <= 0 {
-		return nil, errors.New("release amount must be positive")
-	}
-	now := time.Now().UTC()
-	result := r.dbPool.DB(ctx, false).
-		Model(&models.SavingsBalance{}).
-		Where("savings_account_id = ? AND reserved_balance >= ?", savingsAccountID, amount).
-		Updates(map[string]any{
-			colReservedBalance: gorm.Expr("reserved_balance - ?", amount),
-			colModifiedAt:      now,
-			colVersion:         gorm.Expr("version + 1"),
-		})
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	if result.RowsAffected == 0 {
-		if _, lookupErr := r.GetBySavingsAccountID(ctx, savingsAccountID); lookupErr != nil {
-			return nil, lookupErr
+		if total == nil {
+			return 0, nil
 		}
-		return nil, errors.New("release exceeded reserved balance")
+		return *total, nil
 	}
-	return r.GetBySavingsAccountID(ctx, savingsAccountID)
+
+	deposits, err := sum("deposits", "status = ?",
+		int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED))
+	if err != nil {
+		return 0, err
+	}
+	withdrawals, err := sum("withdrawals", "status = ?",
+		int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED))
+	if err != nil {
+		return 0, err
+	}
+	interest, err := sum("interest_accruals", "", 0)
+	if err != nil {
+		return 0, err
+	}
+
+	return deposits + interest - withdrawals, nil
 }

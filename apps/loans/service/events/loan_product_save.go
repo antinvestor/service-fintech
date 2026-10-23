@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const LoanProductSaveEvent = "loan_product.save"
@@ -58,17 +58,8 @@ func (e *LoanProductSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "loan_product_id": lp.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.loanProductRepo.GetByID(ctx, lp.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.loanProductRepo.Update(ctx, lp); err != nil {
-			logger.WithError(err).Error("could not update loan product in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.loanProductRepo.Create(ctx, lp); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create loan product in db")
+	if err := upsert.ByID(ctx, e.loanProductRepo, lp); err != nil {
+		logger.WithError(err).Error("could not persist loan product")
 		return err
 	}
 

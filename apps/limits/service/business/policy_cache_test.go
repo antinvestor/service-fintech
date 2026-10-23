@@ -17,6 +17,7 @@ package business_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func TestPolicyCache_HitsDBOnce(t *testing.T) {
 	stub := &countingCandidateRepo{
 		results: []*models.Policy{{Action: models.ActionLoanDisbursement}},
 	}
-	cache := business.NewPolicyCache(stub)
+	cache := business.NewPolicyCache(stub, 30*time.Second)
 	ctx := context.Background()
 	q := repository.CandidateQuery{
 		TenantID:     "tenant-a",
@@ -68,7 +69,7 @@ func TestPolicyCache_HitsDBOnce(t *testing.T) {
 
 func TestPolicyCache_DifferentKeysAreCachedSeparately(t *testing.T) {
 	stub := &countingCandidateRepo{results: []*models.Policy{}}
-	cache := business.NewPolicyCache(stub)
+	cache := business.NewPolicyCache(stub, 30*time.Second)
 	ctx := context.Background()
 
 	q1 := repository.CandidateQuery{
@@ -94,7 +95,7 @@ func TestPolicyCache_DifferentKeysAreCachedSeparately(t *testing.T) {
 
 func TestPolicyCache_InvalidatePurgesCache(t *testing.T) {
 	stub := &countingCandidateRepo{results: []*models.Policy{}}
-	cache := business.NewPolicyCache(stub)
+	cache := business.NewPolicyCache(stub, 30*time.Second)
 	ctx := context.Background()
 
 	q := repository.CandidateQuery{

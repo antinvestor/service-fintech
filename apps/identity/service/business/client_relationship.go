@@ -16,7 +16,6 @@ package business
 
 import (
 	"context"
-	"strconv"
 
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	"github.com/pitabwire/frame/v2/data"
@@ -61,6 +60,9 @@ func (b *clientRelationshipBusiness) Save(
 	logger := util.Log(ctx).WithField("method", "ClientRelationshipBusiness.Save")
 
 	cr := models.ClientRelationshipFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.crRepo, cr); err != nil {
+		return nil, err
+	}
 
 	// If marking as primary, clear any existing primary for this client.
 	if cr.IsPrimary {
@@ -99,14 +101,11 @@ func (b *clientRelationshipBusiness) Search(
 
 	var searchOpts []data.SearchOption
 
-	cursor := req.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+	cursorOpts, cursorErr := cursorSearchOptions(req.GetCursor())
+	if cursorErr != nil {
+		return cursorErr
 	}
+	searchOpts = append(searchOpts, cursorOpts...)
 
 	andQueryVal := map[string]any{}
 	if req.GetClientId() != "" {

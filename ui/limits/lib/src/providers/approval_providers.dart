@@ -38,30 +38,30 @@ class ApprovalListParams {
 }
 
 final approvalListProvider =
-    FutureProvider.family<List<ApprovalRequestObject>, ApprovalListParams>(
-  (ref, params) async {
-    final client = ref.watch(limitsAdminServiceClientProvider);
-    final request = ApprovalRequestListRequest(
-      status: params.status,
-      requiredRole: params.requiredRole,
-      cursor: PageCursor(limit: 50),
-    );
-    return collectStream(
-      client.approvalRequestList(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+    FutureProvider.family<List<ApprovalRequestObject>, ApprovalListParams>((
+      ref,
+      params,
+    ) async {
+      final client = ref.watch(limitsAdminServiceClientProvider);
+      final request = ApprovalRequestListRequest(
+        status: params.status,
+        requiredRole: params.requiredRole,
+        cursor: PageCursor(limit: 50),
+      );
+      return collectStream(
+        client.approvalRequestList(request),
+        extract: (response) => response.data,
+      );
+    });
 
 final approvalDetailProvider =
-    FutureProvider.family<ApprovalRequestObject, String>(
-  (ref, id) async {
-    final client = ref.watch(limitsAdminServiceClientProvider);
-    final response =
-        await client.approvalRequestGet(ApprovalRequestGetRequest(id: id));
-    return response.data;
-  },
-);
+    FutureProvider.family<ApprovalRequestObject, String>((ref, id) async {
+      final client = ref.watch(limitsAdminServiceClientProvider);
+      final response = await client.approvalRequestGet(
+        ApprovalRequestGetRequest(id: id),
+      );
+      return response.data;
+    });
 
 class ApprovalDecisionNotifier extends Notifier<AsyncValue<void>> {
   @override
@@ -93,4 +93,5 @@ class ApprovalDecisionNotifier extends Notifier<AsyncValue<void>> {
 
 final approvalDecisionProvider =
     NotifierProvider<ApprovalDecisionNotifier, AsyncValue<void>>(
-        ApprovalDecisionNotifier.new);
+      ApprovalDecisionNotifier.new,
+    );

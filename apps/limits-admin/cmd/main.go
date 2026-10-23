@@ -18,6 +18,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"time"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	"github.com/antinvestor/common/v2"
@@ -25,6 +26,10 @@ import (
 	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/spf13/cobra"
 )
+
+// adminClientTimeout bounds every request made with a static bearer token so
+// the break-glass tool cannot hang against a wedged endpoint.
+const adminClientTimeout = 30 * time.Second
 
 //nolint:gochecknoglobals // cobra persistent flags are bound to package-level vars by design
 var (
@@ -70,6 +75,7 @@ Authentication:
 func newAdminClient(ctx context.Context) (limitsv1connect.LimitsAdminServiceClient, error) {
 	if token := os.Getenv("LIMITS_ADMIN_TOKEN"); token != "" {
 		httpClient := &http.Client{
+			Timeout: adminClientTimeout,
 			Transport: &bearerTokenTransport{
 				token: token,
 				base:  http.DefaultTransport,

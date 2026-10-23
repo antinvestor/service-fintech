@@ -14,6 +14,8 @@
 
 package business
 
+import "time"
+
 // Shared string constants for repeated metadata keys, SQL fragments, and
 // label values used across this package (extracted to satisfy goconst).
 const (
@@ -25,6 +27,7 @@ const (
 	fieldRecipientReference  = "recipient_reference"
 	fieldSavingsAccountID    = "savings_account_id"
 	fieldStatus              = "status"
+	entityWithdrawal         = "savings_withdrawal"
 	metricTypeCounter        = "counter"
 	metricUnitCount          = "count"
 	metricUnitCurrency       = "currency_unit"
@@ -32,4 +35,14 @@ const (
 	whereCreatedAtLte        = "created_at <= ?"
 	whereSavingsAccountIDEq  = "savings_account_id = ?"
 	whereStatusEq            = "status = ?"
+
+	// searchableTSQuery is the GORM map-key predicate for full-text search
+	// against the generated "searchable" tsvector column.
+	searchableTSQuery = "searchable @@ websearch_to_tsquery( 'english', ?) "
+
+	// statementDefaultWindow is how far back a statement reaches when the
+	// caller does not give a start date.
+	statementDefaultWindow = 90 * 24 * time.Hour
+	// statementMaxEntries bounds a single statement response.
+	statementMaxEntries = 500
 )

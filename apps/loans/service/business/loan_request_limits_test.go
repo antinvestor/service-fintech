@@ -100,6 +100,14 @@ func (r *stubLoanRequestRepo) Search(
 }
 
 // Compile-time checks.
+func (r *stubLoanRequestRepo) ClaimForLoanCreation(_ context.Context, _, _ string) (bool, error) {
+	return true, nil
+}
+
+func (r *stubLoanRequestRepo) ReleaseLoanCreationClaim(_ context.Context, _, _ string) error {
+	return nil
+}
+
 var _ repository.LoanRequestRepository = (*stubLoanRequestRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.LoanRequest] = (*stubLoanRequestRepo)(nil)
 
@@ -165,11 +173,12 @@ var _ datastore.BaseRepository[*loansmodels.LoanProduct] = (*stubLoanProductRepo
 // submittedLoanRequest returns a minimal LoanRequest in SUBMITTED state.
 func submittedLoanRequest() *loansmodels.LoanRequest {
 	lr := &loansmodels.LoanRequest{
-		ClientID:        "client-lr-1",
-		OrganizationID:  "org-lr-1",
-		CurrencyCode:    "KES",
-		RequestedAmount: 50000,
-		Status:          int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED),
+		ClientID:          "client-lr-1",
+		OrganizationID:    "org-lr-1",
+		CurrencyCode:      "KES",
+		RequestedAmount:   50000,
+		RequestedTermDays: 90,
+		Status:            int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED),
 	}
 	lr.GenID(context.Background())
 	return lr

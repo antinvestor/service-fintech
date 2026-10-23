@@ -16,9 +16,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../capabilities.dart';
 import '../providers/policy_providers.dart';
 import '../widgets/policy_detail_card.dart';
-import '../widgets/policy_version_history.dart';
 
 class PolicyDetailScreen extends ConsumerWidget {
   final String policyId;
@@ -27,11 +27,28 @@ class PolicyDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncPolicy = ref.watch(policyDetailProvider(policyId));
+    final canManage = ref.watch(limitsCapabilitiesProvider).policyManage;
     return Scaffold(
-      appBar: AppBar(title: const Text('Policy')),
+      appBar: AppBar(
+        title: const Text('Policy'),
+        leading: BackButton(onPressed: () => _leave(context)),
+      ),
       body: asyncPolicy.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Failed to load: $e')),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Failed to load: $e'),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                onPressed: () => ref.invalidate(policyDetailProvider(policyId)),
+              ),
+            ],
+          ),
+        ),
         data: (policy) => SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -39,25 +56,23 @@ class PolicyDetailScreen extends ConsumerWidget {
             children: [
               PolicyDetailCard(policy: policy),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edit'),
-                    onPressed: () => context.go('/limits/policies/${policy.id}/edit'),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete'),
-                    onPressed: () => _confirmDelete(context, ref, policy.id),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text('Version history', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              PolicyVersionHistory(policyId: policy.id),
+              if (canManage)
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                      onPressed: () =>
+                          context.push('/limits/policies/${policy.id}/edit'),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Delete'),
+                      onPressed: () => _confirmDelete(context, ref, policy.id),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -65,7 +80,20 @@ class PolicyDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext ctx, WidgetRef ref, String id) async {
+  /// Returns to the list, popping when the detail screen was pushed onto it.
+  void _leave(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/limits/policies');
+    }
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext ctx,
+    WidgetRef ref,
+    String id,
+  ) async {
     final ok = await showDialog<bool>(
       context: ctx,
       builder: (_) => AlertDialog(
@@ -92,7 +120,10 @@ class PolicyDetailScreen extends ConsumerWidget {
     } catch (e) {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Delete failed: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

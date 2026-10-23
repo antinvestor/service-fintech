@@ -26,7 +26,12 @@ class LedgerTimeline extends StatelessWidget {
     if (entries.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: Text('No ledger entries match.', style: TextStyle(color: Colors.grey))),
+        child: Center(
+          child: Text(
+            'No ledger entries match.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
       );
     }
 
@@ -45,7 +50,11 @@ class LedgerTimeline extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
               entry.key,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Colors.grey,
+              ),
             ),
           ),
           for (final e in entry.value) LedgerEntryTile(entry: e),

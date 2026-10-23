@@ -15,11 +15,16 @@
 package config
 
 import (
+	"time"
+
 	"github.com/pitabwire/frame/v2/config"
+
+	"github.com/antinvestor/service-fintech/pkg/clients"
 )
 
 type SavingsConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
 
 	// Identity service (internal lender service)
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                  env:"IDENTITY_SERVICE_URI"`
@@ -40,4 +45,11 @@ type SavingsConfig struct {
 	LimitsGateModeSavingsDeposit       string `envDefault:"enforce"                  env:"LIMITS_GATE_MODE_SAVINGS_DEPOSIT"`
 	LimitsGateEnabledSavingsWithdrawal bool   `envDefault:"false"                    env:"LIMITS_GATE_ENABLED_SAVINGS_WITHDRAWAL"`
 	LimitsGateModeSavingsWithdrawal    string `envDefault:"enforce"                  env:"LIMITS_GATE_MODE_SAVINGS_WITHDRAWAL"`
+
+	// Interest accrual engine. The job wakes on InterestAccrualInterval and
+	// accrues the most recently closed UTC day for every active account.
+	// Accrual is idempotent on (savings_account_id, period_end), so waking
+	// more than once inside a day costs a lookup and posts nothing extra.
+	InterestAccrualEnabled  bool          `envDefault:"true" env:"SAVINGS_INTEREST_ACCRUAL_ENABLED"`
+	InterestAccrualInterval time.Duration `envDefault:"1h"   env:"SAVINGS_INTEREST_ACCRUAL_INTERVAL"`
 }

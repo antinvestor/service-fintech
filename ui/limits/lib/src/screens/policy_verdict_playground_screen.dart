@@ -32,12 +32,14 @@ class PolicyVerdictPlaygroundScreen extends ConsumerStatefulWidget {
 
 class _PolicyVerdictPlaygroundScreenState
     extends ConsumerState<PolicyVerdictPlaygroundScreen> {
+  final _formKey = GlobalKey<FormState>();
+
   LimitAction _action = LimitAction.LIMIT_ACTION_LOAN_DISBURSEMENT;
-  String _tenantId = '';
   String _orgUnitId = '';
   String? _amountText;
   String _amountCurrency = 'KES';
-  String _makerId = '';
+  String? _amountError;
+  String? _subjectsError;
 
   // Subjects are appended as (type, id) pairs.
   final List<_SubjectDraft> _subjects = [
@@ -48,33 +50,52 @@ class _PolicyVerdictPlaygroundScreenState
   String? _error;
   bool _loading = false;
 
+  /// Validates the intent locally. The server requires a positive amount and
+  /// at least one subject, so sending an empty draft only produces an opaque
+  /// invalid_argument snackbar.
+  bool _validate() {
+    final amountError = (_amountText == null || _amountText!.trim().isEmpty)
+        ? 'Amount is required'
+        : null;
+    final named = _subjects.where((s) => s.id.trim().isNotEmpty).toList();
+    final subjectsError = named.isEmpty
+        ? 'At least one subject needs an ID'
+        : null;
+    setState(() {
+      _amountError = amountError;
+      _subjectsError = subjectsError;
+    });
+    final fieldsValid = _formKey.currentState?.validate() ?? true;
+    return fieldsValid && amountError == null && subjectsError == null;
+  }
+
   Future<void> _runCheck() async {
+    if (!_validate()) return;
     setState(() {
       _loading = true;
       _error = null;
       _result = null;
     });
     try {
+      // tenant_id and maker_id are derived from the caller's own credentials
+      // server-side, so they are deliberately not editable here.
       final intent = LimitIntent(
         action: _action,
-        tenantId: _tenantId,
         orgUnitId: _orgUnitId,
-        makerId: _makerId,
         subjects: _subjects
-            .where((s) => s.id.isNotEmpty)
-            .map((s) => SubjectRef(type: s.type, id: s.id))
+            .where((s) => s.id.trim().isNotEmpty)
+            .map((s) => SubjectRef(type: s.type, id: s.id.trim()))
             .toList(),
       );
-      if (_amountText != null && _amountText!.isNotEmpty) {
-        setMoneyFields(intent.ensureAmount(), _amountText!, _amountCurrency);
-      }
+      setMoneyFields(intent.ensureAmount(), _amountText!, _amountCurrency);
       final client = ref.read(limitsServiceClientProvider);
       final resp = await client.check(CheckRequest(intent: intent));
+      if (!mounted) return;
       setState(() {
         _result = resp;
         _loading = false;
       });
-    } catch (e) {
+    } on Exception catch (e) {
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -84,7 +105,9 @@ class _PolicyVerdictPlaygroundScreenState
 
   void _addSubject() {
     setState(() {
-      _subjects.add(_SubjectDraft(type: SubjectType.SUBJECT_TYPE_CLIENT, id: ''));
+      _subjects.add(
+        _SubjectDraft(type: SubjectType.SUBJECT_TYPE_CLIENT, id: ''),
+      );
     });
   }
 
@@ -96,119 +119,146 @@ class _PolicyVerdictPlaygroundScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Verdict playground')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(12),
-              child: Text(
-                'Construct a LimitIntent and call Check to preview what '
-                'would happen if a real action of this shape arrived. '
-                'Read-only — no state changes on the server.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<LimitAction>(
-            initialValue: _action,
-            decoration: const InputDecoration(labelText: 'Action'),
-            items: LimitAction.values
-                .where((a) => a != LimitAction.LIMIT_ACTION_UNSPECIFIED)
-                .map((a) => DropdownMenuItem(value: a, child: Text(limitActionLabel(a))))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) setState(() => _action = v);
-            },
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            decoration: const InputDecoration(labelText: 'Tenant ID'),
-            onChanged: (v) => _tenantId = v,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            decoration: const InputDecoration(labelText: 'Org unit ID (optional)'),
-            onChanged: (v) => _orgUnitId = v,
-          ),
-          const SizedBox(height: 12),
-          CapAmountField(
-            label: 'Amount',
-            onChanged: (amount, currency) => setState(() {
-              _amountText = amount;
-              _amountCurrency = currency;
-            }),
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            decoration: const InputDecoration(labelText: 'Maker (workforce member ID)'),
-            onChanged: (v) => _makerId = v,
-          ),
-          const SizedBox(height: 16),
-          const Text('Subjects', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          for (var i = 0; i < _subjects.length; i++) ...[
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: DropdownButtonFormField<SubjectType>(
-                    initialValue: _subjects[i].type,
-                    decoration: const InputDecoration(labelText: 'Type'),
-                    items: SubjectType.values
-                        .where((s) => s != SubjectType.SUBJECT_TYPE_UNSPECIFIED)
-                        .map((s) =>
-                            DropdownMenuItem(value: s, child: Text(subjectTypeLabel(s))))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setState(() => _subjects[i].type = v);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    initialValue: _subjects[i].id,
-                    decoration: const InputDecoration(labelText: 'ID'),
-                    onChanged: (v) => _subjects[i].id = v,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: _subjects.length > 1 ? () => _removeSubject(i) : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-          ],
-          TextButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Add subject'),
-            onPressed: _addSubject,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Check'),
-            onPressed: _loading ? null : _runCheck,
-          ),
-          const SizedBox(height: 16),
-          if (_loading) const Center(child: CircularProgressIndicator()),
-          if (_error != null)
-            Card(
-              color: Colors.red.shade50,
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text('Error: $_error', style: TextStyle(color: Colors.red.shade900)),
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Construct a LimitIntent and call Check to preview what '
+                  'would happen if a real action of this shape arrived. '
+                  'Read-only — no state changes on the server.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ),
             ),
-          if (_result != null) ...[
             const SizedBox(height: 16),
-            VerdictDetailCard(check: _result!),
+            DropdownButtonFormField<LimitAction>(
+              initialValue: _action,
+              decoration: const InputDecoration(labelText: 'Action'),
+              items: LimitAction.values
+                  .where((a) => a != LimitAction.LIMIT_ACTION_UNSPECIFIED)
+                  .map(
+                    (a) => DropdownMenuItem(
+                      value: a,
+                      child: Text(limitActionLabel(a)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _action = v);
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: 'Org unit ID (optional)',
+              ),
+              onChanged: (v) => _orgUnitId = v,
+            ),
+            const SizedBox(height: 12),
+            CapAmountField(
+              label: 'Amount',
+              errorText: _amountError,
+              onChanged: (amount, currency) => setState(() {
+                _amountError = null;
+                _amountText = amount;
+                _amountCurrency = currency;
+              }),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Subjects',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (_subjectsError != null)
+              Text(
+                _subjectsError!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12,
+                ),
+              ),
+            const SizedBox(height: 4),
+            for (var i = 0; i < _subjects.length; i++) ...[
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<SubjectType>(
+                      initialValue: _subjects[i].type,
+                      decoration: const InputDecoration(labelText: 'Type'),
+                      items: SubjectType.values
+                          .where(
+                            (s) => s != SubjectType.SUBJECT_TYPE_UNSPECIFIED,
+                          )
+                          .map(
+                            (s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(subjectTypeLabel(s)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _subjects[i].type = v);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      initialValue: _subjects[i].id,
+                      decoration: const InputDecoration(labelText: 'ID'),
+                      onChanged: (v) => setState(() {
+                        _subjects[i].id = v;
+                        _subjectsError = null;
+                      }),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: _subjects.length > 1
+                        ? () => _removeSubject(i)
+                        : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+            ],
+            TextButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Add subject'),
+              onPressed: _addSubject,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Check'),
+              onPressed: _loading ? null : _runCheck,
+            ),
+            const SizedBox(height: 16),
+            if (_loading) const Center(child: CircularProgressIndicator()),
+            if (_error != null)
+              Card(
+                color: Colors.red.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    'Error: $_error',
+                    style: TextStyle(color: Colors.red.shade900),
+                  ),
+                ),
+              ),
+            if (_result != null) ...[
+              const SizedBox(height: 16),
+              VerdictDetailCard(check: _result!),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

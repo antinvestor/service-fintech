@@ -6,19 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'loans_transport_provider.dart';
 
 final repaymentListProvider =
-    FutureProvider.family<List<RepaymentObject>, String>(
-  (ref, loanAccountId) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final request = RepaymentSearchRequest(
-      loanAccountId: loanAccountId,
-      cursor: PageCursor(limit: 50),
-    );
-    return collectStream(
-      client.repaymentSearch(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+    FutureProvider.family<List<RepaymentObject>, String>((
+      ref,
+      loanAccountId,
+    ) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      final request = RepaymentSearchRequest(
+        loanAccountId: loanAccountId,
+        cursor: PageCursor(limit: 50),
+      );
+      return collectStream(
+        client.repaymentSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 /// Notifier for repayment mutations.
 class RepaymentNotifier extends Notifier<AsyncValue<void>> {
@@ -58,5 +59,5 @@ class RepaymentNotifier extends Notifier<AsyncValue<void>> {
 
 final repaymentNotifierProvider =
     NotifierProvider<RepaymentNotifier, AsyncValue<void>>(
-  RepaymentNotifier.new,
-);
+      RepaymentNotifier.new,
+    );

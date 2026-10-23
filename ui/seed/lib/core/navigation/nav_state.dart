@@ -1,32 +1,28 @@
-import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../auth/permission_provider.dart';
 import 'nav_items.dart';
 
 part 'nav_state.g.dart';
 
-/// Provides navigation items filtered by granted permissions.
-/// Fails open — if permissions can't be loaded, shows all nav items.
+/// Navigation items filtered by the caller's granted permissions.
+///
+/// Fails **closed**: an empty grant set, a capability service that cannot be
+/// reached, and a provider-level error are all treated identically — every
+/// permission-gated item is hidden and only unrestricted items remain.
 @Riverpod(keepAlive: true)
 Future<List<NavItem>> filteredNavItems(Ref ref) async {
-  Set<String> permissions;
-  try {
-    permissions = await ref.watch(userPermissionsProvider.future);
-  } catch (_) {
-    // Fail open — show all items if permission check fails.
-    permissions = const {};
-  }
-
-  final allItems = buildNavItems();
-  // Empty permissions set means no filtering (show everything).
-  if (permissions.isEmpty) return allItems;
-
-  return allItems
-      .map((item) => item.filterByPermissions(permissions))
-      .whereType<NavItem>()
-      .toList();
+  final resolution = await ref.watch(permissionResolutionProvider.future);
+  return navItemsFor(resolution.available ? resolution.granted : const {});
 }
+
+/// Filters the nav tree down to what [permissions] allows. Exposed for tests
+/// and for the pre-resolution sidebar render.
+List<NavItem> navItemsFor(Set<String> permissions) => buildNavItems()
+    .map((item) => item.filterByPermissions(permissions))
+    .whereType<NavItem>()
+    .toList();
 
 /// Tracks which parent nav sections are expanded in the sidebar.
 class SidebarExpansionState extends ChangeNotifier {

@@ -13,8 +13,9 @@ final operationsTransportProvider = Provider<Transport>((ref) {
   return createTransport(tokenProvider, baseUrl: _operationsUrl);
 });
 
-final operationsServiceClientProvider =
-    Provider<OperationsServiceClient>((ref) {
+final operationsServiceClientProvider = Provider<OperationsServiceClient>((
+  ref,
+) {
   final transport = ref.watch(operationsTransportProvider);
   return OperationsServiceClient(transport);
 });

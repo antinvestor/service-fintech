@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pitabwire/frame/v2/data"
 	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 
@@ -84,9 +84,9 @@ type ApprovalCaseSubmission struct {
 
 type ApprovalCaseBusiness interface {
 	Submit(ctx context.Context, submission ApprovalCaseSubmission) (*models.ApprovalCase, error)
-	Verify(ctx context.Context, caseID, actorID, comment string) (*models.ApprovalCase, error)
-	Approve(ctx context.Context, caseID, actorID, comment string) (*models.ApprovalCase, error)
-	Reject(ctx context.Context, caseID, actorID, comment string) (*models.ApprovalCase, error)
+	Verify(ctx context.Context, caseID, comment string) (*models.ApprovalCase, error)
+	Approve(ctx context.Context, caseID, comment string) (*models.ApprovalCase, error)
+	Reject(ctx context.Context, caseID, comment string) (*models.ApprovalCase, error)
 	GetOpenBySubject(ctx context.Context, subjectType, subjectID, caseType string) (*models.ApprovalCase, error)
 }
 
@@ -113,7 +113,7 @@ func (b *approvalCaseBusiness) Submit(
 	ctx context.Context,
 	submission ApprovalCaseSubmission,
 ) (*models.ApprovalCase, error) {
-	submission.RequestedBy = resolveCaseActorID(ctx, submission.RequestedBy, "")
+	submission.RequestedBy = actorFromClaims(ctx)
 
 	if submission.SubjectType == "" || submission.SubjectID == "" || submission.CaseType == "" {
 		return nil, ErrApprovalCaseSubjectRequired
@@ -147,6 +147,17 @@ func (b *approvalCaseBusiness) Submit(
 	}
 	approvalCase.GenID(ctx)
 
+	// Persisted synchronously, not through the event alone: the partial unique
+	// index on (subject_type, subject_id, case_type) for open cases is what
+	// actually stops two concurrent submissions, and it can only reject the
+	// second one at insert time.
+	if err = b.repo.Create(ctx, approvalCase); err != nil {
+		if data.ErrorIsDuplicateKey(err) {
+			return nil, ErrApprovalCaseAlreadyPending
+		}
+		return nil, fmt.Errorf("create approval case: %w", err)
+	}
+
 	if err = b.eventsMan.Emit(ctx, events.ApprovalCaseSaveEvent, approvalCase); err != nil {
 		return nil, fmt.Errorf("emit approval case save: %w", err)
 	}
@@ -157,12 +168,36 @@ func (b *approvalCaseBusiness) Submit(
 	return approvalCase, nil
 }
 
-//nolint:dupl // similar transition logic for different approval states
+// transition persists a decision conditionally on the status that was read,
+// then emits for projection only. Without the conditional write a concurrent
+// approve and reject both passed their status check and both emitted, and the
+// last event to be handled silently won.
+func (b *approvalCaseBusiness) transition(
+	ctx context.Context,
+	approvalCase *models.ApprovalCase,
+	fromStatuses []string,
+	conflictErr error,
+) error {
+	err := b.repo.Transition(ctx, approvalCase, fromStatuses)
+	switch {
+	case err == nil:
+	case errors.Is(err, repository.ErrApprovalCaseTransitionConflict):
+		return conflictErr
+	default:
+		return fmt.Errorf("transition approval case: %w", err)
+	}
+
+	if err = b.eventsMan.Emit(ctx, events.ApprovalCaseSaveEvent, approvalCase); err != nil {
+		return fmt.Errorf("emit approval case save: %w", err)
+	}
+	return nil
+}
+
 func (b *approvalCaseBusiness) Verify(
 	ctx context.Context,
-	caseID, actorID, comment string,
+	caseID, comment string,
 ) (*models.ApprovalCase, error) {
-	actorID = resolveCaseActorID(ctx, actorID, "")
+	actorID := actorFromClaims(ctx)
 	if actorID == "" {
 		return nil, ErrApprovalCaseActorRequired
 	}
@@ -174,6 +209,9 @@ func (b *approvalCaseBusiness) Verify(
 	if approvalCase.Status != approvalCaseStatusPendingVerification {
 		return nil, ErrApprovalCaseNotPendingVerification
 	}
+	if actorID == approvalCase.RequestedBy {
+		return nil, ErrApprovalCaseSelfReview
+	}
 
 	now := time.Now().UTC()
 	approvalCase.VerifiedBy = actorID
@@ -183,8 +221,12 @@ func (b *approvalCaseBusiness) Verify(
 		approvalCase.Comment = comment
 	}
 
-	if err = b.eventsMan.Emit(ctx, events.ApprovalCaseSaveEvent, approvalCase); err != nil {
-		return nil, fmt.Errorf("emit approval case verify: %w", err)
+	if err = b.transition(
+		ctx, approvalCase,
+		[]string{approvalCaseStatusPendingVerification},
+		ErrApprovalCaseNotPendingVerification,
+	); err != nil {
+		return nil, err
 	}
 	if b.notifier != nil {
 		b.notifier.NotifyVerified(ctx, approvalCase)
@@ -192,12 +234,11 @@ func (b *approvalCaseBusiness) Verify(
 	return approvalCase, nil
 }
 
-//nolint:dupl // similar transition logic for different approval states
 func (b *approvalCaseBusiness) Approve(
 	ctx context.Context,
-	caseID, actorID, comment string,
+	caseID, comment string,
 ) (*models.ApprovalCase, error) {
-	actorID = resolveCaseActorID(ctx, actorID, "")
+	actorID := actorFromClaims(ctx)
 	if actorID == "" {
 		return nil, ErrApprovalCaseActorRequired
 	}
@@ -209,6 +250,9 @@ func (b *approvalCaseBusiness) Approve(
 	if approvalCase.Status != approvalCaseStatusPendingApproval {
 		return nil, ErrApprovalCaseNotPendingApproval
 	}
+	if actorID == approvalCase.RequestedBy || actorID == approvalCase.VerifiedBy {
+		return nil, ErrApprovalCaseSelfReview
+	}
 
 	now := time.Now().UTC()
 	approvalCase.ApprovedBy = actorID
@@ -218,8 +262,12 @@ func (b *approvalCaseBusiness) Approve(
 		approvalCase.Comment = comment
 	}
 
-	if err = b.eventsMan.Emit(ctx, events.ApprovalCaseSaveEvent, approvalCase); err != nil {
-		return nil, fmt.Errorf("emit approval case approve: %w", err)
+	if err = b.transition(
+		ctx, approvalCase,
+		[]string{approvalCaseStatusPendingApproval},
+		ErrApprovalCaseNotPendingApproval,
+	); err != nil {
+		return nil, err
 	}
 	if b.notifier != nil {
 		b.notifier.NotifyApproved(ctx, approvalCase)
@@ -229,9 +277,9 @@ func (b *approvalCaseBusiness) Approve(
 
 func (b *approvalCaseBusiness) Reject(
 	ctx context.Context,
-	caseID, actorID, comment string,
+	caseID, comment string,
 ) (*models.ApprovalCase, error) {
-	actorID = resolveCaseActorID(ctx, actorID, "")
+	actorID := actorFromClaims(ctx)
 	if actorID == "" {
 		return nil, ErrApprovalCaseActorRequired
 	}
@@ -253,8 +301,12 @@ func (b *approvalCaseBusiness) Reject(
 		approvalCase.Comment = comment
 	}
 
-	if err = b.eventsMan.Emit(ctx, events.ApprovalCaseSaveEvent, approvalCase); err != nil {
-		return nil, fmt.Errorf("emit approval case reject: %w", err)
+	if err = b.transition(
+		ctx, approvalCase,
+		[]string{approvalCaseStatusPendingVerification, approvalCaseStatusPendingApproval},
+		ErrApprovalCaseNotPending,
+	); err != nil {
+		return nil, err
 	}
 	if b.notifier != nil {
 		b.notifier.NotifyRejected(ctx, approvalCase)
@@ -289,24 +341,6 @@ func entityProperties(props map[string]any) map[string]any {
 
 func caseAction(props map[string]any) string {
 	return strings.ToLower(strings.TrimSpace(stringValue(props[caseActionKey])))
-}
-
-func caseActorID(props map[string]any) string {
-	return strings.TrimSpace(stringValue(props[caseActorIDKey]))
-}
-
-func resolveCaseActorID(ctx context.Context, actorID, createdBy string) string {
-	if actorID = strings.TrimSpace(actorID); actorID != "" {
-		return actorID
-	}
-	if createdBy = strings.TrimSpace(createdBy); createdBy != "" {
-		return createdBy
-	}
-	claims := security.ClaimsFromContext(ctx)
-	if claims == nil {
-		return ""
-	}
-	return strings.TrimSpace(claims.GetProfileID())
 }
 
 func caseComment(props map[string]any) string {

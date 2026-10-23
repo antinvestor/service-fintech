@@ -51,9 +51,11 @@ func migratePool(ctx context.Context, dbPool pool.Pool, migrationsDirPath string
 
 	return dbPool.Migrate(ctx, migrationsDirPath,
 		&models.LoanFunding{},
-		&models.FundingAllocation{},
 		&models.InvestorAccount{},
 		&models.FundingTranche{},
+		&models.InvestorCapitalMovement{},
+		&models.LoanFundingClaim{},
+		&models.LossAbsorption{},
 		&audit.Event{},
 	)
 }

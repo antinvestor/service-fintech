@@ -9,6 +9,7 @@ import '../utils/money_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/transfer_types.dart';
 import '../providers/transfer_order_providers.dart';
 
 class TransferOrdersScreen extends ConsumerStatefulWidget {
@@ -87,18 +88,22 @@ class _TransferOrdersScreenState extends ConsumerState<TransferOrdersScreen> {
               ),
               const SizedBox(width: 12),
               SizedBox(
-                width: 180,
+                width: 220,
                 child: DropdownButtonFormField<int?>(
                   initialValue: _orderTypeFilter,
+                  // Some type names are long; ellipsize rather than overflow.
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Order Type'),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('All')),
-                    DropdownMenuItem(value: 1, child: Text('Disbursement')),
-                    DropdownMenuItem(value: 2, child: Text('Repayment')),
-                    DropdownMenuItem(value: 3, child: Text('Fee')),
-                    DropdownMenuItem(value: 4, child: Text('Penalty')),
-                    DropdownMenuItem(value: 5, child: Text('Interest')),
-                    DropdownMenuItem(value: 6, child: Text('Transfer')),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All')),
+                    for (final type in transferTypes)
+                      DropdownMenuItem(
+                        value: type.value,
+                        child: Text(
+                          type.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                   ],
                   onChanged: (value) {
                     setState(() => _orderTypeFilter = value);
@@ -109,9 +114,10 @@ class _TransferOrdersScreenState extends ConsumerState<TransferOrdersScreen> {
               FilledButton.tonalIcon(
                 onPressed: () {
                   ref.invalidate(
-                    transferOrderListProvider(
-                      (query: _query, orderType: _orderTypeFilter),
-                    ),
+                    transferOrderListProvider((
+                      query: _query,
+                      orderType: _orderTypeFilter,
+                    )),
                   );
                 },
                 icon: const Icon(Icons.refresh, size: 18),
@@ -139,16 +145,18 @@ class _TransferOrdersScreenState extends ConsumerState<TransferOrdersScreen> {
                   const SizedBox(height: 8),
                   FilledButton.tonal(
                     onPressed: () => ref.invalidate(
-                      transferOrderListProvider(
-                        (query: _query, orderType: _orderTypeFilter),
-                      ),
+                      transferOrderListProvider((
+                        query: _query,
+                        orderType: _orderTypeFilter,
+                      )),
                     ),
                     child: const Text('Retry'),
                   ),
                 ],
               ),
             ),
-            data: (orders) {
+            data: (page) {
+              final orders = page.orders;
               if (orders.isEmpty) {
                 return Center(
                   child: Text(
@@ -164,10 +172,23 @@ class _TransferOrdersScreenState extends ConsumerState<TransferOrdersScreen> {
                   horizontal: 24,
                   vertical: 8,
                 ),
-                itemCount: orders.length,
+                itemCount: orders.length + (page.hasMore ? 1 : 0),
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) =>
-                    _TransferOrderCard(order: orders[index]),
+                itemBuilder: (context, index) {
+                  if (index >= orders.length) {
+                    return _LoadMoreButton(
+                      onPressed: () => ref
+                          .read(
+                            transferOrderListProvider((
+                              query: _query,
+                              orderType: _orderTypeFilter,
+                            )).notifier,
+                          )
+                          .loadMore(),
+                    );
+                  }
+                  return _TransferOrderCard(order: orders[index]);
+                },
               );
             },
           ),
@@ -214,7 +235,7 @@ class _TransferOrderCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _orderTypeName(order.orderType),
+                        transferTypeLabel(orderTypeValue(order)),
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -305,18 +326,6 @@ class _TransferOrderCard extends StatelessWidget {
     );
   }
 
-  static String _orderTypeName(int orderType) {
-    return switch (orderType) {
-      1 => 'Disbursement',
-      2 => 'Repayment',
-      3 => 'Fee',
-      4 => 'Penalty',
-      5 => 'Interest',
-      6 => 'Transfer',
-      _ => 'Type $orderType',
-    };
-  }
-
   static String _stateLabel(STATE state) {
     return switch (state) {
       STATE.CREATED => 'Created',
@@ -337,6 +346,50 @@ class _TransferOrderCard extends StatelessWidget {
       STATE.DELETED => Colors.red,
       _ => Colors.grey,
     };
+  }
+}
+
+/// Appends the next page of results. Disables itself while the fetch is in
+/// flight so a fast double tap cannot request the same page twice.
+class _LoadMoreButton extends StatefulWidget {
+  const _LoadMoreButton({required this.onPressed});
+
+  final Future<void> Function() onPressed;
+
+  @override
+  State<_LoadMoreButton> createState() => _LoadMoreButtonState();
+}
+
+class _LoadMoreButtonState extends State<_LoadMoreButton> {
+  bool _busy = false;
+
+  Future<void> _handlePressed() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.onPressed();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: _busy
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : FilledButton.tonal(
+                onPressed: _handlePressed,
+                child: const Text('Load more'),
+              ),
+      ),
+    );
   }
 }
 

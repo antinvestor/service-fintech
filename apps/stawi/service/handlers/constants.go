@@ -14,10 +14,16 @@
 
 package handlers
 
-// Shared string constants for repeated metadata keys, SQL fragments, and
-// label values used across this package (extracted to satisfy goconst).
+// Shared string constants for repeated metadata keys and path parameters.
 const (
 	logKeyHandler = "handler"
 	fieldGroupID  = "group_id"
 	fieldStatus   = "status"
+	fieldState    = "state"
+	fieldPosition = "position"
+	fieldCurrency = "currency"
+	paramGroupID  = "groupId"
+	paramPeriodID = "periodId"
+	paramMemberID = "memberId"
+	paramLoanID   = "loanId"
 )

@@ -122,8 +122,15 @@ message PolicyObject {
   string currency_code = 7 [(buf.validate.field).string.max_len = 3];
   LimitKind limit_kind = 8 [(buf.validate.field).enum.defined_only = true];
   google.protobuf.Duration window = 9;
-  common.v1.Money cap_amount = 10;
-  int64 cap_count = 11;
+  common.v1.Money cap_amount = 10 [(buf.validate.field).cel = {
+    id: "policy.cap_amount.positive"
+    message: "cap_amount must be at least one minor unit"
+    expression: "this.units > 0 || (this.units == 0 && this.nanos > 0)"
+  }];
+  int64 cap_count = 11 [
+    (buf.validate.field).int64.gte = 1,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
   PolicyMode mode = 12 [(buf.validate.field).enum.defined_only = true];
   google.protobuf.Struct attribute_filter = 13;
   repeated ApproverTier approver_tiers = 14;
@@ -186,12 +193,35 @@ message PolicySearchRequest {
 }
 message PolicySearchResponse {
   repeated PolicyObject data = 1;
+  // Cursor for the next page; unset when this is the last page.
+  common.v1.PageCursor next_cursor = 2;
 }
 
 message PolicyDeleteRequest {
   string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 message PolicyDeleteResponse {}
+
+// PolicyVersionObject is one immutable snapshot from a policy's history.
+message PolicyVersionObject {
+  string policy_id = 1;
+  // Monotonic per-policy snapshot number, 1 for the first save.
+  int32 version = 2;
+  PolicyObject snapshot = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message PolicyHistoryRequest {
+  string policy_id = 1 [(buf.validate.field).string.min_len = 1];
+  // cursor.page carries the last version number seen; cursor.limit the page size.
+  common.v1.PageCursor cursor = 2;
+}
+message PolicyHistoryResponse {
+  // Newest first.
+  repeated PolicyVersionObject data = 1;
+  // Cursor for the next page; unset when this is the last page.
+  common.v1.PageCursor next_cursor = 2;
+}
 
 message ApprovalDecisionObject {
   string approver_id = 1;
@@ -227,6 +257,8 @@ message ApprovalRequestListRequest {
 }
 message ApprovalRequestListResponse {
   repeated ApprovalRequestObject data = 1;
+  // Cursor for the next page; unset when this is the last page.
+  common.v1.PageCursor next_cursor = 2;
 }
 
 message ApprovalRequestGetRequest {
@@ -275,6 +307,8 @@ message LedgerSearchRequest {
 }
 message LedgerSearchResponse {
   repeated LedgerEntryObject data = 1;
+  // Cursor for the next page; unset when this is the last page.
+  common.v1.PageCursor next_cursor = 2;
 }
 
 // ─── Audit-on-limiting search ────────────────────────────────────────
@@ -301,10 +335,15 @@ message LimitsAuditSearchRequest {
   google.protobuf.Timestamp from = 5;
   google.protobuf.Timestamp to = 6;
   common.v1.PageCursor cursor = 7;
+  // Tenant whose audit feed is requested. Non-internal callers may only name
+  // their own tenant; the server derives it from claims when unset.
+  string tenant_id = 8;
 }
 
 message LimitsAuditSearchResponse {
   repeated LimitsAuditEventObject data = 1;
+  // Cursor for the next page; unset when this is the last page.
+  common.v1.PageCursor next_cursor = 2;
 }
 
 // ─── Runtime service messages (defined now, implemented in a future plan) ──
@@ -336,12 +375,18 @@ message ReservationObject {
   google.protobuf.Timestamp ttl_at = 12;
   google.protobuf.Timestamp committed_at = 13;
   google.protobuf.Timestamp released_at = 14;
+  // Set on a reversal reservation: the committed reservation it reverses.
+  string reverses_reservation_id = 15;
+  // Free-text reason recorded on release/reversal.
+  string notes = 16;
 }
 
 message ReserveRequest {
   LimitIntent intent = 1 [(buf.validate.field).required = true];
   string idempotency_key = 2 [(buf.validate.field).string.min_len = 1];
-  google.protobuf.Duration ttl = 3;
+  // Requested hold duration. The server applies its default when unset and
+  // never honours more than one hour.
+  google.protobuf.Duration ttl = 3 [(buf.validate.field).duration.lte = {seconds: 3600}];
 }
 message ReserveResponse {
   ReservationObject reservation = 1;
@@ -414,7 +459,8 @@ service LimitsAdminService {
       "limits_approval_act",
       "limits_approval_override",
       "limits_ledger_view",
-      "limits_audit_view"
+      "limits_audit_view",
+      "limits_archive"
     ]
     role_bindings: [
       {
@@ -496,6 +542,12 @@ service LimitsAdminService {
   rpc PolicyDelete(PolicyDeleteRequest) returns (PolicyDeleteResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["limits_policy_manage"]
+    };
+  }
+  // PolicyHistory pages through a policy's immutable version snapshots, newest first.
+  rpc PolicyHistory(PolicyHistoryRequest) returns (PolicyHistoryResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_policy_view"]
     };
   }
 

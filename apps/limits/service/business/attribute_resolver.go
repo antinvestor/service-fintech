@@ -41,10 +41,11 @@ import (
 // workforce_member) the resolver returns an empty attribute map for v1.
 // These subject types do not yet have queryable attributes in identity.
 //
-// On identity fetch failure the resolver returns (nil, nil). The evaluator
-// interprets nil as "no attributes", so any AttributeFilter predicate
-// evaluates to FALSE — policies don't fire when attributes are unavailable.
-// This is the safe failure mode.
+// On identity fetch failure the resolver returns (nil, nil). Callers must
+// treat a nil map as "attributes unavailable", not as "no attributes": for an
+// enforce-mode policy the reservation path fails closed on it, because a
+// KYC-tier cap that silently stops applying whenever identity is down is not
+// a cap at all.
 type AttributeResolver interface {
 	Get(ctx context.Context, subjectType models.Subject, subjectID string) (map[string]any, error)
 	Invalidate(subjectType models.Subject, subjectID string)
@@ -170,11 +171,10 @@ func decodeAttrs(j datatypes.JSON) map[string]any {
 //     the identity service (InvestorGet RPC).
 //   - InvestorObject exposes: id, profile_id, name, state, properties.
 //   - kyc_tier and country_code are not first-class proto fields on
-//     InvestorObject in the current identity API version; they may be stored
-//     in the Properties structpb if populated by the identity service.
-//     TODO(plan-4): once identity exposes dedicated kyc_tier / country_code
-//     fields on InvestorObject (or a dedicated ClientGet RPC is available),
-//     update this projection to extract those fields directly.
+//     InvestorObject in the current identity API version; they are read from
+//     the Properties structpb, which is where the identity service publishes
+//     them. A dedicated field on InvestorObject is listed as a proto
+//     follow-up.
 //
 // Returns (nil, nil) when the client isn't configured (graceful degradation).
 func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID string) (map[string]any, error) {

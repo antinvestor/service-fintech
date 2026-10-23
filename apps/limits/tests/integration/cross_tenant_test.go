@@ -148,7 +148,7 @@ func (s *CrossTenantSuite) SetupTest() {
 	)
 	approvalBiz := business.NewApprovalBusiness(
 		approvalReqRepo, approvalDecRepo, resvRepo, s.policyRepoA,
-		evaluator, auditing, nil, s.dbPool,
+		evaluator, auditing, nil, s.dbPool, nil,
 	)
 
 	_ = policyVerRepo

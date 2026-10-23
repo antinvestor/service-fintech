@@ -53,6 +53,9 @@ type headerProfileInterceptor struct {
 	tenantID       string
 	partitionID    string
 	defaultProfile string
+	// roles are granted to every injected identity so approvers satisfy the
+	// approver tier's required_role.
+	roles []string
 }
 
 func (h *headerProfileInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
@@ -82,6 +85,7 @@ func (h *headerProfileInterceptor) injectClaims(ctx context.Context, header http
 		tenantID:    h.tenantID,
 		partitionID: h.partitionID,
 		profileID:   profileID,
+		roles:       h.roles,
 	}
 	return fci.injectClaims(ctx)
 }
@@ -164,7 +168,7 @@ func (s *ApprovalIntegrationSuite) SetupTest() {
 	)
 	approvalBiz := business.NewApprovalBusiness(
 		approvalReqRepo, approvalDecRepo, resvRepo, s.policyRepo,
-		evaluator, auditing, nil, s.dbPool,
+		evaluator, auditing, nil, s.dbPool, nil,
 	)
 
 	_ = policyVerRepo // used indirectly via Save
@@ -177,6 +181,7 @@ func (s *ApprovalIntegrationSuite) SetupTest() {
 		tenantID:       "tenant-ap",
 		partitionID:    "partition-ap",
 		defaultProfile: "wf-maker",
+		roles:          []string{"branch_manager"},
 	}
 	interceptorOpt := connect.WithInterceptors(headerInterceptor)
 

@@ -16,6 +16,14 @@ import 'package:flutter/material.dart';
 
 import 'currency_amount_text.dart';
 
+/// Converts a `Money`-shaped proto to a double for ratio arithmetic.
+double _asDouble(dynamic money) {
+  if (money == null) return 0;
+  final units = ((money.units as dynamic).toInt() as int).toDouble();
+  final nanos = (money.nanos as int).toDouble();
+  return units + nanos / 1000000000.0;
+}
+
 class UsageBar extends StatelessWidget {
   final dynamic currentUsage;
   final dynamic cap;
@@ -25,16 +33,12 @@ class UsageBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (cap == null) return const SizedBox.shrink();
 
-    // Convert both to (units * 1e9 + nanos) for ratio. Use a large
-    // intermediate via num so we don't lose precision on int boundaries.
-    final int capUnits = (cap.units as dynamic).toInt() as int;
-    final int capNanos = cap.nanos as int;
-    final capNum = capUnits * 1000000000 + capNanos;
-    final usedNum = currentUsage == null
-        ? 0
-        : ((currentUsage.units as dynamic).toInt() as int) * 1000000000 +
-            (currentUsage.nanos as int);
-    final ratio = capNum == 0 ? 0.0 : (usedNum / capNum).clamp(0.0, 1.0);
+    // Ratio in doubles, not scaled integers: on web an int is a 53-bit
+    // double, so units * 1e9 silently loses precision above ~9M major units
+    // and the bar reads wrong for exactly the large caps that matter.
+    final capValue = _asDouble(cap);
+    final usedValue = _asDouble(currentUsage);
+    final ratio = capValue == 0 ? 0.0 : (usedValue / capValue).clamp(0.0, 1.0);
 
     final color = ratio < 0.7
         ? Colors.green.shade600
@@ -55,13 +59,26 @@ class UsageBar extends StatelessWidget {
         const SizedBox(height: 4),
         Row(
           children: [
-            CurrencyAmountText(amount: currentUsage, style: const TextStyle(fontSize: 11)),
-            const Text(' / ', style: TextStyle(fontSize: 11, color: Colors.grey)),
-            CurrencyAmountText(amount: cap, style: const TextStyle(fontSize: 11)),
+            CurrencyAmountText(
+              amount: currentUsage,
+              style: const TextStyle(fontSize: 11),
+            ),
+            const Text(
+              ' / ',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            CurrencyAmountText(
+              amount: cap,
+              style: const TextStyle(fontSize: 11),
+            ),
             const Spacer(),
             Text(
               '${(ratio * 100).toStringAsFixed(1)}%',
-              style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

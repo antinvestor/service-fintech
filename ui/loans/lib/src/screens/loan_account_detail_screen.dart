@@ -18,6 +18,10 @@ import '../providers/schedule_providers.dart';
 import '../widgets/loan_status_badge.dart';
 
 /// Generates a simple idempotency key.
+/// Generates the key that makes a money-moving request safe to retry. It is
+/// created once per dialog, in initState: generating it per submit means a
+/// user retrying a request that timed out sends a different key, and the
+/// service treats the retry as a second real payment.
 String _generateIdempotencyKey() {
   final rand = Random.secure();
   final bytes = List<int>.generate(16, (_) => rand.nextInt(256));
@@ -28,8 +32,9 @@ class LoanAccountDetailScreen extends ConsumerStatefulWidget {
   const LoanAccountDetailScreen({
     super.key,
     required this.loanId,
-    this.canManage = true,
-    this.canRecordPayment = true,
+    this.canManage = false,
+    this.canRecordPayment = false,
+    this.canDisburse = false,
   });
 
   final String loanId;
@@ -40,6 +45,9 @@ class LoanAccountDetailScreen extends ConsumerStatefulWidget {
 
   /// Whether the current user can record repayments.
   final bool canRecordPayment;
+
+  /// Whether the current user can move money out on this loan.
+  final bool canDisburse;
 
   @override
   ConsumerState<LoanAccountDetailScreen> createState() =>
@@ -67,8 +75,7 @@ class _LoanAccountDetailScreenState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final loanAsync = ref.watch(loanAccountDetailProvider(widget.loanId));
-    final balanceAsync =
-        ref.watch(loanBalanceDetailProvider(widget.loanId));
+    final balanceAsync = ref.watch(loanBalanceDetailProvider(widget.loanId));
 
     return loanAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -226,7 +233,7 @@ class _LoanAccountDetailScreenState
               children: [
                 if (loan.status ==
                         LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT &&
-                    widget.canManage)
+                    widget.canDisburse)
                   FilledButton.icon(
                     onPressed: () => _showDisbursementDialog(context, loan),
                     icon: const Icon(Icons.send, size: 18),
@@ -297,9 +304,8 @@ class _LoanAccountDetailScreenState
       context: context,
       builder: (dialogContext) => _DisbursementFormDialog(
         loanAccountId: loan.id,
-        onSave: (channel, recipientReference) async {
+        onSave: (channel, recipientReference, idempotencyKey) async {
           try {
-            final idempotencyKey = _generateIdempotencyKey();
             await ref
                 .read(disbursementNotifierProvider.notifier)
                 .create(
@@ -309,9 +315,7 @@ class _LoanAccountDetailScreenState
                   idempotencyKey: idempotencyKey,
                 );
             ref.invalidate(loanAccountDetailProvider(widget.loanId));
-            ref.invalidate(
-              loanBalanceDetailProvider(widget.loanId),
-            );
+            ref.invalidate(loanBalanceDetailProvider(widget.loanId));
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -349,59 +353,70 @@ class _LoanAccountDetailScreenState
         loanAccountId: loan.id,
         currencyCode: loanMoneyCurrency(loan.principalAmount),
         totalOutstanding: outstanding,
-        onSave: (amount, paymentReference, channel, payerReference) async {
-          try {
-            final idempotencyKey = _generateIdempotencyKey();
-            await ref
-                .read(repaymentNotifierProvider.notifier)
-                .record(
-                  loanAccountId: loan.id,
-                  amount: amount,
-                  currencyCode: loanMoneyCurrency(loan.principalAmount),
-                  paymentReference: paymentReference,
-                  channel: channel,
-                  payerReference: payerReference,
-                  idempotencyKey: idempotencyKey,
-                );
-            ref.invalidate(
-              loanBalanceDetailProvider(widget.loanId),
-            );
-            ref.invalidate(repaymentListProvider(widget.loanId));
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Payment recorded successfully')),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to record payment: $e'),
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                ),
-              );
-            }
-          }
-        },
+        onSave:
+            (
+              amount,
+              paymentReference,
+              channel,
+              payerReference,
+              idempotencyKey,
+            ) async {
+              try {
+                await ref
+                    .read(repaymentNotifierProvider.notifier)
+                    .record(
+                      loanAccountId: loan.id,
+                      amount: amount,
+                      currencyCode: loanMoneyCurrency(loan.principalAmount),
+                      paymentReference: paymentReference,
+                      channel: channel,
+                      payerReference: payerReference,
+                      idempotencyKey: idempotencyKey,
+                    );
+                ref.invalidate(loanBalanceDetailProvider(widget.loanId));
+                ref.invalidate(repaymentListProvider(widget.loanId));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Payment recorded successfully'),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to record payment: $e'),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  );
+                }
+              }
+            },
       ),
     );
   }
 
-  void _showCollectPaymentDialog(
-      BuildContext context, LoanAccountObject loan) {
+  void _showCollectPaymentDialog(BuildContext context, LoanAccountObject loan) {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => _CollectPaymentFormDialog(
         loanAccountId: loan.id,
         currencyCode: loanMoneyCurrency(loan.principalAmount),
-        onSave: (amount, phoneNumber) async {
+        onSave: (amount, phoneNumber, idempotencyKey) async {
           try {
             final client = ref.read(loanManagementServiceClientProvider);
-            final idempotencyKey = _generateIdempotencyKey();
             await client.initiateCollection(
               InitiateCollectionRequest(
                 loanAccountId: loan.id,
+                // The string form stays until the loans service consumes the
+                // Money field from the published SDK; both carry the same value.
+                // ignore: deprecated_member_use
                 amount: amount,
+                collectionAmount: loanMoneyFromString(
+                  amount,
+                  loanMoneyCurrency(loan.principalAmount),
+                ),
                 phoneNumber: phoneNumber,
                 idempotencyKey: idempotencyKey,
               ),
@@ -486,8 +501,8 @@ class _BalanceCard extends StatelessWidget {
                   progress >= 0.8
                       ? Colors.green
                       : progress >= 0.5
-                          ? Colors.orange
-                          : Colors.red,
+                      ? Colors.orange
+                      : Colors.red,
                 ),
                 minHeight: 6,
               ),
@@ -746,9 +761,7 @@ class _TransactionsTab extends ConsumerWidget {
     final disbursementsAsync = ref.watch(
       disbursementListProvider(loanAccountId),
     );
-    final repaymentsAsync = ref.watch(
-      repaymentListProvider(loanAccountId),
-    );
+    final repaymentsAsync = ref.watch(repaymentListProvider(loanAccountId));
 
     if (disbursementsAsync.isLoading || repaymentsAsync.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -934,9 +947,7 @@ class _PenaltiesTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final penaltiesAsync = ref.watch(
-      penaltyListProvider(loanAccountId),
-    );
+    final penaltiesAsync = ref.watch(penaltyListProvider(loanAccountId));
 
     return penaltiesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -947,9 +958,8 @@ class _PenaltiesTab extends ConsumerWidget {
             Text('Error: $e'),
             const SizedBox(height: 8),
             FilledButton.tonal(
-              onPressed: () => ref.invalidate(
-                penaltyListProvider(loanAccountId),
-              ),
+              onPressed: () =>
+                  ref.invalidate(penaltyListProvider(loanAccountId)),
               child: const Text('Retry'),
             ),
           ],
@@ -989,8 +999,9 @@ class _PenaltiesTab extends ConsumerWidget {
                   '${_penaltyTypeLabel(penalty.penaltyType)}: ${penalty.amount}',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
-                    decoration:
-                        penalty.isWaived ? TextDecoration.lineThrough : null,
+                    decoration: penalty.isWaived
+                        ? TextDecoration.lineThrough
+                        : null,
                   ),
                 ),
                 subtitle: Text(
@@ -1008,27 +1019,26 @@ class _PenaltiesTab extends ConsumerWidget {
                         child: const Text('Waive'),
                       )
                     : penalty.isWaived
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withAlpha(20),
-                              borderRadius: BorderRadius.circular(4),
-                              border:
-                                  Border.all(color: Colors.grey.withAlpha(60)),
-                            ),
-                            child: const Text(
-                              'Waived',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          )
-                        : null,
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withAlpha(20),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.grey.withAlpha(60)),
+                        ),
+                        child: const Text(
+                          'Waived',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
             );
           },
@@ -1059,8 +1069,7 @@ class _PenaltiesTab extends ConsumerWidget {
                   isRequired: true,
                   child: TextFormField(
                     controller: reasonCtrl,
-                    decoration:
-                        const InputDecoration(hintText: 'Enter reason'),
+                    decoration: const InputDecoration(hintText: 'Enter reason'),
                     maxLines: 2,
                   ),
                 ),
@@ -1136,8 +1145,7 @@ class _RestructuringTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final restructuresAsync =
-        ref.watch(restructureListProvider(loanAccountId));
+    final restructuresAsync = ref.watch(restructureListProvider(loanAccountId));
 
     return Column(
       children: [
@@ -1148,8 +1156,7 @@ class _RestructuringTab extends ConsumerWidget {
               children: [
                 const Spacer(),
                 FilledButton.icon(
-                  onPressed: () =>
-                      _showCreateRestructureDialog(context, ref),
+                  onPressed: () => _showCreateRestructureDialog(context, ref),
                   icon: const Icon(Icons.edit_note, size: 18),
                   label: const Text('Request Restructure'),
                 ),
@@ -1251,13 +1258,12 @@ class _RestructuringTab extends ConsumerWidget {
                       'The kind of restructuring to apply to this loan.',
                   isRequired: true,
                   child: DropdownButtonFormField<RestructureType>(
-                    value: type,
+                    initialValue: type,
                     decoration: const InputDecoration(hintText: 'Select type'),
                     items: RestructureType.values
                         .where(
                           (t) =>
-                              t !=
-                              RestructureType.RESTRUCTURE_TYPE_UNSPECIFIED,
+                              t != RestructureType.RESTRUCTURE_TYPE_UNSPECIFIED,
                         )
                         .map(
                           (t) => DropdownMenuItem(
@@ -1271,12 +1277,10 @@ class _RestructuringTab extends ConsumerWidget {
                 ),
                 FormFieldCard(
                   label: 'New Interest Rate (%)',
-                  description:
-                      'The revised annual interest rate for the loan.',
+                  description: 'The revised annual interest rate for the loan.',
                   child: TextField(
                     controller: newRateCtrl,
-                    decoration:
-                        const InputDecoration(hintText: 'e.g. 12.5'),
+                    decoration: const InputDecoration(hintText: 'e.g. 12.5'),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
@@ -1287,20 +1291,17 @@ class _RestructuringTab extends ConsumerWidget {
                   description: 'The new repayment period in days.',
                   child: TextField(
                     controller: newTermCtrl,
-                    decoration:
-                        const InputDecoration(hintText: 'e.g. 365'),
+                    decoration: const InputDecoration(hintText: 'e.g. 365'),
                     keyboardType: TextInputType.number,
                   ),
                 ),
                 FormFieldCard(
                   label: 'Reason',
-                  description:
-                      'Why this restructuring is being requested.',
+                  description: 'Why this restructuring is being requested.',
                   isRequired: true,
                   child: TextField(
                     controller: reasonCtrl,
-                    decoration:
-                        const InputDecoration(hintText: 'Enter reason'),
+                    decoration: const InputDecoration(hintText: 'Enter reason'),
                     maxLines: 2,
                   ),
                 ),
@@ -1335,8 +1336,7 @@ class _RestructuringTab extends ConsumerWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content:
-                                  Text('Restructure request created'),
+                              content: Text('Restructure request created'),
                             ),
                           );
                         }
@@ -1346,8 +1346,9 @@ class _RestructuringTab extends ConsumerWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Failed: $e'),
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.error,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.error,
                             ),
                           );
                         }
@@ -1498,23 +1499,23 @@ class _RestructureCard extends StatelessWidget {
                     color: isPending
                         ? Colors.orange.withAlpha(30)
                         : restructure.state == STATE.ACTIVE
-                            ? Colors.green.withAlpha(30)
-                            : Colors.red.withAlpha(30),
+                        ? Colors.green.withAlpha(30)
+                        : Colors.red.withAlpha(30),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     isPending
                         ? 'Pending'
                         : restructure.state == STATE.ACTIVE
-                            ? 'Approved'
-                            : 'Rejected',
+                        ? 'Approved'
+                        : 'Rejected',
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: isPending
                           ? Colors.orange
                           : restructure.state == STATE.ACTIVE
-                              ? Colors.green
-                              : Colors.red,
+                          ? Colors.green
+                          : Colors.red,
                     ),
                   ),
                 ),
@@ -1533,8 +1534,7 @@ class _RestructureCard extends StatelessWidget {
                         visualDensity: VisualDensity.compact,
                       ),
                       IconButton(
-                        icon:
-                            const Icon(Icons.cancel, color: Colors.red),
+                        icon: const Icon(Icons.cancel, color: Colors.red),
                         tooltip: 'Reject',
                         onPressed: onReject,
                         visualDensity: VisualDensity.compact,
@@ -1737,7 +1737,12 @@ class _DisbursementFormDialog extends StatefulWidget {
   });
 
   final String loanAccountId;
-  final Future<void> Function(String channel, String recipientReference) onSave;
+  final Future<void> Function(
+    String channel,
+    String recipientReference,
+    String idempotencyKey,
+  )
+  onSave;
 
   @override
   State<_DisbursementFormDialog> createState() =>
@@ -1748,6 +1753,7 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _channelCtrl;
   late final TextEditingController _recipientRefCtrl;
+  late final String _idempotencyKey;
   bool _saving = false;
 
   @override
@@ -1755,6 +1761,7 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
     super.initState();
     _channelCtrl = TextEditingController();
     _recipientRefCtrl = TextEditingController();
+    _idempotencyKey = _generateIdempotencyKey();
   }
 
   @override
@@ -1771,6 +1778,7 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
       await widget.onSave(
         _channelCtrl.text.trim(),
         _recipientRefCtrl.text.trim(),
+        _idempotencyKey,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
@@ -1862,7 +1870,9 @@ class _RecordPaymentFormDialog extends StatefulWidget {
     String paymentReference,
     String channel,
     String payerReference,
-  ) onSave;
+    String idempotencyKey,
+  )
+  onSave;
 
   @override
   State<_RecordPaymentFormDialog> createState() =>
@@ -1875,6 +1885,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
   late final TextEditingController _paymentRefCtrl;
   late final TextEditingController _channelCtrl;
   late final TextEditingController _payerRefCtrl;
+  late final String _idempotencyKey;
   bool _saving = false;
 
   @override
@@ -1884,6 +1895,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
     _paymentRefCtrl = TextEditingController();
     _channelCtrl = TextEditingController();
     _payerRefCtrl = TextEditingController();
+    _idempotencyKey = _generateIdempotencyKey();
   }
 
   @override
@@ -1904,6 +1916,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
         _paymentRefCtrl.text.trim(),
         _channelCtrl.text.trim(),
         _payerRefCtrl.text.trim(),
+        _idempotencyKey,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
@@ -1935,8 +1948,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
                 ),
               FormFieldCard(
                 label: 'Amount',
-                description:
-                    'The repayment amount received from the borrower.',
+                description: 'The repayment amount received from the borrower.',
                 isRequired: true,
                 child: TextFormField(
                   controller: _amountCtrl,
@@ -1956,8 +1968,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
                 isRequired: true,
                 child: TextFormField(
                   controller: _paymentRefCtrl,
-                  decoration:
-                      const InputDecoration(hintText: 'e.g. TXN-12345'),
+                  decoration: const InputDecoration(hintText: 'e.g. TXN-12345'),
                   textInputAction: TextInputAction.next,
                   validator: (v) => validateRequired(v, 'Payment reference'),
                 ),
@@ -1978,8 +1989,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
               ),
               FormFieldCard(
                 label: 'Payer Reference',
-                description:
-                    'Identifier for the person making the payment.',
+                description: 'Identifier for the person making the payment.',
                 isRequired: true,
                 child: TextFormField(
                   controller: _payerRefCtrl,
@@ -2027,18 +2037,23 @@ class _CollectPaymentFormDialog extends StatefulWidget {
 
   final String loanAccountId;
   final String currencyCode;
-  final Future<void> Function(String amount, String phoneNumber) onSave;
+  final Future<void> Function(
+    String amount,
+    String phoneNumber,
+    String idempotencyKey,
+  )
+  onSave;
 
   @override
   State<_CollectPaymentFormDialog> createState() =>
       _CollectPaymentFormDialogState();
 }
 
-class _CollectPaymentFormDialogState
-    extends State<_CollectPaymentFormDialog> {
+class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _amountCtrl;
   late final TextEditingController _phoneCtrl;
+  late final String _idempotencyKey;
   bool _saving = false;
 
   @override
@@ -2046,6 +2061,7 @@ class _CollectPaymentFormDialogState
     super.initState();
     _amountCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
+    _idempotencyKey = _generateIdempotencyKey();
   }
 
   @override
@@ -2059,7 +2075,11 @@ class _CollectPaymentFormDialogState
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      await widget.onSave(_amountCtrl.text.trim(), _phoneCtrl.text.trim());
+      await widget.onSave(
+        _amountCtrl.text.trim(),
+        _phoneCtrl.text.trim(),
+        _idempotencyKey,
+      );
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _saving = false);

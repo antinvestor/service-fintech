@@ -14,6 +14,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
+import '../utils/formatting.dart';
 
 class ApprovalDecisionTimeline extends StatelessWidget {
   final List<ApprovalDecisionObject> decisions;
@@ -37,9 +38,7 @@ class ApprovalDecisionTimeline extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  d.decision == 'approve'
-                      ? Icons.check_circle
-                      : Icons.cancel,
+                  d.decision == 'approve' ? Icons.check_circle : Icons.cancel,
                   color: d.decision == 'approve'
                       ? Colors.green.shade700
                       : Colors.red.shade700,
@@ -58,11 +57,7 @@ class ApprovalDecisionTimeline extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        d.decidedAt
-                            .toDateTime()
-                            .toLocal()
-                            .toString()
-                            .substring(0, 19),
+                        formatTimestamp(d.hasDecidedAt() ? d.decidedAt : null),
                         style: const TextStyle(
                           fontSize: 11,
                           color: Colors.grey,

@@ -16,15 +16,14 @@ package business
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
-	"github.com/antinvestor/service-fintech/apps/stawi/service/events"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
@@ -33,21 +32,26 @@ const (
 	daysPerWeek = 7
 	// daysPerBiweek is the number of days in a biweekly period.
 	daysPerBiweek = 14
+
+	// propertyFrozenAt marks a period whose contributions are closed pending
+	// reconciliation; propertyExtension* record why and how often a period's
+	// end date was pushed out.
+	propertyFrozenAt        = "frozen_at"
+	propertyExtensionCount  = "extension_count"
+	propertyExtensionReason = "extension_reason"
 )
 
 type periodBusiness struct {
-	eventsMan fevents.Manager
-	tenRepo   repository.TenureRepository
-	perRepo   repository.PeriodRepository
+	tenRepo repository.TenureRepository
+	perRepo repository.PeriodRepository
 }
 
 func NewPeriodBusiness(
 	_ context.Context,
-	eventsMan fevents.Manager,
 	tenRepo repository.TenureRepository,
 	perRepo repository.PeriodRepository,
 ) PeriodBusiness {
-	return &periodBusiness{eventsMan: eventsMan, tenRepo: tenRepo, perRepo: perRepo}
+	return &periodBusiness{tenRepo: tenRepo, perRepo: perRepo}
 }
 
 // Open creates a new period within the active tenure for the given group.
@@ -61,11 +65,11 @@ func (b *periodBusiness) Open(ctx context.Context, groupID string) (*models.Peri
 
 	tenure, err := b.tenRepo.GetActiveByGroupID(ctx, groupID)
 	if err != nil {
-		return nil, fmt.Errorf("no active tenure for group: %w", err)
+		return nil, apperrors.ErrDataNotFound.Extend("active tenure for group")
 	}
 
 	if tenure.State != int32(constants.StateActive) {
-		return nil, fmt.Errorf("tenure is not active (state=%d)", tenure.State)
+		return nil, apperrors.NewError(apperrors.Unprocessable, "group tenure is not active")
 	}
 
 	periodType := tenurePeriodType(tenure)
@@ -75,10 +79,8 @@ func (b *periodBusiness) Open(ctx context.Context, groupID string) (*models.Peri
 	}
 
 	if nextPosition > tenure.Duration {
-		return nil, fmt.Errorf(
-			"tenure duration of %d periods exhausted, close tenure and open a new one",
-			tenure.Duration,
-		)
+		return nil, apperrors.NewError(apperrors.Unprocessable,
+			"tenure duration exhausted, close the tenure and open a new one")
 	}
 
 	endDate := calculatePeriodEndDate(startDate, periodType)
@@ -96,9 +98,15 @@ func (b *periodBusiness) Open(ctx context.Context, groupID string) (*models.Peri
 	period.GenID(ctx)
 	period.CopyPartitionInfo(&tenure.BaseModel)
 
-	err = b.eventsMan.Emit(ctx, events.PeriodSaveEvent, period)
-	if err != nil {
-		logger.WithError(err).Error("could not emit period save event")
+	// Synchronous insert. The unique index on (tenure_id, position) is what
+	// actually enforces "one period per position"; the read-then-emit version
+	// let two concurrent opens both pass the guard above.
+	if err = b.perRepo.Create(ctx, period); err != nil {
+		if data.ErrorIsDuplicateKey(err) {
+			return nil, apperrors.NewError(apperrors.Conflict,
+				"a period is already open at this position for the tenure")
+		}
+		logger.WithError(err).Error("could not persist new period")
 		return nil, err
 	}
 
@@ -145,8 +153,8 @@ func (b *periodBusiness) resolveNextPeriod(
 	}
 
 	if latestPeriod.State == int32(constants.StateActive) {
-		return 0, time.Time{}, "", fmt.Errorf(
-			"previous period (id=%s) is still active, close it first", latestPeriod.GetID())
+		return 0, time.Time{}, "", apperrors.NewError(apperrors.Unprocessable,
+			"the previous period is still active, close it first")
 	}
 
 	startDate := time.Now().UTC()
@@ -165,25 +173,124 @@ func (b *periodBusiness) Close(ctx context.Context, periodID string) error {
 
 	period, err := b.perRepo.GetByID(ctx, periodID)
 	if err != nil {
-		return fmt.Errorf("period not found: %w", err)
+		return apperrors.ErrDataNotFound.Extend("period")
 	}
 
 	if period.State == int32(constants.StateShutdown) || period.State == int32(constants.StateDeleted) {
-		return fmt.Errorf("period is already closed (state=%d)", period.State)
+		return apperrors.NewError(apperrors.Unprocessable, "period is already closed")
 	}
 
 	now := time.Now().UTC()
 	period.EndDate = &now
 	period.State = int32(constants.StateShutdown)
 
-	err = b.eventsMan.Emit(ctx, events.PeriodSaveEvent, period)
+	// Versioned update: a concurrent close matches no row and is reported as a
+	// conflict rather than silently closing the period twice.
+	rows, err := b.perRepo.Update(ctx, period)
 	if err != nil {
-		logger.WithError(err).Error("could not emit period save event")
+		logger.WithError(err).Error("could not close period")
 		return err
+	}
+	if rows == 0 {
+		return apperrors.NewError(apperrors.Conflict, "period changed while it was being closed")
 	}
 
 	logger.Info("period closed")
 	return nil
+}
+
+// Freeze stops further contributions being counted against a period while it
+// is being reconciled and closed. It is idempotent: a period that is already
+// frozen is returned unchanged.
+func (b *periodBusiness) Freeze(ctx context.Context, periodID string) (*models.Period, error) {
+	period, err := b.perRepo.GetByID(ctx, periodID)
+	if err != nil {
+		return nil, apperrors.ErrDataNotFound.Extend("period")
+	}
+	if period.State != int32(constants.StateActive) {
+		return nil, apperrors.NewError(apperrors.Unprocessable,
+			"only an active period can be frozen")
+	}
+	if period.Properties.GetString(propertyFrozenAt) != "" {
+		return period, nil
+	}
+
+	period.Properties = mergeProperties(period.Properties, map[string]any{
+		propertyFrozenAt: time.Now().UTC().Format(time.RFC3339),
+	})
+
+	rows, err := b.perRepo.Update(ctx, period)
+	if err != nil {
+		return nil, err
+	}
+	if rows == 0 {
+		return nil, apperrors.NewError(apperrors.Conflict, "period changed while it was being frozen")
+	}
+	return period, nil
+}
+
+// Extend pushes an open period's end date out by one more period length. The
+// reason and the running count of extensions stay on the row so a period that
+// keeps being extended is visible rather than silently drifting.
+func (b *periodBusiness) Extend(ctx context.Context, periodID, reason string) (*models.Period, error) {
+	period, err := b.perRepo.GetByID(ctx, periodID)
+	if err != nil {
+		return nil, apperrors.ErrDataNotFound.Extend("period")
+	}
+	if period.State != int32(constants.StateActive) {
+		return nil, apperrors.NewError(apperrors.Unprocessable, "only an active period can be extended")
+	}
+	if period.Properties.GetString(propertyFrozenAt) != "" {
+		return nil, apperrors.NewError(apperrors.Unprocessable, "a frozen period cannot be extended")
+	}
+
+	base := time.Now().UTC()
+	if period.EndDate != nil && period.EndDate.After(base) {
+		base = *period.EndDate
+	}
+	newEnd := calculatePeriodEndDate(base, models.PeriodType(period.PeriodType))
+	period.EndDate = &newEnd
+	period.Properties = mergeProperties(period.Properties, map[string]any{
+		propertyExtensionCount:  periodExtensionCount(period) + 1,
+		propertyExtensionReason: reason,
+	})
+
+	rows, err := b.perRepo.Update(ctx, period)
+	if err != nil {
+		return nil, err
+	}
+	if rows == 0 {
+		return nil, apperrors.NewError(apperrors.Conflict, "period changed while it was being extended")
+	}
+	return period, nil
+}
+
+// periodExtensionCount reads how many times a period has already been extended.
+func periodExtensionCount(period *models.Period) int64 {
+	if period.Properties == nil {
+		return 0
+	}
+	switch typed := period.Properties[propertyExtensionCount].(type) {
+	case float64:
+		return int64(typed)
+	case int64:
+		return typed
+	default:
+		return 0
+	}
+}
+
+// mergeProperties returns a copy of base with overrides applied, so a caller
+// never mutates the map still held by another reader.
+func mergeProperties(base data.JSONMap, overrides map[string]any) data.JSONMap {
+	merged := data.JSONMap{}
+	for k, v := range base {
+		merged[k] = v
+	}
+	for k, v := range overrides {
+		merged[k] = v
+	}
+	return merged
 }
 
 func (b *periodBusiness) GetCurrent(ctx context.Context, groupID string) (*models.Period, error) {

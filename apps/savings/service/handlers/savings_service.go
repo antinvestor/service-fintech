@@ -169,21 +169,11 @@ func (s *SavingsServer) SavingsAccountClose(
 
 // --- Deposit RPCs ---
 
-//nolint:dupl // DepositRecord and WithdrawalRequest share handler shape but act on distinct types and business layers; extracting a helper would require generics for marginal gain.
 func (s *SavingsServer) DepositRecord(
 	ctx context.Context,
 	req *connect.Request[savingsv1.DepositRecordRequest],
 ) (*connect.Response[savingsv1.DepositRecordResponse], error) {
-	depAmount, _ := models.MoneyToMinorUnits(req.Msg.GetAmount())
-	result, err := s.depBusiness.Record(
-		ctx,
-		req.Msg.GetSavingsAccountId(),
-		models.MinorUnitsToString(depAmount),
-		req.Msg.GetPaymentReference(),
-		req.Msg.GetChannel(),
-		req.Msg.GetPayerReference(),
-		req.Msg.GetIdempotencyKey(),
-	)
+	result, err := s.depBusiness.Record(ctx, req.Msg)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
@@ -221,21 +211,11 @@ func (s *SavingsServer) DepositSearch(
 
 // --- Withdrawal RPCs ---
 
-//nolint:dupl // See DepositRecord rationale: distinct types/business layers, not worth a generic helper.
 func (s *SavingsServer) WithdrawalRequest(
 	ctx context.Context,
 	req *connect.Request[savingsv1.WithdrawalRequestRequest],
 ) (*connect.Response[savingsv1.WithdrawalRequestResponse], error) {
-	wdAmount, _ := models.MoneyToMinorUnits(req.Msg.GetAmount())
-	result, err := s.wdBusiness.Request(
-		ctx,
-		req.Msg.GetSavingsAccountId(),
-		models.MinorUnitsToString(wdAmount),
-		req.Msg.GetChannel(),
-		req.Msg.GetRecipientReference(),
-		req.Msg.GetReason(),
-		req.Msg.GetIdempotencyKey(),
-	)
+	result, err := s.wdBusiness.Request(ctx, req.Msg)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
@@ -256,6 +236,19 @@ func (s *SavingsServer) WithdrawalApprove(
 	audit.WithResource(ctx, audit.ResourceWithdrawal, req.Msg.GetId())
 	audit.WithAction(ctx, audit.ActionApprove)
 	return connect.NewResponse(&savingsv1.WithdrawalApproveResponse{Data: result}), nil
+}
+
+func (s *SavingsServer) WithdrawalCancel(
+	ctx context.Context,
+	req *connect.Request[savingsv1.WithdrawalCancelRequest],
+) (*connect.Response[savingsv1.WithdrawalCancelResponse], error) {
+	result, err := s.wdBusiness.Cancel(ctx, req.Msg.GetId(), req.Msg.GetReason())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceWithdrawal, req.Msg.GetId())
+	audit.WithAction(ctx, audit.ActionReject)
+	return connect.NewResponse(&savingsv1.WithdrawalCancelResponse{Data: result}), nil
 }
 
 func (s *SavingsServer) WithdrawalGet(

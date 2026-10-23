@@ -16,12 +16,11 @@ package business
 
 import (
 	"context"
+	"math"
+	"strconv"
 	"time"
 
-	"strconv"
-
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
@@ -29,19 +28,26 @@ import (
 )
 
 const (
-	delinquencyBatchSize      = 500
+	// delinquencyPageSize bounds how many loans one page of the scan holds.
+	delinquencyPageSize = 200
+	// delinquencyMaxPages bounds a single scan so a runaway portfolio cannot
+	// keep one pass running indefinitely; the next tick resumes the work.
+	delinquencyMaxPages       = 500
 	hoursPerDay               = 24
 	basisPointsPenaltyDivisor = 10000
+	defaultDelinquencyDays    = 7
+	defaultDefaultDays        = 90
 )
 
 // DelinquencyScanner detects overdue loans and transitions them to DELINQUENT
 // or DEFAULT status based on configured thresholds. It also applies late
-// penalties for overdue schedule entries.
+// penalties for overdue schedule entries and keeps days_past_due current, which
+// is what portfolio-at-risk reporting reads.
 //
-// This should be called periodically by a scheduled job (e.g., daily cronjob).
+// Run it from a scheduled job; it is safe to run concurrently with normal
+// traffic because every write it makes is conditional.
 type DelinquencyScanner struct {
 	loanAccountRepo repository.LoanAccountRepository
-	loanBalanceRepo repository.LoanBalanceRepository
 	scheduleRepo    repository.ScheduleEntryRepository
 	penaltyBusiness PenaltyBusiness
 	laBusiness      LoanAccountBusiness
@@ -53,7 +59,6 @@ type DelinquencyScanner struct {
 
 func NewDelinquencyScanner(
 	loanAccountRepo repository.LoanAccountRepository,
-	loanBalanceRepo repository.LoanBalanceRepository,
 	scheduleRepo repository.ScheduleEntryRepository,
 	penaltyBusiness PenaltyBusiness,
 	laBusiness LoanAccountBusiness,
@@ -61,14 +66,13 @@ func NewDelinquencyScanner(
 	delinquencyDays, defaultDays int,
 ) *DelinquencyScanner {
 	if delinquencyDays <= 0 {
-		delinquencyDays = 7
+		delinquencyDays = defaultDelinquencyDays
 	}
 	if defaultDays <= 0 {
-		defaultDays = 90
+		defaultDays = defaultDefaultDays
 	}
 	return &DelinquencyScanner{
 		loanAccountRepo: loanAccountRepo,
-		loanBalanceRepo: loanBalanceRepo,
 		scheduleRepo:    scheduleRepo,
 		penaltyBusiness: penaltyBusiness,
 		laBusiness:      laBusiness,
@@ -78,87 +82,120 @@ func NewDelinquencyScanner(
 	}
 }
 
-// ScanAndTransition scans all active and delinquent loans for overdue
-// schedule entries and transitions their status accordingly.
-// Returns the number of loans processed and any error.
-//
-//nolint:gocognit // sequential scan logic
-func (s *DelinquencyScanner) ScanAndTransition(
-	ctx context.Context,
-) (int, error) {
+// Run adapts ScanAndTransition to the signature a scheduled job expects.
+func (s *DelinquencyScanner) Run(ctx context.Context) error {
+	_, err := s.ScanAndTransition(ctx)
+	return err
+}
+
+// ScanAndTransition pages through active and delinquent loans, records how
+// overdue each one is, charges late penalties for installments that have not
+// been penalised yet, and moves loans across the delinquency thresholds.
+// Returns the number of loans whose status changed.
+func (s *DelinquencyScanner) ScanAndTransition(ctx context.Context) (int, error) {
 	logger := util.Log(ctx).WithField("method", "DelinquencyScanner.ScanAndTransition")
-	now := time.Now()
-	processed := 0
+	now := time.Now().UTC()
+	transitioned := 0
 
-	// Scan active loans for delinquency
-	activeLoansCh, err := s.loanAccountRepo.Search(ctx,
-		data.NewSearchQuery(
-			data.WithSearchFiltersAndByValue(map[string]any{
-				"status = ?": int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE),
-			}),
-			data.WithSearchLimit(delinquencyBatchSize),
-		),
-	)
+	active, err := s.scanStatus(ctx, logger, now,
+		loansv1.LoanStatus_LOAN_STATUS_ACTIVE,
+		loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
+		s.delinquencyDays, true)
+	transitioned += active
 	if err != nil {
-		logger.WithError(err).Error("failed to search active loans")
-		return 0, err
+		return transitioned, err
 	}
 
-	_ = workerpoolConsumeStream(ctx, activeLoansCh, func(batch []*models.LoanAccount) error {
-		for _, la := range batch {
-			daysPastDue := s.computeDaysPastDue(ctx, la, now)
-			if daysPastDue >= s.delinquencyDays {
-				if _, transErr := s.laBusiness.TransitionStatus(
-					ctx, la.GetID(),
-					loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
-					"system", "auto-delinquency: overdue by "+strconv.Itoa(daysPastDue)+" days",
-				); transErr != nil {
-					logger.WithError(transErr).WithField("loan_id", la.GetID()).
-						Warn("could not transition loan to delinquent")
-				} else {
-					processed++
-				}
-			}
-			s.applyLatePenalties(ctx, logger, la, now)
-		}
-		return nil
-	})
-
-	// Scan delinquent loans for default
-	delinquentLoansCh, err := s.loanAccountRepo.Search(ctx,
-		data.NewSearchQuery(
-			data.WithSearchFiltersAndByValue(map[string]any{
-				"status = ?": int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT),
-			}),
-			data.WithSearchLimit(delinquencyBatchSize),
-		),
-	)
+	delinquent, err := s.scanStatus(ctx, logger, now,
+		loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
+		loansv1.LoanStatus_LOAN_STATUS_DEFAULT,
+		s.defaultDays, false)
+	transitioned += delinquent
 	if err != nil {
-		logger.WithError(err).Error("failed to search delinquent loans")
-		return processed, err
+		return transitioned, err
 	}
 
-	_ = workerpoolConsumeStream(ctx, delinquentLoansCh, func(batch []*models.LoanAccount) error {
+	logger.WithField("transitioned", transitioned).Info("delinquency scan completed")
+	return transitioned, nil
+}
+
+// scanStatus walks every loan in fromStatus one page at a time. Paging matters:
+// a single capped query silently ignores everything past the cap, which for a
+// delinquency scan means loans that quietly never default.
+func (s *DelinquencyScanner) scanStatus(
+	ctx context.Context,
+	logger *util.LogEntry,
+	now time.Time,
+	fromStatus, toStatus loansv1.LoanStatus,
+	thresholdDays int,
+	applyPenalties bool,
+) (int, error) {
+	transitioned := 0
+	afterID := ""
+
+	for range delinquencyMaxPages {
+		batch, err := s.loanAccountRepo.PageByStatus(
+			ctx, int32(fromStatus), afterID, delinquencyPageSize,
+		)
+		if err != nil {
+			logger.WithError(err).WithField("status", fromStatus.String()).
+				Error("could not page loans for the delinquency scan")
+			return transitioned, err
+		}
+		if len(batch) == 0 {
+			return transitioned, nil
+		}
+
+		afterID = batch[len(batch)-1].GetID()
+
 		for _, la := range batch {
 			daysPastDue := s.computeDaysPastDue(ctx, la, now)
-			if daysPastDue >= s.defaultDays {
-				if _, transErr := s.laBusiness.TransitionStatus(
-					ctx, la.GetID(),
-					loansv1.LoanStatus_LOAN_STATUS_DEFAULT,
-					"system", "auto-default: overdue by "+strconv.Itoa(daysPastDue)+" days",
-				); transErr != nil {
-					logger.WithError(transErr).WithField("loan_id", la.GetID()).
-						Warn("could not transition loan to default")
-				} else {
-					processed++
-				}
-			}
-		}
-		return nil
-	})
+			s.recordDaysPastDue(ctx, logger, la, daysPastDue)
 
-	logger.WithField("processed", processed).Info("delinquency scan completed")
-	return processed, nil
+			if applyPenalties {
+				s.applyLatePenalties(ctx, logger, la, now)
+			}
+
+			if daysPastDue < thresholdDays {
+				continue
+			}
+			if _, transErr := s.laBusiness.TransitionStatus(
+				ctx, la.GetID(), toStatus, "system",
+				"overdue by "+strconv.Itoa(daysPastDue)+" days",
+			); transErr != nil {
+				logger.WithError(transErr).WithField("loan_id", la.GetID()).
+					Warn("could not transition loan on the delinquency scan")
+				continue
+			}
+			transitioned++
+		}
+
+		if len(batch) < delinquencyPageSize {
+			return transitioned, nil
+		}
+	}
+
+	return transitioned, nil
+}
+
+// recordDaysPastDue persists how overdue a loan is. Portfolio-at-risk is
+// computed from this column, so leaving it at zero reports a clean book.
+func (s *DelinquencyScanner) recordDaysPastDue(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+	daysPastDue int,
+) {
+	days := clampToInt32(daysPastDue)
+	if days == la.DaysPastDue {
+		return
+	}
+	if _, err := s.loanAccountRepo.UpdateColumns(ctx, la.GetID(), map[string]any{
+		"days_past_due": days,
+	}); err != nil {
+		logger.WithError(err).WithField("loan_id", la.GetID()).
+			Warn("could not record days past due")
+	}
 }
 
 // computeDaysPastDue returns the number of days since the earliest unpaid
@@ -172,7 +209,6 @@ func (s *DelinquencyScanner) computeDaysPastDue(
 	if err != nil || len(entries) == 0 {
 		return 0
 	}
-	// Earliest overdue entry determines days past due
 	earliest := entries[0]
 	if earliest.DueDate == nil {
 		return 0
@@ -184,8 +220,10 @@ func (s *DelinquencyScanner) computeDaysPastDue(
 	return days
 }
 
-// applyLatePenalties applies late penalty for each overdue schedule entry
-// that hasn't already been penalized.
+// applyLatePenalties charges one late penalty per overdue installment.
+//
+// The mark is claimed in the database before the penalty is raised, so a scan
+// that runs every day does not charge the same installment every day.
 func (s *DelinquencyScanner) applyLatePenalties(
 	ctx context.Context,
 	logger *util.LogEntry,
@@ -194,7 +232,7 @@ func (s *DelinquencyScanner) applyLatePenalties(
 ) {
 	product, err := s.loanProductRepo.GetByID(ctx, la.ProductID)
 	if err != nil || product == nil || product.LatePenaltyRate <= 0 {
-		return // No penalty rate configured
+		return
 	}
 
 	entries, err := s.scheduleRepo.GetOverdueEntries(ctx, la.GetID(), now)
@@ -203,34 +241,56 @@ func (s *DelinquencyScanner) applyLatePenalties(
 	}
 
 	for _, entry := range entries {
-		// Skip if already penalized (check properties)
-		if entry.Properties != nil {
-			if _, penalized := entry.Properties["penalty_applied"]; penalized {
-				continue
-			}
+		if alreadyPenalised(entry) {
+			continue
 		}
 
-		// Calculate penalty: late_penalty_rate (basis points) × outstanding amount
 		penaltyAmount := (entry.Outstanding * product.LatePenaltyRate) / basisPointsPenaltyDivisor
 		if penaltyAmount <= 0 {
 			continue
 		}
 
+		claimed, claimErr := s.scheduleRepo.MarkPenaltyApplied(ctx, entry.GetID())
+		if claimErr != nil {
+			logger.WithError(claimErr).WithField("entry_id", entry.GetID()).
+				Warn("could not claim the late penalty for an installment")
+			continue
+		}
+		if !claimed {
+			continue
+		}
+
 		_, penErr := s.penaltyBusiness.Save(ctx, &loansv1.PenaltyObject{
-			LoanAccountId: la.GetID(),
-			Amount:        models.MinorUnitsToMoney(penaltyAmount, la.CurrencyCode),
-			Reason:        "Late payment penalty for installment " + entry.GetID(),
+			LoanAccountId:   la.GetID(),
+			PenaltyType:     loansv1.PenaltyType_PENALTY_TYPE_LATE_PAYMENT,
+			Amount:          models.MinorUnitsToMoney(penaltyAmount, la.CurrencyCode),
+			Reason:          "late payment penalty for installment " + strconv.Itoa(int(entry.InstallmentNumber)),
+			ScheduleEntryId: entry.GetID(),
 		})
 		if penErr != nil {
 			logger.WithError(penErr).WithField("entry_id", entry.GetID()).
 				Warn("could not apply late penalty")
-			continue
 		}
+	}
+}
 
-		// Mark entry as penalized
-		if entry.Properties == nil {
-			entry.Properties = data.JSONMap{}
-		}
-		entry.Properties["penalty_applied"] = true
+// alreadyPenalised reads the mark this scanner writes onto an installment.
+func alreadyPenalised(entry *models.ScheduleEntry) bool {
+	if entry.Properties == nil {
+		return false
+	}
+	applied, _ := entry.Properties["penalty_applied"].(bool)
+	return applied
+}
+
+// clampToInt32 narrows a day count to the column's width without wrapping.
+func clampToInt32(v int) int32 {
+	switch {
+	case v > math.MaxInt32:
+		return math.MaxInt32
+	case v < 0:
+		return 0
+	default:
+		return int32(v)
 	}
 }

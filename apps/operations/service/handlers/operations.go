@@ -33,7 +33,14 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
-const moneyDecimalPlaces = 2
+const (
+	// defaultSearchLimit is used when a caller supplies a cursor without a
+	// limit, or no cursor at all.
+	defaultSearchLimit = 50
+	// maxSearchLimit bounds how many transfer orders one search page may
+	// return, so an unbounded caller limit cannot scan the whole table.
+	maxSearchLimit = 200
+)
 
 // OperationsServer implements the OperationsService RPC handler.
 // Tenant-level permission checks are handled by the FunctionAccessInterceptor.
@@ -62,6 +69,14 @@ func (s *OperationsServer) TransferOrderExecute(
 	req *connect.Request[operationsv1.TransferOrderExecuteRequest],
 ) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
 	obj := req.Msg.GetData()
+	if obj == nil {
+		return nil, apperrors.CleanErr(apperrors.NewError(apperrors.BadRequest, "transfer order data is required"))
+	}
+	if obj.GetId() == "" {
+		if validationErr := validateTransferOrderInput(obj); validationErr != nil {
+			return nil, apperrors.CleanErr(validationErr)
+		}
+	}
 
 	// Resolve the order to execute. If the caller provides an ID, use it.
 	// If the caller provides a non-empty Reference, that reference is treated
@@ -101,14 +116,15 @@ func (s *OperationsServer) TransferOrderSearch(
 ) error {
 	var searchOpts []data.SearchOption
 
-	cursor := req.Msg.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
+	offset := 0
+	limit := defaultSearchLimit
+	if cursor := req.Msg.GetCursor(); cursor != nil {
+		if parsed, offsetErr := strconv.Atoi(cursor.GetPage()); offsetErr == nil && parsed > 0 {
+			offset = parsed
 		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		limit = clampSearchLimit(int(cursor.GetLimit()))
 	}
+	searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(limit))
 
 	andQueryVal := map[string]any{}
 	if req.Msg.GetOrderType() != 0 {
@@ -144,9 +160,43 @@ func (s *OperationsServer) TransferOrderSearch(
 	})
 }
 
+// clampSearchLimit keeps a caller-supplied page size within a sane band. Zero
+// (the value a cursor carries when only a page was set) falls back to the
+// default rather than to "no limit".
+func clampSearchLimit(limit int) int {
+	switch {
+	case limit <= 0:
+		return defaultSearchLimit
+	case limit > maxSearchLimit:
+		return maxSearchLimit
+	default:
+		return limit
+	}
+}
+
+// validateTransferOrderInput rejects a new order that cannot post a balanced
+// ledger transaction before any row is written.
+func validateTransferOrderInput(obj *operationsv1.TransferOrderObject) error {
+	switch {
+	case obj.GetDebitAccountRef() == "":
+		return apperrors.NewError(apperrors.BadRequest, "debit account ref is required")
+	case obj.GetCreditAccountRef() == "":
+		return apperrors.NewError(apperrors.BadRequest, "credit account ref is required")
+	case obj.GetDebitAccountRef() == obj.GetCreditAccountRef():
+		return apperrors.NewError(apperrors.BadRequest, "debit and credit account refs must differ")
+	case obj.GetAmount().GetCurrencyCode() == "":
+		return apperrors.NewError(apperrors.BadRequest, "amount currency code is required")
+	case moneyx.ToSmallestUnit(obj.GetAmount(), moneyx.Decimals(obj.GetAmount().GetCurrencyCode())) <= 0:
+		return apperrors.NewError(apperrors.BadRequest, "amount must be positive")
+	case obj.GetOrderType() == 0:
+		return apperrors.NewError(apperrors.BadRequest, "order type is required")
+	}
+	return nil
+}
+
 // transferOrderFromAPI converts a proto TransferOrderObject to a TransferOrder model.
 func transferOrderFromAPI(ctx context.Context, obj *operationsv1.TransferOrderObject) *models.TransferOrder {
-	amount := moneyx.ToSmallestUnit(obj.GetAmount(), moneyDecimalPlaces)
+	amount := moneyx.ToSmallestUnit(obj.GetAmount(), moneyx.Decimals(obj.GetAmount().GetCurrencyCode()))
 	currency := obj.GetAmount().GetCurrencyCode()
 	m := &models.TransferOrder{
 		DebitAccountRef:  obj.GetDebitAccountRef(),
@@ -174,7 +224,7 @@ func transferOrderToAPI(m *models.TransferOrder) *operationsv1.TransferOrderObje
 		Id:               m.GetID(),
 		DebitAccountRef:  m.DebitAccountRef,
 		CreditAccountRef: m.CreditAccountRef,
-		Amount:           moneyx.FromSmallestUnit(m.Currency, m.Amount, moneyDecimalPlaces),
+		Amount:           moneyx.FromMinorUnitsByCurrency(m.Currency, m.Amount),
 		OrderType:        m.OrderType,
 		Reference:        m.Reference,
 		Description:      m.Description,
@@ -189,8 +239,8 @@ func (s *OperationsServer) IncomingPaymentNotify(
 	ctx context.Context,
 	req *connect.Request[operationsv1.IncomingPaymentNotifyRequest],
 ) (*connect.Response[operationsv1.IncomingPaymentNotifyResponse], error) {
-	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyDecimalPlaces)
 	currency := req.Msg.GetAmount().GetCurrencyCode()
+	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyx.Decimals(currency))
 
 	paymentData := map[string]interface{}{
 		"transaction_id":  req.Msg.GetTransactionId(),

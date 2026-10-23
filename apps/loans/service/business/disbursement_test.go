@@ -40,6 +40,7 @@ import (
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
@@ -124,6 +125,31 @@ func (r *stubDisbursementRepo) GetByIdempotencyKey(_ context.Context, _ string) 
 	return r.findResp, r.findErr
 }
 
+func (r *stubDisbursementRepo) ClaimIdempotencyKey(
+	ctx context.Context,
+	disb *loansmodels.Disbursement,
+) (*loansmodels.Disbursement, bool, error) {
+	if r.findResp != nil && r.findErr == nil {
+		return r.findResp, false, nil
+	}
+	if err := r.Create(ctx, disb); err != nil {
+		return nil, false, err
+	}
+	return disb, true, nil
+}
+
+func (r *stubDisbursementRepo) UpdateColumns(_ context.Context, _ string, _ map[string]any) (int64, error) {
+	return 1, nil
+}
+
+func (r *stubDisbursementRepo) ListByLoanAccountID(
+	_ context.Context,
+	_ string,
+	_ int,
+) ([]*loansmodels.Disbursement, error) {
+	return r.stored, nil
+}
+
 // Compile-time checks.
 var _ repository.DisbursementRepository = (*stubDisbursementRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.Disbursement] = (*stubDisbursementRepo)(nil)
@@ -179,6 +205,30 @@ func (r *stubLoanAccountRepo) Search(
 	_ *data.SearchQuery,
 ) (workerpool.JobResultPipe[[]*loansmodels.LoanAccount], error) {
 	return nil, errors.New("stub: search not implemented")
+}
+
+func (r *stubLoanAccountRepo) GetByLoanRequestID(
+	_ context.Context,
+	_ string,
+) (*loansmodels.LoanAccount, error) {
+	return nil, errors.New("stub: not found")
+}
+
+func (r *stubLoanAccountRepo) UpdateColumns(_ context.Context, _ string, _ map[string]any) (int64, error) {
+	return 1, nil
+}
+
+func (r *stubLoanAccountRepo) ClaimStatus(_ context.Context, _ string, _, _ int32) (bool, error) {
+	return true, nil
+}
+
+func (r *stubLoanAccountRepo) PageByStatus(
+	_ context.Context,
+	_ int32,
+	_ string,
+	_ int,
+) ([]*loansmodels.LoanAccount, error) {
+	return nil, nil
 }
 
 // Compile-time checks.
@@ -397,9 +447,7 @@ func TestCreate_EmptyIdempotencyKey_Rejected(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	var connectErr *connect.Error
-	require.ErrorAs(t, err, &connectErr)
-	assert.Equal(t, connect.CodeInvalidArgument, connectErr.Code())
+	assert.Equal(t, connect.CodeInvalidArgument, apperrors.CleanErr(err).Code())
 	assert.Equal(t, 0, limitsCli.reserveCalls, "gate must not be reached when key is empty")
 }
 

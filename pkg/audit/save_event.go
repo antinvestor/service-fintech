@@ -82,6 +82,9 @@ func (e *EventSave) Validate(_ context.Context, payload any) error {
 	if ev.EntityType == "" || ev.Action == "" {
 		return errors.New("audit event requires entity_type and action")
 	}
+	if ev.PartitionID == "" {
+		return ErrAuditNoPartition
+	}
 	return nil
 }
 

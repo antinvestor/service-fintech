@@ -17,7 +17,6 @@ package business
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
@@ -124,8 +123,7 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 			return b.submitPhoneChangeCase(ctx, logger, existing, client, desiredPhone)
 		}
 
-		client.TenantID = existing.TenantID
-		client.PartitionID = existing.PartitionID
+		applyStoredTenancy(client, existing)
 		if client.AgentID == "" {
 			client.AgentID = existing.AgentID
 		}
@@ -169,7 +167,6 @@ func (b *clientBusiness) submitPhoneChangeCase(
 			"Client %s phone number change requires verification and approval",
 			existing.Name,
 		),
-		RequestedBy:         caseActorID(incoming.Properties),
 		Comment:             caseComment(incoming.Properties),
 		RequireVerification: true,
 		Payload: map[string]any{
@@ -226,20 +223,19 @@ func (b *clientBusiness) handleApprovalAction(
 		return nil, ErrApprovalCaseNotFound
 	}
 
-	actorID := caseActorID(client.Properties)
 	comment := caseComment(client.Properties)
 
 	switch action {
 	case approvalCaseActionVerify:
-		approvalCase, err = b.approvalCases.Verify(ctx, approvalCase.GetID(), actorID, comment)
+		approvalCase, err = b.approvalCases.Verify(ctx, approvalCase.GetID(), comment)
 	case approvalCaseActionApprove:
-		approvalCase, err = b.approvalCases.Approve(ctx, approvalCase.GetID(), actorID, comment)
+		approvalCase, err = b.approvalCases.Approve(ctx, approvalCase.GetID(), comment)
 		if err == nil {
 			setClientPhoneNumber(props, stringValue(approvalCase.Payload[approvalCaseRequestedValueKey]))
 			delete(props, clientPendingPhoneNumberKey)
 		}
 	case approvalCaseActionReject:
-		approvalCase, err = b.approvalCases.Reject(ctx, approvalCase.GetID(), actorID, comment)
+		approvalCase, err = b.approvalCases.Reject(ctx, approvalCase.GetID(), comment)
 		if err == nil {
 			delete(props, clientPendingPhoneNumberKey)
 		}
@@ -278,14 +274,11 @@ func (b *clientBusiness) Search(
 
 	var searchOpts []data.SearchOption
 
-	cursor := req.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+	cursorOpts, cursorErr := cursorSearchOptions(req.GetCursor())
+	if cursorErr != nil {
+		return cursorErr
 	}
+	searchOpts = append(searchOpts, cursorOpts...)
 
 	andQueryVal := map[string]any{}
 	if req.GetAgentId() != "" {

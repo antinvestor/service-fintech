@@ -5,8 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
 
 import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
+import 'package:antinvestor_ui_core/logging/app_logger.dart';
 import '../core/api/file_upload_helper.dart';
+import '../core/auth/permission_checker.dart';
+import '../core/auth/permission_provider.dart';
+import '../core/auth/tenancy_bootstrap.dart';
 import '../core/config/app_config.dart';
+import '../core/navigation/nav_items.dart';
 import '../core/responsive/seed_shell.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/data/auth_state_provider.dart';
@@ -14,12 +19,16 @@ import '../features/auth/ui/login_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/limits/limits_feature.dart';
 
-/// Notifier that triggers router refresh when auth state changes.
+/// Notifier that triggers a router refresh when the session or the caller's
+/// capabilities change. Permissions gate routes, so a late-arriving
+/// capability answer has to re-run the redirect.
 class AuthChangeNotifier extends ChangeNotifier {
   AuthChangeNotifier(Ref ref) {
-    ref.listen(authStateProvider, (previous, next) {
-      notifyListeners();
-    });
+    ref.listen(authStateProvider, (previous, next) => notifyListeners());
+    ref.listen(
+      permissionResolutionProvider,
+      (previous, next) => notifyListeners(),
+    );
   }
 }
 
@@ -27,14 +36,51 @@ final authChangeProvider = Provider<AuthChangeNotifier>((ref) {
   return AuthChangeNotifier(ref);
 });
 
+/// Decides where a navigation should land.
+///
+/// Extracted from the GoRouter callback so the rules — unauthenticated users
+/// go to /login, authenticated users never sit on /login, and a
+/// permission-gated location is unreachable without the grant — are testable
+/// without a browser or an IdP.
+///
+/// Returns null to allow the navigation, or the location to redirect to.
+Future<String?> resolveRedirect({
+  required String location,
+  required Future<bool> Function() isLoggedIn,
+  required Future<PermissionResolution> Function() permissions,
+  Future<void> Function()? onAuthenticated,
+}) async {
+  const loginRoute = '/login';
+  const home = '/';
+  final isAuthCallback = location == '/auth/callback';
+
+  final loggedIn = await isLoggedIn();
+
+  if (isAuthCallback) return loggedIn ? home : null;
+  if (!loggedIn) return location == loginRoute ? null : loginRoute;
+  if (location == loginRoute) return home;
+
+  if (onAuthenticated != null) await onAuthenticated();
+
+  // Permission-gated routes are guarded here as well as hidden from the
+  // sidebar: hiding a link does not stop anyone typing the URL. The
+  // requirement comes from the same nav tree the sidebar filters, so the two
+  // can never drift apart.
+  final required = requiredPermissionsForRoute(location);
+  if (required.isEmpty) return null;
+
+  final resolution = await permissions();
+  return resolution.hasAny(required) ? null : home;
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final authRepository = ref.watch(authRepositoryProvider);
   final authChangeNotifier = ref.watch(authChangeProvider);
-  bool tenancyInitialized = false;
+  final tenancyBootstrap = ref.watch(tenancyBootstrapProvider);
 
   Future<void> ensureTenancyInitialized() async {
-    if (tenancyInitialized) return;
-    tenancyInitialized = true;
+    if (tenancyBootstrap.isInitialized) return;
+    tenancyBootstrap.markInitialized();
     try {
       final partitionId = await authRepository.getCurrentPartitionId();
       final tenancy = ref.read(tenancyContextProvider);
@@ -62,30 +108,13 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: authChangeNotifier,
-    redirect: (context, state) {
-      final location = state.matchedLocation;
-      final isLoginRoute = location == '/login';
-      final isAuthCallback = location == '/auth/callback';
-
-      final cachedAuth = authRepository.isLoggedInSync;
-      if (cachedAuth == null) {
-        return authRepository.isLoggedIn().then((isLoggedIn) {
-          if (isLoggedIn) ensureTenancyInitialized();
-          if (isAuthCallback) return isLoggedIn ? '/' : null;
-          if (!isLoggedIn && !isLoginRoute) return '/login';
-          if (isLoggedIn && isLoginRoute) return '/';
-          return null;
-        });
-      }
-
-      final isLoggedIn = cachedAuth;
-      if (isLoggedIn) ensureTenancyInitialized();
-      if (isAuthCallback) return isLoggedIn ? '/' : null;
-      if (!isLoggedIn && !isLoginRoute) return '/login';
-      if (isLoggedIn && isLoginRoute) return '/';
-
-      return null;
-    },
+    redirect: (context, state) => resolveRedirect(
+      location: state.matchedLocation,
+      isLoggedIn: () async =>
+          authRepository.isLoggedInSync ?? await authRepository.isLoggedIn(),
+      onAuthenticated: ensureTenancyInitialized,
+      permissions: () => resolvePermissions(ref),
+    ),
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
@@ -144,7 +173,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: ':orgUnitId',
                 builder: (context, state) => OrgUnitDetailScreen(
                   orgUnitId: state.pathParameters['orgUnitId']!,
-                  organizationId: '',
                 ),
               ),
             ],
@@ -254,7 +282,7 @@ class _AuthCallbackScreenState extends ConsumerState<_AuthCallbackScreen> {
         tenancy.initializeFromLogin(LoginLevel.root, partitionId: partitionId);
       }
     } catch (e) {
-      debugPrint('Failed to initialize tenancy: $e');
+      AppLogger.warning('Failed to initialize tenancy: $e');
     }
   }
 

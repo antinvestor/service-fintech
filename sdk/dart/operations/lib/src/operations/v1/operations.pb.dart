@@ -18,6 +18,9 @@ import '../../common/v1/common.pb.dart' as $8;
 import '../../common/v1/common.pbenum.dart' as $8;
 import '../../common/v1/money.pb.dart' as $7;
 import '../../google/protobuf/struct.pb.dart' as $6;
+import 'operations.pbenum.dart';
+
+export 'operations.pbenum.dart';
 
 class TransferOrderObject extends $pb.GeneratedMessage {
   factory TransferOrderObject({
@@ -25,11 +28,13 @@ class TransferOrderObject extends $pb.GeneratedMessage {
     $core.String? debitAccountRef,
     $core.String? creditAccountRef,
     $7.Money? amount,
+  @$core.Deprecated('This field is deprecated.')
     $core.int? orderType,
     $core.String? reference,
     $core.String? description,
     $6.Struct? extraData,
     $8.STATE? state,
+    TransferOrderType? transferType,
   }) {
     final $result = create();
     if (id != null) {
@@ -45,6 +50,7 @@ class TransferOrderObject extends $pb.GeneratedMessage {
       $result.amount = amount;
     }
     if (orderType != null) {
+      // ignore: deprecated_member_use_from_same_package
       $result.orderType = orderType;
     }
     if (reference != null) {
@@ -58,6 +64,9 @@ class TransferOrderObject extends $pb.GeneratedMessage {
     }
     if (state != null) {
       $result.state = state;
+    }
+    if (transferType != null) {
+      $result.transferType = transferType;
     }
     return $result;
   }
@@ -75,6 +84,7 @@ class TransferOrderObject extends $pb.GeneratedMessage {
     ..aOS(8, _omitFieldNames ? '' : 'description')
     ..aOM<$6.Struct>(9, _omitFieldNames ? '' : 'extraData', subBuilder: $6.Struct.create)
     ..e<$8.STATE>(10, _omitFieldNames ? '' : 'state', $pb.PbFieldType.OE, defaultOrMaker: $8.STATE.CREATED, valueOf: $8.STATE.valueOf, enumValues: $8.STATE.values)
+    ..e<TransferOrderType>(11, _omitFieldNames ? '' : 'transferType', $pb.PbFieldType.OE, defaultOrMaker: TransferOrderType.TRANSFER_ORDER_TYPE_UNSPECIFIED, valueOf: TransferOrderType.valueOf, enumValues: TransferOrderType.values)
     ..hasRequiredFields = false
   ;
 
@@ -137,12 +147,18 @@ class TransferOrderObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   $7.Money ensureAmount() => $_ensure(3);
 
+  /// Deprecated: use transfer_type. Kept for existing clients; both fields
+  /// carry the same value.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(6)
   $core.int get orderType => $_getIZ(4);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(6)
   set orderType($core.int v) { $_setSignedInt32(4, v); }
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(6)
   $core.bool hasOrderType() => $_has(4);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(6)
   void clearOrderType() => clearField(6);
 
@@ -183,6 +199,15 @@ class TransferOrderObject extends $pb.GeneratedMessage {
   $core.bool hasState() => $_has(8);
   @$pb.TagNumber(10)
   void clearState() => clearField(10);
+
+  @$pb.TagNumber(11)
+  TransferOrderType get transferType => $_getN(9);
+  @$pb.TagNumber(11)
+  set transferType(TransferOrderType v) { setField(11, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasTransferType() => $_has(9);
+  @$pb.TagNumber(11)
+  void clearTransferType() => clearField(11);
 }
 
 class TransferOrderExecuteRequest extends $pb.GeneratedMessage {
@@ -292,18 +317,24 @@ class TransferOrderExecuteResponse extends $pb.GeneratedMessage {
 class TransferOrderSearchRequest extends $pb.GeneratedMessage {
   factory TransferOrderSearchRequest({
     $core.String? query,
+  @$core.Deprecated('This field is deprecated.')
     $core.int? orderType,
     $8.PageCursor? cursor,
+    TransferOrderType? transferType,
   }) {
     final $result = create();
     if (query != null) {
       $result.query = query;
     }
     if (orderType != null) {
+      // ignore: deprecated_member_use_from_same_package
       $result.orderType = orderType;
     }
     if (cursor != null) {
       $result.cursor = cursor;
+    }
+    if (transferType != null) {
+      $result.transferType = transferType;
     }
     return $result;
   }
@@ -315,6 +346,7 @@ class TransferOrderSearchRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'query')
     ..a<$core.int>(2, _omitFieldNames ? '' : 'orderType', $pb.PbFieldType.O3)
     ..aOM<$8.PageCursor>(3, _omitFieldNames ? '' : 'cursor', subBuilder: $8.PageCursor.create)
+    ..e<TransferOrderType>(4, _omitFieldNames ? '' : 'transferType', $pb.PbFieldType.OE, defaultOrMaker: TransferOrderType.TRANSFER_ORDER_TYPE_UNSPECIFIED, valueOf: TransferOrderType.valueOf, enumValues: TransferOrderType.values)
     ..hasRequiredFields = false
   ;
 
@@ -348,12 +380,17 @@ class TransferOrderSearchRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearQuery() => clearField(1);
 
+  /// Deprecated: use transfer_type. When both are set transfer_type wins.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.int get orderType => $_getIZ(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   set orderType($core.int v) { $_setSignedInt32(1, v); }
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.bool hasOrderType() => $_has(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   void clearOrderType() => clearField(2);
 
@@ -367,15 +404,28 @@ class TransferOrderSearchRequest extends $pb.GeneratedMessage {
   void clearCursor() => clearField(3);
   @$pb.TagNumber(3)
   $8.PageCursor ensureCursor() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  TransferOrderType get transferType => $_getN(3);
+  @$pb.TagNumber(4)
+  set transferType(TransferOrderType v) { setField(4, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasTransferType() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearTransferType() => clearField(4);
 }
 
 class TransferOrderSearchResponse extends $pb.GeneratedMessage {
   factory TransferOrderSearchResponse({
     $core.Iterable<TransferOrderObject>? data,
+    $core.String? nextCursor,
   }) {
     final $result = create();
     if (data != null) {
       $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
     }
     return $result;
   }
@@ -385,6 +435,7 @@ class TransferOrderSearchResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TransferOrderSearchResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
     ..pc<TransferOrderObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: TransferOrderObject.create)
+    ..aOS(2, _omitFieldNames ? '' : 'nextCursor')
     ..hasRequiredFields = false
   ;
 
@@ -411,6 +462,17 @@ class TransferOrderSearchResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<TransferOrderObject> get data => $_getList(0);
+
+  /// next_cursor is the opaque cursor for the page after this one; empty on
+  /// the last page.
+  @$pb.TagNumber(2)
+  $core.String get nextCursor => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set nextCursor($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
 }
 
 /// IncomingPaymentNotifyRequest notifies the system of a new payment received.

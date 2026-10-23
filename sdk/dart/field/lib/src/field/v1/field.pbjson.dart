@@ -191,7 +191,7 @@ const AgentSearchRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'branch_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
     {'1': 'parent_agent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentAgentId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
     {'1': 'organization_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
   ],
 };
@@ -200,9 +200,10 @@ const AgentSearchRequest$json = {
 final $typed_data.Uint8List agentSearchRequestDescriptor = $convert.base64Decode(
     'ChJBZ2VudFNlYXJjaFJlcXVlc3QSFAoFcXVlcnkYASABKAlSBXF1ZXJ5EikKCWJyYW5jaF9pZB'
     'gCIAEoCUIMukgJ2AEBcgQQAxgoUghicmFuY2hJZBI0Cg9wYXJlbnRfYWdlbnRfaWQYAyABKAlC'
-    'DLpICdgBAXIEEAMYKFINcGFyZW50QWdlbnRJZBItCgZjdXJzb3IYBCABKAsyFS5jb21tb24udj'
-    'EuUGFnZUN1cnNvclIGY3Vyc29yEjUKD29yZ2FuaXphdGlvbl9pZBgFIAEoCUIMukgJ2AEBcgQQ'
-    'AxgoUg5vcmdhbml6YXRpb25JZA==');
+    'DLpICdgBAXIEEAMYKFINcGFyZW50QWdlbnRJZBJ8CgZjdXJzb3IYBCABKAsyFS5jb21tb24udj'
+    'EuUGFnZUN1cnNvckJNukhKugFHChBjdXJzb3IubGltaXRfbWF4EiBjdXJzb3IubGltaXQgbXVz'
+    'dCBiZSBhdCBtb3N0IDIwMBoRdGhpcy5saW1pdCA8PSAyMDBSBmN1cnNvchI1Cg9vcmdhbml6YX'
+    'Rpb25faWQYBSABKAlCDLpICdgBAXIEEAMYKFIOb3JnYW5pemF0aW9uSWQ=');
 
 @$core.Deprecated('Use agentSearchResponseDescriptor instead')
 const AgentSearchResponse$json = {
@@ -298,15 +299,17 @@ const AgentBranchListRequest$json = {
   '2': [
     {'1': 'agent_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'branch_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
   ],
 };
 
 /// Descriptor for `AgentBranchListRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List agentBranchListRequestDescriptor = $convert.base64Decode(
     'ChZBZ2VudEJyYW5jaExpc3RSZXF1ZXN0EicKCGFnZW50X2lkGAEgASgJQgy6SAnYAQFyBBADGC'
-    'hSB2FnZW50SWQSKQoJYnJhbmNoX2lkGAIgASgJQgy6SAnYAQFyBBADGChSCGJyYW5jaElkEi0K'
-    'BmN1cnNvchgDIAEoCzIVLmNvbW1vbi52MS5QYWdlQ3Vyc29yUgZjdXJzb3I=');
+    'hSB2FnZW50SWQSKQoJYnJhbmNoX2lkGAIgASgJQgy6SAnYAQFyBBADGChSCGJyYW5jaElkEnwK'
+    'BmN1cnNvchgDIAEoCzIVLmNvbW1vbi52MS5QYWdlQ3Vyc29yQk26SEq6AUcKEGN1cnNvci5saW'
+    '1pdF9tYXgSIGN1cnNvci5saW1pdCBtdXN0IGJlIGF0IG1vc3QgMjAwGhF0aGlzLmxpbWl0IDw9'
+    'IDIwMFIGY3Vyc29y');
 
 @$core.Deprecated('Use agentBranchListResponseDescriptor instead')
 const AgentBranchListResponse$json = {
@@ -379,18 +382,22 @@ const ClientSearchRequest$json = {
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'agent_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
     {'1': 'owning_team_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'owningTeamId'},
     {'1': 'member_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
+    {'1': 'profile_id', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
   ],
 };
 
 /// Descriptor for `ClientSearchRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List clientSearchRequestDescriptor = $convert.base64Decode(
     'ChNDbGllbnRTZWFyY2hSZXF1ZXN0EhQKBXF1ZXJ5GAEgASgJUgVxdWVyeRInCghhZ2VudF9pZB'
-    'gCIAEoCUIMukgJ2AEBcgQQAxgoUgdhZ2VudElkEi0KBmN1cnNvchgDIAEoCzIVLmNvbW1vbi52'
-    'MS5QYWdlQ3Vyc29yUgZjdXJzb3ISMAoOb3duaW5nX3RlYW1faWQYBCABKAlCCrpIB9gBAXICGC'
-    'hSDG93bmluZ1RlYW1JZBInCgltZW1iZXJfaWQYBSABKAlCCrpIB9gBAXICGChSCG1lbWJlcklk');
+    'gCIAEoCUIMukgJ2AEBcgQQAxgoUgdhZ2VudElkEnwKBmN1cnNvchgDIAEoCzIVLmNvbW1vbi52'
+    'MS5QYWdlQ3Vyc29yQk26SEq6AUcKEGN1cnNvci5saW1pdF9tYXgSIGN1cnNvci5saW1pdCBtdX'
+    'N0IGJlIGF0IG1vc3QgMjAwGhF0aGlzLmxpbWl0IDw9IDIwMFIGY3Vyc29yEjAKDm93bmluZ190'
+    'ZWFtX2lkGAQgASgJQgq6SAfYAQFyAhgoUgxvd25pbmdUZWFtSWQSJwoJbWVtYmVyX2lkGAUgAS'
+    'gJQgq6SAfYAQFyAhgoUghtZW1iZXJJZBIpCgpwcm9maWxlX2lkGAYgASgJQgq6SAfYAQFyAhgo'
+    'Uglwcm9maWxlSWQ=');
 
 @$core.Deprecated('Use clientSearchResponseDescriptor instead')
 const ClientSearchResponse$json = {
@@ -523,7 +530,7 @@ const ClientRelationshipSearchRequest$json = {
   '2': [
     {'1': 'client_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'member_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
   ],
 };
 
@@ -531,7 +538,9 @@ const ClientRelationshipSearchRequest$json = {
 final $typed_data.Uint8List clientRelationshipSearchRequestDescriptor = $convert.base64Decode(
     'Ch9DbGllbnRSZWxhdGlvbnNoaXBTZWFyY2hSZXF1ZXN0EicKCWNsaWVudF9pZBgBIAEoCUIKuk'
     'gH2AEBcgIYKFIIY2xpZW50SWQSJwoJbWVtYmVyX2lkGAIgASgJQgq6SAfYAQFyAhgoUghtZW1i'
-    'ZXJJZBItCgZjdXJzb3IYAyABKAsyFS5jb21tb24udjEuUGFnZUN1cnNvclIGY3Vyc29y');
+    'ZXJJZBJ8CgZjdXJzb3IYAyABKAsyFS5jb21tb24udjEuUGFnZUN1cnNvckJNukhKugFHChBjdX'
+    'Jzb3IubGltaXRfbWF4EiBjdXJzb3IubGltaXQgbXVzdCBiZSBhdCBtb3N0IDIwMBoRdGhpcy5s'
+    'aW1pdCA8PSAyMDBSBmN1cnNvcg==');
 
 @$core.Deprecated('Use clientRelationshipSearchResponseDescriptor instead')
 const ClientRelationshipSearchResponse$json = {

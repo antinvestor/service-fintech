@@ -65,6 +65,27 @@ func preMigrate(_ context.Context, _ pool.Pool) error {
 	return nil
 }
 
+// MigrateForTest applies the schema plus postMigrate against an already-open
+// pool. Tests need the partial unique indexes, which are the whole point of
+// the idempotency guarantees they exercise.
+func MigrateForTest(ctx context.Context, dbPool pool.Pool) error {
+	if err := dbPool.DB(ctx, false).AutoMigrate(
+		&models.TransferOrder{},
+		&models.Obligation{},
+		&models.IncomingPayment{},
+		&models.AccountRef{},
+		&models.LedgerRef{},
+		&models.CBSSyncRecord{},
+		&models.PayBack{},
+		&models.TransactionCost{},
+		&models.ServiceFee{},
+		&audit.Event{},
+	); err != nil {
+		return err
+	}
+	return postMigrate(ctx, dbPool)
+}
+
 // postMigrate applies schema changes that AutoMigrate cannot express, most
 // notably partial unique indexes used as idempotency guards.
 func postMigrate(ctx context.Context, dbPool pool.Pool) error {
@@ -83,6 +104,20 @@ func postMigrate(ctx context.Context, dbPool pool.Pool) error {
 		"transfer_orders",
 		"reference",
 		"reference <> ''",
+	); err != nil {
+		return err
+	}
+
+	// Partial unique index on incoming_payments.transaction_id. The payment
+	// provider's transaction id is the dedupe key for inbound notifications;
+	// without the index a retried notification creates a second payment row.
+	// Legacy rows with an empty transaction id are excluded.
+	if err := createPartialUniqueIndex(
+		db,
+		"uq_incoming_payments_transaction_id",
+		"incoming_payments",
+		"transaction_id",
+		"transaction_id <> ''",
 	); err != nil {
 		return err
 	}

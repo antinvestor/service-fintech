@@ -67,20 +67,6 @@ type LoanFunding struct {
 
 func (m *LoanFunding) TableName() string { return "loan_fundings" }
 
-// FundingAllocation represents a specific allocation from a savings account to a loan funding.
-type FundingAllocation struct {
-	data.BaseModel
-	LoanFundingID    string `gorm:"type:varchar(50);index:idx_fa_funding;not null"`
-	SavingsAccountID string `gorm:"type:varchar(50);index:idx_fa_savings"`
-	Amount           int64  // minor units - allocated amount
-	ReservedAmount   int64  // minor units - reserved (may differ from allocated)
-	Currency         string `gorm:"type:varchar(3)"`
-	State            int32
-	Properties       data.JSONMap
-}
-
-func (m *FundingAllocation) TableName() string { return "funding_allocations" }
-
 // InvestorAccount represents a pre-funded investor capital account.
 type InvestorAccount struct {
 	data.BaseModel
@@ -91,6 +77,7 @@ type InvestorAccount struct {
 	ReservedBalance   int64        // committed to active loans, not yet repaid
 	TotalDeployed     int64        // lifetime deployed
 	TotalReturned     int64        // lifetime returned (principal + interest)
+	TotalLost         int64        // lifetime capital written off through loss absorption
 	MaxExposure       int64        // max total outstanding at any time (0 = unlimited)
 	MinInterestRate   int64        // basis points, won't fund loans below this rate
 	LastDeployedAt    *time.Time   // when capital was last deployed to a loan
@@ -119,3 +106,71 @@ type FundingTranche struct {
 }
 
 func (m *FundingTranche) TableName() string { return "funding_tranches" }
+
+// InvestorCapitalMovement is the durable record of one investor deposit or
+// withdrawal. It is written before the money moves and is unique on
+// (investor_account_id, idempotency_key), so it is what makes those two
+// operations idempotent: a retry loses the insert and reads back the
+// original movement instead of posting to the ledger twice. The ledger
+// transfer reference is derived from this row's id, never from a balance
+// version that a concurrent caller could also observe.
+type InvestorCapitalMovement struct {
+	data.BaseModel
+	InvestorAccountID string `gorm:"type:varchar(50);index:idx_icm_account;not null"`
+	Direction         int32  `gorm:"column:direction"` // CapitalMovementDirection
+	Amount            int64  // minor units
+	Currency          string `gorm:"type:varchar(3);not null"`
+	IdempotencyKey    string `gorm:"type:varchar(255);not null"`
+	Status            int32
+	Properties        data.JSONMap
+}
+
+func (m *InvestorCapitalMovement) TableName() string { return "investor_capital_movements" }
+
+// CapitalMovementDirection distinguishes an inflow from an outflow.
+type CapitalMovementDirection int32
+
+const (
+	CapitalMovementDeposit  CapitalMovementDirection = 1
+	CapitalMovementWithdraw CapitalMovementDirection = 2
+)
+
+// CapitalMovementStatus tracks how far a movement got.
+const (
+	CapitalMovementPending   int32 = 1
+	CapitalMovementCompleted int32 = 2
+	// CapitalMovementDebited marks a withdrawal whose funds have left the
+	// investor balance but whose ledger transfer has not been posted yet.
+	// A resumed attempt reads it to know the debit must not be repeated.
+	CapitalMovementDebited int32 = 3
+)
+
+// LoanFundingClaim is the synchronous idempotency lock for allocating a loan
+// request. Its unique loan_request_id means only one FundLoan call can build
+// an allocation for a request; every concurrent or retried call reads back
+// the allocation that the winner persisted rather than reserving investor
+// capital a second time.
+type LoanFundingClaim struct {
+	data.BaseModel
+	LoanRequestID string `gorm:"type:varchar(50);index:idx_lfclaim_request;not null"`
+	Status        int32
+	Properties    data.JSONMap
+}
+
+func (m *LoanFundingClaim) TableName() string { return "loan_funding_claims" }
+
+// LossAbsorption is the durable record of one absorbed loss, unique on its
+// reference, so repeating an AbsorbLoss call reports what the first call
+// actually absorbed instead of eating further tranches.
+type LossAbsorption struct {
+	data.BaseModel
+	LoanRequestID string `gorm:"type:varchar(50);index:idx_loss_request;not null"`
+	Reference     string `gorm:"type:varchar(255);not null"`
+	LossAmount    int64  // minor units requested
+	Absorbed      int64  // minor units actually taken by tranches
+	Unrecoverable int64  // minor units no tranche could cover
+	Currency      string `gorm:"type:varchar(3)"`
+	Properties    data.JSONMap
+}
+
+func (m *LossAbsorption) TableName() string { return "loss_absorptions" }

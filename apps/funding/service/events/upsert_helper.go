@@ -16,47 +16,13 @@ package events
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/util"
-	"gorm.io/gorm"
+
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
-
-// upsertByID is a generic helper that executes the common GetByID-based upsert
-// logic shared by all funding event handlers, eliminating duplicated Execute() methods.
-func upsertByID[T data.BaseModelI](
-	ctx context.Context,
-	repo datastore.BaseRepository[T],
-	entity T,
-	eventName string,
-) error {
-	log := util.Log(ctx)
-
-	existing, err := repo.GetByID(ctx, entity.GetID())
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.WithError(err).Error(fmt.Sprintf("%s -- failed to check existing record", eventName))
-		return err
-	}
-
-	if err == nil && existing.GetID() != "" {
-		_, err = repo.Update(ctx, entity)
-		if err != nil {
-			log.WithError(err).Error(fmt.Sprintf("%s -- failed to update record", eventName))
-			return err
-		}
-		return nil
-	}
-
-	err = repo.Create(ctx, entity)
-	if err != nil {
-		log.WithError(err).Error(fmt.Sprintf("%s -- failed to create record", eventName))
-		return err
-	}
-	return nil
-}
 
 // eventHandler is a generic event handler that implements events.EventI for any
 // model type, eliminating boilerplate duplication across individual event files.
@@ -88,5 +54,5 @@ func (e *eventHandler[T]) Execute(ctx context.Context, payload any) error {
 	if !ok {
 		return fmt.Errorf("invalid payload type for %s", e.name)
 	}
-	return upsertByID(ctx, e.repo, entity, e.name)
+	return upsert.ByID(ctx, e.repo, entity)
 }

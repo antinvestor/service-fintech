@@ -19,10 +19,10 @@ import (
 	"errors"
 
 	"github.com/pitabwire/util"
-	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const ApprovalCaseSaveEvent = "approval_case.save"
@@ -66,23 +66,8 @@ func (e *ApprovalCaseSave) Execute(ctx context.Context, payload any) error {
 	})
 	defer logger.Release()
 
-	existing, err := e.repo.GetByID(ctx, approvalCase.GetID())
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		logger.WithError(err).Error("failed to check existing approval case")
-		return err
-	}
-
-	if existing != nil && existing.GetID() != "" {
-		_, err = e.repo.Update(ctx, approvalCase)
-		if err != nil {
-			logger.WithError(err).Error("failed to update approval case")
-			return err
-		}
-		return nil
-	}
-
-	if err = e.repo.Create(ctx, approvalCase); err != nil {
-		logger.WithError(err).Error("failed to create approval case")
+	if err := upsert.ByID(ctx, e.repo, approvalCase); err != nil {
+		logger.WithError(err).Error("failed to save approval case")
 		return err
 	}
 	return nil

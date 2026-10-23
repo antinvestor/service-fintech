@@ -7,4 +7,4 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: antinvestor/common/.github/workflows/draft-release.yml@main
+    uses: antinvestor/common/.github/workflows/draft-release.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main

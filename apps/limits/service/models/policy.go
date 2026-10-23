@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // Scope is a typed string alias so the GORM column is constrained at the
@@ -84,8 +85,37 @@ const (
 	ActionStawiPayout          Action = "stawi_payout"
 )
 
-// defaultApprovalTTL is applied when a policy does not specify an approval TTL.
-const defaultApprovalTTL = 72 * time.Hour
+// DefaultApprovalTTL is applied when a policy does not specify an approval
+// TTL. It is the one source of truth for both the approval request's
+// expires_at and the pending reservation's ttl_at.
+const DefaultApprovalTTL = 72 * time.Hour
+
+// MinApprovalTTL is the shortest approval window a policy can carry. Anything
+// shorter would create approval requests the reaper expires before a human
+// can act, so a configured value below it is clamped up rather than honoured.
+const MinApprovalTTL = 15 * time.Minute
+
+// EffectiveApprovalTTL returns the approval window the policy actually grants:
+// an unset or non-positive value falls back to DefaultApprovalTTL and anything
+// below MinApprovalTTL is clamped up to it. Every consumer of approval_ttl_sec
+// must read it through this method so the approval row and the reservation it
+// gates always expire together.
+func (p *Policy) EffectiveApprovalTTL() time.Duration {
+	if p == nil || p.ApprovalTTLSec <= 0 {
+		return DefaultApprovalTTL
+	}
+	d := time.Duration(p.ApprovalTTLSec) * time.Second
+	if d < MinApprovalTTL {
+		return MinApprovalTTL
+	}
+	return d
+}
+
+// NormaliseApprovalTTL rewrites ApprovalTTLSec to the clamped value so the
+// stored row already reflects what EffectiveApprovalTTL will grant.
+func (p *Policy) NormaliseApprovalTTL() {
+	p.ApprovalTTLSec = int64(p.EffectiveApprovalTTL() / time.Second)
+}
 
 // Policy is the rule definition. Tenant/Partition/Audit fields come from BaseModel.
 //
@@ -112,6 +142,36 @@ type Policy struct {
 
 // TableName overrides the default snake_cased pluralisation.
 func (Policy) TableName() string { return "limits_policies" }
+
+// applyScopeTenancy clears the tenancy columns for platform-scoped policies.
+// A platform cap applies to every tenant, so it must be stored with an empty
+// tenant so the candidate query's `tenant_id = ”` arm can find it.
+func (p *Policy) applyScopeTenancy() {
+	if p.Scope != ScopePlatform {
+		return
+	}
+	p.TenantID = ""
+	p.PartitionID = ""
+	p.AccessID = ""
+}
+
+// BeforeCreate runs the BaseModel hook then strips tenancy from platform rows.
+func (p *Policy) BeforeCreate(db *gorm.DB) error {
+	if err := p.BaseModel.BeforeCreate(db); err != nil {
+		return err
+	}
+	p.applyScopeTenancy()
+	return nil
+}
+
+// BeforeUpdate runs the BaseModel hook then strips tenancy from platform rows.
+func (p *Policy) BeforeUpdate(db *gorm.DB) error {
+	if err := p.BaseModel.BeforeUpdate(db); err != nil {
+		return err
+	}
+	p.applyScopeTenancy()
+	return nil
+}
 
 // PolicyVersion is an append-only history row written on every save.
 // Snapshot is the JSON-serialised pre-update state of the policy.
@@ -171,6 +231,13 @@ func PolicyFromAPI(in *limitsv1.PolicyObject) (*Policy, error) {
 		EffectiveFrom: timestampOrNow(in.GetEffectiveFrom()),
 	}
 	pol.ID = in.GetId()
+	if pol.ID != "" && in.GetVersion() > 0 {
+		// Carried through for the optimistic-lock check on update. Tenancy is
+		// never taken from the request; it comes from claims via GenID, except
+		// for platform policies which belong to no tenant at all.
+		pol.Version = uint(in.GetVersion()) //nolint:gosec // guarded positive above
+	}
+	pol.applyScopeTenancy()
 
 	if d := in.GetWindow(); d != nil {
 		pol.WindowSeconds = int64(d.AsDuration().Seconds())
@@ -178,7 +245,7 @@ func PolicyFromAPI(in *limitsv1.PolicyObject) (*Policy, error) {
 	if d := in.GetApprovalTtl(); d != nil {
 		pol.ApprovalTTLSec = int64(d.AsDuration().Seconds())
 	} else {
-		pol.ApprovalTTLSec = int64(defaultApprovalTTL / time.Second)
+		pol.ApprovalTTLSec = int64(DefaultApprovalTTL / time.Second)
 	}
 	if t := in.GetEffectiveTo(); t != nil {
 		tt := t.AsTime()

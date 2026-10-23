@@ -16,7 +16,9 @@ package business
 
 import (
 	"context"
-	"strconv"
+	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
@@ -78,6 +80,9 @@ func (b *formSubmissionBusiness) Save(
 	logger := util.Log(ctx).WithField("method", "FormSubmissionBusiness.Save")
 
 	fs := models.FormSubmissionFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.formSubmissionRepo, fs); err != nil {
+		return nil, err
+	}
 
 	// Validate submission against template if template ID is provided.
 	// This also validates file fields and populates FileRefs.
@@ -99,7 +104,7 @@ func (b *formSubmissionBusiness) Save(
 // validateAgainstTemplate checks that the form submission includes all required
 // fields defined in the form template, that the template is published, and that
 // file-type fields contain content URIs (not inline data).
-func (b *formSubmissionBusiness) validateAgainstTemplate( //nolint:gocognit // sequential validation logic
+func (b *formSubmissionBusiness) validateAgainstTemplate(
 	ctx context.Context,
 	logger *util.LogEntry,
 	fs *models.FormSubmission,
@@ -115,7 +120,7 @@ func (b *formSubmissionBusiness) validateAgainstTemplate( //nolint:gocognit // s
 	}
 
 	// Store template version at submission time.
-	fs.TemplateVersion = template.Version
+	fs.TemplateVersion = template.TemplateVersion
 
 	// Check required fields are present in submission data.
 	fields := models.FieldsToAPI(template.Fields)
@@ -123,36 +128,11 @@ func (b *formSubmissionBusiness) validateAgainstTemplate( //nolint:gocognit // s
 		return nil
 	}
 
-	var missingFields []string
-	var inlineFileFields []string
-	fileRefs := make(map[string]string)
-
-	for _, field := range fields {
-		key := field.GetKey()
-		if key == "" {
-			continue
-		}
-
-		val, exists := fs.Data[key]
-		if !exists {
-			if field.GetRequired() {
-				missingFields = append(missingFields, key)
-			}
-			continue
-		}
-
-		// For file-type fields, validate the value is a content URI and reject inline data.
-		if fileFieldTypes()[field.GetFieldType()] {
-			uri, isInline := validateFileFieldValue(val)
-			if isInline {
-				inlineFileFields = append(inlineFileFields, key)
-				continue
-			}
-			if uri != "" {
-				fileRefs[key] = uri
-			}
-		}
-	}
+	outcome := classifyTemplateFields(fields, fs.Data)
+	missingFields := outcome.missing
+	inlineFileFields := outcome.inline
+	invalidFileFields := outcome.invalid
+	fileRefs := outcome.fileRefs
 
 	if len(missingFields) > 0 {
 		logger.WithField("missing_fields", missingFields).
@@ -166,6 +146,13 @@ func (b *formSubmissionBusiness) validateAgainstTemplate( //nolint:gocognit // s
 			WithField("template_id", fs.TemplateID).
 			Warn("form submission contains inline file data instead of content URIs")
 		return ErrFormSubmissionInlineFileData
+	}
+
+	if len(invalidFileFields) > 0 {
+		logger.WithField("invalid_file_fields", invalidFileFields).
+			WithField("template_id", fs.TemplateID).
+			Warn("form submission contains file values that are not https content URIs")
+		return ErrFormSubmissionInvalidFileURI
 	}
 
 	// Populate FileRefs from validated file field values so callers can look up
@@ -182,50 +169,158 @@ func (b *formSubmissionBusiness) validateAgainstTemplate( //nolint:gocognit // s
 	return nil
 }
 
-// validateFileFieldValue checks whether a file field value is a content URI or
-// inline data. Returns the URI string (if valid) and whether the value contains
-// inline data that should be rejected.
-func validateFileFieldValue(val any) (string, bool) {
+// templateFieldOutcome is what one pass over a template's fields found in a
+// submission: which required keys are absent, which file fields carried
+// inline data, which carried a value that is not an allowed URI, and the
+// accepted URIs keyed by field.
+type templateFieldOutcome struct {
+	missing  []string
+	inline   []string
+	invalid  []string
+	fileRefs map[string]string
+}
+
+func classifyTemplateFields(
+	fields []*identityv1.FormFieldDefinition,
+	submitted data.JSONMap,
+) templateFieldOutcome {
+	outcome := templateFieldOutcome{fileRefs: make(map[string]string)}
+	for _, field := range fields {
+		key := field.GetKey()
+		if key == "" {
+			continue
+		}
+
+		val, exists := submitted[key]
+		if !exists {
+			if field.GetRequired() {
+				outcome.missing = append(outcome.missing, key)
+			}
+			continue
+		}
+
+		if !fileFieldTypes()[field.GetFieldType()] {
+			continue
+		}
+		uri, kind := classifyFileFieldValue(val)
+		switch kind {
+		case fileValueURI:
+			outcome.fileRefs[key] = uri
+		case fileValueInline:
+			outcome.inline = append(outcome.inline, key)
+		case fileValueInvalid:
+			outcome.invalid = append(outcome.invalid, key)
+		case fileValueAbsent:
+		}
+	}
+	return outcome
+}
+
+// fileValueKind classifies what a file-type field carried.
+type fileValueKind int
+
+const (
+	// fileValueAbsent is a value that carries no file at all, such as a
+	// structured object without a file marker; nothing is recorded for it.
+	fileValueAbsent fileValueKind = iota
+	// fileValueURI is an https content URI that passed the allowlist.
+	fileValueURI
+	// fileValueInline is a data URI, a base64 payload, or an inline file
+	// object: content that must be uploaded to the files service instead.
+	fileValueInline
+	// fileValueInvalid is anything else: a URI on a forbidden scheme, one with
+	// credentials or no host, or free text where a reference was expected.
+	fileValueInvalid
+)
+
+// classifyFileFieldValue decides whether a file field value is an acceptable
+// content URI, inline data, or neither. Stored URIs are later rendered by
+// clients, so only https references with a host and no userinfo are kept.
+func classifyFileFieldValue(val any) (string, fileValueKind) {
 	switch v := val.(type) {
 	case string:
-		if strings.HasPrefix(v, "data:") || looksLikeBase64(v) {
-			return "", true
-		}
-		// Accept as content URI (e.g. "https://cdn.example.com/v1/media/download/...")
-		return v, false
+		return classifyFileFieldString(v)
 
 	case map[string]any:
-		// Reject explicit file objects with inline data.
-		if typeField, okType := v["_type"].(string); okType && typeField == "file" {
-			return "", true
-		}
-		// Accept file_ref objects with a content URI.
-		if typeField, okRef := v["_type"].(string); okRef && typeField == "file_ref" {
-			if contentURI, okURI := v["content_uri"].(string); okURI {
-				return contentURI, false
+		typeField, _ := v["_type"].(string)
+		switch typeField {
+		case "file":
+			// Explicit file objects carry inline bytes.
+			return "", fileValueInline
+		case "file_ref":
+			contentURI, okURI := v["content_uri"].(string)
+			if !okURI {
+				return "", fileValueInvalid
 			}
+			return classifyFileFieldString(contentURI)
+		default:
+			return "", fileValueAbsent
 		}
-		return "", false
 
 	default:
-		return "", false
+		return "", fileValueAbsent
 	}
 }
 
-// looksLikeBase64 does a quick heuristic check to detect raw base64 payloads
-// that are clearly not URIs. It looks for long strings without URI-like characters.
+func classifyFileFieldString(raw string) (string, fileValueKind) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", fileValueInvalid
+	}
+	if strings.HasPrefix(strings.ToLower(value), "data:") {
+		return "", fileValueInline
+	}
+	if err := validateContentURI(value); err == nil {
+		return value, fileValueURI
+	}
+	if looksLikeBase64(value) {
+		return "", fileValueInline
+	}
+	return "", fileValueInvalid
+}
+
+// errContentURINotAllowed is the internal reason a content URI was refused;
+// callers surface ErrFormSubmissionInvalidFileURI, never this text.
+var errContentURINotAllowed = errors.New("content uri is not an https reference with a host")
+
+// validateContentURI enforces the file reference allowlist: absolute https
+// URIs with a host and without userinfo. javascript:, data:, file:, http: and
+// scheme-less values are all refused.
+func validateContentURI(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("parse content uri: %w", err)
+	}
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return errContentURINotAllowed
+	}
+	if parsed.Hostname() == "" {
+		return errContentURINotAllowed
+	}
+	if parsed.User != nil {
+		return errContentURINotAllowed
+	}
+	return nil
+}
+
+// looksLikeBase64 reports whether s is a long run of base64 alphabet
+// characters, the shape of an inline file payload. It is only consulted for
+// values that already failed the URI allowlist, so free text of any length
+// (which carries spaces or punctuation outside the alphabet) is not mistaken
+// for a payload.
 func looksLikeBase64(s string) bool {
-	// Short strings are likely not base64 file payloads.
 	const minBase64FileLen = 256
 	if len(s) < minBase64FileLen {
 		return false
 	}
-	// If it contains "://" it's likely a URI, not base64.
-	if strings.Contains(s, "://") {
-		return false
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+		case r == '+', r == '/', r == '=', r == '-', r == '_':
+		default:
+			return false
+		}
 	}
-	// If it contains "/" or "+" which are common in base64 but the string has
-	// no scheme, it's probably base64 data.
 	return true
 }
 
@@ -246,14 +341,11 @@ func (b *formSubmissionBusiness) Search(
 
 	var searchOpts []data.SearchOption
 
-	cursor := req.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+	cursorOpts, cursorErr := cursorSearchOptions(req.GetCursor())
+	if cursorErr != nil {
+		return cursorErr
 	}
+	searchOpts = append(searchOpts, cursorOpts...)
 
 	andQueryVal := map[string]any{}
 	if req.GetEntityId() != "" {

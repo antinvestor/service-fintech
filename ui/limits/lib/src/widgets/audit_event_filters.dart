@@ -19,7 +19,15 @@ import '../providers/audit_providers.dart';
 class AuditEventFilters extends StatelessWidget {
   final AuditSearchParams params;
   final ValueChanged<AuditSearchParams> onChanged;
-  const AuditEventFilters({super.key, required this.params, required this.onChanged});
+  const AuditEventFilters({
+    super.key,
+    required this.params,
+    required this.onChanged,
+  });
+
+  /// Any filter change resets the keyset cursor: page 2 of the old filter
+  /// says nothing about page 1 of the new one.
+  void _apply(AuditSearchParams next) => onChanged(next.copyWith(page: ''));
 
   @override
   Widget build(BuildContext context) {
@@ -30,25 +38,22 @@ class AuditEventFilters extends StatelessWidget {
         SizedBox(
           width: 360,
           child: TextField(
+            key: const Key('auditVerbsFilter'),
             decoration: const InputDecoration(
               labelText: 'Verbs (comma-separated; blank = all limits.*)',
               hintText: 'limits.breach.hard, limits.approval.required',
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (v) {
-              final actions = v
-                  .split(',')
-                  .map((s) => s.trim())
-                  .where((s) => s.isNotEmpty)
-                  .toList();
-              onChanged(AuditSearchParams(
-                actions: actions,
-                entityType: params.entityType,
-                entityId: params.entityId,
-                actorId: params.actorId,
-              ));
-            },
+            onSubmitted: (v) => _apply(
+              params.copyWith(
+                actions: v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .where((s) => s.isNotEmpty)
+                    .toList(),
+              ),
+            ),
           ),
         ),
         SizedBox(
@@ -59,12 +64,7 @@ class AuditEventFilters extends StatelessWidget {
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (v) => onChanged(AuditSearchParams(
-              actions: params.actions,
-              entityType: v.trim(),
-              entityId: params.entityId,
-              actorId: params.actorId,
-            )),
+            onSubmitted: (v) => _apply(params.copyWith(entityType: v.trim())),
           ),
         ),
         SizedBox(
@@ -75,12 +75,7 @@ class AuditEventFilters extends StatelessWidget {
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (v) => onChanged(AuditSearchParams(
-              actions: params.actions,
-              entityType: params.entityType,
-              entityId: v.trim(),
-              actorId: params.actorId,
-            )),
+            onSubmitted: (v) => _apply(params.copyWith(entityId: v.trim())),
           ),
         ),
         SizedBox(
@@ -91,15 +86,67 @@ class AuditEventFilters extends StatelessWidget {
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (v) => onChanged(AuditSearchParams(
-              actions: params.actions,
-              entityType: params.entityType,
-              entityId: params.entityId,
-              actorId: v.trim(),
-            )),
+            onSubmitted: (v) => _apply(params.copyWith(actorId: v.trim())),
+          ),
+        ),
+        _dateFilter(
+          context,
+          label: 'From',
+          value: params.from,
+          onPicked: (picked) => _apply(
+            picked == null
+                ? params.copyWith(clearFrom: true)
+                : params.copyWith(from: picked),
+          ),
+        ),
+        _dateFilter(
+          context,
+          label: 'To',
+          value: params.to,
+          onPicked: (picked) => _apply(
+            picked == null
+                ? params.copyWith(clearTo: true)
+                : params.copyWith(to: picked),
           ),
         ),
       ],
     );
   }
+
+  Widget _dateFilter(
+    BuildContext context, {
+    required String label,
+    required DateTime? value,
+    required ValueChanged<DateTime?> onPicked,
+  }) => SizedBox(
+    width: 170,
+    child: InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        border: const OutlineInputBorder(),
+        suffixIcon: value == null
+            ? const Icon(Icons.event, size: 18)
+            : IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () => onPicked(null),
+              ),
+      ),
+      child: InkWell(
+        onTap: () async {
+          final now = DateTime.now();
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: value ?? now,
+            firstDate: DateTime(now.year - 5),
+            lastDate: DateTime(now.year + 1),
+          );
+          if (picked != null) onPicked(picked);
+        },
+        child: Text(
+          value == null ? 'Any' : value.toIso8601String().substring(0, 10),
+        ),
+      ),
+    ),
+  );
 }

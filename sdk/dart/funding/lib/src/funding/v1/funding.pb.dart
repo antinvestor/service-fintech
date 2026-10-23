@@ -36,6 +36,7 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
     $6.Struct? groupAffiliations,
     $8.STATE? state,
     $6.Struct? properties,
+    $core.String? currencyCode,
   }) {
     final $result = create();
     if (id != null) {
@@ -80,6 +81,9 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
     if (properties != null) {
       $result.properties = properties;
     }
+    if (currencyCode != null) {
+      $result.currencyCode = currencyCode;
+    }
     return $result;
   }
   InvestorAccountObject._() : super();
@@ -101,6 +105,7 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
     ..aOM<$6.Struct>(13, _omitFieldNames ? '' : 'groupAffiliations', subBuilder: $6.Struct.create)
     ..e<$8.STATE>(14, _omitFieldNames ? '' : 'state', $pb.PbFieldType.OE, defaultOrMaker: $8.STATE.CREATED, valueOf: $8.STATE.valueOf, enumValues: $8.STATE.values)
     ..aOM<$6.Struct>(15, _omitFieldNames ? '' : 'properties', subBuilder: $6.Struct.create)
+    ..aOS(16, _omitFieldNames ? '' : 'currencyCode')
     ..hasRequiredFields = false
   ;
 
@@ -207,6 +212,9 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(9)
   $7.Money ensureMaxExposure() => $_ensure(7);
 
+  /// Minimum acceptable loan interest rate as a decimal percentage with up to
+  /// two decimals, e.g. "12.50" for 12.5%. The same shape savings and loans
+  /// use. Empty means no minimum. A raw basis-point integer is not accepted.
   @$pb.TagNumber(10)
   $core.String get minInterestRate => $_getSZ(8);
   @$pb.TagNumber(10)
@@ -268,6 +276,18 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
   void clearProperties() => clearField(15);
   @$pb.TagNumber(15)
   $6.Struct ensureProperties() => $_ensure(13);
+
+  /// ISO 4217 code the account is denominated in. Explicit so a caller no
+  /// longer has to smuggle the currency through available_balance on create.
+  /// When empty, the server falls back to available_balance.currency_code.
+  @$pb.TagNumber(16)
+  $core.String get currencyCode => $_getSZ(14);
+  @$pb.TagNumber(16)
+  set currencyCode($core.String v) { $_setString(14, v); }
+  @$pb.TagNumber(16)
+  $core.bool hasCurrencyCode() => $_has(14);
+  @$pb.TagNumber(16)
+  void clearCurrencyCode() => clearField(16);
 }
 
 /// FundingAllocationObject represents how a loan is funded across tranches.
@@ -712,10 +732,14 @@ class InvestorAccountSearchRequest extends $pb.GeneratedMessage {
 class InvestorAccountSearchResponse extends $pb.GeneratedMessage {
   factory InvestorAccountSearchResponse({
     $core.Iterable<InvestorAccountObject>? data,
+    $8.PageCursor? nextCursor,
   }) {
     final $result = create();
     if (data != null) {
       $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
     }
     return $result;
   }
@@ -725,6 +749,7 @@ class InvestorAccountSearchResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountSearchResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
     ..pc<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: InvestorAccountObject.create)
+    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -751,12 +776,25 @@ class InvestorAccountSearchResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<InvestorAccountObject> get data => $_getList(0);
+
+  /// Cursor for the next page; unset when this page is the last.
+  @$pb.TagNumber(2)
+  $8.PageCursor get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($8.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $8.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 class InvestorDepositRequest extends $pb.GeneratedMessage {
   factory InvestorDepositRequest({
     $core.String? accountId,
     $7.Money? amount,
+    $core.String? idempotencyKey,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -764,6 +802,9 @@ class InvestorDepositRequest extends $pb.GeneratedMessage {
     }
     if (amount != null) {
       $result.amount = amount;
+    }
+    if (idempotencyKey != null) {
+      $result.idempotencyKey = idempotencyKey;
     }
     return $result;
   }
@@ -774,6 +815,7 @@ class InvestorDepositRequest extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorDepositRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
     ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aOS(4, _omitFieldNames ? '' : 'idempotencyKey')
     ..hasRequiredFields = false
   ;
 
@@ -817,6 +859,18 @@ class InvestorDepositRequest extends $pb.GeneratedMessage {
   void clearAmount() => clearField(2);
   @$pb.TagNumber(2)
   $7.Money ensureAmount() => $_ensure(1);
+
+  /// Replay key for this movement. Optional on the wire because the
+  /// Idempotency-Key header is also honoured; when both are present the
+  /// header wins. Non-empty values must be at least 8 characters.
+  @$pb.TagNumber(4)
+  $core.String get idempotencyKey => $_getSZ(2);
+  @$pb.TagNumber(4)
+  set idempotencyKey($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasIdempotencyKey() => $_has(2);
+  @$pb.TagNumber(4)
+  void clearIdempotencyKey() => clearField(4);
 }
 
 class InvestorDepositResponse extends $pb.GeneratedMessage {
@@ -875,6 +929,7 @@ class InvestorWithdrawRequest extends $pb.GeneratedMessage {
   factory InvestorWithdrawRequest({
     $core.String? accountId,
     $7.Money? amount,
+    $core.String? idempotencyKey,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -882,6 +937,9 @@ class InvestorWithdrawRequest extends $pb.GeneratedMessage {
     }
     if (amount != null) {
       $result.amount = amount;
+    }
+    if (idempotencyKey != null) {
+      $result.idempotencyKey = idempotencyKey;
     }
     return $result;
   }
@@ -892,6 +950,7 @@ class InvestorWithdrawRequest extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorWithdrawRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
     ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aOS(3, _omitFieldNames ? '' : 'idempotencyKey')
     ..hasRequiredFields = false
   ;
 
@@ -935,6 +994,16 @@ class InvestorWithdrawRequest extends $pb.GeneratedMessage {
   void clearAmount() => clearField(2);
   @$pb.TagNumber(2)
   $7.Money ensureAmount() => $_ensure(1);
+
+  /// See InvestorDepositRequest.idempotency_key.
+  @$pb.TagNumber(3)
+  $core.String get idempotencyKey => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set idempotencyKey($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasIdempotencyKey() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIdempotencyKey() => clearField(3);
 }
 
 class InvestorWithdrawResponse extends $pb.GeneratedMessage {
@@ -1133,6 +1202,7 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
   factory AbsorbLossRequest({
     $core.String? loanRequestId,
     $7.Money? amount,
+    $core.String? lossReference,
   }) {
     final $result = create();
     if (loanRequestId != null) {
@@ -1140,6 +1210,9 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
     }
     if (amount != null) {
       $result.amount = amount;
+    }
+    if (lossReference != null) {
+      $result.lossReference = lossReference;
     }
     return $result;
   }
@@ -1150,6 +1223,7 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AbsorbLossRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'loanRequestId')
     ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aOS(3, _omitFieldNames ? '' : 'lossReference')
     ..hasRequiredFields = false
   ;
 
@@ -1193,6 +1267,18 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
   void clearAmount() => clearField(2);
   @$pb.TagNumber(2)
   $7.Money ensureAmount() => $_ensure(1);
+
+  /// Identifies the loss event (write-off reference, default notice id) so a
+  /// repeated call for the same event absorbs once. Empty keeps the current
+  /// per-loan idempotency.
+  @$pb.TagNumber(3)
+  $core.String get lossReference => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set lossReference($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasLossReference() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearLossReference() => clearField(3);
 }
 
 class AbsorbLossResponse extends $pb.GeneratedMessage {

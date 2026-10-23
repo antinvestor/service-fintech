@@ -39,6 +39,7 @@ import (
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
@@ -99,6 +100,28 @@ func (r *stubRepaymentRepo) Search(
 }
 
 // Compile-time checks.
+func (r *stubRepaymentRepo) ClaimIdempotencyKey(
+	ctx context.Context,
+	rep *loansmodels.Repayment,
+) (*loansmodels.Repayment, bool, error) {
+	if err := r.Create(ctx, rep); err != nil {
+		return nil, false, err
+	}
+	return rep, true, nil
+}
+
+func (r *stubRepaymentRepo) UpdateColumns(_ context.Context, _ string, _ map[string]any) (int64, error) {
+	return 1, nil
+}
+
+func (r *stubRepaymentRepo) ListByLoanAccountID(
+	_ context.Context,
+	_ string,
+	_ int,
+) ([]*loansmodels.Repayment, error) {
+	return nil, nil
+}
+
 var _ repository.RepaymentRepository = (*stubRepaymentRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.Repayment] = (*stubRepaymentRepo)(nil)
 
@@ -233,6 +256,10 @@ func (r *stubScheduleEntryRepo) Search(
 }
 
 // Compile-time check.
+func (r *stubScheduleEntryRepo) MarkPenaltyApplied(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+
 var _ repository.ScheduleEntryRepository = (*stubScheduleEntryRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.ScheduleEntry] = (*stubScheduleEntryRepo)(nil)
 
@@ -275,16 +302,31 @@ func (r *stubLoanBalanceRepo) FieldsImmutable() []string          { return nil }
 func (r *stubLoanBalanceRepo) FieldsAllowed() map[string]struct{} { return nil }
 func (r *stubLoanBalanceRepo) ExtendFieldsAllowed(_ ...string)    {}
 func (r *stubLoanBalanceRepo) IsFieldAllowed(_ string) error      { return nil }
-func (r *stubLoanBalanceRepo) GetByLoanAccountID(_ context.Context, _ string) (*loansmodels.LoanBalance, error) {
-	return nil, errors.New("stub: not found")
+func (r *stubLoanBalanceRepo) GetByLoanAccountID(
+	_ context.Context,
+	loanAccountID string,
+) (*loansmodels.LoanBalance, error) {
+	return &loansmodels.LoanBalance{
+		LoanAccountID:        loanAccountID,
+		CurrencyCode:         "KES",
+		PrincipalOutstanding: 100000,
+		TotalOutstanding:     100000,
+	}, nil
 }
 
 func (r *stubLoanBalanceRepo) ApplyRepaymentDelta(
-	_ context.Context,
-	_ string,
-	_ repository.LoanBalanceDelta,
+	ctx context.Context,
+	loanAccountID string,
+	delta repository.LoanBalanceDelta,
 ) (*loansmodels.LoanBalance, error) {
-	return nil, errors.New("stub: not implemented")
+	balance, err := r.GetByLoanAccountID(ctx, loanAccountID)
+	if err != nil {
+		return nil, err
+	}
+	balance.PrincipalOutstanding -= delta.PrincipalApplied
+	balance.TotalPaid += delta.Total()
+	balance.TotalOutstanding -= delta.Total()
+	return balance, nil
 }
 func (r *stubLoanBalanceRepo) Search(
 	_ context.Context,
@@ -294,6 +336,14 @@ func (r *stubLoanBalanceRepo) Search(
 }
 
 // Compile-time check.
+func (r *stubLoanBalanceRepo) ApplyPenaltyDelta(
+	ctx context.Context,
+	loanAccountID string,
+	_ int64,
+) (*loansmodels.LoanBalance, error) {
+	return r.GetByLoanAccountID(ctx, loanAccountID)
+}
+
 var _ repository.LoanBalanceRepository = (*stubLoanBalanceRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.LoanBalance] = (*stubLoanBalanceRepo)(nil)
 
@@ -359,9 +409,7 @@ func TestRecord_EmptyIdempotencyKey_Rejected(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	var connectErr *connect.Error
-	require.ErrorAs(t, err, &connectErr)
-	assert.Equal(t, connect.CodeInvalidArgument, connectErr.Code())
+	assert.Equal(t, connect.CodeInvalidArgument, apperrors.CleanErr(err).Code())
 	assert.Equal(t, 0, limitsCli.reserveCalls, "gate must not be reached when key is empty")
 }
 

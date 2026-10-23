@@ -17,6 +17,8 @@ package business
 import (
 	"context"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
 	"github.com/pitabwire/frame/v2/data"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
@@ -38,17 +40,53 @@ type LoanRequestReader interface {
 
 // FundingAllocationBusiness handles funding allocation operations.
 type FundingAllocationBusiness interface {
-	SourceForRequest(ctx context.Context, loanRequestID string) (map[string]interface{}, error)
-	AbsorbLoss(ctx context.Context, loanRequestID string, lossAmount int64) error
+	SourceForRequest(ctx context.Context, loanRequestID string) (*AllocationResult, error)
+
+	// AbsorbLoss walks the loan's tranches first-loss first and reports what
+	// they actually covered. It is idempotent on the loss reference: a repeat
+	// returns the first call's split rather than eating further tranches.
+	AbsorbLoss(ctx context.Context, loanRequestID string, lossAmount int64) (*LossResult, error)
+}
+
+// AllocationResult is the outcome of sourcing capital for a loan request.
+type AllocationResult struct {
+	LoanRequestID  string
+	Currency       string
+	LoanAmount     int64
+	TotalAllocated int64
+	Deficit        int64
+	FullyFunded    bool
+	IsGroupLoan    bool
+	Allocations    []Allocation
+}
+
+// Allocation is one funded slice of a loan request.
+type Allocation struct {
+	ID            string
+	LoanRequestID string
+	SourceID      string
+	SourceType    string
+	TrancheLevel  int32
+	Amount        int64
+	Currency      string
+}
+
+// LossResult reports how a loss was split between the tranches that could
+// carry it and the remainder that nothing could.
+type LossResult struct {
+	Absorbed      int64
+	Unrecoverable int64
+	Currency      string
 }
 
 // InvestorAccountBusiness handles investor account operations.
 type InvestorAccountBusiness interface {
-	Create(ctx context.Context, account *models.InvestorAccount) (*models.InvestorAccount, error)
+	Save(ctx context.Context, account *models.InvestorAccount) (*models.InvestorAccount, error)
+	SetState(ctx context.Context, accountID string, state int32) (*models.InvestorAccount, error)
 	Get(ctx context.Context, accountID string) (*models.InvestorAccount, error)
-	GetByInvestorID(ctx context.Context, investorID string) ([]*models.InvestorAccount, error)
-	Deposit(ctx context.Context, accountID string, amount int64, idempotencyKey string) error
-	Withdraw(ctx context.Context, accountID string, amount int64, idempotencyKey string) error
+	Search(ctx context.Context, req *fundingv1.InvestorAccountSearchRequest) ([]*models.InvestorAccount, error)
+	Deposit(ctx context.Context, accountID string, amount *commonv1.Money, idempotencyKey string) error
+	Withdraw(ctx context.Context, accountID string, amount *commonv1.Money, idempotencyKey string) error
 	GetAvailable(ctx context.Context, accountID string) (int64, error)
 	ReserveBalance(ctx context.Context, accountID string, amount int64) error
 	ReleaseBalance(ctx context.Context, accountID string, principalReturned int64, interestEarned int64) error

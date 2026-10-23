@@ -36,6 +36,7 @@ import (
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/events"
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
@@ -48,6 +49,16 @@ type approvalSpec struct {
 	policy  *models.Policy
 	verdict *limitsv1.PolicyVerdict
 }
+
+// candidatePair pairs an applicable policy with the intent subject it matched.
+type candidatePair struct {
+	policy  *models.Policy
+	subject repository.SubjectFilter
+}
+
+// maxReserveTTL is the hard server-side ceiling on a caller-requested
+// reservation TTL. Without it a client could pin cap space indefinitely.
+const maxReserveTTL = time.Hour
 
 // ReservationBusiness implements the runtime path: Check, Reserve, Commit,
 // Release, Reverse.
@@ -120,6 +131,7 @@ func (b *reservationBusiness) evaluateIntent(
 	ctx context.Context,
 	intent *limitsv1.LimitIntent,
 ) (*evaluation, error) {
+	stampMakerFromClaims(ctx, intent)
 	if err := validateIntent(intent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -148,33 +160,11 @@ func (b *reservationBusiness) evaluateIntent(
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	type candidatePair struct {
-		policy  *models.Policy
-		subject repository.SubjectFilter
-	}
-	var applicable []candidatePair
-	for _, p := range cands {
-		s, ok := findSubjectByType(intent.GetSubjects(), p.SubjectType)
-		if !ok {
-			continue
-		}
-		if len(p.AttributeFilter) > 0 {
-			attrs, attrErr := b.resolver.Get(ctx, p.SubjectType, s.GetId())
-			if attrErr != nil {
-				util.Log(ctx).WithError(attrErr).Warn("attribute resolver failed; skipping policy")
-				continue
-			}
-			if !evaluatePredicate(p.AttributeFilter, attrs) {
-				continue
-			}
-		}
-		applicable = append(applicable, candidatePair{
-			policy:  p,
-			subject: repository.SubjectFilter{Type: p.SubjectType, ID: s.GetId()},
-		})
-	}
+	applicable, unresolved := b.resolveApplicable(ctx, intent, cands)
 
 	ev := &evaluation{intentMinor: intentMinor, action: action}
+	ev.verdicts = append(ev.verdicts, unresolved...)
+	ev.hardBreaches = append(ev.hardBreaches, unresolved...)
 	for _, ap := range applicable {
 		v, evErr := b.evaluator.Evaluate(ctx, ap.policy, ap.subject, intent, intentMinor)
 		if evErr != nil {
@@ -240,7 +230,10 @@ func (b *reservationBusiness) Reserve(
 	idempotencyKey string,
 	ttl time.Duration,
 ) (*limitsv1.ReserveResponse, error) {
-	// 1. Validate intent.
+	// 1. Validate intent. The maker is re-derived from the caller's claims
+	// before anything else: it gates maker-cannot-approve-own-request, so a
+	// client-chosen value would let a maker approve their own disbursement.
+	stampMakerFromClaims(ctx, intent)
 	if err := validateIntent(intent); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -249,12 +242,22 @@ func (b *reservationBusiness) Reserve(
 	}
 
 	// 2. Idempotency short-circuit.
-	if existing, _ := b.resvRepo.GetByIdempotencyKey(ctx, idempotencyKey); existing != nil {
+	existing, lookupErr := b.resvRepo.GetByIdempotencyKey(ctx, intent.GetTenantId(), idempotencyKey)
+	if lookupErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, lookupErr)
+	}
+	if existing != nil {
 		if intentHash(intent, idempotencyKey) != reservationIntentHash(existing) {
 			return nil, connect.NewError(connect.CodeAlreadyExists,
-				fmt.Errorf("idempotency-key collision with different intent: %s", existing.ID))
+				errors.New("idempotency-key collision with a different intent"))
 		}
 		return &limitsv1.ReserveResponse{Reservation: existing.ToAPI()}, nil
+	}
+
+	// 2a. Clamp the caller-supplied TTL. An unbounded TTL lets a client pin
+	// cap space for as long as it likes.
+	if ttl > maxReserveTTL {
+		ttl = maxReserveTTL
 	}
 
 	// 3. Subject schema validation.
@@ -285,31 +288,7 @@ func (b *reservationBusiness) Reserve(
 	}
 
 	// 6. Filter by subject_type + attribute predicate.
-	type candidatePair struct {
-		policy  *models.Policy
-		subject repository.SubjectFilter
-	}
-	var applicable []candidatePair
-	for _, p := range cands {
-		s, ok := findSubjectByType(intent.GetSubjects(), p.SubjectType)
-		if !ok {
-			continue
-		}
-		if len(p.AttributeFilter) > 0 {
-			attrs, attrErr := b.resolver.Get(ctx, p.SubjectType, s.GetId())
-			if attrErr != nil {
-				util.Log(ctx).WithError(attrErr).Warn("attribute resolver failed; skipping policy")
-				continue
-			}
-			if !evaluatePredicate(p.AttributeFilter, attrs) {
-				continue
-			}
-		}
-		applicable = append(applicable, candidatePair{
-			policy:  p,
-			subject: repository.SubjectFilter{Type: p.SubjectType, ID: s.GetId()},
-		})
-	}
+	applicable, unresolved := b.resolveApplicable(ctx, intent, cands)
 
 	// 7. Open transaction; acquire advisory locks for rolling-window subjects.
 	db := b.dbPool.DB(ctx, false)
@@ -341,9 +320,11 @@ func (b *reservationBusiness) Reserve(
 	// 8. Per-policy evaluation — use EvaluateInTx so that rolling-window reads
 	// execute within the same transaction that holds the advisory lock, closing
 	// the TOCTOU race between concurrent Reserves on the same subject.
-	var verdicts []*limitsv1.PolicyVerdict
-	var hardBreaches, shadowBreaches []*limitsv1.PolicyVerdict
+	verdicts := append([]*limitsv1.PolicyVerdict(nil), unresolved...)
+	hardBreaches := append([]*limitsv1.PolicyVerdict(nil), unresolved...)
+	var shadowBreaches []*limitsv1.PolicyVerdict
 	var approvalNeeded []approvalSpec
+	enforceMatched := 0
 	for _, ap := range applicable {
 		v, evErr := b.evaluator.EvaluateInTx(ctx, tx, ap.policy, ap.subject, intent, intentMinor)
 		if evErr != nil {
@@ -354,6 +335,7 @@ func (b *reservationBusiness) Reserve(
 		// 9. Aggregate.
 		switch ap.policy.Mode {
 		case models.ModeEnforce:
+			enforceMatched++
 			if v.GetBreached() && !v.GetWouldRequireApproval() {
 				hardBreaches = append(hardBreaches, v)
 			}
@@ -369,16 +351,13 @@ func (b *reservationBusiness) Reserve(
 		}
 	}
 
-	// 10. Hard breaches → deny.
+	// 10. Hard breaches → deny. The denial is a regulatory record, so the
+	// audit rows are written in their own committed transaction before the
+	// error is returned rather than emitted on the lossy events bus.
 	if len(hardBreaches) > 0 {
 		_ = tx.Rollback()
 		committed = true // prevent double-rollback in defer
-		for _, v := range hardBreaches {
-			b.auditing.RecordBreachHard(ctx, intent, []*limitsv1.PolicyVerdict{v}, FormatBreachReason(v, intentMinor))
-		}
-		for _, v := range shadowBreaches {
-			b.auditing.RecordBreachShadow(ctx, intent, v)
-		}
+		b.recordBreaches(ctx, intent, intentMinor, hardBreaches, shadowBreaches)
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("limits cap breached"))
 	}
@@ -395,14 +374,26 @@ func (b *reservationBusiness) Reserve(
 	} else {
 		resv.TTLAt = time.Now().Add(ttl).UTC()
 	}
-	// Pure-shadow: no enforce-mode verdicts but at least one shadow policy
-	// would have blocked. Shadow reservations do not materialise ledger entries
-	// on Commit and don't count toward future caps.
-	if len(approvalNeeded) == 0 && len(shadowBreaches) > 0 {
+	// Pure-shadow: no enforce-mode policy matched at all, and at least one
+	// shadow policy would have blocked. Shadow reservations do not materialise
+	// ledger entries on Commit and don't count toward future caps. An enforce
+	// policy that matched and passed keeps the reservation real, otherwise a
+	// single shadow policy would switch enforcement off service-wide.
+	if enforceMatched == 0 && len(shadowBreaches) > 0 {
 		resv.IsShadow = true
 	}
 	resv.PoliciesEvaluated = verdictsJSON(verdicts)
 	if createErr := tx.Create(resv).Error; createErr != nil {
+		if isUniqueViolation(createErr) {
+			// A concurrent Reserve with the same idempotency key won the race.
+			// Roll back and return the reservation that landed first.
+			_ = tx.Rollback()
+			committed = true
+			dup, dupErr := b.resvRepo.GetByIdempotencyKey(ctx, intent.GetTenantId(), idempotencyKey)
+			if dupErr == nil && dup != nil {
+				return &limitsv1.ReserveResponse{Reservation: dup.ToAPI()}, nil
+			}
+		}
 		return nil, connect.NewError(connect.CodeInternal, createErr)
 	}
 
@@ -427,7 +418,10 @@ func (b *reservationBusiness) Reserve(
 			MakerID:            resv.MakerID,
 			Status:             models.ApprovalStatusPending,
 			SubmittedAt:        time.Now().UTC(),
-			ExpiresAt:          time.Now().Add(time.Duration(ap.policy.ApprovalTTLSec) * time.Second).UTC(),
+			// One source of truth for both deadlines: the reservation's TTL is
+			// the shortest approval TTL across the involved policies, and the
+			// approval must not outlive the hold it is gating.
+			ExpiresAt: resv.TTLAt,
 		}
 		ar.ID = util.IDString()
 		if createErr := tx.Create(ar).Error; createErr != nil {
@@ -474,6 +468,7 @@ func (b *reservationBusiness) Reserve(
 
 // ─── Commit ────────────────────────────────────────────────────────────────
 
+//nolint:gocognit // commit is a numbered linear sequence inside one tx
 func (b *reservationBusiness) Commit(
 	ctx context.Context,
 	reservationID string,
@@ -482,6 +477,9 @@ func (b *reservationBusiness) Commit(
 	r, err := b.resvRepo.GetByID(ctx, reservationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reservation %s not found", reservationID))
+	}
+	if tErr := assertSameTenant(ctx, r.TenantID); tErr != nil {
+		return nil, tErr
 	}
 
 	// 2. Idempotent: already committed.
@@ -566,6 +564,7 @@ func (b *reservationBusiness) Commit(
 
 // ─── Release ───────────────────────────────────────────────────────────────
 
+//nolint:gocognit // release is a numbered linear sequence inside one tx
 func (b *reservationBusiness) Release(
 	ctx context.Context,
 	reservationID, reason string,
@@ -574,6 +573,9 @@ func (b *reservationBusiness) Release(
 	r, err := b.resvRepo.GetByID(ctx, reservationID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reservation %s not found", reservationID))
+	}
+	if tErr := assertSameTenant(ctx, r.TenantID); tErr != nil {
+		return nil, tErr
 	}
 
 	// 2. Idempotent: already released.
@@ -657,7 +659,11 @@ func (b *reservationBusiness) Reverse(
 	reservationID, idempotencyKey, reason string,
 ) (*limitsv1.ReverseResponse, error) {
 	// 1. Idempotency: check if a reversal-reservation already exists for this key.
-	if existing, _ := b.resvRepo.GetByIdempotencyKey(ctx, idempotencyKey); existing != nil &&
+	existing, lookupErr := b.resvRepo.GetByIdempotencyKey(ctx, callerTenant(ctx), idempotencyKey)
+	if lookupErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, lookupErr)
+	}
+	if existing != nil &&
 		existing.ReversesReservationID != nil && *existing.ReversesReservationID == reservationID {
 		original, origErr := b.resvRepo.GetByID(ctx, reservationID)
 		if origErr != nil {
@@ -676,14 +682,8 @@ func (b *reservationBusiness) Reverse(
 	}
 
 	// 2a. Defense-in-depth: reject cross-tenant access before any further work.
-	// GetByID does not apply TenancyPartition scope, so a caller holding a
-	// foreign reservation ID would get the row back. Fail fast with NotFound
-	// (not PermissionDenied) to avoid leaking existence to a probing actor.
-	if claims := security.ClaimsFromContext(ctx); claims != nil {
-		if ctxTenant := claims.GetTenantID(); ctxTenant != "" && original.TenantID != ctxTenant {
-			return nil, connect.NewError(connect.CodeNotFound,
-				errors.New("reservation not found"))
-		}
+	if tErr := assertSameTenant(ctx, original.TenantID); tErr != nil {
+		return nil, tErr
 	}
 
 	// 3. Must be committed.
@@ -1061,21 +1061,17 @@ func verdictsJSON(verdicts []*limitsv1.PolicyVerdict) datatypes.JSON {
 	return datatypes.JSON(b)
 }
 
-// fallbackApprovalTTL is used when no involved policy declares an approval TTL.
-const fallbackApprovalTTL = 72 * time.Hour
-
+// approvalTTLForPolicies returns the SHORTEST effective approval TTL across
+// the involved policies — conservative on stale-approval risk. Each policy is
+// read through EffectiveApprovalTTL, so a stored zero or sub-minimum value
+// can never produce an instantly-expired approval; with no policies at all
+// the default applies.
 func approvalTTLForPolicies(specs []approvalSpec) time.Duration {
-	// Take the SHORTEST approval TTL across involved policies —
-	// conservative on stale approval risk.
-	shortest := time.Duration(0)
+	shortest := models.DefaultApprovalTTL
 	for _, s := range specs {
-		d := time.Duration(s.policy.ApprovalTTLSec) * time.Second
-		if shortest == 0 || d < shortest {
+		if d := s.policy.EffectiveApprovalTTL(); d < shortest {
 			shortest = d
 		}
-	}
-	if shortest == 0 {
-		return fallbackApprovalTTL
 	}
 	return shortest
 }
@@ -1088,4 +1084,163 @@ func requiredApproverCount(rows []*models.ApprovalRequest) int32 {
 		}
 	}
 	return highest
+}
+
+// resolveApplicable filters candidate policies down to those whose subject
+// type appears in the intent and whose attribute predicate matches.
+//
+// Attribute resolution failing (identity down, no attributes available) fails
+// CLOSED for enforce-mode policies: the policy is reported as breached rather
+// than silently skipped, so a KYC-tier or country cap cannot be bypassed by
+// making the identity lookup fail. Shadow-mode policies are still skipped.
+func (b *reservationBusiness) resolveApplicable(
+	ctx context.Context,
+	intent *limitsv1.LimitIntent,
+	cands []*models.Policy,
+) ([]candidatePair, []*limitsv1.PolicyVerdict) {
+	var applicable []candidatePair
+	var unresolved []*limitsv1.PolicyVerdict
+	for _, p := range cands {
+		s, ok := findSubjectByType(intent.GetSubjects(), p.SubjectType)
+		if !ok {
+			continue
+		}
+		if len(p.AttributeFilter) > 0 {
+			attrs, attrErr := b.resolver.Get(ctx, p.SubjectType, s.GetId())
+			if attrErr != nil || attrs == nil {
+				util.Log(ctx).WithError(attrErr).
+					With("policy_id", p.ID).
+					With("policy_mode", string(p.Mode)).
+					Warn("attribute resolution unavailable for attribute-filtered policy")
+				if p.Mode == models.ModeEnforce {
+					unresolved = append(unresolved, attributeUnavailableVerdict(p))
+				}
+				continue
+			}
+			if !evaluatePredicate(p.AttributeFilter, attrs) {
+				continue
+			}
+		}
+		applicable = append(applicable, candidatePair{
+			policy:  p,
+			subject: repository.SubjectFilter{Type: p.SubjectType, ID: s.GetId()},
+		})
+	}
+	return applicable, unresolved
+}
+
+// attributeUnavailableVerdict is the fail-closed verdict for an enforce-mode
+// policy whose subject attributes could not be resolved.
+func attributeUnavailableVerdict(p *models.Policy) *limitsv1.PolicyVerdict {
+	return &limitsv1.PolicyVerdict{
+		PolicyId:      p.ID,
+		PolicyVersion: int32(p.Version), //nolint:gosec // version counters never approach int32 range
+		Matched:       true,
+		Breached:      true,
+		Mode:          policyModeToAPI(p.Mode),
+		Reason:        "subject attributes unavailable; enforce policy fails closed",
+	}
+}
+
+// recordBreaches persists the hard- and shadow-breach audit rows for a denied
+// Reserve inside their own committed transaction. A denial is a regulatory
+// record, so it must not ride the fire-and-forget events bus.
+func (b *reservationBusiness) recordBreaches(
+	ctx context.Context,
+	intent *limitsv1.LimitIntent,
+	intentMinor int64,
+	hardBreaches, shadowBreaches []*limitsv1.PolicyVerdict,
+) {
+	if b.dbPool == nil {
+		for _, v := range hardBreaches {
+			b.auditing.RecordBreachHard(ctx, intent, []*limitsv1.PolicyVerdict{v}, FormatBreachReason(v, intentMinor))
+		}
+		for _, v := range shadowBreaches {
+			b.auditing.RecordBreachShadow(ctx, intent, v)
+		}
+		return
+	}
+	err := b.dbPool.DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		for _, v := range hardBreaches {
+			if wErr := b.auditing.RecordBreachHardTx(
+				ctx, tx, intent, []*limitsv1.PolicyVerdict{v}, FormatBreachReason(v, intentMinor),
+			); wErr != nil {
+				return wErr
+			}
+		}
+		for _, v := range shadowBreaches {
+			if wErr := b.auditing.RecordBreachShadowTx(ctx, tx, intent, v); wErr != nil {
+				return wErr
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		util.Log(ctx).WithError(err).Error("limits: breach audit write failed")
+	}
+}
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint
+// violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "23505") ||
+		strings.Contains(msg, "duplicate key value violates unique constraint")
+}
+
+// stampMakerFromClaims overwrites intent.maker_id with the authenticated
+// caller. The wire field is caller-controlled and drives the maker-exclusion
+// rule on approvals, so it is never trusted as supplied.
+func stampMakerFromClaims(ctx context.Context, intent *limitsv1.LimitIntent) {
+	if intent == nil {
+		return
+	}
+	claims := security.ClaimsFromContext(ctx)
+	if claims == nil {
+		return
+	}
+	if actor := claims.GetProfileID(); actor != "" {
+		intent.MakerId = actor
+	}
+}
+
+// callerTenant returns the tenant carried by the request's claims, or "".
+func callerTenant(ctx context.Context) string {
+	claims := security.ClaimsFromContext(ctx)
+	if claims == nil {
+		return ""
+	}
+	return claims.GetTenantID()
+}
+
+// assertSameTenant fails with NotFound when the row belongs to another tenant.
+// GetByID does not apply the tenancy scope, so this is the defence-in-depth
+// guard for the ID-only runtime RPCs. NotFound (not PermissionDenied) avoids
+// leaking the existence of another tenant's reservation.
+//
+// It fails closed: claims that carry no tenant match no row. Only an
+// internal-system principal legitimately acts across tenants.
+func assertSameTenant(ctx context.Context, rowTenant string) error {
+	if isCrossTenantPrincipal(ctx) {
+		return nil
+	}
+	if ctxTenant := callerTenant(ctx); ctxTenant == "" || rowTenant != ctxTenant {
+		return connect.NewError(connect.CodeNotFound, errors.New("reservation not found"))
+	}
+	return nil
+}
+
+// isCrossTenantPrincipal reports whether the caller is the one role allowed to
+// operate outside a single tenant: the internal-system service principal. It
+// carries no tenant claim of its own, so the tenant guards would otherwise
+// reject every call it makes. See docs/runbook/limits-rollout.md.
+func isCrossTenantPrincipal(ctx context.Context) bool {
+	claims := security.ClaimsFromContext(ctx)
+	return claims != nil && claims.IsInternalSystem()
 }

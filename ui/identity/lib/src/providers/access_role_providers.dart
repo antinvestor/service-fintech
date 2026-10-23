@@ -13,11 +13,11 @@ class AccessRoleKeys {
 
 /// Human-readable label for a role key.
 String accessRoleLabel(String roleKey) => switch (roleKey) {
-      AccessRoleKeys.approvalVerifier => 'Verifier',
-      AccessRoleKeys.approvalApprover => 'Approver',
-      AccessRoleKeys.identityAdministrator => 'Administrator',
-      _ => roleKey,
-    };
+  AccessRoleKeys.approvalVerifier => 'Verifier',
+  AccessRoleKeys.approvalApprover => 'Approver',
+  AccessRoleKeys.identityAdministrator => 'Administrator',
+  _ => roleKey,
+};
 
 /// All selectable role keys for dropdowns.
 const selectableRoleKeys = [
@@ -33,30 +33,31 @@ typedef AccessRoleAssignmentListParams = ({
   String scopeId,
 });
 
-final accessRoleAssignmentListProvider = FutureProvider.family<
-    List<AccessRoleAssignmentObject>, AccessRoleAssignmentListParams>(
-    (ref, params) async {
-  final client = ref.watch(identityServiceClientProvider);
-  final request = AccessRoleAssignmentSearchRequest(
-    query: params.query,
-    roleKey: params.roleKey,
-    scopeId: params.scopeId,
-    cursor: PageCursor(limit: 50),
-  );
+final accessRoleAssignmentListProvider =
+    FutureProvider.family<
+      List<AccessRoleAssignmentObject>,
+      AccessRoleAssignmentListParams
+    >((ref, params) async {
+      final client = ref.watch(identityServiceClientProvider);
+      final request = AccessRoleAssignmentSearchRequest(
+        query: params.query,
+        roleKey: params.roleKey,
+        scopeId: params.scopeId,
+        cursor: PageCursor(limit: 50),
+      );
 
-  return collectStream(
-    client.accessRoleAssignmentSearch(request),
-    extract: (response) => response.data,
-  );
-});
+      return collectStream(
+        client.accessRoleAssignmentSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 /// Notifier for access role assignment mutations.
 class AccessRoleAssignmentNotifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncValue.data(null);
 
-  IdentityServiceClient get _client =>
-      ref.read(identityServiceClientProvider);
+  IdentityServiceClient get _client => ref.read(identityServiceClientProvider);
 
   Future<AccessRoleAssignmentObject> save(
     AccessRoleAssignmentObject assignment,
@@ -78,4 +79,5 @@ class AccessRoleAssignmentNotifier extends Notifier<AsyncValue<void>> {
 
 final accessRoleAssignmentNotifierProvider =
     NotifierProvider<AccessRoleAssignmentNotifier, AsyncValue<void>>(
-        AccessRoleAssignmentNotifier.new);
+      AccessRoleAssignmentNotifier.new,
+    );

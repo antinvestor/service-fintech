@@ -33,7 +33,7 @@ type MembershipBusiness interface {
 	Search(
 		ctx context.Context,
 		query, groupID, profileID string,
-		role, membershipType int32,
+		cursor *commonv1.PageCursor,
 		consumer func(ctx context.Context, batch []*models.Membership) error,
 	) error
 }
@@ -78,6 +78,8 @@ func (b *membershipBusiness) Save(
 
 	if isNew {
 		membership.GenID(ctx)
+	} else if err = carryStoredTenancy(ctx, b.membershipRepo, membership); err != nil {
+		return nil, err
 	}
 
 	err = b.eventsMan.Emit(ctx, events.MembershipSaveEvent, membership)
@@ -97,15 +99,19 @@ func (b *membershipBusiness) Get(ctx context.Context, id string) (*models.Member
 	return membership, nil
 }
 
+//nolint:dupl // membership and client group search share a filter shape
 func (b *membershipBusiness) Search(
 	ctx context.Context,
 	query, groupID, profileID string,
-	role, membershipType int32,
+	cursor *commonv1.PageCursor,
 	consumer func(ctx context.Context, batch []*models.Membership) error,
 ) error {
 	logger := util.Log(ctx).WithField("method", "MembershipBusiness.Search")
 
-	var searchOpts []data.SearchOption
+	searchOpts, cursorErr := cursorSearchOptions(cursor)
+	if cursorErr != nil {
+		return cursorErr
+	}
 
 	andQueryVal := map[string]any{}
 	if groupID != "" {
@@ -113,12 +119,6 @@ func (b *membershipBusiness) Search(
 	}
 	if profileID != "" {
 		andQueryVal["profile_id = ?"] = profileID
-	}
-	if role != 0 {
-		andQueryVal["role = ?"] = role
-	}
-	if membershipType != 0 {
-		andQueryVal["membership_type = ?"] = membershipType
 	}
 
 	if len(andQueryVal) > 0 {

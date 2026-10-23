@@ -114,7 +114,7 @@ func (s *AdminService) ApprovalRequestGet(
 ) (*connect.Response[limitsv1.ApprovalRequestGetResponse], error) {
 	out, err := s.approval.Get(ctx, req.Msg.GetId())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
 	return connect.NewResponse(&limitsv1.ApprovalRequestGetResponse{Data: out}), nil
 }
@@ -126,7 +126,7 @@ func (s *AdminService) ApprovalRequestDecide(
 ) (*connect.Response[limitsv1.ApprovalRequestDecideResponse], error) {
 	out, err := s.approval.Decide(ctx, req.Msg)
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
 	return connect.NewResponse(&limitsv1.ApprovalRequestDecideResponse{Data: out}), nil
 }
@@ -157,8 +157,13 @@ func (s *AdminService) LimitsAuditSearch(
 	})
 }
 
-// mapBusinessErr translates business-layer errors into Connect codes.
+// mapBusinessErr translates business-layer errors into Connect codes. Errors
+// that already carry a Connect code are passed through untouched.
 func mapBusinessErr(err error) error {
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) {
+		return err
+	}
 	switch {
 	case errors.Is(err, business.ErrPolicyNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
@@ -166,6 +171,10 @@ func mapBusinessErr(err error) error {
 		errors.Is(err, business.ErrCurrencyMismatch),
 		errors.Is(err, business.ErrApproverTiersInvalid):
 		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, business.ErrPolicyVersionConflict):
+		return connect.NewError(connect.CodeAborted, err)
+	case errors.Is(err, business.ErrPolicyScopeForbidden):
+		return connect.NewError(connect.CodePermissionDenied, err)
 	default:
 		return connect.NewError(connect.CodeInternal, err)
 	}

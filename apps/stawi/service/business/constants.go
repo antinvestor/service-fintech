@@ -17,5 +17,10 @@ package business
 // Shared string constants for repeated metadata keys, SQL fragments, and
 // label values used across this package (extracted to satisfy goconst).
 const (
-	fieldGroupID = "group_id"
+	fieldGroupID      = "group_id"
+	fieldMemberID     = "member_id"
+	fieldCurrency     = "currency"
+	fieldStatus       = "status"
+	fieldMembershipID = "membership_id"
+	fieldEligible     = "eligible"
 )

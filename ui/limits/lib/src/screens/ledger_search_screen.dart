@@ -51,12 +51,49 @@ class _LedgerSearchScreenState extends ConsumerState<LedgerSearchScreen> {
           ),
           const Divider(height: 24),
           asyncList.when(
-            loading: () => const Center(child: Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(),
-            )),
-            error: (e, _) => Center(child: Text('Failed: $e')),
-            data: (entries) => LedgerTimeline(entries: entries),
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: CircularProgressIndicator(),
+              ),
+            ),
+            error: (e, _) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Failed: $e'),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    onPressed: () =>
+                        ref.invalidate(ledgerSearchProvider(_params)),
+                  ),
+                ],
+              ),
+            ),
+            data: (entries) => entries.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text('No ledger entries match.'),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      LedgerTimeline(entries: entries),
+                      if (entries.length >= ledgerPageSize)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Showing the first $ledgerPageSize entries. '
+                            'Narrow the date range or filters to see the rest.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        ),
+                    ],
+                  ),
           ),
         ],
       ),

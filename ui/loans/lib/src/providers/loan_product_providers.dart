@@ -4,31 +4,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'loans_transport_provider.dart';
 
+typedef LoanProductListParams = ({String query, int limit});
+
 final loanProductListProvider =
-    FutureProvider.family<List<LoanProductObject>, String>(
-  (ref, query) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final request = LoanProductSearchRequest(
-      query: query,
-      cursor: PageCursor(limit: 50),
-    );
-    return collectStream(
-      client.loanProductSearch(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+    FutureProvider.family<
+      PagedResult<LoanProductObject>,
+      LoanProductListParams
+    >((ref, params) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      final request = LoanProductSearchRequest(
+        query: params.query,
+        cursor: PageCursor(limit: params.limit),
+      );
+      return collectStreamPaged(
+        client.loanProductSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 final loanProductDetailProvider =
-    FutureProvider.family<LoanProductObject, String>(
-  (ref, productId) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final response = await client.loanProductGet(
-      LoanProductGetRequest(id: productId),
-    );
-    return response.data;
-  },
-);
+    FutureProvider.family<LoanProductObject, String>((ref, productId) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      final response = await client.loanProductGet(
+        LoanProductGetRequest(id: productId),
+      );
+      return response.data;
+    });
 
 /// Notifier for loan product mutations. Use via [loanProductNotifierProvider].
 class LoanProductNotifier extends Notifier<AsyncValue<void>> {
@@ -54,5 +55,5 @@ class LoanProductNotifier extends Notifier<AsyncValue<void>> {
 
 final loanProductNotifierProvider =
     NotifierProvider<LoanProductNotifier, AsyncValue<void>>(
-  LoanProductNotifier.new,
-);
+      LoanProductNotifier.new,
+    );

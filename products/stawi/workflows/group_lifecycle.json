@@ -40,7 +40,10 @@
                     "action": "notification.send",
                     "input": {
                       "template": "group_formation_complete",
-                      "data": { "group_id": "{{ payload.group_id }}" }
+                      "data": {
+                        "group_id": "{{ payload.group_id }}"
+                      },
+                      "dedupe_key": "group_formation_complete:{{ payload.group_id }}"
                     }
                   }
                 }
@@ -57,7 +60,8 @@
                         "group_id": "{{ payload.group_id }}",
                         "member_count": "{{ vars.formation_result.body.member_count }}",
                         "min_members": "{{ vars.formation_result.body.min_members }}"
-                      }
+                      },
+                      "dedupe_key": "group_formation_reminder:{{ payload.group_id }}:{{ vars.formation_result.body.member_count }}"
                     }
                   }
                 }
@@ -134,7 +138,10 @@
                     "action": "notification.send",
                     "input": {
                       "template": "group_activated",
-                      "data": { "group_id": "{{ payload.group_id }}" }
+                      "data": {
+                        "group_id": "{{ payload.group_id }}"
+                      },
+                      "dedupe_key": "group_activated:{{ payload.group_id }}"
                     }
                   }
                 }
@@ -154,7 +161,10 @@
                           "input": {
                             "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/transition",
                             "method": "POST",
-                            "body": { "state": 6, "reason": "shutdown requested" }
+                            "body": {
+                              "state": 6,
+                              "reason": "shutdown requested"
+                            }
                           }
                         }
                       },
@@ -165,7 +175,10 @@
                           "action": "notification.send",
                           "input": {
                             "template": "group_shutdown",
-                            "data": { "group_id": "{{ payload.group_id }}" }
+                            "data": {
+                              "group_id": "{{ payload.group_id }}"
+                            },
+                            "dedupe_key": "group_shutdown:{{ payload.group_id }}"
                           }
                         }
                       }

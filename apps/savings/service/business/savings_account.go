@@ -17,13 +17,17 @@ package business
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
 	"github.com/pitabwire/frame/v2/data"
 	fevents "github.com/pitabwire/frame/v2/events"
 	"github.com/pitabwire/util"
+	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/savings/service/events"
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
@@ -47,6 +51,7 @@ type SavingsAccountBusiness interface {
 type savingsAccountBusiness struct {
 	eventsMan fevents.Manager
 	saRepo    repository.SavingsAccountRepository
+	spRepo    repository.SavingsProductRepository
 	depRepo   repository.DepositRepository
 	wdrRepo   repository.WithdrawalRepository
 	iaRepo    repository.InterestAccrualRepository
@@ -57,6 +62,7 @@ func NewSavingsAccountBusiness(
 	_ context.Context,
 	eventsMan fevents.Manager,
 	saRepo repository.SavingsAccountRepository,
+	spRepo repository.SavingsProductRepository,
 	depRepo repository.DepositRepository,
 	wdrRepo repository.WithdrawalRepository,
 	iaRepo repository.InterestAccrualRepository,
@@ -65,6 +71,7 @@ func NewSavingsAccountBusiness(
 	return &savingsAccountBusiness{
 		eventsMan: eventsMan,
 		saRepo:    saRepo,
+		spRepo:    spRepo,
 		depRepo:   depRepo,
 		wdrRepo:   wdrRepo,
 		iaRepo:    iaRepo,
@@ -72,6 +79,10 @@ func NewSavingsAccountBusiness(
 	}
 }
 
+// Create opens a savings account against an existing product. The product is
+// the source of truth for the account currency, and both ledger references are
+// derived server-side, so a caller cannot open an account that posts into
+// another tenant's control account.
 func (b *savingsAccountBusiness) Create(
 	ctx context.Context,
 	obj *savingsv1.SavingsAccountObject,
@@ -80,12 +91,22 @@ func (b *savingsAccountBusiness) Create(
 
 	sa := models.SavingsAccountFromAPI(ctx, obj)
 
-	if sa.Status == 0 {
-		sa.Status = int32(savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE)
+	product, err := b.spRepo.GetByID(ctx, sa.ProductID)
+	if err != nil {
+		return nil, ErrSavingsProductNotFound
+	}
+	if sa.CurrencyCode == "" {
+		sa.CurrencyCode = product.CurrencyCode
+	}
+	if sa.CurrencyCode != product.CurrencyCode {
+		return nil, ErrProductNotForAccount
 	}
 
-	err := b.eventsMan.Emit(ctx, events.SavingsAccountSaveEvent, sa)
-	if err != nil {
+	sa.Status = int32(savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE)
+	sa.LedgerAccountID = LedgerAccountRef(sa)
+	sa.PaymentAccountRef = PaymentAccountRef(sa)
+
+	if err = b.eventsMan.Emit(ctx, events.SavingsAccountSaveEvent, sa); err != nil {
 		logger.WithError(err).Error("could not emit savings account save event")
 		return nil, err
 	}
@@ -149,6 +170,12 @@ func (b *savingsAccountBusiness) Search(
 		searchOpts = append(searchOpts, data.WithSearchFiltersAndByValue(andQueryVal))
 	}
 
+	if req.GetQuery() != "" {
+		searchOpts = append(searchOpts,
+			data.WithSearchFiltersOrByValue(map[string]any{searchableTSQuery: req.GetQuery()}),
+		)
+	}
+
 	query := data.NewSearchQuery(searchOpts...)
 	results, err := b.saRepo.Search(ctx, query)
 	if err != nil {
@@ -209,6 +236,18 @@ func (b *savingsAccountBusiness) Close(
 	if currentStatus != savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE &&
 		currentStatus != savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_FROZEN {
 		return nil, ErrInvalidStatusTransition
+	}
+
+	snapshot, balErr := b.sbRepo.GetBySavingsAccountID(ctx, id)
+	switch {
+	case balErr == nil:
+		if snapshot.Balance != 0 || snapshot.ReservedBalance != 0 {
+			return nil, ErrAccountHasBalance
+		}
+	case errors.Is(balErr, repository.ErrSavingsBalanceNotFound):
+		// Never funded: nothing can be stranded by closing it.
+	default:
+		return nil, balErr
 	}
 
 	sa.Status = int32(savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_CLOSED)
@@ -277,38 +316,104 @@ func (b *savingsAccountBusiness) GetBalance(
 	}, nil
 }
 
+// GetStatement renders the account's movements over a bounded window.
+// Callers may omit either date: the window defaults to the last
+// statementDefaultWindow ending now. Entries arrive from three independent
+// searches, so they are collected under a lock, ordered by date, capped at
+// statementMaxEntries, and walked forward from the opening balance to give
+// each row a running balance.
 func (b *savingsAccountBusiness) GetStatement(
 	ctx context.Context,
 	accountID string,
 	from, to time.Time,
 ) (*savingsv1.SavingsStatementResponse, error) {
-	stmtSa, err := b.saRepo.GetByID(ctx, accountID)
+	sa, err := b.saRepo.GetByID(ctx, accountID)
 	if err != nil {
 		return nil, ErrSavingsAccountNotFound
 	}
 
-	statementEntries, err := b.fetchStatementEntries(ctx, accountID, stmtSa.CurrencyCode, from, to)
+	from, to = statementWindow(from, to)
+
+	entries, err := b.fetchStatementEntries(ctx, accountID, sa.CurrencyCode, from, to)
 	if err != nil {
 		return nil, err
 	}
 
-	balance, _ := b.GetBalance(ctx, accountID)
+	opening, err := b.sbRepo.OpeningBalance(ctx, accountID, from)
+	if err != nil {
+		return nil, err
+	}
+	applyRunningBalance(entries, opening, sa.CurrencyCode)
 
-	sa, _ := b.saRepo.GetByID(ctx, accountID)
-	var saObj *savingsv1.SavingsAccountObject
-	if sa != nil {
-		saObj = sa.ToAPI()
+	balance, err := b.GetBalance(ctx, accountID)
+	if err != nil {
+		return nil, err
 	}
 
 	return &savingsv1.SavingsStatementResponse{
-		Account: saObj,
+		Account: sa.ToAPI(),
 		Balance: balance,
-		Entries: statementEntries,
+		Entries: entries,
 	}, nil
 }
 
-// fetchStatementEntries gathers deposit, withdrawal, and interest accrual entries
-// for the given account and time period.
+// statementWindow fills in the open ends of a requested period. An absent
+// end date means "up to now"; an absent start date means
+// statementDefaultWindow before the end.
+func statementWindow(from, to time.Time) (time.Time, time.Time) {
+	if to.IsZero() {
+		to = time.Now().UTC()
+	}
+	if from.IsZero() {
+		from = to.Add(-statementDefaultWindow)
+	}
+	if from.After(to) {
+		from = to.Add(-statementDefaultWindow)
+	}
+	return from, to
+}
+
+// applyRunningBalance walks entries oldest-first, carrying the balance the
+// account held at the start of the window through every movement.
+func applyRunningBalance(entries []*savingsv1.SavingsStatementEntry, opening int64, currency string) {
+	running := opening
+	for _, entry := range entries {
+		running += moneyx.ToSmallestUnit(entry.GetCredit(), moneyx.Decimals(currency))
+		running -= moneyx.ToSmallestUnit(entry.GetDebit(), moneyx.Decimals(currency))
+		entry.Balance = models.MinorUnitsToMoney(running, currency)
+	}
+}
+
+// statementCollector gathers entries from the concurrent search streams.
+type statementCollector struct {
+	mu      sync.Mutex
+	entries []*savingsv1.SavingsStatementEntry
+}
+
+func (c *statementCollector) add(entry *savingsv1.SavingsStatementEntry, at time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry.Date = models.TimeToString(&at)
+	c.entries = append(c.entries, entry)
+}
+
+// sorted returns the collected entries oldest-first, capped at
+// statementMaxEntries so an account with a long history cannot produce an
+// unbounded response.
+func (c *statementCollector) sorted() []*savingsv1.SavingsStatementEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	slices.SortFunc(c.entries, func(a, b *savingsv1.SavingsStatementEntry) int {
+		return strings.Compare(a.GetDate(), b.GetDate())
+	})
+	if len(c.entries) > statementMaxEntries {
+		return c.entries[:statementMaxEntries]
+	}
+	return c.entries
+}
+
+// fetchStatementEntries gathers deposit, withdrawal, and interest accrual
+// entries for the given account and period.
 func (b *savingsAccountBusiness) fetchStatementEntries(
 	ctx context.Context,
 	accountID, currencyCode string,
@@ -316,84 +421,80 @@ func (b *savingsAccountBusiness) fetchStatementEntries(
 ) ([]*savingsv1.SavingsStatementEntry, error) {
 	logger := util.Log(ctx).WithField("method", "SavingsAccountBusiness.fetchStatementEntries")
 
-	var entries []*savingsv1.SavingsStatementEntry
+	collector := &statementCollector{}
 
-	// Fetch deposits in the period
-	depQuery := data.NewSearchQuery(
-		data.WithSearchFiltersAndByValue(map[string]any{
+	periodFilters := func(extra map[string]any) []data.SearchOption {
+		filters := map[string]any{
 			whereSavingsAccountIDEq: accountID,
-			whereStatusEq:           int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED),
 			whereCreatedAtGte:       from,
 			whereCreatedAtLte:       to,
-		}),
-	)
-	depResults, err := b.depRepo.Search(ctx, depQuery)
+		}
+		for k, v := range extra {
+			filters[k] = v
+		}
+		return []data.SearchOption{
+			data.WithSearchFiltersAndByValue(filters),
+			data.WithSearchLimit(statementMaxEntries),
+		}
+	}
+
+	depResults, err := b.depRepo.Search(ctx, data.NewSearchQuery(periodFilters(map[string]any{
+		whereStatusEq: int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED),
+	})...))
 	if err != nil {
 		logger.WithError(err).Error("failed to search deposits for statement")
 		return nil, err
 	}
-	_ = workerpoolConsumeStream(ctx, depResults, func(batch []*models.Deposit) error {
+	if err = workerpoolConsumeStream(ctx, depResults, func(batch []*models.Deposit) error {
 		for _, d := range batch {
-			entries = append(entries, &savingsv1.SavingsStatementEntry{
-				Date:        models.TimeToString(&d.CreatedAt),
+			collector.add(&savingsv1.SavingsStatementEntry{
 				Description: "Deposit",
 				Credit:      models.MinorUnitsToMoney(d.Amount, currencyCode),
 				Reference:   d.PaymentReference,
-			})
+			}, d.CreatedAt)
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 
-	// Fetch withdrawals in the period
-	wdrQuery := data.NewSearchQuery(
-		data.WithSearchFiltersAndByValue(map[string]any{
-			whereSavingsAccountIDEq: accountID,
-			whereStatusEq:           int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED),
-			whereCreatedAtGte:       from,
-			whereCreatedAtLte:       to,
-		}),
-	)
-	wdrResults, err := b.wdrRepo.Search(ctx, wdrQuery)
+	wdrResults, err := b.wdrRepo.Search(ctx, data.NewSearchQuery(periodFilters(map[string]any{
+		whereStatusEq: int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED),
+	})...))
 	if err != nil {
 		logger.WithError(err).Error("failed to search withdrawals for statement")
 		return nil, err
 	}
-	_ = workerpoolConsumeStream(ctx, wdrResults, func(batch []*models.Withdrawal) error {
+	if err = workerpoolConsumeStream(ctx, wdrResults, func(batch []*models.Withdrawal) error {
 		for _, w := range batch {
-			entries = append(entries, &savingsv1.SavingsStatementEntry{
-				Date:        models.TimeToString(&w.CreatedAt),
+			collector.add(&savingsv1.SavingsStatementEntry{
 				Description: "Withdrawal",
 				Debit:       models.MinorUnitsToMoney(w.Amount, currencyCode),
 				Reference:   w.PaymentReference,
-			})
+			}, w.CreatedAt)
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 
-	// Fetch interest accruals in the period
-	iaQuery := data.NewSearchQuery(
-		data.WithSearchFiltersAndByValue(map[string]any{
-			whereSavingsAccountIDEq: accountID,
-			whereCreatedAtGte:       from,
-			whereCreatedAtLte:       to,
-		}),
-	)
-	iaResults, err := b.iaRepo.Search(ctx, iaQuery)
+	iaResults, err := b.iaRepo.Search(ctx, data.NewSearchQuery(periodFilters(nil)...))
 	if err != nil {
 		logger.WithError(err).Error("failed to search interest accruals for statement")
 		return nil, err
 	}
-	_ = workerpoolConsumeStream(ctx, iaResults, func(batch []*models.InterestAccrual) error {
+	if err = workerpoolConsumeStream(ctx, iaResults, func(batch []*models.InterestAccrual) error {
 		for _, ia := range batch {
-			entries = append(entries, &savingsv1.SavingsStatementEntry{
-				Date:        models.TimeToString(&ia.CreatedAt),
+			collector.add(&savingsv1.SavingsStatementEntry{
 				Description: "Interest Accrual",
 				Credit:      models.MinorUnitsToMoney(ia.Amount, currencyCode),
 				Reference:   ia.LedgerTransactionID,
-			})
+			}, ia.CreatedAt)
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 
-	return entries, nil
+	return collector.sorted(), nil
 }

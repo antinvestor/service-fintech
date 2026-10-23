@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 	"github.com/antinvestor/service-fintech/apps/limits/service/repository"
@@ -39,6 +40,39 @@ func LockKeys(action models.Action, currency string, subjects []repository.Subje
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 	return keys
+}
+
+// Reaper advisory-lock keys. Each periodic job takes its own session lock so
+// only one replica runs a pass at a time; without this every replica emits a
+// duplicate audit row and event for the same reaped entity.
+const (
+	// LockKeyReservationReaper guards the reservation TTL reaper.
+	LockKeyReservationReaper int64 = 6_120_260_001
+	// LockKeyApprovalReaper guards the approval expiry reaper.
+	LockKeyApprovalReaper int64 = 6_120_260_002
+)
+
+// WithLeaderLock runs fn only if this process wins the named advisory lock.
+// A replica that does not win returns nil without running fn — the winner's
+// pass covers the work for the whole cluster.
+func WithLeaderLock(ctx context.Context, p pool.Pool, key int64, fn func(context.Context) error) error {
+	if p == nil {
+		return fn(ctx)
+	}
+	db := p.DB(ctx, false)
+	var acquired bool
+	if err := db.Raw("SELECT pg_try_advisory_lock(?)", key).Scan(&acquired).Error; err != nil {
+		return err
+	}
+	if !acquired {
+		return nil
+	}
+	defer func() {
+		if err := db.Exec("SELECT pg_advisory_unlock(?)", key).Error; err != nil {
+			util.Log(ctx).WithError(err).With("lock_key", key).Error("could not release reaper advisory lock")
+		}
+	}()
+	return fn(ctx)
 }
 
 // AcquireAdvisoryLocks calls pg_advisory_xact_lock for each key in order.

@@ -97,6 +97,7 @@ loan-management
 
 # Flutter
 ui/build/
+ui/*/build/
 ui/.dart_tool/
 ui/.flutter-plugins
 ui/.flutter-plugins-dependencies

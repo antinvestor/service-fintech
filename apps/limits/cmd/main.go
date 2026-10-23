@@ -19,10 +19,15 @@ import (
 	"net/http"
 	"time"
 
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitspb "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"connectrpc.com/connect"
+	common "github.com/antinvestor/common/v2"
+	"github.com/antinvestor/common/v2/connection"
 	"github.com/antinvestor/common/v2/permissions"
+	"github.com/antinvestor/common/v2/servicecatalog"
 	"github.com/pitabwire/frame/v2"
 	"github.com/pitabwire/frame/v2/config"
 	"github.com/pitabwire/frame/v2/datastore"
@@ -34,16 +39,27 @@ import (
 	"github.com/pitabwire/frame/v2/setup"
 	"github.com/pitabwire/util"
 
-	auditmw "github.com/antinvestor/common/audit"
-
 	aconfig "github.com/antinvestor/service-fintech/apps/limits/config"
 	"github.com/antinvestor/service-fintech/apps/limits/service/business"
 	"github.com/antinvestor/service-fintech/apps/limits/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/limits/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/bootcheck"
+	"github.com/antinvestor/service-fintech/pkg/clients"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
 const namespaceTenancyAccess = "tenancy_access"
+
+const (
+	// archivalPath is the Trustage-driven archival entry point.
+	archivalPath = "/admin/archive"
+	// archivalPermission is the admin permission required to run archival. It
+	// is the mutating control-plane permission already declared in the proto
+	// service_permissions; a dedicated limits_archive permit would be better
+	// and is listed as a proto follow-up.
+	archivalPermission = "limits_policy_manage"
+)
 
 const (
 	// reaperBatchSize bounds how many rows each reaper pass processes.
@@ -66,14 +82,24 @@ func main() {
 		cfg.ServiceName = "service_limits"
 	}
 
+	// Refuse to serve on an environment that is unsafe outside local
+	// development (docs/runbook/required-environment.md).
+	if err = bootcheck.Validate(tmpCtx, &cfg); err != nil {
+		util.Log(tmpCtx).WithError(err).Fatal("environment is not deployment-safe")
+	}
+
 	ctx, svc := frame.NewServiceWithContext(
 		tmpCtx,
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
 
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -92,6 +118,13 @@ func main() {
 	}
 
 	sm := svc.SecurityManager()
+
+	// RPC-level audit delivery. Required when running securely; a nil client
+	// is tolerated (and logged) only for local development.
+	auditCli, err := clients.ResolveAuditClient(ctx, &cfg, cfg.IsRunSecurely(), cfg.AuditConfig)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup audit client")
+	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
@@ -112,7 +145,10 @@ func main() {
 	decisionRepo := repository.NewApprovalDecisionRepository(ctx, dbPool, workMan)
 	subjAttrRepo := repository.NewSubjectAttributeRepository(ctx, dbPool, workMan)
 	candidatePolicyRepo := repository.NewCandidatePolicyRepository(dbPool)
-	candidateRepo := business.NewPolicyCache(candidatePolicyRepo)
+	candidateRepo := business.NewPolicyCache(
+		candidatePolicyRepo,
+		time.Duration(cfg.PolicyCacheTTLSeconds)*time.Second,
+	)
 	auditRepo := audit.NewRepository(ctx, dbPool, workMan)
 
 	// ─── Audit infrastructure ─────────────────────────────────────────
@@ -123,18 +159,30 @@ func main() {
 	// ─── Business layer ───────────────────────────────────────────────
 	policyBiz := business.NewPolicyBusiness(policyRepo, policyVerRepo, evtsMan, auditing, dbPool, candidateRepo)
 	evaluator := business.NewEvaluator(reservationRepo, ledgerRepo)
+	identityClient, identityErr := setupIdentityClient(ctx, cfg)
+	if identityErr != nil {
+		// Attribute-filtered enforce policies fail closed without identity, so
+		// starting without it would deny every matching intent.
+		log.WithError(identityErr).Fatal("could not create identity client")
+	}
 	resolver := business.NewAttributeResolver(
 		subjAttrRepo,
-		nil, // identity client wired in a later task
+		identityClient,
 		time.Duration(cfg.SubjectAttributeCacheTTLSeconds)*time.Second,
 	)
 	reservationBiz := business.NewReservationBusiness(
 		reservationRepo, ledgerRepo, candidateRepo, approvalRepo, policyRepo,
 		evaluator, resolver, auditing, dbPool, evtsMan,
 	)
+	// The approver-tier role check needs to consult limits_approval_override in
+	// the service's own namespace, so it gets its own function checker.
+	adminPermissions := authorizer.NewFunctionChecker(
+		sm.GetAuthorizer(ctx),
+		permissions.ForService(limitsAdminSD).Namespace,
+	)
 	approvalBiz := business.NewApprovalBusiness(
 		approvalRepo, decisionRepo, reservationRepo, policyRepo,
-		evaluator, auditing, evtsMan, dbPool,
+		evaluator, auditing, evtsMan, dbPool, adminPermissions,
 	)
 	ledgerSearchBiz := business.NewLedgerSearchBusiness(ledgerRepo)
 	auditSearchBiz := business.NewAuditSearchBusiness(dbPool)
@@ -144,23 +192,51 @@ func main() {
 	adminH := handlers.NewAdminService(policyBiz, approvalBiz, ledgerSearchBiz, auditSearchBiz)
 
 	// ─── Archival job ─────────────────────────────────────────────────
-	archivalBiz := business.NewArchival(reservationRepo, ledgerRepo)
+	archivalBiz := business.NewArchival(
+		reservationRepo, ledgerRepo, policyRepo,
+		time.Duration(cfg.ArchivalReservationRetentionHours)*time.Hour,
+		time.Duration(cfg.ArchivalLedgerRetentionHours)*time.Hour,
+	)
 	archivalH := handlers.NewArchivalHandler(archivalBiz)
 
 	// ─── Connect RPC server ────────────────────────────────────────────
-	connectHandler := setupConnectServer(ctx, sm, dbPool, runtimeH, adminH, archivalH)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, runtimeH, adminH, archivalH, auditCli)
 
 	// ─── Reapers ──────────────────────────────────────────────────────
-	resvReaper := business.NewReservationReaper(reservationRepo, auditing, reaperBatchSize)
-	approvalReaper := business.NewApprovalReaper(approvalRepo, reservationRepo, auditing, reaperBatchSize, evtsMan)
-	go runPeriodically(ctx, reaperInterval, resvReaper.Run)
-	go runPeriodically(ctx, reaperInterval, approvalReaper.Run)
+	// Each pass runs under a Postgres advisory lock so only one replica reaps;
+	// otherwise every replica emits a duplicate audit row and event.
+	resvReaper := business.NewReservationReaper(
+		reservationRepo, auditing, reaperBatchSize, business.WithReaperPool(dbPool),
+	)
+	approvalReaper := business.NewApprovalReaper(
+		approvalRepo, reservationRepo, auditing, reaperBatchSize, evtsMan, business.WithReaperPool(dbPool),
+	)
+	go runPeriodically(ctx, reaperInterval, func(c context.Context) error {
+		return business.WithLeaderLock(c, dbPool, business.LockKeyReservationReaper, resvReaper.Run)
+	})
+	go runPeriodically(ctx, reaperInterval, func(c context.Context) error {
+		return business.WithLeaderLock(c, dbPool, business.LockKeyApprovalReaper, approvalReaper.Run)
+	})
 
 	// Runtime: HTTP + queue handlers only. Migrate/permissions run solely via
 	// the setup Job path above (ShouldRunSetup).
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithRegisterEvents(eventSave),
+		frame.WithRegisterEvents(eventSave, business.NewPolicyInvalidateHandler(candidateRepo)),
+	}
+
+	// Per-replica policy-cache invalidation. Every replica subscribes under
+	// its own consumer reference so a policy change fans out to all of them;
+	// without it a replica's cache still converges within POLICY_CACHE_TTL_SECONDS.
+	broadcast, bErr := business.NewPolicyInvalidateBroadcast(
+		candidateRepo, cfg.GetEventsQueueSubscribeURL(), business.InstanceID(),
+	)
+	if bErr != nil {
+		log.WithError(bErr).
+			Warn("main -- policy invalidation broadcast disabled; caches converge within POLICY_CACHE_TTL_SECONDS")
+	} else {
+		serviceOptions = append(serviceOptions,
+			frame.WithRegisterSubscriber(broadcast.Reference, broadcast.URL, broadcast.Worker))
 	}
 
 	svc.Init(ctx, serviceOptions...)
@@ -182,10 +258,11 @@ func setupConnectServer(
 	runtimeH *handlers.RuntimeService,
 	adminH *handlers.AdminService,
 	archivalH *handlers.ArchivalHandler,
+	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	auth := sm.GetAuthorizer(ctx)
 	authenticator := sm.GetAuthenticator(ctx)
-	limitsAuditInterceptor := auditmw.NewInterceptor("service_limits", nil)
+	limitsAuditInterceptor := clients.AuditInterceptor("service_limits", auditCli)
 
 	// ─── Runtime service (LimitsService) ─────────────────────────────
 	runtimeSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsService")
@@ -245,12 +322,31 @@ func setupConnectServer(
 	mux.Handle(runtimePath, runtimeHandler)
 	mux.Handle(adminPath, adminHandler)
 	if archivalH != nil {
-		// Wrap with the same authenticator the Connect interceptor stack uses so
-		// that /admin/archive is not a bare, unauthenticated mount point.
-		mux.Handle("/admin/archive", httptor.AuthenticationMiddleware(archivalH, authenticator))
+		// /admin/archive hard-deletes across every tenant. Authentication alone
+		// is not a control: it is mounted behind the same function-access check
+		// the admin RPCs use, requiring limits_policy_manage, and the handler
+		// itself additionally rejects non-service principals.
+		archivalGuarded := httptor.FunctionAccessMiddleware(
+			archivalH,
+			adminFunctionChecker,
+			map[string][]string{archivalPath: {archivalPermission}},
+		)
+		mux.Handle(archivalPath, httptor.AuthenticationMiddleware(archivalGuarded, authenticator))
 	}
 
 	return mux
+}
+
+// setupIdentityClient dials the identity service used to resolve subject
+// attributes for attribute-filtered policies.
+func setupIdentityClient(
+	ctx context.Context,
+	cfg aconfig.LimitsConfig,
+) (identityv1connect.IdentityServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:  cfg.IdentityServiceURI,
+		ServiceID: servicecatalog.ServiceIdentity,
+	}, identityv1connect.NewIdentityServiceClient)
 }
 
 // runPeriodically calls fn on the given interval until ctx is cancelled.

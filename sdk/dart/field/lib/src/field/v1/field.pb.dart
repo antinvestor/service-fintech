@@ -1603,6 +1603,7 @@ class ClientSearchRequest extends $pb.GeneratedMessage {
     $7.PageCursor? cursor,
     $core.String? owningTeamId,
     $core.String? memberId,
+    $core.String? profileId,
   }) {
     final $result = create();
     if (query != null) {
@@ -1620,6 +1621,9 @@ class ClientSearchRequest extends $pb.GeneratedMessage {
     if (memberId != null) {
       $result.memberId = memberId;
     }
+    if (profileId != null) {
+      $result.profileId = profileId;
+    }
     return $result;
   }
   ClientSearchRequest._() : super();
@@ -1632,6 +1636,7 @@ class ClientSearchRequest extends $pb.GeneratedMessage {
     ..aOM<$7.PageCursor>(3, _omitFieldNames ? '' : 'cursor', subBuilder: $7.PageCursor.create)
     ..aOS(4, _omitFieldNames ? '' : 'owningTeamId')
     ..aOS(5, _omitFieldNames ? '' : 'memberId')
+    ..aOS(6, _omitFieldNames ? '' : 'profileId')
     ..hasRequiredFields = false
   ;
 
@@ -1702,6 +1707,15 @@ class ClientSearchRequest extends $pb.GeneratedMessage {
   $core.bool hasMemberId() => $_has(4);
   @$pb.TagNumber(5)
   void clearMemberId() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get profileId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set profileId($core.String v) { $_setString(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasProfileId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearProfileId() => clearField(6);
 }
 
 class ClientSearchResponse extends $pb.GeneratedMessage {

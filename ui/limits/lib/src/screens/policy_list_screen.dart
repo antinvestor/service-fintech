@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../capabilities.dart';
 import '../providers/policy_providers.dart';
 import '../utils/enum_labels.dart';
 import '../widgets/policy_list_tile.dart';
@@ -32,31 +33,47 @@ class _PolicyListScreenState extends ConsumerState<PolicyListScreen> {
   PolicySearchParams _params = const PolicySearchParams();
 
   void _setAction(LimitAction a) {
-    setState(() => _params = PolicySearchParams(
-      query: _params.query, action: a,
-      subjectType: _params.subjectType, mode: _params.mode,
-    ));
+    setState(
+      () => _params = PolicySearchParams(
+        query: _params.query,
+        action: a,
+        subjectType: _params.subjectType,
+        mode: _params.mode,
+      ),
+    );
   }
 
   void _setMode(PolicyMode m) {
-    setState(() => _params = PolicySearchParams(
-      query: _params.query, action: _params.action,
-      subjectType: _params.subjectType, mode: m,
-    ));
+    setState(
+      () => _params = PolicySearchParams(
+        query: _params.query,
+        action: _params.action,
+        subjectType: _params.subjectType,
+        mode: m,
+      ),
+    );
   }
 
   void _setSubject(SubjectType s) {
-    setState(() => _params = PolicySearchParams(
-      query: _params.query, action: _params.action,
-      subjectType: s, mode: _params.mode,
-    ));
+    setState(
+      () => _params = PolicySearchParams(
+        query: _params.query,
+        action: _params.action,
+        subjectType: s,
+        mode: _params.mode,
+      ),
+    );
   }
 
   void _setQuery(String q) {
-    setState(() => _params = PolicySearchParams(
-      query: q, action: _params.action,
-      subjectType: _params.subjectType, mode: _params.mode,
-    ));
+    setState(
+      () => _params = PolicySearchParams(
+        query: q,
+        action: _params.action,
+        subjectType: _params.subjectType,
+        mode: _params.mode,
+      ),
+    );
   }
 
   @override
@@ -72,11 +89,13 @@ class _PolicyListScreenState extends ConsumerState<PolicyListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/limits/policies/new'),
-        icon: const Icon(Icons.add),
-        label: const Text('New policy'),
-      ),
+      floatingActionButton: ref.watch(limitsCapabilitiesProvider).policyManage
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/limits/policies/new'),
+              icon: const Icon(Icons.add),
+              label: const Text('New policy'),
+            )
+          : null,
       body: Column(
         children: [
           Padding(
@@ -108,7 +127,21 @@ class _PolicyListScreenState extends ConsumerState<PolicyListScreen> {
           Expanded(
             child: asyncList.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Failed: $e')),
+              error: (e, _) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Failed: $e'),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      onPressed: () =>
+                          ref.invalidate(policyListProvider(_params)),
+                    ),
+                  ],
+                ),
+              ),
               data: (policies) {
                 if (policies.isEmpty) {
                   return const Center(
@@ -116,11 +149,25 @@ class _PolicyListScreenState extends ConsumerState<PolicyListScreen> {
                   );
                 }
                 return ListView.builder(
-                  itemCount: policies.length,
-                  itemBuilder: (_, i) => PolicyListTile(
-                    policy: policies[i],
-                    onTap: () => context.go('/limits/policies/${policies[i].id}'),
-                  ),
+                  itemCount:
+                      policies.length +
+                      (policies.length < policyPageSize ? 0 : 1),
+                  itemBuilder: (_, i) => i == policies.length
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Showing the first $policyPageSize policies. '
+                            'Narrow the filters to see the rest.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        )
+                      : PolicyListTile(
+                          policy: policies[i],
+                          onTap: () => context.push(
+                            '/limits/policies/${policies[i].id}',
+                          ),
+                        ),
                 );
               },
             ),
@@ -131,44 +178,50 @@ class _PolicyListScreenState extends ConsumerState<PolicyListScreen> {
   }
 
   Widget _actionDropdown() => SizedBox(
-        width: 220,
-        child: DropdownButtonFormField<LimitAction>(
-          initialValue: _params.action,
-          decoration: const InputDecoration(labelText: 'Action', isDense: true),
-          items: LimitAction.values
-              .map((a) => DropdownMenuItem(value: a, child: Text(limitActionLabel(a))))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) _setAction(v);
-          },
-        ),
-      );
+    width: 220,
+    child: DropdownButtonFormField<LimitAction>(
+      initialValue: _params.action,
+      decoration: const InputDecoration(labelText: 'Action', isDense: true),
+      items: LimitAction.values
+          .map(
+            (a) => DropdownMenuItem(value: a, child: Text(limitActionLabel(a))),
+          )
+          .toList(),
+      onChanged: (v) {
+        if (v != null) _setAction(v);
+      },
+    ),
+  );
 
   Widget _subjectDropdown() => SizedBox(
-        width: 200,
-        child: DropdownButtonFormField<SubjectType>(
-          initialValue: _params.subjectType,
-          decoration: const InputDecoration(labelText: 'Subject', isDense: true),
-          items: SubjectType.values
-              .map((s) => DropdownMenuItem(value: s, child: Text(subjectTypeLabel(s))))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) _setSubject(v);
-          },
-        ),
-      );
+    width: 200,
+    child: DropdownButtonFormField<SubjectType>(
+      initialValue: _params.subjectType,
+      decoration: const InputDecoration(labelText: 'Subject', isDense: true),
+      items: SubjectType.values
+          .map(
+            (s) => DropdownMenuItem(value: s, child: Text(subjectTypeLabel(s))),
+          )
+          .toList(),
+      onChanged: (v) {
+        if (v != null) _setSubject(v);
+      },
+    ),
+  );
 
   Widget _modeDropdown() => SizedBox(
-        width: 180,
-        child: DropdownButtonFormField<PolicyMode>(
-          initialValue: _params.mode,
-          decoration: const InputDecoration(labelText: 'Mode', isDense: true),
-          items: PolicyMode.values
-              .map((m) => DropdownMenuItem(value: m, child: Text(policyModeLabel(m))))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) _setMode(v);
-          },
-        ),
-      );
+    width: 180,
+    child: DropdownButtonFormField<PolicyMode>(
+      initialValue: _params.mode,
+      decoration: const InputDecoration(labelText: 'Mode', isDense: true),
+      items: PolicyMode.values
+          .map(
+            (m) => DropdownMenuItem(value: m, child: Text(policyModeLabel(m))),
+          )
+          .toList(),
+      onChanged: (v) {
+        if (v != null) _setMode(v);
+      },
+    ),
+  );
 }

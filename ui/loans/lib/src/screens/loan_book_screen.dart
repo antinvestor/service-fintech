@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/loans_transport_provider.dart';
+import '../widgets/loan_book_export_button.dart';
 
 class LoanBookScreen extends ConsumerStatefulWidget {
   const LoanBookScreen({super.key});
@@ -18,43 +19,11 @@ class LoanBookScreen extends ConsumerStatefulWidget {
 class _LoanBookScreenState extends ConsumerState<LoanBookScreen> {
   final _searchController = TextEditingController();
   LoanStatus _statusFilter = LoanStatus.LOAN_STATUS_UNSPECIFIED;
-  bool _isExporting = false;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _exportCSV() async {
-    setState(() => _isExporting = true);
-
-    try {
-      final client = ref.read(loanManagementServiceClientProvider);
-      final response = await client.portfolioExport(
-        PortfolioExportRequest(format: 'CSV'),
-      );
-
-      final filename =
-          response.filename.isEmpty ? 'loan_book.csv' : response.filename;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Export ready: $filename (${response.data.length} bytes)',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Export failed: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isExporting = false);
-    }
   }
 
   @override
@@ -77,38 +46,23 @@ class _LoanBookScreenState extends ConsumerState<LoanBookScreen> {
                         children: [
                           Text(
                             'Loan Book',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
+                            style: Theme.of(context).textTheme.headlineSmall
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Browse all loans. Export as CSV for reporting.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
+                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                           ),
                         ],
                       ),
                     ),
-                    FilledButton.icon(
-                      onPressed: _isExporting ? null : _exportCSV,
-                      icon: _isExporting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.download),
-                      label: const Text('Export CSV'),
-                    ),
+                    const LoanBookExportButton(),
                   ],
                 ),
               ),
@@ -176,15 +130,18 @@ class _LoanBookScreenState extends ConsumerState<LoanBookScreen> {
   }
 }
 
-final _loanListProvider = FutureProvider.family<List<LoanAccountObject>,
-    LoanAccountSearchRequest>((ref, request) async {
-  final client = ref.watch(loanManagementServiceClientProvider);
-  return collectStream(
-    client.loanAccountSearch(request),
-    extract: (response) => response.data,
-    maxPages: 50,
-  );
-});
+final _loanListProvider =
+    FutureProvider.family<List<LoanAccountObject>, LoanAccountSearchRequest>((
+      ref,
+      request,
+    ) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      return collectStream(
+        client.loanAccountSearch(request),
+        extract: (response) => response.data,
+        maxPages: 50,
+      );
+    });
 
 class _LoanList extends ConsumerWidget {
   const _LoanList({
@@ -217,8 +174,8 @@ class _LoanList extends ConsumerWidget {
               child: Text(
                 'No loans found',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           );
@@ -292,10 +249,12 @@ class _LoanCard extends StatelessWidget {
                     Text(
                       '${loan.daysPastDue}',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color:
-                            loan.daysPastDue > 0 ? theme.colorScheme.error : null,
-                        fontWeight:
-                            loan.daysPastDue > 0 ? FontWeight.w600 : null,
+                        color: loan.daysPastDue > 0
+                            ? theme.colorScheme.error
+                            : null,
+                        fontWeight: loan.daysPastDue > 0
+                            ? FontWeight.w600
+                            : null,
                       ),
                     ),
                   ],

@@ -201,6 +201,16 @@ func acceptedLoanOffer() *models.LoanOffer {
 	return offer
 }
 
+// originatedLoanOffer is an accepted offer whose loan account already exists.
+// CreateLoanAccount short-circuits on it, so the gate can be exercised without
+// a loan management client.
+func originatedLoanOffer() *models.LoanOffer {
+	offer := acceptedLoanOffer()
+	offer.ApplicationID = "loan-request-1"
+	offer.LoanAccountID = "loan-account-1"
+	return offer
+}
+
 func buildLoanOfferBusiness(
 	loRepo repository.LoanOfferRepository,
 	limitsCli limitsv1connect.LimitsServiceClient,
@@ -211,7 +221,7 @@ func buildLoanOfferBusiness(
 		loRepo:            loRepo,
 		lwRepo:            nil,
 		identityCli:       nil,
-		clients:           nil, // no platform clients — createLoanFromOffer will be a no-op
+		clients:           nil,
 		limitsCli:         limitsCli,
 		limitsGateEnabled: gateEnabled,
 	}
@@ -224,22 +234,22 @@ func buildLoanOfferBusiness(
 // TestCreateLoanAccount_GateDisabled verifies that when limitsGateEnabled=false
 // CreateLoanAccount runs without touching the limits client.
 func TestCreateLoanAccount_GateDisabled(t *testing.T) {
-	offer := acceptedLoanOffer()
+	offer := originatedLoanOffer()
 	loRepo := &stubLoanOfferRepo{offer: offer}
 	limitsCli := &stubStawiLimitsClient{}
 
 	b := buildLoanOfferBusiness(loRepo, limitsCli, false)
 
-	// Inner succeeds (no platform clients → createLoanFromOffer is a no-op).
-	_, err := b.CreateLoanAccount(context.Background(), offer.GetID())
+	result, err := b.CreateLoanAccount(context.Background(), offer.GetID())
 	require.NoError(t, err)
+	assert.Equal(t, "loan-account-1", result["loan_account_id"])
 	assert.Equal(t, 0, limitsCli.reserveCalls, "gate must not be called when disabled")
 }
 
 // TestCreateLoanAccount_GateAllowed verifies that when Reserve returns ACTIVE,
 // Commit is called and the inner function is invoked.
 func TestCreateLoanAccount_GateAllowed(t *testing.T) {
-	offer := acceptedLoanOffer()
+	offer := originatedLoanOffer()
 	loRepo := &stubLoanOfferRepo{offer: offer}
 	limitsCli := &stubStawiLimitsClient{
 		reserveResp: &limitsv1.ReserveResponse{
@@ -259,6 +269,34 @@ func TestCreateLoanAccount_GateAllowed(t *testing.T) {
 	// Inner succeeds → Commit is called.
 	assert.Equal(t, 1, limitsCli.commitCalls)
 	assert.Equal(t, 0, limitsCli.releaseCalls)
+}
+
+// TestCreateLoanAccount_IsIdempotentOnLoanAccount verifies that a retry of the
+// workflow step returns the existing loan instead of originating a second one.
+func TestCreateLoanAccount_IsIdempotentOnLoanAccount(t *testing.T) {
+	offer := originatedLoanOffer()
+	loRepo := &stubLoanOfferRepo{offer: offer}
+
+	b := buildLoanOfferBusiness(loRepo, &stubStawiLimitsClient{}, false)
+
+	result, err := b.CreateLoanAccount(context.Background(), offer.GetID())
+	require.NoError(t, err)
+	assert.Equal(t, "loan-account-1", result["loan_account_id"])
+	assert.Equal(t, "loan-request-1", result["loan_request_id"])
+	assert.Equal(t, true, result["idempotent"])
+}
+
+// TestCreateLoanAccount_RequiresLoanManagement verifies that a missing loans
+// peer fails the step instead of reporting a loan that was never created.
+func TestCreateLoanAccount_RequiresLoanManagement(t *testing.T) {
+	offer := acceptedLoanOffer()
+	loRepo := &stubLoanOfferRepo{offer: offer}
+
+	b := buildLoanOfferBusiness(loRepo, &stubStawiLimitsClient{}, false)
+
+	_, err := b.CreateLoanAccount(context.Background(), offer.GetID())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "loan management service is required")
 }
 
 // TestCreateLoanAccount_GateDenied verifies that when Reserve returns a deny

@@ -21,10 +21,16 @@ const (
 	entityLoanRequest   = "seed_loan_request"
 	fieldAmount         = "amount"
 	fieldClientID       = "client_id"
+	fieldError          = "error"
 	fieldCurrencyCode   = "currency_code"
 	fieldLoanAccountID  = "loan_account_id"
 	fieldMaxLoanAmount  = "max_loan_amount"
 	fieldProductID      = "product_id"
 	fieldStatus         = "status"
 	fieldTier           = "tier"
+	sourceServiceSeed   = "seed"
+	stageDisburse       = "disburse loan"
+	// failedKeyPrefix parks the idempotency key of a request that never
+	// reached the pipeline, so the customer can retry with the same key.
+	failedKeyPrefix = "failed:"
 )

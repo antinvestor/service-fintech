@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
 	"github.com/antinvestor/service-fintech/apps/seed/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 // CreditProfileSaveEvent persists one-off credit profile snapshots.
@@ -72,17 +72,8 @@ func (e *CreditProfileSave) Execute(ctx context.Context, payload any) error {
 	})
 	defer logger.Release()
 
-	existing, getErr := e.repo.GetByID(ctx, cp.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.repo.Update(ctx, cp); err != nil {
-			logger.WithError(err).Error("could not update credit profile")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.repo.Create(ctx, cp); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create credit profile")
+	if err := upsert.ByID(ctx, e.repo, cp); err != nil {
+		logger.WithError(err).Error("could not persist credit profile")
 		return err
 	}
 	return nil

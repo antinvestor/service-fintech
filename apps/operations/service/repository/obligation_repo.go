@@ -16,10 +16,12 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/pitabwire/frame/v2/datastore"
 	"github.com/pitabwire/frame/v2/datastore/pool"
 	"github.com/pitabwire/frame/v2/workerpool"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
 )
@@ -30,6 +32,12 @@ type ObligationRepository interface {
 	GetByMembershipID(ctx context.Context, membershipID string) ([]*models.Obligation, error)
 	GetByPeriodID(ctx context.Context, periodID string) ([]*models.Obligation, error)
 	GetByCauseID(ctx context.Context, causeID string) ([]*models.Obligation, error)
+
+	// ConsumeAmount deducts amount from an active obligation in a single
+	// conditional UPDATE and deactivates it once nothing is left. It reports
+	// whether the deduction landed, so two concurrent allocations of the same
+	// obligation cannot both succeed against the same balance.
+	ConsumeAmount(ctx context.Context, obligationID string, amount int64) (bool, error)
 }
 
 // NewObligationRepository creates a new ObligationRepository.
@@ -41,11 +49,46 @@ func NewObligationRepository(ctx context.Context, dbPool pool.Pool, workMan work
 	}
 }
 
-// stateActive is the numeric value for the active state used in database queries.
-const stateActive = 3
+// stateActive and stateInactive are the numeric state values used in queries,
+// and colState/colModifiedAt/colVersion are the columns the conditional
+// claim updates write.
+const (
+	stateActive   = 3
+	stateInactive = 4
+
+	colState      = "state"
+	colModifiedAt = "modified_at"
+	colVersion    = "version"
+)
 
 type obligationRepository struct {
 	datastore.BaseRepository[*models.Obligation]
+}
+
+func (r *obligationRepository) ConsumeAmount(
+	ctx context.Context,
+	obligationID string,
+	amount int64,
+) (bool, error) {
+	if amount <= 0 {
+		return false, nil
+	}
+	// Table, not Model: an empty model instance has its primary key filled in
+	// by the frame BaseModel hooks, which would add a bogus id to the WHERE.
+	result := r.Pool().DB(ctx, false).
+		Table("obligations").
+		Where("deleted_at IS NULL AND id = ? AND state = ? AND amount >= ?",
+			obligationID, stateActive, amount).
+		Updates(map[string]any{
+			"amount":      gorm.Expr("amount - ?", amount),
+			colState:      gorm.Expr("CASE WHEN amount - ? <= 0 THEN ? ELSE state END", amount, stateInactive),
+			colModifiedAt: time.Now().UTC(),
+			colVersion:    gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *obligationRepository) GetByMembershipID(

@@ -19,7 +19,9 @@ import (
 	"time"
 
 	"github.com/pitabwire/util"
+	"gorm.io/gorm"
 
+	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 	"github.com/antinvestor/service-fintech/apps/limits/service/repository"
 )
 
@@ -29,14 +31,21 @@ type ReservationReaper struct {
 	repo      repository.ReservationRepository
 	auditing  *Auditing
 	batchSize int
+	cfg       reaperConfig
 }
 
-// NewReservationReaper constructs a reaper. Default batchSize=1000.
-func NewReservationReaper(repo repository.ReservationRepository, auditing *Auditing, batchSize int) *ReservationReaper {
+// NewReservationReaper constructs a reaper. Default batchSize=1000. Pass
+// WithReaperPool so the expiry UPDATE and its audit rows commit together.
+func NewReservationReaper(
+	repo repository.ReservationRepository,
+	auditing *Auditing,
+	batchSize int,
+	opts ...ReaperOption,
+) *ReservationReaper {
 	if batchSize <= 0 {
 		batchSize = 1000
 	}
-	return &ReservationReaper{repo: repo, auditing: auditing, batchSize: batchSize}
+	return &ReservationReaper{repo: repo, auditing: auditing, batchSize: batchSize, cfg: applyReaperOptions(opts)}
 }
 
 // Run scans for active reservations past their TTL and expires them.
@@ -52,23 +61,47 @@ func (r *ReservationReaper) Run(ctx context.Context) error {
 	log := util.Log(ctx).With("reaper", "reservation_ttl")
 
 	ids := make([]string, len(rows))
+	byID := make(map[string]*models.Reservation, len(rows))
 	for i, row := range rows {
 		ids[i] = row.ID
+		byID[row.ID] = row
 	}
-	n, err := r.repo.BulkSetExpired(ctx, ids, now)
-	if err != nil {
-		return err
+
+	var expired []string
+	txErr := r.cfg.runInTx(ctx, func(tx *gorm.DB) error {
+		var bulkErr error
+		if tx == nil {
+			expired, bulkErr = r.repo.BulkSetExpired(ctx, ids, now)
+		} else {
+			expired, bulkErr = r.repo.BulkSetExpiredTx(ctx, tx, ids, now)
+		}
+		if bulkErr != nil {
+			return bulkErr
+		}
+		// Audit only the rows the UPDATE actually transitioned. A reservation
+		// committed between the SELECT and the UPDATE is not expired and must
+		// not get an expiry record.
+		for _, id := range expired {
+			row, ok := byID[id]
+			if !ok {
+				continue
+			}
+			row.Status = models.ReservationStatusExpired
+			if tx == nil {
+				r.auditing.RecordReservationExpiredTTL(ctx, row)
+				continue
+			}
+			if auditErr := r.auditing.RecordReservationExpiredTTLTx(ctx, tx, row); auditErr != nil {
+				return auditErr
+			}
+		}
+		return nil
+	})
+	if txErr != nil {
+		return txErr
 	}
-	if n > 0 {
-		log.With("expired_count", n).Info("reaper bulk update")
-	}
-	// Record audit events for each successfully reaped row. The bulk UPDATE
-	// transitions rows atomically; we audit after the fact.
-	for _, row := range rows {
-		r.auditing.RecordReservationExpiredTTL(ctx, row)
-	}
-	if len(rows) > 0 {
-		log.With("count", len(rows)).Info("reaped expired reservations")
+	if len(expired) > 0 {
+		log.With("count", len(expired)).Info("reaped expired reservations")
 	}
 	return nil
 }

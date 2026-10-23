@@ -16,7 +16,8 @@ package handlers
 
 import (
 	"context"
-	"fmt"
+	"strconv"
+	"strings"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
@@ -27,6 +28,17 @@ import (
 	"github.com/antinvestor/service-fintech/apps/identity/service/business"
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
+)
+
+// Audit vocabulary that the shared audit package does not yet define.
+const (
+	auditResourceClientDataEntry = "client_data_entry"
+	auditActionRequestInfo       = "request_info"
+
+	// defaultPageLimit and maxPageLimit bound how many rows one streamed
+	// batch may carry when the caller does not choose, or asks for too much.
+	defaultPageLimit = 50
+	maxPageLimit     = 200
 )
 
 // IdentityServer implements the IdentityService RPC handler.
@@ -529,7 +541,7 @@ func (s *IdentityServer) ClientGroupSearch(
 	stream *connect.ServerStream[identityv1.ClientGroupSearchResponse],
 ) error {
 	err := s.clientGroupBusiness.Search(ctx,
-		req.Msg.GetQuery(), req.Msg.GetAgentId(), req.Msg.GetBranchId(), 0, nil,
+		req.Msg.GetQuery(), req.Msg.GetAgentId(), req.Msg.GetBranchId(), req.Msg.GetCursor(),
 		func(_ context.Context, batch []*models.ClientGroup) error {
 			var apiResults []*identityv1.ClientGroupObject
 			for _, g := range batch {
@@ -583,7 +595,7 @@ func (s *IdentityServer) MembershipSearch(
 	stream *connect.ServerStream[identityv1.MembershipSearchResponse],
 ) error {
 	err := s.membershipBusiness.Search(ctx,
-		req.Msg.GetQuery(), req.Msg.GetGroupId(), req.Msg.GetProfileId(), 0, 0,
+		req.Msg.GetQuery(), req.Msg.GetGroupId(), req.Msg.GetProfileId(), req.Msg.GetCursor(),
 		func(_ context.Context, batch []*models.Membership) error {
 			var apiResults []*identityv1.MembershipObject
 			for _, m := range batch {
@@ -608,7 +620,7 @@ func (s *IdentityServer) ClientDataSave(
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceClient, result.GetID())
+	audit.WithResource(ctx, auditResourceClientDataEntry, result.GetID())
 	audit.WithAction(ctx, audit.ActionSave)
 	audit.WithDetail(ctx, "field_key", result.FieldKey)
 	audit.WithDetail(ctx, "client_id", result.ClientID)
@@ -631,43 +643,74 @@ func (s *IdentityServer) ClientDataList(
 	req *connect.Request[identityv1.ClientDataListRequest],
 	stream *connect.ServerStream[identityv1.ClientDataListResponse],
 ) error {
-	var offset, limit int
-	if cursor := req.Msg.GetCursor(); cursor != nil {
-		if p := cursor.GetPage(); p != "" {
-			if v, err := parseInt(p); err == nil {
-				offset = v
-			}
-		}
-		limit = int(cursor.GetLimit())
-	}
-	if limit <= 0 {
-		limit = 50
-	}
-
-	status := int32(req.Msg.GetVerificationStatus())
-	results, err := s.clientDataBusiness.List(ctx, req.Msg.GetClientId(), status, offset, limit)
+	offset, limit, err := pageBounds(req.Msg.GetCursor())
 	if err != nil {
 		return apperrors.CleanErr(err)
 	}
 
-	var apiResults []*identityv1.ClientDataEntryObject
-	for _, e := range results {
-		apiResults = append(apiResults, e.ToAPI())
+	status := int32(req.Msg.GetVerificationStatus())
+	for {
+		results, listErr := s.clientDataBusiness.List(ctx, req.Msg.GetClientId(), status, offset, limit)
+		if listErr != nil {
+			return apperrors.CleanErr(listErr)
+		}
+		if len(results) == 0 {
+			return nil
+		}
+
+		apiResults := make([]*identityv1.ClientDataEntryObject, 0, len(results))
+		for _, e := range results {
+			apiResults = append(apiResults, e.ToAPI())
+		}
+		if sendErr := stream.Send(&identityv1.ClientDataListResponse{Data: apiResults}); sendErr != nil {
+			return sendErr
+		}
+
+		if len(results) < limit {
+			return nil
+		}
+		offset += len(results)
 	}
-	return stream.Send(&identityv1.ClientDataListResponse{Data: apiResults})
+}
+
+// pageBounds resolves a page cursor into an offset and a per-batch limit. A
+// page token that is not a non-negative integer is rejected rather than
+// silently resolving to the first page.
+func pageBounds(cursor *commonv1.PageCursor) (int, int, error) {
+	offset := 0
+	limit := defaultPageLimit
+	if cursor == nil {
+		return offset, limit, nil
+	}
+
+	if page := strings.TrimSpace(cursor.GetPage()); page != "" {
+		parsed, err := strconv.Atoi(page)
+		if err != nil || parsed < 0 {
+			return 0, 0, business.ErrInvalidPageToken
+		}
+		offset = parsed
+	}
+
+	if l := cursor.GetLimit(); l > 0 {
+		limit = int(l)
+		if limit > maxPageLimit {
+			limit = maxPageLimit
+		}
+	}
+	return offset, limit, nil
 }
 
 func (s *IdentityServer) ClientDataVerify(
 	ctx context.Context,
 	req *connect.Request[identityv1.ClientDataVerifyRequest],
 ) (*connect.Response[identityv1.ClientDataVerifyResponse], error) {
-	result, err := s.clientDataBusiness.Verify(ctx, req.Msg.GetEntryId(), req.Msg.GetReviewerId(), req.Msg.GetComment())
+	result, err := s.clientDataBusiness.Verify(ctx, req.Msg.GetEntryId(), req.Msg.GetComment())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceClient, req.Msg.GetEntryId())
+	audit.WithResource(ctx, auditResourceClientDataEntry, result.GetID())
 	audit.WithAction(ctx, audit.ActionVerify)
-	audit.WithDetail(ctx, "reviewer_id", req.Msg.GetReviewerId())
+	audit.WithDetail(ctx, "reviewer_id", result.ReviewerID)
 	return connect.NewResponse(&identityv1.ClientDataVerifyResponse{Data: result.ToAPI()}), nil
 }
 
@@ -675,14 +718,13 @@ func (s *IdentityServer) ClientDataReject(
 	ctx context.Context,
 	req *connect.Request[identityv1.ClientDataRejectRequest],
 ) (*connect.Response[identityv1.ClientDataRejectResponse], error) {
-	result, err := s.clientDataBusiness.Reject(ctx, req.Msg.GetEntryId(), req.Msg.GetReviewerId(), req.Msg.GetReason())
+	result, err := s.clientDataBusiness.Reject(ctx, req.Msg.GetEntryId(), req.Msg.GetReason())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceClient, req.Msg.GetEntryId())
+	audit.WithResource(ctx, auditResourceClientDataEntry, result.GetID())
 	audit.WithAction(ctx, audit.ActionReject)
-	audit.WithDetail(ctx, "reviewer_id", req.Msg.GetReviewerId())
-	audit.WithDetail(ctx, "reason", req.Msg.GetReason())
+	audit.WithDetail(ctx, "reviewer_id", result.ReviewerID)
 	return connect.NewResponse(&identityv1.ClientDataRejectResponse{Data: result.ToAPI()}), nil
 }
 
@@ -690,15 +732,13 @@ func (s *IdentityServer) ClientDataRequestInfo(
 	ctx context.Context,
 	req *connect.Request[identityv1.ClientDataRequestInfoRequest],
 ) (*connect.Response[identityv1.ClientDataRequestInfoResponse], error) {
-	result, err := s.clientDataBusiness.RequestInfo(
-		ctx, req.Msg.GetEntryId(), req.Msg.GetReviewerId(), req.Msg.GetComment(),
-	)
+	result, err := s.clientDataBusiness.RequestInfo(ctx, req.Msg.GetEntryId(), req.Msg.GetComment())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceClient, req.Msg.GetEntryId())
-	audit.WithAction(ctx, "request_info")
-	audit.WithDetail(ctx, "reviewer_id", req.Msg.GetReviewerId())
+	audit.WithResource(ctx, auditResourceClientDataEntry, result.GetID())
+	audit.WithAction(ctx, auditActionRequestInfo)
+	audit.WithDetail(ctx, "reviewer_id", result.ReviewerID)
 	return connect.NewResponse(&identityv1.ClientDataRequestInfoResponse{Data: result.ToAPI()}), nil
 }
 
@@ -715,13 +755,6 @@ func (s *IdentityServer) ClientDataHistory(
 		apiResults = append(apiResults, h.ToAPI())
 	}
 	return connect.NewResponse(&identityv1.ClientDataHistoryResponse{Data: apiResults}), nil
-}
-
-// parseInt is a small helper to parse page offset strings.
-func parseInt(s string) (int, error) {
-	var v int
-	_, err := fmt.Sscanf(s, "%d", &v)
-	return v, err
 }
 
 // --- FormTemplate RPCs ---
@@ -755,13 +788,17 @@ func (s *IdentityServer) FormTemplateSearch(
 	req *connect.Request[identityv1.FormTemplateSearchRequest],
 	stream *connect.ServerStream[identityv1.FormTemplateSearchResponse],
 ) error {
-	return s.formTemplateBusiness.Search(
+	err := s.formTemplateBusiness.Search(
 		ctx,
 		req.Msg,
 		func(_ context.Context, batch []*identityv1.FormTemplateObject) error {
 			return stream.Send(&identityv1.FormTemplateSearchResponse{Data: batch})
 		},
 	)
+	if err != nil {
+		return apperrors.CleanErr(err)
+	}
+	return nil
 }
 
 func (s *IdentityServer) FormTemplatePublish(
@@ -808,11 +845,15 @@ func (s *IdentityServer) FormSubmissionSearch(
 	req *connect.Request[identityv1.FormSubmissionSearchRequest],
 	stream *connect.ServerStream[identityv1.FormSubmissionSearchResponse],
 ) error {
-	return s.formSubmissionBusiness.Search(
+	err := s.formSubmissionBusiness.Search(
 		ctx,
 		req.Msg,
 		func(_ context.Context, batch []*identityv1.FormSubmissionObject) error {
 			return stream.Send(&identityv1.FormSubmissionSearchResponse{Data: batch})
 		},
 	)
+	if err != nil {
+		return apperrors.CleanErr(err)
+	}
+	return nil
 }

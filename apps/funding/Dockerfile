@@ -1,5 +1,5 @@
 # ---------- Builder ----------
-FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26@sha256:3c3e25a4da13fd0478eed2df1eb35a0e667094a7124d3993a6a1d30f71c17e79 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY ./apps/funding ./apps/funding
-COPY ./apps/identity ./apps/identity
+COPY ./apps/operations ./apps/operations
 COPY ./apps/stawi ./apps/stawi
 COPY ./pkg ./pkg
 
@@ -27,8 +27,11 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	-o /app/binary ./apps/funding/cmd/
 
 # ---------- Final ----------
-FROM cgr.dev/chainguard/static:latest
+FROM cgr.dev/chainguard/static:latest@sha256:207a5673ab31ed83332e54ae33d0f1de4adb5984bd93b8309789889e7bf30ba6
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/binary /service
+# SQL migrations run from the setup job; the image must carry them.
+COPY --from=builder /app/apps/funding/migrations /migrations
+ENV MIGRATION_PATH=/migrations
 ENTRYPOINT ["/service"]

@@ -23,18 +23,29 @@ import (
 // PaymentRoutingBusiness handles payment identification and allocation.
 type PaymentRoutingBusiness interface {
 	IdentifyPayment(ctx context.Context, paymentData map[string]interface{}) (map[string]interface{}, error)
+	IdentifySender(ctx context.Context, senderIdentifier, groupID, reference string) (map[string]interface{}, error)
 	AllocatePayment(ctx context.Context, paymentID string) (map[string]interface{}, error)
+	AllocatePaymentByTransactionID(ctx context.Context, transactionID string) (map[string]interface{}, error)
+	SuspenseBalance(ctx context.Context, membershipID string) (map[string]interface{}, error)
+	ApplySuspense(ctx context.Context, membershipID string, maxAmount int64) (map[string]interface{}, error)
+	RecordSuspenseDeposit(ctx context.Context, deposit SuspenseDeposit) (map[string]interface{}, error)
+	ConfirmPayment(ctx context.Context, transactionID string) (map[string]interface{}, error)
 }
 
 // TransferOrderBusiness handles transfer order creation and execution.
 type TransferOrderBusiness interface {
 	Save(ctx context.Context, order *models.TransferOrder) error
 	Execute(ctx context.Context, orderID string) error
+	RecordFailure(ctx context.Context, reference, reason string) (map[string]interface{}, error)
 }
 
 // ObligationBusiness handles financial obligation management.
 type ObligationBusiness interface {
-	CalculateForGroup(ctx context.Context, groupID string) error
+	CalculateForGroup(ctx context.Context, groupID string) (map[string]interface{}, error)
+	CalculatePenaltiesForPeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
+	ReconcilePeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
+	OutstandingForPeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
+	CheckForMember(ctx context.Context, membershipID string) (map[string]interface{}, error)
 	CreateLoanObligations(ctx context.Context, loanAccountID string, entries []ScheduleEntryInfo) error
 	GetStatus(ctx context.Context, obligationID string) (map[string]interface{}, error)
 }

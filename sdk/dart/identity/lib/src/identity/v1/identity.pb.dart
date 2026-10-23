@@ -144,6 +144,8 @@ class OrganizationObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearPartitionId() => clearField(2);
 
+  /// (child partition from the caller's claims), so a create request
+  /// may omit it; required shape only applies when a value is present.
   @$pb.TagNumber(3)
   $core.String get name => $_getSZ(2);
   @$pb.TagNumber(3)
@@ -5541,6 +5543,10 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     $core.String? agentId,
     $core.String? branchId,
     $7.PageCursor? cursor,
+    $core.String? parentId,
+    $core.String? productId,
+    $core.int? groupType,
+    $7.STATE? state,
   }) {
     final $result = create();
     if (query != null) {
@@ -5555,6 +5561,18 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     if (cursor != null) {
       $result.cursor = cursor;
     }
+    if (parentId != null) {
+      $result.parentId = parentId;
+    }
+    if (productId != null) {
+      $result.productId = productId;
+    }
+    if (groupType != null) {
+      $result.groupType = groupType;
+    }
+    if (state != null) {
+      $result.state = state;
+    }
     return $result;
   }
   ClientGroupSearchRequest._() : super();
@@ -5566,6 +5584,10 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'agentId')
     ..aOS(3, _omitFieldNames ? '' : 'branchId')
     ..aOM<$7.PageCursor>(4, _omitFieldNames ? '' : 'cursor', subBuilder: $7.PageCursor.create)
+    ..aOS(5, _omitFieldNames ? '' : 'parentId')
+    ..aOS(6, _omitFieldNames ? '' : 'productId')
+    ..a<$core.int>(7, _omitFieldNames ? '' : 'groupType', $pb.PbFieldType.O3)
+    ..e<$7.STATE>(8, _omitFieldNames ? '' : 'state', $pb.PbFieldType.OE, defaultOrMaker: $7.STATE.CREATED, valueOf: $7.STATE.valueOf, enumValues: $7.STATE.values)
     ..hasRequiredFields = false
   ;
 
@@ -5627,6 +5649,42 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
   void clearCursor() => clearField(4);
   @$pb.TagNumber(4)
   $7.PageCursor ensureCursor() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  $core.String get parentId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set parentId($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasParentId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearParentId() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get productId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set productId($core.String v) { $_setString(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasProductId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearProductId() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get groupType => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set groupType($core.int v) { $_setSignedInt32(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasGroupType() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearGroupType() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $7.STATE get state => $_getN(7);
+  @$pb.TagNumber(8)
+  set state($7.STATE v) { setField(8, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasState() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearState() => clearField(8);
 }
 
 class ClientGroupSearchResponse extends $pb.GeneratedMessage {
@@ -6064,6 +6122,10 @@ class MembershipSearchRequest extends $pb.GeneratedMessage {
     $core.String? groupId,
     $core.String? profileId,
     $7.PageCursor? cursor,
+    $core.String? contactId,
+    $core.int? role,
+    $core.int? membershipType,
+    $7.STATE? state,
   }) {
     final $result = create();
     if (query != null) {
@@ -6078,6 +6140,18 @@ class MembershipSearchRequest extends $pb.GeneratedMessage {
     if (cursor != null) {
       $result.cursor = cursor;
     }
+    if (contactId != null) {
+      $result.contactId = contactId;
+    }
+    if (role != null) {
+      $result.role = role;
+    }
+    if (membershipType != null) {
+      $result.membershipType = membershipType;
+    }
+    if (state != null) {
+      $result.state = state;
+    }
     return $result;
   }
   MembershipSearchRequest._() : super();
@@ -6089,6 +6163,10 @@ class MembershipSearchRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'groupId')
     ..aOS(3, _omitFieldNames ? '' : 'profileId')
     ..aOM<$7.PageCursor>(4, _omitFieldNames ? '' : 'cursor', subBuilder: $7.PageCursor.create)
+    ..aOS(5, _omitFieldNames ? '' : 'contactId')
+    ..a<$core.int>(6, _omitFieldNames ? '' : 'role', $pb.PbFieldType.O3)
+    ..a<$core.int>(7, _omitFieldNames ? '' : 'membershipType', $pb.PbFieldType.O3)
+    ..e<$7.STATE>(8, _omitFieldNames ? '' : 'state', $pb.PbFieldType.OE, defaultOrMaker: $7.STATE.CREATED, valueOf: $7.STATE.valueOf, enumValues: $7.STATE.values)
     ..hasRequiredFields = false
   ;
 
@@ -6150,6 +6228,42 @@ class MembershipSearchRequest extends $pb.GeneratedMessage {
   void clearCursor() => clearField(4);
   @$pb.TagNumber(4)
   $7.PageCursor ensureCursor() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  $core.String get contactId => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set contactId($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasContactId() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearContactId() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get role => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set role($core.int v) { $_setSignedInt32(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasRole() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearRole() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get membershipType => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set membershipType($core.int v) { $_setSignedInt32(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasMembershipType() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearMembershipType() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $7.STATE get state => $_getN(7);
+  @$pb.TagNumber(8)
+  set state($7.STATE v) { setField(8, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasState() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearState() => clearField(8);
 }
 
 class MembershipSearchResponse extends $pb.GeneratedMessage {
@@ -8370,10 +8484,14 @@ class ClientDataListRequest extends $pb.GeneratedMessage {
 class ClientDataListResponse extends $pb.GeneratedMessage {
   factory ClientDataListResponse({
     $core.Iterable<ClientDataEntryObject>? data,
+    $7.PageCursor? nextCursor,
   }) {
     final $result = create();
     if (data != null) {
       $result.data.addAll(data);
+    }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
     }
     return $result;
   }
@@ -8383,6 +8501,7 @@ class ClientDataListResponse extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ClientDataListResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'), createEmptyInstance: create)
     ..pc<ClientDataEntryObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: ClientDataEntryObject.create)
+    ..aOM<$7.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $7.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -8409,12 +8528,25 @@ class ClientDataListResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $core.List<ClientDataEntryObject> get data => $_getList(0);
+
+  /// Cursor for the page after this one. Empty on the last page.
+  @$pb.TagNumber(2)
+  $7.PageCursor get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($7.PageCursor v) { setField(2, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => clearField(2);
+  @$pb.TagNumber(2)
+  $7.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 /// Verifier approves a data entry
 class ClientDataVerifyRequest extends $pb.GeneratedMessage {
   factory ClientDataVerifyRequest({
     $core.String? entryId,
+  @$core.Deprecated('This field is deprecated.')
     $core.String? reviewerId,
     $core.String? comment,
   }) {
@@ -8423,6 +8555,7 @@ class ClientDataVerifyRequest extends $pb.GeneratedMessage {
       $result.entryId = entryId;
     }
     if (reviewerId != null) {
+      // ignore: deprecated_member_use_from_same_package
       $result.reviewerId = reviewerId;
     }
     if (comment != null) {
@@ -8471,12 +8604,18 @@ class ClientDataVerifyRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearEntryId() => clearField(1);
 
+  /// Deprecated: the reviewer is always the authenticated caller. The server
+  /// ignores this field; it remains only so older clients keep compiling.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.String get reviewerId => $_getSZ(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   set reviewerId($core.String v) { $_setString(1, v); }
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.bool hasReviewerId() => $_has(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   void clearReviewerId() => clearField(2);
 
@@ -8546,6 +8685,7 @@ class ClientDataVerifyResponse extends $pb.GeneratedMessage {
 class ClientDataRejectRequest extends $pb.GeneratedMessage {
   factory ClientDataRejectRequest({
     $core.String? entryId,
+  @$core.Deprecated('This field is deprecated.')
     $core.String? reviewerId,
     $core.String? reason,
   }) {
@@ -8554,6 +8694,7 @@ class ClientDataRejectRequest extends $pb.GeneratedMessage {
       $result.entryId = entryId;
     }
     if (reviewerId != null) {
+      // ignore: deprecated_member_use_from_same_package
       $result.reviewerId = reviewerId;
     }
     if (reason != null) {
@@ -8602,12 +8743,18 @@ class ClientDataRejectRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearEntryId() => clearField(1);
 
+  /// Deprecated: the reviewer is always the authenticated caller. The server
+  /// ignores this field; it remains only so older clients keep compiling.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.String get reviewerId => $_getSZ(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   set reviewerId($core.String v) { $_setString(1, v); }
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.bool hasReviewerId() => $_has(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   void clearReviewerId() => clearField(2);
 
@@ -8677,6 +8824,7 @@ class ClientDataRejectResponse extends $pb.GeneratedMessage {
 class ClientDataRequestInfoRequest extends $pb.GeneratedMessage {
   factory ClientDataRequestInfoRequest({
     $core.String? entryId,
+  @$core.Deprecated('This field is deprecated.')
     $core.String? reviewerId,
     $core.String? comment,
   }) {
@@ -8685,6 +8833,7 @@ class ClientDataRequestInfoRequest extends $pb.GeneratedMessage {
       $result.entryId = entryId;
     }
     if (reviewerId != null) {
+      // ignore: deprecated_member_use_from_same_package
       $result.reviewerId = reviewerId;
     }
     if (comment != null) {
@@ -8733,12 +8882,18 @@ class ClientDataRequestInfoRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearEntryId() => clearField(1);
 
+  /// Deprecated: the reviewer is always the authenticated caller. The server
+  /// ignores this field; it remains only so older clients keep compiling.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.String get reviewerId => $_getSZ(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   set reviewerId($core.String v) { $_setString(1, v); }
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.bool hasReviewerId() => $_has(1);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   void clearReviewerId() => clearField(2);
 

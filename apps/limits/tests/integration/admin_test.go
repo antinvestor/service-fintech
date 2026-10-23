@@ -62,6 +62,8 @@ type fixedClaimsInterceptor struct {
 	tenantID    string
 	partitionID string
 	profileID   string
+	// roles carries the approver tier roles the Decide path enforces.
+	roles []string
 }
 
 func (f *fixedClaimsInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
@@ -88,6 +90,7 @@ func (f *fixedClaimsInterceptor) injectClaims(ctx context.Context) context.Conte
 		ContactID:   f.profileID,
 		SessionID:   util.IDString(),
 		DeviceID:    "test-device",
+		Roles:       f.roles,
 	}
 	claims.Subject = f.profileID
 	return claims.ClaimsToContext(ctx)

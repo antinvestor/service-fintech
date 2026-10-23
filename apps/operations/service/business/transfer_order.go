@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -36,12 +37,17 @@ import (
 	"github.com/antinvestor/service-fintech/apps/operations/service/events"
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
 	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/calculation"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
+
+// errUnresolvedAccountRef is returned when a transfer order's debit or credit
+// account cannot be resolved to a ledger account.
+var errUnresolvedAccountRef = errors.New("transfer order account ref could not be resolved to a ledger account")
 
 const (
 	// decimalPrecisionTO is the number of decimal places for minor unit conversions.
@@ -121,7 +127,10 @@ func (b *transferOrderBusiness) Save(ctx context.Context, order *models.Transfer
 		order.State = int32(constants.StateJustCreated)
 	}
 	order.GenID(ctx)
-	return b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, order)
+
+	// The write is synchronous: Execute reads the row back by id immediately
+	// after Save returns, so a queued projection would race the read.
+	return b.toRepo.CreateIfAbsent(ctx, order)
 }
 
 // Execute processes a transfer order based on its type.
@@ -164,6 +173,63 @@ func (b *transferOrderBusiness) Execute(ctx context.Context, orderID string) err
 		})
 }
 
+// RecordFailure marks the transfer order behind a reference as failed and
+// records why. The workflow compensation step calls it when a ledger transfer
+// comes back non-2xx, so the order stops looking executable and an operator
+// can see the reason without reading logs.
+func (b *transferOrderBusiness) RecordFailure(
+	ctx context.Context,
+	reference, reason string,
+) (map[string]interface{}, error) {
+	reference = strings.TrimSpace(reference)
+	if reference == "" {
+		return nil, apperrors.NewError(apperrors.BadRequest, "reference is required")
+	}
+
+	order, err := b.toRepo.GetByReference(ctx, reference)
+	if err != nil || order == nil {
+		return nil, apperrors.ErrDataNotFound.Extend("transfer order")
+	}
+
+	if order.State == int32(constants.StateInactive) {
+		return map[string]interface{}{
+			fieldReference:       reference,
+			fieldTransferOrderID: order.GetID(),
+			fieldStatus:          "already_completed",
+		}, nil
+	}
+
+	claimed, claimErr := b.toRepo.ClaimState(
+		ctx,
+		order.GetID(),
+		[]int32{int32(constants.StateJustCreated), int32(constants.StateCheckCreated), int32(constants.StateActive)},
+		int32(constants.StateShutdown),
+	)
+	if claimErr != nil {
+		return nil, claimErr
+	}
+
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: entityTransferOrder,
+		EntityID:   order.GetID(),
+		Action:     "transfer_order.failed",
+		Reason:     reason,
+		Metadata: data.JSONMap{
+			fieldReference: reference,
+		},
+		Parent: &order.BaseModel,
+	}, func(auErr error) {
+		util.Log(ctx).WithError(auErr).Warn("audit emission failed for transfer order failure")
+	})
+
+	return map[string]interface{}{
+		fieldReference:       reference,
+		fieldTransferOrderID: order.GetID(),
+		fieldStatus:          "recorded",
+		"newly_failed":       claimed,
+	}, nil
+}
+
 // executeInner runs the core transfer order execution logic after any gate check.
 func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string) error {
 	logger := util.Log(ctx).WithField("method", "TransferOrderBusiness.Execute").
@@ -183,10 +249,23 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 		return nil
 	}
 
-	order.State = int32(constants.StateCheckCreated)
-	if err = b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, order); err != nil {
-		return fmt.Errorf("could not claim transfer order for execution: %w", err)
+	// Claim the order with a conditional UPDATE. Two concurrent executions of
+	// the same order both read StateJustCreated, but only one row update
+	// matches, so only one caller moves money.
+	claimed, claimErr := b.toRepo.ClaimState(
+		ctx,
+		orderID,
+		[]int32{int32(constants.StateJustCreated), int32(constants.StateActive)},
+		int32(constants.StateCheckCreated),
+	)
+	if claimErr != nil {
+		return fmt.Errorf("could not claim transfer order for execution: %w", claimErr)
 	}
+	if !claimed {
+		logger.Info("transfer order already claimed by another execution, skipping")
+		return nil
+	}
+	order.State = int32(constants.StateCheckCreated)
 
 	logger.Info("executing transfer order")
 
@@ -212,18 +291,23 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	}
 
 	// Step 6: Mark the transfer order as completed
-	order.State = int32(constants.StateInactive)
-	if emitErr := b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, order); emitErr != nil {
-		logger.WithError(emitErr).Error("could not update transfer order state")
-		return emitErr
+	if _, doneErr := b.toRepo.ClaimState(
+		ctx,
+		orderID,
+		[]int32{int32(constants.StateCheckCreated)},
+		int32(constants.StateInactive),
+	); doneErr != nil {
+		logger.WithError(doneErr).Error("could not update transfer order state")
+		return doneErr
 	}
+	order.State = int32(constants.StateInactive)
 
 	// Step 7: Audit. Captures every successful money movement in one
 	// descriptive record for later tracing. Best-effort: we don't fail
 	// the operation if audit recording fails because the money has
 	// already moved and the primary record of it lives in transfer_orders.
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "transfer_order",
+		EntityType: entityTransferOrder,
 		EntityID:   order.GetID(),
 		Action:     "transfer_order.executed",
 		Reason:     fmt.Sprintf("posted %s ledger transaction", typeName),
@@ -238,7 +322,7 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 			fieldCurrency:        order.Currency,
 			"debit_account_ref":  order.DebitAccountRef,
 			"credit_account_ref": order.CreditAccountRef,
-			"reference":          order.Reference,
+			fieldReference:       order.Reference,
 		},
 		Parent: &order.BaseModel,
 	}, func(err error) {
@@ -338,6 +422,9 @@ func (b *transferOrderBusiness) resolveAccountRefs(
 	return debitRef, creditRef
 }
 
+// resolveAccountRef loads an AccountRef, falling back to treating the id as a
+// ledger account name. The fallback only applies to a genuine miss: a database
+// failure must not silently post against a fabricated account.
 func (b *transferOrderBusiness) resolveAccountRef(
 	ctx context.Context,
 	refID string,
@@ -346,6 +433,11 @@ func (b *transferOrderBusiness) resolveAccountRef(
 	ref, err := b.arRepo.GetByID(ctx, refID)
 	if err == nil && ref != nil {
 		return ref
+	}
+	if err != nil && !data.ErrorIsNoRows(err) {
+		util.Log(ctx).WithError(err).WithField("account_ref", refID).
+			Error("could not load account ref")
+		return nil
 	}
 
 	return &models.AccountRef{
@@ -377,6 +469,12 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 	}
 	if creditRef != nil {
 		creditLedgerID = creditRef.LedgerID
+	}
+
+	// An order that names an account but resolves to no ledger id would post a
+	// half-formed entry. Refuse instead of writing it.
+	if debitLedgerID == "" || creditLedgerID == "" {
+		return "", errUnresolvedAccountRef
 	}
 
 	logger.WithField("debit_ledger", debitLedgerID).
@@ -460,9 +558,9 @@ func (b *transferOrderBusiness) logCBSSyncRecord(
 }
 
 // minorToMoney converts a minor-unit int64 amount and currency code to a
-// google.type.Money protobuf value. Assumes 2-decimal-place currencies.
+// google.type.Money protobuf value using the currency's ISO-4217 exponent.
 func minorToMoney(currency string, amount int64) *commonv1.Money {
-	return utilmoney.FromInt64(currency, amount, decimalPrecisionTO)
+	return utilmoney.FromMinorUnitsByCurrency(currency, amount)
 }
 
 // sendPayment is a helper that calls PaymentClient.Send with common parameters.

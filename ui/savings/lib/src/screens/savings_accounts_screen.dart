@@ -8,6 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/savings_providers.dart';
+import '../widgets/async_list_view.dart';
+
+/// How long the search box waits before firing a request, so a typed word is
+/// one streaming RPC rather than one per keystroke.
+const _searchDebounce = Duration(milliseconds: 350);
 
 class SavingsAccountsScreen extends ConsumerStatefulWidget {
   const SavingsAccountsScreen({super.key});
@@ -19,18 +24,40 @@ class SavingsAccountsScreen extends ConsumerStatefulWidget {
 
 class _SavingsAccountsScreenState extends ConsumerState<SavingsAccountsScreen> {
   String _query = '';
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
 
   void _onSearch(String value) {
-    setState(() => _query = value.trim());
+    _debounce?.cancel();
+    _debounce = Timer(_searchDebounce, () {
+      if (!mounted) return;
+      setState(() => _query = value.trim());
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final accountsAsync = ref.watch(
-      savingsAccountListProvider((query: _query, ownerId: '')),
-    );
-    final accounts = accountsAsync.whenOrNull(data: (d) => d) ?? [];
+    final organizationId = ref.watch(tenancyContextProvider).organizationId;
+    final params = (query: _query, ownerId: '', organizationId: organizationId);
+    final accountsAsync = ref.watch(savingsAccountListProvider(params));
 
+    return AsyncListView<SavingsAccountObject>(
+      value: accountsAsync,
+      onRetry: () => ref.invalidate(savingsAccountListProvider(params)),
+      emptyTitle: 'No savings accounts',
+      emptyMessage: _query.isEmpty
+          ? 'Open an account to start recording deposits.'
+          : 'No savings account matches "$_query".',
+      builder: (accounts) => _buildList(context, accounts),
+    );
+  }
+
+  Widget _buildList(BuildContext context, List<SavingsAccountObject> accounts) {
     return AdminEntityListPage<SavingsAccountObject>(
       title: 'Savings Accounts',
       breadcrumbs: const ['Savings', 'Accounts'],
@@ -45,7 +72,7 @@ class _SavingsAccountsScreenState extends ConsumerState<SavingsAccountsScreen> {
       addLabel: 'New Account',
       onAdd: () => _showCreateDialog(context),
       rowBuilder: (account, selected, onSelect) {
-        final (statusLabel, _) = _statusInfo(account.status);
+        final (statusLabel, _) = statusInfo(account.status);
         return DataRow(
           selected: selected,
           onSelectChanged: (_) => onSelect(),
@@ -56,11 +83,14 @@ class _SavingsAccountsScreenState extends ConsumerState<SavingsAccountsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.secondaryContainer,
-                    child: Icon(Icons.savings,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.secondary),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.secondaryContainer,
+                    child: Icon(
+                      Icons.savings,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -78,63 +108,61 @@ class _SavingsAccountsScreenState extends ConsumerState<SavingsAccountsScreen> {
           ],
         );
       },
-      onRowNavigate: (account) {
-        context.go('/savings/${account.id}');
-      },
+      onRowNavigate: (account) => context.go('/savings/${account.id}'),
       detailBuilder: (account) => _SavingsAccountDetail(account: account),
       exportRow: (account) => [
         account.id,
         account.ownerId,
         account.currencyCode,
-        _statusInfo(account.status).$1,
+        statusInfo(account.status).$1,
       ],
     );
   }
 
-  static (String, Color) _statusInfo(SavingsAccountStatus status) {
-    return switch (status) {
-      SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_ACTIVE => (
-        'Active',
-        Colors.green,
-      ),
-      SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_FROZEN => (
-        'Frozen',
-        Colors.blue,
-      ),
-      SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_CLOSED => (
-        'Closed',
-        Colors.grey,
-      ),
-      _ => ('Unknown', Colors.grey),
-    };
-  }
-
   void _showCreateDialog(BuildContext context) {
+    final tenancy = ref.read(tenancyContextProvider);
     showDialog<void>(
       context: context,
-      builder: (ctx) => _SavingsAccountCreateDialog(
+      builder: (ctx) => SavingsAccountCreateDialog(
+        organizationId: tenancy.organizationId,
+        branchId: tenancy.branchId,
         onSave: (account) async {
-          try {
-            await ref
-                .read(savingsAccountNotifierProvider.notifier)
-                .create(account);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Savings account created')),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Failed: $e')));
-            }
-            rethrow;
+          await ref
+              .read(savingsAccountNotifierProvider.notifier)
+              .create(account);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Savings account created')),
+            );
           }
         },
       ),
     );
   }
+}
+
+/// Label and colour for a savings account status. Every value the contract
+/// defines is covered so an unfamiliar status never renders as blank.
+(String, Color) statusInfo(SavingsAccountStatus status) {
+  return switch (status) {
+    SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_ACTIVE => (
+      'Active',
+      Colors.green,
+    ),
+    SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_FROZEN => (
+      'Frozen',
+      Colors.blue,
+    ),
+    SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_CLOSED => (
+      'Closed',
+      Colors.grey,
+    ),
+    SavingsAccountStatus.SAVINGS_ACCOUNT_STATUS_UNSPECIFIED => (
+      'Unspecified',
+      Colors.grey,
+    ),
+    _ => ('Unknown', Colors.grey),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -156,21 +184,26 @@ class _SavingsAccountDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.secondaryContainer,
-              child:
-                  Icon(Icons.savings, color: theme.colorScheme.secondary),
+              child: Icon(Icons.savings, color: theme.colorScheme.secondary),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Account',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(account.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    'Account',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    account.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -178,10 +211,9 @@ class _SavingsAccountDetail extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         _DetailRow(label: 'Owner', value: account.ownerId),
+        _DetailRow(label: 'Product', value: account.productId),
         _DetailRow(label: 'Currency', value: account.currencyCode),
-        _DetailRow(
-            label: 'Status',
-            value: _SavingsAccountsScreenState._statusInfo(account.status).$1),
+        _DetailRow(label: 'Status', value: statusInfo(account.status).$1),
       ],
     );
   }
@@ -201,14 +233,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -220,22 +258,35 @@ class _DetailRow extends StatelessWidget {
 // Savings Account create dialog
 // ---------------------------------------------------------------------------
 
-class _SavingsAccountCreateDialog extends StatefulWidget {
-  const _SavingsAccountCreateDialog({required this.onSave});
+/// Collects the fields needed to open a savings account.
+///
+/// The organization and branch come from the signed-in tenancy context rather
+/// than from the operator: a caller cannot open an account under an
+/// organization they are not working in. The ledger routing is derived by the
+/// server, so it is deliberately absent here.
+class SavingsAccountCreateDialog extends StatefulWidget {
+  const SavingsAccountCreateDialog({
+    super.key,
+    required this.onSave,
+    required this.organizationId,
+    this.branchId = '',
+  });
 
   final Future<void> Function(SavingsAccountObject account) onSave;
+  final String organizationId;
+  final String branchId;
 
   @override
-  State<_SavingsAccountCreateDialog> createState() =>
+  State<SavingsAccountCreateDialog> createState() =>
       _SavingsAccountCreateDialogState();
 }
 
 class _SavingsAccountCreateDialogState
-    extends State<_SavingsAccountCreateDialog> {
+    extends State<SavingsAccountCreateDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _clientIdCtrl;
-  late final TextEditingController _productIdCtrl;
-  late final TextEditingController _currencyCodeCtrl;
+  final _clientIdCtrl = TextEditingController();
+  final _productIdCtrl = TextEditingController();
+  final _currencyCodeCtrl = TextEditingController(text: 'KES');
   SavingsAccountOwnerType _ownerType =
       SavingsAccountOwnerType.SAVINGS_ACCOUNT_OWNER_TYPE_INDIVIDUAL;
   bool _saving = false;
@@ -255,14 +306,6 @@ class _SavingsAccountCreateDialogState
   }
 
   @override
-  void initState() {
-    super.initState();
-    _clientIdCtrl = TextEditingController();
-    _productIdCtrl = TextEditingController();
-    _currencyCodeCtrl = TextEditingController(text: 'KES');
-  }
-
-  @override
   void dispose() {
     _clientIdCtrl.dispose();
     _productIdCtrl.dispose();
@@ -271,7 +314,15 @@ class _SavingsAccountCreateDialogState
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (widget.organizationId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select an organization before opening an account'),
+        ),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -279,8 +330,12 @@ class _SavingsAccountCreateDialogState
       ownerId: _clientIdCtrl.text.trim(),
       productId: _productIdCtrl.text.trim(),
       ownerType: _ownerType,
+      organizationId: widget.organizationId,
       currencyCode: _currencyCodeCtrl.text.trim().toUpperCase(),
     );
+    if (widget.branchId.isNotEmpty) {
+      account.branchId = widget.branchId;
+    }
 
     try {
       await widget.onSave(account);
@@ -308,14 +363,13 @@ class _SavingsAccountCreateDialogState
                       'The unique identifier of the account owner (client or group)',
                   isRequired: true,
                   child: TextFormField(
+                    key: const Key('account-client-id'),
                     controller: _clientIdCtrl,
                     decoration: const InputDecoration(
                       hintText: 'Enter the client ID',
                     ),
                     textInputAction: TextInputAction.next,
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Client ID is required'
-                        : null,
+                    validator: (v) => validateRequired(v, 'Client ID'),
                   ),
                 ),
                 FormFieldCard(
@@ -344,27 +398,27 @@ class _SavingsAccountCreateDialogState
                       'The savings product that defines the terms for this account',
                   isRequired: true,
                   child: TextFormField(
+                    key: const Key('account-product-id'),
                     controller: _productIdCtrl,
                     decoration: const InputDecoration(
                       hintText: 'Enter the savings product ID',
                     ),
                     textInputAction: TextInputAction.next,
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Savings Product ID is required'
-                        : null,
+                    validator: (v) => validateRequired(v, 'Savings Product ID'),
                   ),
                 ),
                 FormFieldCard(
                   label: 'Currency Code',
-                  description: 'ISO 4217 currency code for this account',
+                  description:
+                      'ISO 4217 currency code; must match the product currency',
                   isRequired: true,
                   child: TextFormField(
+                    key: const Key('account-currency-code'),
                     controller: _currencyCodeCtrl,
+                    textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(hintText: 'e.g. KES'),
                     textInputAction: TextInputAction.done,
-                    validator: (v) => (v == null || v.trim().length != 3)
-                        ? 'Enter a 3-letter currency code'
-                        : null,
+                    validator: (v) => validateCurrency(v?.toUpperCase()),
                   ),
                 ),
               ],
@@ -378,6 +432,7 @@ class _SavingsAccountCreateDialogState
           child: const Text('Cancel'),
         ),
         FilledButton(
+          key: const Key('account-create-submit'),
           onPressed: _saving ? null : _submit,
           child: _saving
               ? const SizedBox(
