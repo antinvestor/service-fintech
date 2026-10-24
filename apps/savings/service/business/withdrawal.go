@@ -308,8 +308,8 @@ func (b *withdrawalBusiness) postWithdrawalTransferOrder(
 		"withdrawal_id":       wdr.GetID(),
 		fieldOwnerID:          sa.OwnerID,
 		fieldChannel:          wdr.Channel,
-		// Operations pays the owner's profile through the rail, and only to
-		// a destination that is one of the owner's contacts.
+		// Operations pays the owner's profile through the rail, to the
+		// contact id the withdrawal names, which must be the owner's.
 		"recipient_client_id": sa.OwnerID,
 		"payment_channel":     wdr.Channel,
 		"payment_account_ref": wdr.RecipientReference,

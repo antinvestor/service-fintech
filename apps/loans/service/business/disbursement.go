@@ -73,6 +73,9 @@ type disbursementBusiness struct {
 // destination nobody verified.
 type PayoutDestinationChecker interface {
 	Allowed(ctx context.Context, la *models.LoanAccount) error
+	// ContactOfClient returns nil when contactID is one of the client's
+	// payable (verified mobile) contacts on their profile.
+	ContactOfClient(ctx context.Context, clientID, contactID string) error
 }
 
 func NewDisbursementBusiness(

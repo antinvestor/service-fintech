@@ -121,7 +121,7 @@ func TestSave_ReservedPropertiesStrippedForClients(t *testing.T) {
 	payload := func() *loansv1.LoanRequestObject {
 		props, _ := (&data.JSONMap{
 			"data_verification_confirmed": true,
-			"payment_account_ref":         "+254700000999",
+			"payment_account_ref":         "contact-999",
 			"purpose_detail":              "stock",
 		}).ToProtoStruct(), error(nil)
 		return &loansv1.LoanRequestObject{
@@ -145,7 +145,7 @@ func TestSave_ReservedPropertiesStrippedForClients(t *testing.T) {
 	require.NoError(t, err)
 	staffProps := asStaff.GetProperties().AsMap()
 	assert.Equal(t, true, staffProps["data_verification_confirmed"])
-	assert.Equal(t, "+254700000999", staffProps["payment_account_ref"])
+	assert.Equal(t, "contact-999", staffProps["payment_account_ref"])
 }
 
 // Only weekly, biweekly and monthly schedules exist; anything else is refused
@@ -167,21 +167,4 @@ func TestFrequencyToPeriodTypeRefusesUnsupported(t *testing.T) {
 		_, err := frequencyToPeriodType(freq)
 		require.NoError(t, err, freq.String())
 	}
-}
-
-func TestContactMatchesDestination(t *testing.T) {
-	assert.True(
-		t,
-		contactMatchesDestination("+254700000001", "0700000001"),
-		"national form against the international contact",
-	)
-	assert.True(t, contactMatchesDestination("254700000001", "+254 700 000 001"), "same number, different punctuation")
-	assert.True(t, contactMatchesDestination("Amina@Example.com", "amina@example.com"))
-	assert.False(t, contactMatchesDestination("+254700000001", "+254700000002"))
-	assert.False(t, contactMatchesDestination("+254700000001", "+255700000001"), "same national number, other country")
-	assert.False(t, contactMatchesDestination("0700000001", "0700000001999"), "no suffix matching across lengths")
-	assert.False(t, contactMatchesDestination("amina@example.com", "0700000001"), "kinds never cross")
-	assert.False(t, contactMatchesDestination("+254700000001", "x@example.com"))
-	assert.False(t, contactMatchesDestination("12345", "12345678"))
-	assert.False(t, contactMatchesDestination("", "+254700000001"))
 }

@@ -254,3 +254,18 @@ func TestBorrowerPaymentNeverCrossesProducts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "unidentified", result["strategy"], "no product, no match")
 }
+
+func TestBorrowerPaymentMatchedByPayerProfileID(t *testing.T) {
+	routing, _, _ := newBorrowerRouting(t, []*loansv1.LoanAccountObject{activeLoan("loan-1")})
+
+	result, err := routing.IdentifyPayment(context.Background(), map[string]interface{}{
+		"transaction_id":  "txn-b6",
+		"amount":          int64(10_000),
+		"currency":        "UGX",
+		"payer_reference": "profile-1",
+		"product_id":      "prod-1",
+		"properties":      data.JSONMap{},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "loan-1", result["loan_id"], "a payer profile id needs no contact lookup")
+}

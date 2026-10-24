@@ -171,9 +171,9 @@ var (
 		apperrors.BadRequest,
 		"a client product access grant must name both a client and a product",
 	)
-	ErrCollectionContactRequired = apperrors.NewError(
+	ErrCollectionRawContactRefused = apperrors.NewError(
 		apperrors.BadRequest,
-		"a contact is required to prompt a borrower for payment",
+		"phone numbers are not accepted; name the borrower's contact by contact_id",
 	)
 	ErrCollectionNothingOutstanding = apperrors.NewError(
 		apperrors.Unprocessable,

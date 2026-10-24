@@ -302,6 +302,7 @@ func setupServiceOptions(
 	cpaBusiness := business.NewClientProductAccessBusiness(ctx, evtsMan, cpaRepo, lpRepo)
 	collectionBusiness := business.NewCollectionBusiness(
 		ctx, laRepo, lbRepo, loanNotifier, business.WithReadScope(readScope),
+		business.WithPayoutDestinationChecker(payoutChecker),
 	)
 
 	// Delinquency is a background obligation, not a request: without a job

@@ -19,6 +19,7 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
+	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"github.com/stretchr/testify/require"
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
@@ -31,13 +32,19 @@ func TestCollectionInitiate_OnlyStaffOrServingAgent(t *testing.T) {
 		Status:       int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE),
 	}
 	loan.ID = "loan-1"
+	contacts := NewProfilePayoutChecker(
+		mapResolver{profiles: map[string]string{"client-b": "profile-b"}},
+		payoutProfiles{profile: &profilev1.ProfileObject{Id: "profile-b", Contacts: []*profilev1.ContactObject{
+			{Id: "contact-b", Type: profilev1.ContactType_MSISDN, Verified: true},
+		}}},
+	)
 	b := NewCollectionBusiness(t.Context(), &stubLoanAccountRepo{account: loan}, &stubLoanBalanceRepo{}, nil,
-		WithReadScope(agentScope()))
+		WithReadScope(agentScope()), WithPayoutDestinationChecker(contacts))
 
 	req := func() *loansv1.InitiateCollectionRequest {
 		return &loansv1.InitiateCollectionRequest{
 			LoanAccountId:    "loan-1",
-			PhoneNumber:      "+254700000001",
+			ContactId:        "contact-b",
 			IdempotencyKey:   "k-1",
 			CollectionAmount: &commonv1.Money{CurrencyCode: "KES", Units: 500},
 		}
@@ -52,6 +59,19 @@ func TestCollectionInitiate_OnlyStaffOrServingAgent(t *testing.T) {
 
 	_, err = b.Initiate(claimsContext(t, "profile-stranger"), req())
 	require.ErrorIs(t, err, ErrNotServingClient)
+
+	// A raw number is refused; a contact id not on the borrower's profile
+	// is refused.
+	raw := req()
+	raw.ContactId = ""
+	raw.PhoneNumber = "+254700000001" //nolint:staticcheck // the deprecated field is what is refused
+	_, err = b.Initiate(claimsContext(t, "profile-agent"), raw)
+	require.ErrorIs(t, err, ErrCollectionRawContactRefused)
+
+	stranger := req()
+	stranger.ContactId = "contact-of-someone-else"
+	_, err = b.Initiate(claimsContext(t, "profile-agent"), stranger)
+	require.ErrorIs(t, err, ErrPayoutDestinationNotClient)
 
 	wrongCurrency := req()
 	wrongCurrency.CollectionAmount = &commonv1.Money{CurrencyCode: "UGX", Units: 500}

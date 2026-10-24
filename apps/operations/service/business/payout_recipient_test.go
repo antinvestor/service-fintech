@@ -52,7 +52,7 @@ func (f *fakeFieldClients) ClientGet(
 
 type fakeProfiles struct {
 	profilev1connect.ProfileServiceClient
-	contacts map[string][]string // profile id -> contact details
+	contacts map[string][]string // profile id -> payable contact ids
 }
 
 //nolint:revive,staticcheck // implements the generated profile client
@@ -65,8 +65,10 @@ func (f *fakeProfiles) GetById(
 		return nil, connect.NewError(connect.CodeNotFound, "no profile")
 	}
 	p := &profilev1.ProfileObject{Id: req.GetId()}
-	for _, d := range details {
-		p.Contacts = append(p.Contacts, &profilev1.ContactObject{Detail: d})
+	for _, id := range details {
+		p.Contacts = append(p.Contacts, &profilev1.ContactObject{
+			Id: id, Type: profilev1.ContactType_MSISDN, Verified: true,
+		})
 	}
 	return &profilev1.GetByIdResponse{Data: p}, nil
 }
@@ -93,14 +95,14 @@ func newDisbursementFixture(t *testing.T, extra data.JSONMap) (*executeFixture, 
 	pay := &capturingPayment{}
 	f.biz.clients.PaymentClient = pay
 	f.biz.clients.LenderIdentity = &fakeFieldClients{profiles: map[string]string{"client-1": "profile-1"}}
-	f.biz.clients.ProfileClient = &fakeProfiles{contacts: map[string][]string{"profile-1": {"+256701000111"}}}
+	f.biz.clients.ProfileClient = &fakeProfiles{contacts: map[string][]string{"profile-1": {"contact-1"}}}
 	return f, pay
 }
 
 func TestPayout_ClientRecipientResolvedAndDestinationSentToRail(t *testing.T) {
 	f, pay := newDisbursementFixture(t, data.JSONMap{
 		"recipient_client_id": "client-1",
-		"payment_account_ref": "0701000111",
+		"payment_account_ref": "contact-1",
 		"payment_channel":     "mobile_money",
 	})
 
@@ -108,14 +110,15 @@ func TestPayout_ClientRecipientResolvedAndDestinationSentToRail(t *testing.T) {
 	require.NotNil(t, pay.last)
 	recipient := pay.last.GetData().GetRecipient()
 	assert.Equal(t, "profile-1", recipient.GetProfileId(), "the client is paid through its profile")
-	assert.Equal(t, "0701000111", recipient.GetDetail(), "the verified destination reaches the rail")
+	assert.Equal(t, "contact-1", recipient.GetContactId(), "the verified contact id reaches the rail")
+	assert.Empty(t, recipient.GetDetail(), "no number is ever sent by operations")
 	assert.Equal(t, "mobile_money", pay.last.GetData().GetRoute())
 }
 
 func TestPayout_DestinationNotRecipientNeverPostsLedger(t *testing.T) {
 	f, pay := newDisbursementFixture(t, data.JSONMap{
 		"recipient_client_id": "client-1",
-		"payment_account_ref": "+256709999999",
+		"payment_account_ref": "contact-someone-else",
 	})
 
 	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
@@ -128,7 +131,7 @@ func TestPayout_DestinationNotRecipientNeverPostsLedger(t *testing.T) {
 func TestPayout_LegacyClientIDAsRecipientStillResolves(t *testing.T) {
 	f, pay := newDisbursementFixture(t, data.JSONMap{
 		"recipient_id":        "client-1",
-		"payment_account_ref": "+256701000111",
+		"payment_account_ref": "contact-1",
 	})
 
 	require.NoError(t, f.biz.Execute(context.Background(), f.repo.order.GetID()))
@@ -149,7 +152,7 @@ func TestPayout_UnknownRecipientIsRefused(t *testing.T) {
 func TestPayout_PostedOrderWithBadDestinationIsReversed(t *testing.T) {
 	f, pay := newDisbursementFixture(t, data.JSONMap{
 		"recipient_client_id": "client-1",
-		"payment_account_ref": "+256709999999",
+		"payment_account_ref": "contact-someone-else",
 	})
 	f.repo.order.LedgerTransactionID = "ledger-earlier"
 
@@ -196,7 +199,7 @@ func TestIsReservedReference(t *testing.T) {
 func TestPayout_ClaimedPayoutWithBadDestinationIsNotReversed(t *testing.T) {
 	f, pay := newDisbursementFixture(t, data.JSONMap{
 		"recipient_client_id": "client-1",
-		"payment_account_ref": "+256709999999",
+		"payment_account_ref": "contact-someone-else",
 	})
 	f.repo.order.LedgerTransactionID = "ledger-earlier"
 	stale := time.Now().Add(-time.Minute)

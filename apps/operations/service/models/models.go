@@ -87,7 +87,7 @@ type payoutTarget struct {
 }
 
 // SetPayoutTarget records who the payout goes to (a profile id), the rail
-// route, and the verified destination contact ("" lets the rail choose the
+// route, and the verified destination contact id ("" lets the rail choose the
 // recipient's default).
 func (m *TransferOrder) SetPayoutTarget(recipientID, route, destination string) {
 	m.payout = payoutTarget{recipientID: recipientID, route: route, destination: destination}

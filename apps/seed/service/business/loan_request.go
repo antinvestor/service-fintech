@@ -106,8 +106,9 @@ type LoanCreationRequest struct {
 	InterestRateBP int64 // basis points
 	TermDays       int32
 	IdempotencyKey string
-	// PayoutAccountRef is where the loan is paid out: the borrower's mobile
-	// money number. The loans service refuses to disburse without one.
+	// PayoutAccountRef is where the loan is paid out: the contact id of the
+	// borrower's verified mobile contact on their profile. The loans service
+	// refuses to disburse without one.
 	PayoutAccountRef string
 }
 

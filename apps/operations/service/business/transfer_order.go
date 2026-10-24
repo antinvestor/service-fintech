@@ -866,7 +866,7 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 			Route:       route,
 			Recipient: (&commonv1.ContactLink_builder{
 				ProfileId: recipientID,
-				Detail:    order.PayoutDestination(),
+				ContactId: order.PayoutDestination(),
 			}).Build(),
 			Amount:   minorToMoney(order.Currency, order.Amount),
 			Outbound: true,

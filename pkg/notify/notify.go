@@ -94,8 +94,8 @@ func ToProfile(profileID string) *commonv1.ContactLink {
 	return commonv1.ContactLink_builder{ProfileId: profileID}.Build()
 }
 
-// ToContact addresses a message to a contact id or a raw contact detail
-// (phone number, email); the notification service resolves either.
+// ToContact addresses a message to a profile contact by its id. Callers
+// never pass a raw phone number or email.
 func ToContact(contact string) *commonv1.ContactLink {
 	contact = strings.TrimSpace(contact)
 	if contact == "" {

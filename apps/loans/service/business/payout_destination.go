@@ -18,7 +18,6 @@ import (
 	"context"
 	"strings"
 
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"github.com/pitabwire/util"
@@ -28,9 +27,9 @@ import (
 )
 
 // profilePayoutChecker allows a disbursement only when the loan's payment
-// account ref is one of the borrower's own contacts (a phone number for
-// mobile money, an email for a payment link). The borrower is found through
-// the client's profile.
+// account ref is the contact id of one of the borrower's own payable
+// contacts (active, verified mobile number). The borrower is found through
+// the client's profile; the number itself is never read here.
 type profilePayoutChecker struct {
 	resolver ClientProfileResolver
 	profiles profilev1connect.ProfileServiceClient
@@ -48,12 +47,17 @@ func (c *profilePayoutChecker) Allowed(ctx context.Context, la *models.LoanAccou
 	if la == nil || strings.TrimSpace(la.PaymentAccountRef) == "" {
 		return ErrLoanPaymentAccountMissing
 	}
+	return c.ContactOfClient(ctx, la.ClientID, la.PaymentAccountRef)
+}
+
+// ContactOfClient checks contactID against the client's own profile.
+func (c *profilePayoutChecker) ContactOfClient(ctx context.Context, clientID, contactID string) error {
 	if c == nil || c.resolver == nil || c.profiles == nil {
 		return ErrPayoutDestinationUnverifiable
 	}
-	profileID, err := c.resolver.ProfileIDForClient(ctx, la.ClientID)
+	profileID, err := c.resolver.ProfileIDForClient(ctx, clientID)
 	if err != nil {
-		util.Log(ctx).WithError(err).WithField("client_id", la.ClientID).
+		util.Log(ctx).WithError(err).WithField("client_id", clientID).
 			Warn("payout destination check: client profile could not be resolved")
 		return ErrPayoutDestinationUnverifiable
 	}
@@ -63,23 +67,12 @@ func (c *profilePayoutChecker) Allowed(ctx context.Context, la *models.LoanAccou
 			Warn("payout destination check: profile could not be loaded")
 		return ErrPayoutDestinationUnverifiable
 	}
-	for _, contact := range resp.GetData().GetContacts() {
-		if contact == nil || contact.GetState() == commonv1.STATE_DELETED ||
-			contact.GetState() == commonv1.STATE_INACTIVE {
-			continue
-		}
-		if contactMatchesDestination(contact.GetDetail(), la.PaymentAccountRef) {
-			return nil
-		}
+	if payout.PayableContact(resp.GetData(), contactID) != nil {
+		return nil
 	}
 	util.Log(ctx).WithFields(map[string]any{
-		"client_id":  la.ClientID,
+		"client_id":  clientID,
 		"profile_id": profileID,
-	}).Error("payout destination is not one of the borrower's contacts")
+	}).Error("contact is not one of the borrower's payable contacts")
 	return ErrPayoutDestinationNotClient
-}
-
-// contactMatchesDestination applies the platform payout destination rule.
-func contactMatchesDestination(contact, destination string) bool {
-	return payout.ContactMatchesDestination(contact, destination)
 }

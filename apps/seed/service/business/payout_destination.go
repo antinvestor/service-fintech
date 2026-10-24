@@ -20,11 +20,12 @@ import (
 	"fmt"
 	"strings"
 
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
+
+	"github.com/antinvestor/service-fintech/pkg/payout"
 )
 
 // ErrNoPayoutDestination is returned when a borrower has no contact money can
@@ -37,8 +38,8 @@ type PayoutDestinationResolver interface {
 }
 
 // profilePayoutResolver walks client -> profile -> contacts and picks the
-// borrower's phone number (verified first), which is the mobile-money
-// destination the loans service will verify again before disbursing.
+// id of the borrower's verified mobile contact, which the loans service
+// verifies again before disbursing.
 type profilePayoutResolver struct {
 	fieldCli   fieldv1connect.FieldServiceClient
 	profileCli profilev1connect.ProfileServiceClient
@@ -68,33 +69,11 @@ func (r *profilePayoutResolver) PayoutDestination(ctx context.Context, clientID 
 	if err != nil {
 		return "", fmt.Errorf("profile get: %w", err)
 	}
-	// Only a verified, active phone is a destination: money is never sent to
-	// a number nobody has confirmed belongs to the borrower.
-	for _, contact := range profile.GetData().GetContacts() {
-		if contact == nil || !contact.GetVerified() || !looksLikePhone(contact.GetDetail()) {
-			continue
-		}
-		if contact.GetState() == commonv1.STATE_DELETED || contact.GetState() == commonv1.STATE_INACTIVE {
-			continue
-		}
-		return contact.GetDetail(), nil
+	// Only a verified, active mobile contact is a destination, named by its
+	// contact id: money is never sent to a number nobody has confirmed, and
+	// seed never handles the number itself.
+	if contactID := payout.DefaultPayoutContactID(profile.GetData()); contactID != "" {
+		return contactID, nil
 	}
 	return "", ErrNoPayoutDestination
-}
-
-// minPhoneDigits is the shortest run of digits a usable phone number has.
-const minPhoneDigits = 8
-
-func looksLikePhone(detail string) bool {
-	detail = strings.TrimSpace(detail)
-	if detail == "" || strings.Contains(detail, "@") {
-		return false
-	}
-	digits := 0
-	for _, r := range detail {
-		if r >= '0' && r <= '9' {
-			digits++
-		}
-	}
-	return digits >= minPhoneDigits
 }

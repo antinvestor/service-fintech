@@ -237,6 +237,8 @@ message WithdrawalObject {
   string payment_reference = 6;
   string ledger_transaction_id = 7;
   string channel = 8;
+  // recipient_reference is the contact id of the owner's verified mobile
+  // contact to pay out to; never a number. Empty lets the rail choose.
   string recipient_reference = 9;
   string reason = 10;
   string idempotency_key = 11;
@@ -449,6 +451,8 @@ message WithdrawalRequestRequest {
   ];
   common.v1.Money amount = 2;
   string channel = 3;
+  // recipient_reference is the contact id of the owner's verified mobile
+  // contact to pay out to; never a number. Empty lets the rail choose.
   string recipient_reference = 4;
   string reason = 5;
   string idempotency_key = 6;

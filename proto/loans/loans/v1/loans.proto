@@ -354,6 +354,8 @@ message LoanAccountObject {
   string ledger_interest_income_account_id = 21;
   string ledger_fee_income_account_id = 22;
   string ledger_penalty_income_account_id = 23;
+  // payment_account_ref is the contact id of the borrower's verified mobile
+  // contact the loan is paid out to; never a number.
   string payment_account_ref = 24;
   google.protobuf.Struct properties = 25;
 }
@@ -866,11 +868,20 @@ message InitiateCollectionRequest {
   // Deprecated: a bare decimal string carries no currency. Use
   // collection_amount; when both are set collection_amount wins.
   string amount = 2 [deprecated = true];
-  string phone_number = 3;
+  // Deprecated and refused: fintech never takes a raw phone number. Use
+  // contact_id.
+  string phone_number = 3 [deprecated = true];
   string idempotency_key = 4;
   // collection_amount is the amount to collect, in the loan's currency.
   // When unset the outstanding balance is collected.
   common.v1.Money collection_amount = 5;
+  // contact_id is the id of one of the borrower profile's contacts to prompt.
+  // When unset the borrower's profile is addressed and the notification
+  // service picks the contact.
+  string contact_id = 6 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ];
 }
 
 message InitiateCollectionResponse {

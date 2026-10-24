@@ -116,19 +116,32 @@ func (b *paymentRoutingBusiness) repayableLoan(ctx context.Context, loanID strin
 	return resp.GetData(), nil
 }
 
-// clientForContact finds the one client whose profile owns contact.
-func (b *paymentRoutingBusiness) clientForContact(ctx context.Context, contact string) (string, error) {
-	if b.clients.ProfileClient == nil || b.clients.LenderIdentity == nil {
+// clientForContact finds the one client behind the payer. The payer
+// reference is taken as a profile id first, which is what the payment
+// service supplies when it knows the sender. Only failing that is it handed
+// to the profile service to resolve as a contact; operations never reads it.
+func (b *paymentRoutingBusiness) clientForContact(ctx context.Context, payerRef string) (string, error) {
+	if b.clients.LenderIdentity == nil {
 		return "", errBorrowerLoanAmbiguous
 	}
-	profile, err := b.clients.ProfileClient.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: contact})
+	if clientID, err := b.clientForProfile(ctx, payerRef); err == nil {
+		return clientID, nil
+	}
+	if b.clients.ProfileClient == nil {
+		return "", errBorrowerLoanAmbiguous
+	}
+	profile, err := b.clients.ProfileClient.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: payerRef})
 	if err != nil {
-		return "", fmt.Errorf("profile for payer contact: %w", err)
+		return "", fmt.Errorf("profile for payer: %w", err)
 	}
-	profileID := profile.GetData().GetId()
-	if profileID == "" {
+	if profile.GetData().GetId() == "" {
 		return "", errBorrowerLoanAmbiguous
 	}
+	return b.clientForProfile(ctx, profile.GetData().GetId())
+}
+
+// clientForProfile returns the one client registered on profileID.
+func (b *paymentRoutingBusiness) clientForProfile(ctx context.Context, profileID string) (string, error) {
 	stream, err := b.clients.LenderIdentity.ClientSearch(ctx, &fieldv1.ClientSearchRequest{ProfileId: profileID})
 	if err != nil {
 		return "", fmt.Errorf("client for payer profile: %w", err)

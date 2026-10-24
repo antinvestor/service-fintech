@@ -41,6 +41,7 @@ type collectionBusiness struct {
 	loanBalanceRepo repository.LoanBalanceRepository
 	notifier        *LoanNotifier
 	scope           *ReadScope
+	contacts        PayoutDestinationChecker
 }
 
 func NewCollectionBusiness(
@@ -53,6 +54,7 @@ func NewCollectionBusiness(
 	o := applyOptions(opts)
 	return &collectionBusiness{
 		scope:           o.scope,
+		contacts:        o.payoutChecker,
 		loanAccountRepo: loanAccountRepo,
 		loanBalanceRepo: loanBalanceRepo,
 		notifier:        notifier,
@@ -68,8 +70,10 @@ func (b *collectionBusiness) Initiate(
 	if req.GetIdempotencyKey() == "" {
 		return nil, ErrIdempotencyKeyRequired
 	}
-	if req.GetPhoneNumber() == "" {
-		return nil, ErrCollectionContactRequired
+	if req.GetPhoneNumber() != "" { //nolint:staticcheck // refusing the deprecated field
+		// Fintech never takes a raw number: the borrower's contact is named
+		// by its id on their profile.
+		return nil, ErrCollectionRawContactRefused
 	}
 
 	la, err := b.loanAccountRepo.GetByID(ctx, req.GetLoanAccountId())
@@ -84,6 +88,15 @@ func (b *collectionBusiness) Initiate(
 	}
 	if !isRepayableStatus(la.Status) {
 		return nil, ErrLoanNotRepayable
+	}
+	contactID := strings.TrimSpace(req.GetContactId())
+	if contactID != "" {
+		if b.contacts == nil {
+			return nil, ErrPayoutDestinationUnverifiable
+		}
+		if err = b.contacts.ContactOfClient(ctx, la.ClientID, contactID); err != nil {
+			return nil, err
+		}
 	}
 
 	amount, err := collectionAmount(req, la.CurrencyCode)
@@ -107,7 +120,7 @@ func (b *collectionBusiness) Initiate(
 	// the request identifies the same prompt instead of raising a second one.
 	promptID := "collection:" + la.GetID() + ":" + req.GetIdempotencyKey()
 
-	b.notifier.NotifyCollectionRequested(ctx, la, amount, req.GetPhoneNumber(), promptID)
+	b.notifier.NotifyCollectionRequested(ctx, la, amount, contactID, promptID)
 
 	logger.WithField("loan_id", la.GetID()).Info("collection prompt raised")
 

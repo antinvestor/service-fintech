@@ -213,3 +213,28 @@ external cash of the loan's product to the borrower's loans account, keyed
 `payment:<id>:loan:<loan>`; its side effect records the repayment with loans
 on the `mobile_money` channel. Operations needs `loan_view` on
 `service_loans` (service-authentication migration).
+
+## 15. Addendum 2026-10-24 — contacts by id only
+
+Rule: fintech identifies people by profile id. Where a specific phone or
+email is needed it names the profile contact by its contact id. A raw phone
+or email is only ever passed to the profile service, to find or create a
+profile, and is never stored, validated, compared or logged in fintech.
+
+- Payout destinations (`LoanAccount.payment_account_ref`, seed/stawi offers,
+  savings `recipient_reference`, operations `payment_account_ref`) are
+  contact ids. They must be an active, verified mobile contact of the
+  recipient's own profile (`pkg/payout.PayableContact`). The rail receives
+  `ContactLink{profile_id, contact_id}`.
+- Collections take `contact_id`; `phone_number` is deprecated and refused.
+- Identity no longer stores the client's phone, validates it, or runs
+  phone-change cases; contacts are changed on the profile. Migration 005
+  drops stored phones from clients with a profile. Organization contacts are
+  deduplicated by the profile service and dropped from the row once synced.
+- Incoming payments match the payer as a profile id first; only otherwise is
+  the payer reference handed to the profile service to resolve.
+
+Follow-up for clients: loans written before this carry a phone in
+`payment_account_ref` and will be refused at disbursement until it is reset
+to the contact id. The loans UI collection dialog must pick a contact from
+the borrower's profile instead of typing a number.

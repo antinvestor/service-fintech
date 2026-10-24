@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"connectrpc.com/connect/v2"
@@ -34,8 +33,8 @@ import (
 
 // Extra-data keys that address a payout. recipient_profile_id names the
 // profile directly; recipient_client_id names an identity client whose
-// profile is looked up; payment_account_ref is the destination contact
-// (phone or email) and must belong to the recipient.
+// profile is looked up; payment_account_ref is the contact id of one of the
+// recipient's payable contacts (never a number or address).
 const (
 	extraRecipientProfileID = "recipient_profile_id"
 	extraRecipientClientID  = "recipient_client_id"
@@ -137,7 +136,7 @@ func (b *transferOrderBusiness) payoutRecipient(
 	if err != nil {
 		return "", "", err
 	}
-	if !profileHasContact(profile, destination) {
+	if payout.PayableContact(profile, destination) == nil {
 		util.Log(ctx).WithField("order_id", order.GetID()).WithField("profile_id", profileID).
 			Error("payout destination is not one of the recipient's contacts")
 		return "", "", ErrPayoutDestinationNotRecipient
@@ -164,21 +163,6 @@ func (b *transferOrderBusiness) recipientProfile(
 		return legacyID, true, nil
 	}
 	return "", false, ErrPayoutRecipientUnresolved
-}
-
-// profileHasContact reports whether destination is one of the profile's
-// live contacts.
-func profileHasContact(profile *profilev1.ProfileObject, destination string) bool {
-	for _, contact := range profile.GetContacts() {
-		if contact == nil || contact.GetState() == commonv1.STATE_DELETED ||
-			contact.GetState() == commonv1.STATE_INACTIVE {
-			continue
-		}
-		if payout.ContactMatchesDestination(contact.GetDetail(), destination) {
-			return true
-		}
-	}
-	return false
 }
 
 // readsAsRefusal reports whether a caller would read err as "nothing
