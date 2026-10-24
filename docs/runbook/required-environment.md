@@ -211,3 +211,9 @@ client's properties. The tier is an extra policy on top of every partition
 cap, so it can only tighten. Client attributes are cached for
 `SUBJECT_ATTRIBUTE_CACHE_TTL_SECONDS` (default 60), so a change to a client's
 tier takes effect within that window.
+
+Two rules keep tiers safe. A property can never override a system-derived
+attribute such as `state`. A subject the field and identity services do not
+know is "attributes unavailable", and an enforce policy with a filter fails
+closed on it. Savings group accounts send the group as the client, so keep
+client-tier filters off the savings actions those accounts use.

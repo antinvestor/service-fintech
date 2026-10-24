@@ -126,8 +126,9 @@ func (b *depositBusiness) Record(
 		TenantId: sa.BankID,
 		Amount:   moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, amountMinor),
 		// The limits service requires the client for savings actions: the
-		// account owner. A group owner has no client attributes, so client
-		// attribute filters simply do not apply to it.
+		// account owner. A group owner is not a field client, so an enforce
+		// policy that filters on client attributes fails closed for it; keep
+		// client-tier filters off savings actions that group accounts use.
 		Subjects: []*limitsv1.SubjectRef{
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: sa.OwnerID},
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: sa.GetID()},

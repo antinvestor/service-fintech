@@ -27,6 +27,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/pitabwire/util"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/datatypes"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
@@ -201,10 +202,11 @@ func decodeAttrs(j datatypes.JSON) map[string]any {
 //
 // Returns (nil, nil) when the client isn't configured (graceful degradation).
 //
-// A borrower is looked up in the field service first. An id neither service
-// knows (a group account owner, say) has no attributes: an empty map, so a
-// filtered policy does not apply to it. Any other failure is an error, which
-// the reservation path turns into a fail-closed breach for enforce policies.
+// A borrower is looked up in the field service first, then as an investor.
+// An id neither service knows is an error like any other failure: whether a
+// filtered policy matches it cannot be known, so the reservation path fails
+// closed for enforce policies rather than letting an unknown subject skip a
+// stricter tier.
 func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID string) (map[string]any, error) {
 	if r.identityClient == nil && r.fieldClient == nil {
 		//nolint:nilnil // documented contract: nil map when no identity client is configured
@@ -216,12 +218,9 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 		if err == nil {
 			return attrs, nil
 		}
-		if connect.CodeOf(err) != connect.CodeNotFound {
+		if connect.CodeOf(err) != connect.CodeNotFound || r.identityClient == nil {
 			return nil, err
 		}
-	}
-	if r.identityClient == nil {
-		return map[string]any{}, nil
 	}
 
 	resp, err := r.identityClient.InvestorGet(
@@ -229,15 +228,12 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 		connect.NewRequest(&identityv1.InvestorGetRequest{Id: clientID}),
 	)
 	if err != nil {
-		if connect.CodeOf(err) == connect.CodeNotFound {
-			return map[string]any{}, nil
-		}
 		return nil, err
 	}
 
 	inv := resp.Msg.GetData()
 	if inv == nil {
-		return map[string]any{}, nil
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("subject not found"))
 	}
 
 	attrs := map[string]any{
@@ -249,11 +245,7 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 	// Merge any entries from the properties bag. This covers dynamic
 	// attributes such as kyc_tier / country_code that identity services
 	// may store there until first-class proto fields are added.
-	if props := inv.GetProperties(); props != nil {
-		for k, v := range props.GetFields() {
-			attrs[k] = v.AsInterface()
-		}
-	}
+	mergeProperties(attrs, inv.GetProperties())
 
 	return attrs, nil
 }
@@ -276,10 +268,21 @@ func (r *attributeResolver) fetchFieldClient(ctx context.Context, clientID strin
 		"profile_id":     client.GetProfileId(),
 		"owning_team_id": client.GetOwningTeamId(),
 	}
-	if props := client.GetProperties(); props != nil {
-		for k, v := range props.GetFields() {
-			attrs[k] = v.AsInterface()
-		}
-	}
+	mergeProperties(attrs, client.GetProperties())
 	return attrs, nil
+}
+
+// mergeProperties adds the subject's free-form properties to its attributes
+// without letting them overwrite a system-derived key: a properties bag that
+// field staff can edit must not be able to claim, say, a different state.
+// Properties such as a client's limit tier are editable by the responsible
+// agent on purpose; a tier policy is evaluated on top of every partition cap,
+// so it can only tighten, never replace, the caps set above the agent.
+func mergeProperties(attrs map[string]any, props *structpb.Struct) {
+	for k, v := range props.GetFields() {
+		if _, systemKey := attrs[k]; systemKey {
+			continue
+		}
+		attrs[k] = v.AsInterface()
+	}
 }
