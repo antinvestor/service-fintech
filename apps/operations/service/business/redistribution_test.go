@@ -116,6 +116,23 @@ func newRepaymentOrder(extra data.JSONMap) *models.TransferOrder {
 	return order
 }
 
+// capturingOrderRepo writes orders into the capture, converging on an
+// existing reference the way the real repository does.
+type capturingOrderRepo struct {
+	stubTransferOrderRepo
+	evts *capturingEventsManager
+}
+
+func (r *capturingOrderRepo) CreateIfAbsent(_ context.Context, order *models.TransferOrder) error {
+	if existing, ok := r.evts.byReference()[order.Reference]; ok {
+		order.ID = existing.ID
+		return nil
+	}
+	cp := *order
+	r.evts.orders = append(r.evts.orders, &cp)
+	return nil
+}
+
 func newRedistributionBusiness(
 	evts *capturingEventsManager,
 	lfRepo LoanFundingReader,
@@ -123,6 +140,7 @@ func newRedistributionBusiness(
 ) *transferOrderBusiness {
 	return &transferOrderBusiness{
 		eventsMan: evts,
+		toRepo:    &capturingOrderRepo{evts: evts},
 		lfRepo:    lfRepo,
 		ftRepo:    ftRepo,
 	}
@@ -291,5 +309,54 @@ func TestRedistributeWithoutLoanRequestEmitsNothing(t *testing.T) {
 
 	if len(evts.orders) != 0 {
 		t.Fatalf("expected no orders, got %d", len(evts.orders))
+	}
+}
+
+// A replayed side effect writes no second order and moves no tranche twice.
+func TestRedistributeReplayIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	evts := &capturingEventsManager{}
+	tranche := &FundingTrancheInfo{}
+	tranche.ID = "t1"
+	ftRepo := &stubTrancheManager{tranches: map[string][]*FundingTrancheInfo{"f1": {tranche}}}
+	fundings := []*LoanFundingInfo{newFunding("f1", FundingSourceGroupSavings, "member-1", 10000)}
+	b := newRedistributionBusiness(evts, &stubLoanFundingReader{fundings: fundings}, ftRepo)
+
+	source := newRepaymentOrder(data.JSONMap{"loan_request_id": "lr-1"})
+	for range 2 {
+		b.redistributeRepayment(context.Background(), source, 1000, "principal", constants.TransferTypeLoanRepayment)
+	}
+
+	if len(evts.orders) != 1 {
+		t.Fatalf("a replay must not write a second order, got %d", len(evts.orders))
+	}
+	if len(ftRepo.saved) != 1 || tranche.PrincipalRepaid != 1000 {
+		t.Fatalf("the tranche must move once, saved %d times, repaid %d", len(ftRepo.saved), tranche.PrincipalRepaid)
+	}
+}
+
+// Fee and tax are taken in the currency's own minor units, and the three
+// legs always add back up to the share.
+func TestInterestDeductionsUseCurrencyDecimalsAndSum(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		currency         string
+		share            int64
+		wantFee, wantTax int64
+	}{
+		{"KES", 10_000, 500, 1500}, // 100.00 KES: 5% and 15%
+		{"UGX", 10_000, 500, 1500}, // 10,000 UGX (no decimals)
+		{"UGX", 7, 0, 1},           // fractions round within the share
+	}
+	for _, tc := range cases {
+		fee, tax := interestDeductions(tc.share, tc.currency, 500, 1500)
+		if fee != tc.wantFee || tax != tc.wantTax {
+			t.Errorf("%s %d: fee %d tax %d, want %d %d", tc.currency, tc.share, fee, tax, tc.wantFee, tc.wantTax)
+		}
+		if net := tc.share - fee - tax; net < 0 || net+fee+tax != tc.share {
+			t.Errorf("%s %d: legs do not sum to the share", tc.currency, tc.share)
+		}
 	}
 }
