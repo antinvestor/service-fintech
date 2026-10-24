@@ -52,12 +52,19 @@ func (b *paymentRoutingBusiness) borrowerLoanMatching() bool {
 }
 
 // identifyBorrowerLoan resolves a payment to an individual borrower's loan.
+//
+// The payment's own product says which product account the rail credited,
+// so it is the trusted value: a payment without one is never matched, and a
+// loan of another product is never accepted, whatever the payer quoted.
 func (b *paymentRoutingBusiness) identifyBorrowerLoan(
 	ctx context.Context,
-	paymentRef, payerRef string,
+	productID, paymentRef, payerRef string,
 ) (*identificationResult, error) {
+	if productID == "" {
+		return nil, errBorrowerLoanAmbiguous
+	}
 	if paymentRef != "" {
-		if loan, err := b.repayableLoan(ctx, paymentRef); err == nil {
+		if loan, err := b.repayableLoan(ctx, paymentRef); err == nil && loan.GetProductId() == productID {
 			return b.borrowerLoanResult(ctx, loan)
 		}
 	}
@@ -68,7 +75,7 @@ func (b *paymentRoutingBusiness) identifyBorrowerLoan(
 	if err != nil {
 		return nil, err
 	}
-	loans, err := b.repayableLoansOf(ctx, clientID)
+	loans, err := b.repayableLoansOf(ctx, clientID, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,10 +155,11 @@ func (b *paymentRoutingBusiness) clientForContact(ctx context.Context, contact s
 	return clientIDs[0], nil
 }
 
-// repayableLoansOf lists the client's loans that can take a repayment.
+// repayableLoansOf lists the client's loans of the product that can take a
+// repayment.
 func (b *paymentRoutingBusiness) repayableLoansOf(
 	ctx context.Context,
-	clientID string,
+	clientID, productID string,
 ) ([]*loansv1.LoanAccountObject, error) {
 	stream, err := b.clients.LenderLoanMgmt.LoanAccountSearch(
 		ctx,
@@ -171,7 +179,7 @@ func (b *paymentRoutingBusiness) repayableLoansOf(
 			return nil, fmt.Errorf("loans of payer client: %w", recvErr)
 		}
 		for _, loan := range msg.GetData() {
-			if loan.GetClientId() == clientID && loanTakesRepayments(loan) {
+			if loan.GetClientId() == clientID && loan.GetProductId() == productID && loanTakesRepayments(loan) {
 				out = append(out, loan)
 			}
 		}

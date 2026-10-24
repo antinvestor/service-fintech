@@ -168,6 +168,7 @@ func TestBorrowerPaymentMatchedByPhoneAndBookedToTheLoan(t *testing.T) {
 		"amount":          int64(50_000),
 		"currency":        "UGX",
 		"payer_reference": "+256701000111",
+		"product_id":      "prod-1",
 		"properties":      data.JSONMap{},
 	})
 	require.NoError(t, err)
@@ -202,6 +203,7 @@ func TestBorrowerPaymentMatchedByLoanReference(t *testing.T) {
 		"currency":        "UGX",
 		"reference":       "loan-2",
 		"payer_reference": "+256701000111",
+		"product_id":      "prod-1",
 		"properties":      data.JSONMap{},
 	})
 	require.NoError(t, err)
@@ -221,4 +223,34 @@ func TestBorrowerPaymentWithTwoLoansAndNoReferenceIsNotGuessed(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "unidentified", result["strategy"])
+}
+
+// The payment's product decides where the money landed: a quoted loan of
+// another product, or a payment with no product, is never matched.
+func TestBorrowerPaymentNeverCrossesProducts(t *testing.T) {
+	other := activeLoan("loan-other")
+	other.ProductId = "prod-2"
+	routing, _, _ := newBorrowerRouting(t, []*loansv1.LoanAccountObject{activeLoan("loan-1"), other})
+
+	result, err := routing.IdentifyPayment(context.Background(), map[string]interface{}{
+		"transaction_id":  "txn-b4",
+		"amount":          int64(10_000),
+		"currency":        "UGX",
+		"reference":       "loan-other",
+		"payer_reference": "+256701000111",
+		"product_id":      "prod-1",
+		"properties":      data.JSONMap{},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "loan-1", result["loan_id"], "the other product's loan is ignored; the phone finds prod-1's loan")
+
+	result, err = routing.IdentifyPayment(context.Background(), map[string]interface{}{
+		"transaction_id":  "txn-b5",
+		"amount":          int64(10_000),
+		"currency":        "UGX",
+		"payer_reference": "+256701000111",
+		"properties":      data.JSONMap{},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "unidentified", result["strategy"], "no product, no match")
 }

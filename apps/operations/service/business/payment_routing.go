@@ -159,7 +159,7 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 	// An individual borrower's payment (no group) is matched to their loan
 	// first; group payments keep the membership strategies.
 	if groupID == "" && b.borrowerLoanMatching() {
-		if result, matchErr := b.identifyBorrowerLoan(ctx, paymentRef, payerRef); matchErr == nil {
+		if result, matchErr := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); matchErr == nil {
 			if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 				return nil, saveErr
 			}
