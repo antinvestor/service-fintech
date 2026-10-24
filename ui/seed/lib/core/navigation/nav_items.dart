@@ -1,3 +1,6 @@
+import 'package:antinvestor_ui_core/navigation/nav_items.dart' as core;
+import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
+    show LoansRouteModule;
 import 'package:flutter/material.dart';
 
 /// A single navigation item that can contain children (submenus).
@@ -16,6 +19,19 @@ class NavItem {
     this.badge,
   });
 
+  /// Adopts a nav item contributed by a library route module. Role-based
+  /// gating is dropped: Seed gates on resolved permissions only.
+  factory NavItem.fromCore(core.NavItem item) => NavItem(
+    id: item.id,
+    label: item.label,
+    icon: item.icon,
+    activeIcon: item.activeIcon,
+    route: item.route,
+    children: [for (final child in item.children) NavItem.fromCore(child)],
+    requiredPermissions: item.requiredPermissions,
+    badge: item.badge,
+  );
+
   final String id;
   final String label;
   final IconData icon;
@@ -28,7 +44,7 @@ class NavItem {
   bool get hasChildren => children.isNotEmpty;
 
   bool matchesRoute(String currentRoute) {
-    if (route != null && currentRoute.startsWith(route!)) return true;
+    if (routeMatches(route, currentRoute)) return true;
     return children.any((c) => c.matchesRoute(currentRoute));
   }
 
@@ -59,6 +75,16 @@ class NavItem {
       badge: badge,
     );
   }
+}
+
+/// Whether [location] is served by [route].
+///
+/// The dashboard lives at `/`, which is a prefix of every other location, so
+/// it only ever matches exactly. Everything else matches its own subtree.
+bool routeMatches(String? route, String location) {
+  if (route == null) return false;
+  if (route == '/') return location == '/';
+  return location == route || location.startsWith('$route/');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,9 +154,24 @@ List<NavItem> buildNavItems() => [
         icon: Icons.admin_panel_settings_outlined,
         activeIcon: Icons.admin_panel_settings,
         route: '/access-roles',
-        requiredPermissions: {'access_role_manage'},
+        requiredPermissions: {'access_role_assignment_manage'},
       ),
     ],
+  ),
+  const NavItem(
+    id: 'clients',
+    label: 'Clients',
+    icon: Icons.people_alt_outlined,
+    activeIcon: Icons.people_alt,
+    route: '/clients',
+    requiredPermissions: {'client_view'},
+  ),
+  NavItem(
+    id: 'loans_section',
+    label: 'Loans',
+    icon: Icons.account_balance_wallet_outlined,
+    activeIcon: Icons.account_balance_wallet,
+    children: _loansNavChildren(),
   ),
   const NavItem(
     id: 'investors',
@@ -183,3 +224,69 @@ List<NavItem> buildNavItems() => [
     ],
   ),
 ];
+
+/// The loans section: the module's own items plus the sub-areas it only
+/// guards through [LoansRouteModule.routePermissions]. Specific routes come
+/// before `/loans`, whose subtree would otherwise claim them in
+/// [requiredPermissionsForRoute].
+List<NavItem> _loansNavChildren() {
+  final module = LoansRouteModule();
+  final guards = module.routePermissions;
+  return [
+    NavItem(
+      id: 'loan_products',
+      label: 'Products',
+      icon: Icons.inventory_2_outlined,
+      activeIcon: Icons.inventory_2,
+      route: '/loans/products',
+      requiredPermissions: guards['/loans/products'] ?? const {},
+    ),
+    NavItem(
+      id: 'loan_requests',
+      label: 'Applications',
+      icon: Icons.description_outlined,
+      activeIcon: Icons.description,
+      route: '/loans/requests',
+      requiredPermissions: guards['/loans/requests'] ?? const {},
+    ),
+    NavItem(
+      id: 'portfolio_report',
+      label: 'Portfolio',
+      icon: Icons.pie_chart_outline,
+      activeIcon: Icons.pie_chart,
+      route: '/reports/portfolio',
+      requiredPermissions: guards['/reports/portfolio'] ?? const {},
+    ),
+    NavItem(
+      id: 'loan_book',
+      label: 'Loan Book',
+      icon: Icons.menu_book_outlined,
+      activeIcon: Icons.menu_book,
+      route: '/reports/loan-book',
+      requiredPermissions: guards['/reports/loan-book'] ?? const {},
+    ),
+    for (final item in module.buildNavItems().reversed) NavItem.fromCore(item),
+  ];
+}
+
+/// The permissions required to reach [location], gathered from the nav tree
+/// so route guards and sidebar visibility can never disagree.
+///
+/// Returns an empty set for locations the nav tree does not gate.
+Set<String> requiredPermissionsForRoute(String location) {
+  Set<String>? search(NavItem item, Set<String> inherited) {
+    final required = {...inherited, ...item.requiredPermissions};
+    if (routeMatches(item.route, location)) return required;
+    for (final child in item.children) {
+      final found = search(child, required);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  for (final item in buildNavItems()) {
+    final found = search(item, const {});
+    if (found != null) return found;
+  }
+  return const {};
+}

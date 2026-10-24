@@ -17,9 +17,11 @@ package repository
 import (
 	"context"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 )
@@ -28,6 +30,9 @@ type ClientRelationshipRepository interface {
 	datastore.BaseRepository[*models.ClientRelationship]
 	GetByClientAndMember(ctx context.Context, clientID, memberID string) (*models.ClientRelationship, error)
 	GetPrimaryForClient(ctx context.Context, clientID string) (*models.ClientRelationship, error)
+	// ClientIDsForMember lists the clients the member holds an active
+	// relationship with.
+	ClientIDsForMember(ctx context.Context, memberID string) ([]string, error)
 }
 
 type clientRelationshipRepository struct {
@@ -70,4 +75,17 @@ func (repo *clientRelationshipRepository) GetPrimaryForClient(
 		return nil, err
 	}
 	return &cr, nil
+}
+
+func (repo *clientRelationshipRepository) ClientIDsForMember(ctx context.Context, memberID string) ([]string, error) {
+	var ids []string
+	err := repo.Pool().DB(ctx, true).
+		Model(&models.ClientRelationship{}).
+		Where("member_id = ? AND state IN ? AND deleted_at IS NULL", memberID,
+			[]int32{int32(commonv1.STATE_CREATED), int32(commonv1.STATE_ACTIVE)}).
+		Pluck("client_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }

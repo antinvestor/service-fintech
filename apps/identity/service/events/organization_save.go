@@ -18,16 +18,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const OrganizationSaveEvent = "organization.save"
@@ -72,17 +73,9 @@ func (e *OrganizationSave) Execute(ctx context.Context, payload any) error {
 		WithFields(map[string]any{logFieldType: e.Name(), "organization_id": organization.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.organizationRepo.GetByID(ctx, organization.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.organizationRepo.Update(ctx, organization); err != nil {
-			logger.WithError(err).Error("could not update organization in db")
-			return err
-		}
-	} else {
-		if err := e.organizationRepo.Create(ctx, organization); err != nil && !data.ErrorIsDuplicateKey(err) {
-			logger.WithError(err).Error("could not create organization in db")
-			return err
-		}
+	if err := upsert.ByID(ctx, e.organizationRepo, organization); err != nil {
+		logger.WithError(err).Error("could not save organization in db")
+		return err
 	}
 
 	// If this organization has a parent, mark the parent as having children.
@@ -90,7 +83,7 @@ func (e *OrganizationSave) Execute(ctx context.Context, payload any) error {
 		parent, parentErr := e.organizationRepo.GetByID(ctx, organization.ParentID)
 		if parentErr == nil && parent != nil && !parent.HasChildren {
 			parent.HasChildren = true
-			if _, err := e.organizationRepo.Update(ctx, parent); err != nil {
+			if err := upsert.ByID(ctx, e.organizationRepo, parent); err != nil {
 				logger.WithError(err).Warn("could not update parent organization has_children flag")
 			}
 		}
@@ -143,7 +136,7 @@ func (e *OrganizationSave) syncProfile(
 	}
 
 	if organization.ProfileID == "" {
-		profileID, err := e.createProfile(
+		profileID, err := e.resolveOrCreateProfile(
 			ctx,
 			logger,
 			organization,
@@ -169,16 +162,7 @@ func (e *OrganizationSave) syncProfile(
 		}
 	}
 
-	// Sync contacts to the profile.
-	for _, c := range contacts {
-		if c.value == "" {
-			continue
-		}
-		if err := e.addContact(ctx, logger, organization.ProfileID, c); err != nil {
-			logger.WithError(err).WithField("contact_value", c.value).
-				Warn("could not add contact to profile")
-		}
-	}
+	e.syncContacts(ctx, logger, organization.ProfileID, contacts)
 
 	// Sync address if any address field is present.
 	if addressStreet != "" || addressCity != "" || addressCountry != "" || addressPostalCode != "" {
@@ -198,13 +182,136 @@ func (e *OrganizationSave) syncProfile(
 	return nil
 }
 
+// syncContacts adds only the contacts the profile does not already carry.
+// Saves are re-emitted on every organization edit and redelivered on retry, so
+// adding every contact unconditionally accumulated duplicates on the profile.
+func (e *OrganizationSave) syncContacts(
+	ctx context.Context,
+	logger *util.LogEntry,
+	profileID string,
+	contacts []orgContact,
+) {
+	existing := e.existingContactDetails(ctx, logger, profileID)
+	for _, c := range contacts {
+		key := contactKey(c.value)
+		if key == "" || existing[key] {
+			continue
+		}
+		if err := e.addContact(ctx, logger, profileID, c); err != nil {
+			logger.WithError(err).WithField("contact_type", c.contactType).
+				Warn("could not add contact to profile")
+			continue
+		}
+		existing[key] = true
+	}
+}
+
+// existingContactDetails returns the contacts already on the profile, keyed for
+// comparison. A failed read yields an empty set, which degrades to the previous
+// add-everything behaviour rather than dropping contacts silently.
+func (e *OrganizationSave) existingContactDetails(
+	ctx context.Context,
+	logger *util.LogEntry,
+	profileID string,
+) map[string]bool {
+	existing := map[string]bool{}
+	profile, err := e.fetchProfile(ctx, profileID)
+	if err != nil {
+		logger.WithError(err).Warn("could not read existing profile contacts; contact sync may duplicate")
+		return existing
+	}
+	for _, c := range profile.GetContacts() {
+		if key := contactKey(c.GetDetail()); key != "" {
+			existing[key] = true
+		}
+	}
+	return existing
+}
+
+func (e *OrganizationSave) fetchProfile(
+	ctx context.Context,
+	profileID string,
+) (*profilev1.ProfileObject, error) {
+	resp, err := e.profileClient.GetById(ctx, &profilev1.GetByIdRequest{Id: profileID})
+	if err != nil {
+		return nil, fmt.Errorf("reading profile: %w", err)
+	}
+	profile := resp.GetData()
+	if profile == nil {
+		return nil, errors.New("profile service returned no profile")
+	}
+	return profile, nil
+}
+
+// contactKey normalises a contact value for set comparison.
+func contactKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+// resolveOrCreateProfile returns the organization's profile id.
+//
+// It looks the profile up by the organization's primary contact before
+// creating one. Creating first and persisting the id afterwards meant that a
+// failure to persist — or a redelivery of the save event — produced a second
+// profile for the same organization, with no way to tell which one was
+// authoritative. The contact lookup makes the create converge instead.
+func (e *OrganizationSave) resolveOrCreateProfile(
+	ctx context.Context,
+	logger *util.LogEntry,
+	organization *models.Organization,
+	description, logoContentURI, domainName, contactEmail string,
+) (string, error) {
+	contact := profileContact(organization, contactEmail)
+
+	resp, err := e.profileClient.GetByContact(
+		ctx,
+		&profilev1.GetByContactRequest{Contact: contact},
+	)
+	if err == nil {
+		if profileID := resp.GetData().GetId(); profileID != "" {
+			logger.WithField("profile_id", profileID).
+				Info("reusing existing profile for organization")
+			if persistErr := e.persistProfileID(ctx, logger, organization, profileID); persistErr != nil {
+				return "", persistErr
+			}
+			return profileID, nil
+		}
+	}
+
+	return e.createProfile(ctx, logger, organization, description, logoContentURI, domainName, contact)
+}
+
+// profileContact is the identifier the organization's profile is keyed on: its
+// first email contact, falling back to the organization name.
+func profileContact(organization *models.Organization, contactEmail string) string {
+	if contactEmail != "" {
+		return contactEmail
+	}
+	return organization.Name
+}
+
+// persistProfileID writes the resolved profile id onto the organization row.
+func (e *OrganizationSave) persistProfileID(
+	ctx context.Context,
+	logger *util.LogEntry,
+	organization *models.Organization,
+	profileID string,
+) error {
+	organization.ProfileID = profileID
+	if err := upsert.ByID(ctx, e.organizationRepo, organization); err != nil {
+		logger.WithError(err).Error("could not update organization with profile ID")
+		return fmt.Errorf("updating organization profile ID: %w", err)
+	}
+	return nil
+}
+
 // createProfile creates a new profile for the organization and persists the
 // returned profile ID back to the organization record.
 func (e *OrganizationSave) createProfile(
 	ctx context.Context,
 	logger *util.LogEntry,
 	organization *models.Organization,
-	description, logoContentURI, domainName, contactEmail string,
+	description, logoContentURI, domainName, contact string,
 ) (string, error) {
 	profileProps := buildProfileProperties(
 		organization.Name,
@@ -217,33 +324,24 @@ func (e *OrganizationSave) createProfile(
 		return "", fmt.Errorf("building profile properties: %w", err)
 	}
 
-	contact := contactEmail
-	if contact == "" {
-		// Use org name as a fallback identifier when no email is available.
-		contact = organization.Name
-	}
-
-	resp, err := e.profileClient.Create(ctx, connect.NewRequest(&profilev1.CreateRequest{
+	resp, err := e.profileClient.Create(ctx, &profilev1.CreateRequest{
 		Type:       profilev1.ProfileType_INSTITUTION,
 		Contact:    contact,
 		Properties: props,
-	}))
+	})
 	if err != nil {
 		return "", fmt.Errorf("creating profile: %w", err)
 	}
 
-	profileID := resp.Msg.GetData().GetId()
+	profileID := resp.GetData().GetId()
 	if profileID == "" {
 		return "", errors.New("profile service returned empty profile ID")
 	}
 
 	logger.WithField("profile_id", profileID).Info("created profile for organization")
 
-	// Persist the new profile ID on the organization.
-	organization.ProfileID = profileID
-	if _, updateErr := e.organizationRepo.Update(ctx, organization); updateErr != nil {
-		logger.WithError(updateErr).Error("could not update organization with new profile ID")
-		return profileID, fmt.Errorf("updating organization profile ID: %w", updateErr)
+	if err = e.persistProfileID(ctx, logger, organization, profileID); err != nil {
+		return "", err
 	}
 
 	return profileID, nil
@@ -259,10 +357,10 @@ func (e *OrganizationSave) updateProfile(
 	currentName := ""
 	getResp, err := e.profileClient.GetById(
 		ctx,
-		connect.NewRequest(&profilev1.GetByIdRequest{Id: profileID}),
+		&profilev1.GetByIdRequest{Id: profileID},
 	)
-	if err == nil && getResp.Msg.GetData() != nil {
-		if p := getResp.Msg.GetData().GetProperties(); p != nil {
+	if err == nil && getResp.GetData() != nil {
+		if p := getResp.GetData().GetProperties(); p != nil {
 			if v, ok := p.AsMap()["name"].(string); ok {
 				currentName = v
 			}
@@ -275,10 +373,10 @@ func (e *OrganizationSave) updateProfile(
 		return fmt.Errorf("building profile properties: %w", err)
 	}
 
-	if _, updateErr := e.profileClient.Update(ctx, connect.NewRequest(profilev1.UpdateRequest_builder{
+	if _, updateErr := e.profileClient.Update(ctx, profilev1.UpdateRequest_builder{
 		Id:         profileID,
 		Properties: props,
-	}.Build())); updateErr != nil {
+	}.Build()); updateErr != nil {
 		logger.WithError(updateErr).WithField("profile_id", profileID).
 			Warn("could not update profile")
 		return fmt.Errorf("updating profile: %w", updateErr)
@@ -302,11 +400,11 @@ func (e *OrganizationSave) addContact(
 		return fmt.Errorf("building contact extras: %w", err)
 	}
 
-	if _, addErr := e.profileClient.AddContact(ctx, connect.NewRequest(profilev1.AddContactRequest_builder{
+	if _, addErr := e.profileClient.AddContact(ctx, profilev1.AddContactRequest_builder{
 		Id:      profileID,
 		Contact: c.value,
 		Extras:  extras,
-	}.Build())); addErr != nil {
+	}.Build()); addErr != nil {
 		return fmt.Errorf("adding contact %s: %w", c.value, addErr)
 	}
 
@@ -324,7 +422,7 @@ func (e *OrganizationSave) addAddress(
 	logger *util.LogEntry,
 	profileID, street, city, country, postalCode string,
 ) error {
-	if _, err := e.profileClient.AddAddress(ctx, connect.NewRequest(profilev1.AddAddressRequest_builder{
+	if _, err := e.profileClient.AddAddress(ctx, profilev1.AddAddressRequest_builder{
 		Id: profileID,
 		Address: profilev1.AddressObject_builder{
 			Street:   street,
@@ -332,7 +430,7 @@ func (e *OrganizationSave) addAddress(
 			Country:  country,
 			Postcode: postalCode,
 		}.Build(),
-	}.Build())); err != nil {
+	}.Build()); err != nil {
 		return fmt.Errorf("adding address: %w", err)
 	}
 

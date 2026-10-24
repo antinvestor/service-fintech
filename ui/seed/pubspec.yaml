@@ -12,15 +12,24 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
   cupertino_icons: ^1.0.9
-  antinvestor_ui_core: ^0.5.0
-  antinvestor_ui_audit: ^0.2.0
+  antinvestor_ui_core: ^0.5.1
+  antinvestor_ui_audit: ^0.3.2
   antinvestor_ui_identity:
     path: ../identity
   antinvestor_ui_limits:
     path: ../limits
-  antinvestor_ui_profile: ^0.2.1
-  antinvestor_ui_geolocation: ^0.2.1
+  antinvestor_ui_loans:
+    path: ../loans
+  antinvestor_ui_profile: ^0.2.5
+  antinvestor_ui_geolocation: ^0.2.3
   antinvestor_api_common: ^1.52.0
+  # Direct constraint, not an override: GHSA jose <=0.3.5 accepts untrusted
+  # JWK header keys during signature verification, fixed in 0.3.5+1. Stated
+  # here (rather than in dependency_overrides) so a local
+  # pubspec_overrides.yaml, which replaces the override block wholesale,
+  # cannot drop the security floor.
+  jose: '>=0.3.5+1'
+
   antinvestor_api_files: ^1.54.0
   connectrpc: ^1.0.0
   fixnum: ^1.1.0
@@ -42,24 +51,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  build_runner: ^2.4.13
+  riverpod_generator: ^4.0.0
 
-# NOTE: the sibling-repo path overrides below mean this app only
-# resolves on a machine with common/ and service-profile/ checked out
-# beside service-fintech — CI cannot build it until antinvestor_ui_core
-# >=0.4.0 (and friends) are published to pub.dev.
-dependency_overrides:
-  # Security floor: GHSA jose <=0.3.5 accepts untrusted JWK header keys
-  # during signature verification; fixed in 0.3.5+1. The range keeps any
-  # newer release eligible while preventing resolution below the patch.
-  jose: '>=0.3.5+1'
-  antinvestor_ui_core:
-    path: ../../../common/ui_core
-  antinvestor_api_identity:
-    path: ../../sdk/dart/identity
-  antinvestor_ui_profile:
-    path: ../../../service-profile/ui/profile
-  antinvestor_ui_geolocation:
-    path: ../../../service-profile/ui/geolocation
+# antinvestor_api_identity 0.5.x is not on pub.dev yet, so every package that
+# depends on it resolves against the generated SDK in this repo. That override
+# lives in the gitignored pubspec_overrides.yaml (CI writes one) because a
+# path dependency cannot be published. See README.md.
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/google_fonts/

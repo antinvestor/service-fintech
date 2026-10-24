@@ -23,19 +23,18 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
-	"github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
@@ -54,6 +53,7 @@ type DisbursementBusiness interface {
 }
 
 type disbursementBusiness struct {
+	scope             *ReadScope
 	eventsMan         fevents.Manager
 	disbRepo          repository.DisbursementRepository
 	loanAccountRepo   repository.LoanAccountRepository
@@ -63,6 +63,16 @@ type disbursementBusiness struct {
 	limitsCli         limitsv1connect.LimitsServiceClient
 	limitsGateEnabled bool
 	limitsGateMode    string
+	scheduleBusiness  RepaymentScheduleBusiness
+	notifier          *LoanNotifier
+	payoutChecker     PayoutDestinationChecker
+}
+
+// PayoutDestinationChecker decides whether a loan's payment account ref is
+// a destination that belongs to the borrower. Money must never leave to a
+// destination nobody verified.
+type PayoutDestinationChecker interface {
+	Allowed(ctx context.Context, la *models.LoanAccount) error
 }
 
 func NewDisbursementBusiness(
@@ -76,8 +86,14 @@ func NewDisbursementBusiness(
 	limitsCli limitsv1connect.LimitsServiceClient,
 	limitsGateEnabled bool,
 	limitsGateMode string,
+	opts ...Option,
 ) DisbursementBusiness {
+	o := applyOptions(opts)
 	return &disbursementBusiness{
+		scope:             o.scope,
+		scheduleBusiness:  o.scheduleBusiness,
+		notifier:          o.notifier,
+		payoutChecker:     o.payoutChecker,
 		eventsMan:         eventsMan,
 		disbRepo:          disbRepo,
 		loanAccountRepo:   loanAccountRepo,
@@ -96,17 +112,23 @@ func (b *disbursementBusiness) Create(
 ) (*loansv1.DisbursementObject, error) {
 	logger := util.Log(ctx).WithField("method", "DisbursementBusiness.Create")
 
-	// Idempotency short-circuit (local).
-	if req.GetIdempotencyKey() != "" {
-		existing, idErr := b.disbRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey())
-		if idErr == nil && existing != nil {
-			return existing.ToAPI(), nil
-		}
+	// The key is required whatever the limits configuration says: it is the
+	// only thing standing between a retried request and a second payment.
+	if req.GetIdempotencyKey() == "" {
+		return nil, ErrIdempotencyKeyRequired
 	}
 
-	if req.GetIdempotencyKey() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			errors.New("idempotency_key required for loan disbursement"))
+	// A settled row answers the retry outright. A row still PROCESSING is
+	// not an answer: the previous attempt did not reach a settled state and
+	// this call drives the same transfer order again so it converges.
+	if existing, idErr := b.disbRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); idErr == nil &&
+		existing != nil {
+		if existing.LoanAccountID != req.GetLoanAccountId() {
+			return nil, ErrDuplicateIdempotencyKey
+		}
+		if !disbursementResumable(existing) {
+			return existing.ToAPI(), nil
+		}
 	}
 
 	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
@@ -130,12 +152,13 @@ func (b *disbursementBusiness) Create(
 			}
 			result = inner
 			return nil
-		})
+		},
+		limits.InPartition(la.TenantID, la.PartitionID),
+	)
 
 	var pendingErr *limits.PendingApprovalError
 	if errors.As(gateErr, &pendingErr) {
-		return nil, fmt.Errorf("disbursement requires approval (reservation %s): %w",
-			pendingErr.ReservationID, gateErr)
+		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr.Error()).WithCause(gateErr)
 	}
 	if gateErr != nil {
 		return nil, gateErr
@@ -145,37 +168,23 @@ func (b *disbursementBusiness) Create(
 
 // createInner is the pre-Gate body factored out so Gate's handler
 // can wrap it. The idempotency check lives in the outer Create.
-func (b *disbursementBusiness) createInner( //nolint:funlen // sequential disbursement pipeline
+func (b *disbursementBusiness) createInner(
 	ctx context.Context,
 	req *loansv1.DisbursementCreateRequest,
 ) (*loansv1.DisbursementObject, error) {
 	logger := util.Log(ctx).WithField("method", "DisbursementBusiness.Create")
 
-	loanAccountID := req.GetLoanAccountId()
+	if b.operationsCli == nil {
+		return nil, ErrOperationsClientUnavailable
+	}
 
-	// Verify loan is in PENDING_DISBURSEMENT state
-	la, err := b.loanAccountRepo.GetByID(ctx, loanAccountID)
+	la, err := b.loadDisbursableLoan(ctx, req.GetLoanAccountId())
 	if err != nil {
-		return nil, ErrLoanAccountNotFound
+		return nil, err
 	}
 
-	if loansv1.LoanStatus(la.Status) != loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT {
-		return nil, ErrLoanNotPendingDisbursement
-	}
-	if la.PaymentAccountRef == "" {
-		return nil, ErrLoanPaymentAccountMissing
-	}
-	if la.LedgerAssetAccountID == "" {
-		return nil, ErrLoanLedgerAccountMissing
-	}
-	if !loanFundingReady(la.Properties) {
-		return nil, ErrLoanFundingNotReady
-	}
-
-	// Create the disbursement record
-	now := time.Now().UTC()
 	disb := &models.Disbursement{
-		LoanAccountID:      loanAccountID,
+		LoanAccountID:      la.GetID(),
 		Amount:             la.PrincipalAmount,
 		CurrencyCode:       la.CurrencyCode,
 		Status:             int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING),
@@ -185,50 +194,100 @@ func (b *disbursementBusiness) createInner( //nolint:funlen // sequential disbur
 	}
 	disb.GenID(ctx)
 
-	if err = b.eventsMan.Emit(ctx, events.DisbursementSaveEvent, disb); err != nil {
-		logger.WithError(err).Error("could not emit disbursement save event")
+	// The row is inserted before the money moves. Two unique indexes
+	// serialise concurrent requests: the idempotency key (same key, same
+	// row) and the single live disbursement per loan (different keys, one
+	// winner). The loser never reaches the payment rail.
+	stored, created, claimErr := b.disbRepo.ClaimIdempotencyKey(ctx, disb)
+	if errors.Is(claimErr, repository.ErrLiveDisbursementExists) {
+		logger.WithField("live_disbursement_id", stored.GetID()).
+			Warn("refusing second disbursement for a loan that already has a live one")
+		return nil, ErrDisbursementInFlight
+	}
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not claim disbursement idempotency key")
+		return nil, claimErr
+	}
+	if !created {
+		// The key belongs to whoever used it first. A different loan under
+		// the same key is a client bug or a replay against the wrong loan;
+		// it must never be answered with another loan's disbursement.
+		if stored.LoanAccountID != la.GetID() {
+			return nil, ErrDuplicateIdempotencyKey
+		}
+		if !disbursementResumable(stored) {
+			return stored.ToAPI(), nil
+		}
+		// Same key, earlier attempt still processing: resume it. The
+		// transfer order on the operations side is keyed on this row's
+		// idempotency key, so driving it again converges on one posting.
+		logger.WithField("disbursement_id", stored.GetID()).Info("resuming processing disbursement")
+		disb = stored
+	}
+
+	toResp, toErr := b.executeDisbursementTransfer(ctx, req, la, disb)
+	if toErr != nil {
+		return nil, b.handleTransferFailure(ctx, logger, disb, toErr)
+	}
+	order := toResp.GetData()
+	if order.GetState() != commonv1.STATE_INACTIVE {
+		// The operations service only reports money as moved once the order
+		// is inactive. Anything else is "not yet": keep the row processing
+		// so the same key can drive the order to completion.
+		err = fmt.Errorf("transfer order %s returned in state %s", order.GetId(), order.GetState())
+		return nil, b.handleTransferFailure(ctx, logger, disb, err)
+	}
+
+	if err = b.completeDisbursement(ctx, logger, req, la, disb, order.GetId()); err != nil {
 		return nil, err
 	}
 
-	// Execute the disbursement transfer order via operations service
-	if b.operationsCli == nil {
-		return nil, errors.New("operations client is not configured; cannot execute disbursement")
-	}
-	toResp, toErr := b.executeDisbursementTransfer(ctx, req, la, disb)
-	if toErr != nil {
-		logger.WithError(toErr).Error("transfer order execution failed")
-		disb.Status = int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED)
-		disb.FailureReason = toErr.Error()
-		_ = b.eventsMan.Emit(ctx, events.DisbursementSaveEvent, disb)
-		return disb.ToAPI(), nil
-	}
-	disb.LedgerTransactionID = toResp.Msg.GetData().GetId()
+	currencyAttr := attribute.String("currency", la.CurrencyCode)
+	LoansDisbursed.Add(ctx, 1, currencyAttr)
+	LoansDisbursedAmount.Add(ctx,
+		float64(la.PrincipalAmount)/minorUnitsPerMajor,
+		currencyAttr)
 
-	// Mark disbursement as completed
+	return disb.ToAPI(), nil
+}
+
+// completeDisbursement records a settled transfer order on the disbursement
+// and the loan: the row is marked completed, the loan is stamped and its
+// schedule re-anchored, the loan goes active, and the movement is audited.
+func (b *disbursementBusiness) completeDisbursement(
+	ctx context.Context,
+	logger *util.LogEntry,
+	req *loansv1.DisbursementCreateRequest,
+	la *models.LoanAccount,
+	disb *models.Disbursement,
+	orderID string,
+) error {
+	disb.LedgerTransactionID = orderID
 	disb.Status = int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED)
-	if err = b.eventsMan.Emit(ctx, events.DisbursementSaveEvent, disb); err != nil {
-		logger.WithError(err).Error("could not update disbursement status")
+	if _, updErr := b.disbRepo.UpdateColumns(ctx, disb.GetID(), map[string]any{
+		fieldStatus:      disb.Status,
+		fieldLedgerTxnID: disb.LedgerTransactionID,
+		"failure_reason": "",
+	}); updErr != nil {
+		logger.WithError(updErr).Error("could not mark disbursement completed")
+		return updErr
 	}
 
-	la.DisbursedAt = &now
-	if la.FirstRepaymentDate == nil {
-		firstRepayment := now.AddDate(
-			0,
-			0,
-			computeFirstRepaymentDays(loansv1.RepaymentFrequency(la.RepaymentFrequency)),
-		)
-		la.FirstRepaymentDate = &firstRepayment
-	}
-	if saveErr := b.eventsMan.Emit(ctx, events.LoanAccountSaveEvent, la); saveErr != nil {
-		logger.WithError(saveErr).Error("could not update loan account with disbursement details")
-	}
+	b.recordDisbursementOnLoan(ctx, logger, la)
+	b.notifier.NotifyLoanDisbursed(ctx, la, req.GetChannel())
 
-	// Transition loan to ACTIVE
+	actor := callerSubject(ctx)
+	if actor == "" {
+		actor = "system"
+	}
 	if _, transErr := b.laBusiness.TransitionStatus(
-		ctx, loanAccountID,
+		ctx, la.GetID(),
 		loansv1.LoanStatus_LOAN_STATUS_ACTIVE,
-		"system", "disbursement completed",
+		actor, "disbursement completed",
 	); transErr != nil {
+		// The money has moved and the disbursement row says so; a loan that
+		// did not become active is visible to the reconciliation sweep via
+		// COMPLETED disbursements on PENDING_DISBURSEMENT loans.
 		logger.WithError(transErr).Error("could not transition loan to active after disbursement")
 	}
 
@@ -242,8 +301,8 @@ func (b *disbursementBusiness) createInner( //nolint:funlen // sequential disbur
 		Action:     "loan.disbursed",
 		Reason:     "loan principal disbursed to recipient",
 		After: data.JSONMap{
-			fieldStatus:             disb.Status,
-			"ledger_transaction_id": disb.LedgerTransactionID,
+			fieldStatus:      disb.Status,
+			fieldLedgerTxnID: disb.LedgerTransactionID,
 		},
 		Metadata: data.JSONMap{
 			fieldLoanAccountID:    la.GetID(),
@@ -252,20 +311,130 @@ func (b *disbursementBusiness) createInner( //nolint:funlen // sequential disbur
 			fieldCurrency:         la.CurrencyCode,
 			"channel":             req.GetChannel(),
 			"recipient_reference": req.GetRecipientReference(),
-			"idempotency_key":     req.GetIdempotencyKey(),
+			fieldIdempotencyKey:   req.GetIdempotencyKey(),
 		},
 		Parent: &disb.BaseModel,
 	}, func(auErr error) {
 		logger.WithError(auErr).Warn("audit emission failed for disbursement")
 	})
 
-	currencyAttr := attribute.String("currency", la.CurrencyCode)
-	LoansDisbursed.Add(ctx, 1, currencyAttr)
-	LoansDisbursedAmount.Add(ctx,
-		float64(la.PrincipalAmount)/minorUnitsPerMajor,
-		currencyAttr)
+	return nil
+}
 
-	return disb.ToAPI(), nil
+// loadDisbursableLoan resolves the loan account and checks everything that
+// must hold before money can leave.
+func (b *disbursementBusiness) loadDisbursableLoan(
+	ctx context.Context,
+	loanAccountID string,
+) (*models.LoanAccount, error) {
+	la, err := b.loanAccountRepo.GetByID(ctx, loanAccountID)
+	if err != nil {
+		return nil, ErrLoanAccountNotFound
+	}
+	if loansv1.LoanStatus(la.Status) != loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT {
+		return nil, ErrLoanNotPendingDisbursement
+	}
+	if la.PaymentAccountRef == "" {
+		return nil, ErrLoanPaymentAccountMissing
+	}
+	if la.LedgerAssetAccountID == "" {
+		return nil, ErrLoanLedgerAccountMissing
+	}
+	if !loanFundingReady(la.Properties) {
+		return nil, ErrLoanFundingNotReady
+	}
+	if b.payoutChecker != nil {
+		if err = b.payoutChecker.Allowed(ctx, la); err != nil {
+			return nil, err
+		}
+	}
+	return la, nil
+}
+
+// disbursementResumable reports whether a stored row is still waiting on the
+// payment path, so a retry with its key should drive it rather than read it.
+func disbursementResumable(d *models.Disbursement) bool {
+	return d != nil && d.Status == int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING)
+}
+
+// handleTransferFailure decides what a failed transfer attempt means for the
+// disbursement row. A rejection the payment path will never accept marks the
+// row FAILED under its own key, so a retry with that key is answered with the
+// failure and a fresh key may try again. Anything else is "not settled yet":
+// the row stays PROCESSING with the reason recorded, and the same key resumes
+// the same transfer order. The idempotency key is never rewritten: the audit
+// trail keeps the caller's key, and the operations reference derived from it
+// stays stable across attempts.
+func (b *disbursementBusiness) handleTransferFailure(
+	ctx context.Context,
+	logger *util.LogEntry,
+	disb *models.Disbursement,
+	cause error,
+) error {
+	logger = logger.WithError(cause).WithField("disbursement_id", disb.GetID())
+	values := map[string]any{"failure_reason": cause.Error()}
+
+	if transferPermanentlyRejected(cause) {
+		logger.Error("disbursement rejected by the payment path")
+		values[fieldStatus] = int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED)
+		if _, err := b.disbRepo.UpdateColumns(ctx, disb.GetID(), values); err != nil {
+			logger.WithError(err).Error("could not mark disbursement failed")
+		}
+		return ErrDisbursementRejected
+	}
+
+	logger.Warn("disbursement not settled; the same idempotency key resumes it")
+	if _, err := b.disbRepo.UpdateColumns(ctx, disb.GetID(), values); err != nil {
+		logger.WithError(err).Error("could not record disbursement failure reason")
+	}
+	return ErrDisbursementNotSettled
+}
+
+// transferPermanentlyRejected classifies an operations error. Validation and
+// precondition failures will not pass on a retry of the same order; everything
+// else (unavailable, deadline, internal, in-progress) may.
+func transferPermanentlyRejected(err error) bool {
+	code := connect.CodeOf(err)
+	return code == connect.CodeInvalidArgument ||
+		code == connect.CodeFailedPrecondition ||
+		code == connect.CodePermissionDenied ||
+		code == connect.CodeNotFound
+}
+
+// recordDisbursementOnLoan stamps the disbursement date on the loan and
+// re-anchors the repayment schedule to it. The schedule generated at account
+// creation assumed the money would leave immediately; a loan disbursed days
+// later would otherwise start life with an installment already overdue.
+// Only the touched columns are written: the loan row may have moved on since
+// it was read.
+func (b *disbursementBusiness) recordDisbursementOnLoan(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+) {
+	now := time.Now().UTC()
+	firstRepayment := now.AddDate(
+		0,
+		0,
+		computeFirstRepaymentDays(loansv1.RepaymentFrequency(la.RepaymentFrequency)),
+	)
+	la.DisbursedAt = &now
+	la.FirstRepaymentDate = &firstRepayment
+
+	values := map[string]any{
+		"disbursed_at":         now,
+		"first_repayment_date": firstRepayment,
+	}
+	if _, err := b.loanAccountRepo.UpdateColumns(ctx, la.GetID(), values); err != nil {
+		logger.WithError(err).Error("could not record the disbursement date on the loan account")
+	}
+
+	if b.scheduleBusiness == nil {
+		return
+	}
+	if _, err := b.scheduleBusiness.GenerateFor(ctx, la, la.PrincipalAmount); err != nil {
+		logger.WithError(err).Error("could not re-anchor the repayment schedule to the disbursement date")
+	}
 }
 
 // buildDisbursementIntent constructs a LimitIntent from the loan account.
@@ -296,30 +465,28 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 	req *loansv1.DisbursementCreateRequest,
 	la *models.LoanAccount,
 	disb *models.Disbursement,
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
+) (*operationsv1.TransferOrderExecuteResponse, error) {
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 
-	return b.operationsCli.TransferOrderExecute(ctx, connect.NewRequest(
-		&operationsv1.TransferOrderExecuteRequest{
-			Data: &operationsv1.TransferOrderObject{
-				DebitAccountRef:  la.LedgerAssetAccountID,
-				CreditAccountRef: la.PaymentAccountRef,
-				Amount:           moneyx.FromSmallestUnit(la.CurrencyCode, la.PrincipalAmount, decimalPrecision),
-				OrderType:        constants.SafeInt32FromInt(constants.TransferTypeDisbursement),
-				Reference:        "disbursement:" + disb.GetID(),
-				Description:      "Loan disbursement for " + la.GetID(),
-				State:            commonv1.STATE_ACTIVE,
-				ExtraData: (&data.JSONMap{
-					"loan_id":             la.GetID(),
-					fieldLoanRequestID:    loanRequestID,
-					"recipient_id":        la.ClientID,
-					fieldClientID:         la.ClientID,
-					"payment_channel":     req.GetChannel(),
-					"payment_account_ref": la.PaymentAccountRef,
-				}).ToProtoStruct(),
-			},
+	return b.operationsCli.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
+		Data: &operationsv1.TransferOrderObject{
+			DebitAccountRef:  la.LedgerAssetAccountID,
+			CreditAccountRef: la.PaymentAccountRef,
+			Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, la.PrincipalAmount),
+			OrderType:        constants.SafeInt32FromInt(constants.TransferTypeDisbursement),
+			Reference:        "disbursement:" + disb.IdempotencyKey,
+			Description:      "Loan disbursement for " + la.GetID(),
+			State:            commonv1.STATE_ACTIVE,
+			ExtraData: (&data.JSONMap{
+				"loan_id":             la.GetID(),
+				fieldLoanRequestID:    loanRequestID,
+				"recipient_id":        la.ClientID,
+				fieldClientID:         la.ClientID,
+				"payment_channel":     req.GetChannel(),
+				"payment_account_ref": la.PaymentAccountRef,
+			}).ToProtoStruct(),
 		},
-	))
+	})
 }
 
 func loanFundingReady(properties data.JSONMap) bool {
@@ -344,6 +511,9 @@ func (b *disbursementBusiness) Get(ctx context.Context, id string) (*loansv1.Dis
 	if err != nil {
 		return nil, ErrDisbursementNotFound
 	}
+	if scopeErr := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, disb.LoanAccountID); scopeErr != nil {
+		return nil, scopeErr
+	}
 	return disb.ToAPI(), nil
 }
 
@@ -353,6 +523,10 @@ func (b *disbursementBusiness) Search(
 	consumer func(ctx context.Context, batch []*loansv1.DisbursementObject) error,
 ) error {
 	logger := util.Log(ctx).WithField("method", "DisbursementBusiness.Search")
+
+	if scopeErr := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, req.GetLoanAccountId()); scopeErr != nil {
+		return scopeErr
+	}
 
 	andQueryVal := map[string]any{}
 	if req.GetLoanAccountId() != "" {

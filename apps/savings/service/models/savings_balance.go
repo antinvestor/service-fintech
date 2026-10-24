@@ -15,7 +15,7 @@
 package models
 
 import (
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // SavingsBalance is the authoritative running-balance snapshot for a savings
@@ -24,10 +24,10 @@ import (
 //   - Balance          total settled funds available to the account
 //   - ReservedBalance  funds earmarked by pending withdrawals
 //
-// Available funds for a new withdrawal are (Balance - ReservedBalance). All
-// mutations must go through atomic SQL on the repository (Credit/Reserve/
-// DebitReserved/ReleaseReserved) so concurrent deposit/withdrawal flows
-// serialize correctly at the row level without application-side locking.
+// Available funds for a new withdrawal are (Balance - ReservedBalance). Every
+// mutation is a guarded arithmetic UPDATE applied in the same transaction as
+// the money movement that causes it, so concurrent deposit and withdrawal
+// flows serialize at the row level without application-side locking.
 //
 // Balance itself is updated only when a transfer order reaches the external
 // Ledger successfully, so drift between this snapshot and the Ledger should

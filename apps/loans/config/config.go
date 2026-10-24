@@ -15,13 +15,20 @@
 package config
 
 import (
-	"github.com/pitabwire/frame/v2/config"
+	"time"
+
+	"github.com/pitabwire/frame/v3/config"
+
+	"github.com/antinvestor/service-fintech/pkg/clients"
 )
 
 type LoanManagementConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
 	IdentityServiceURI                       string `envDefault:"127.0.0.1:7001"                           env:"IDENTITY_SERVICE_URI"`
 	IdentityServiceWorkloadAPITargetPath     string `envDefault:"/ns/identity/sa/service-identity"         env:"IDENTITY_SERVICE_WORKLOAD_API_TARGET_PATH"`
+	FieldServiceURI                          string `envDefault:"127.0.0.1:7001"                           env:"FIELD_SERVICE_URI"`
+	FieldServiceWorkloadAPITargetPath        string `envDefault:"/ns/identity/sa/service-identity"         env:"FIELD_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LedgerServiceURI                         string `envDefault:"127.0.0.1:7020"                           env:"LEDGER_SERVICE_URI"`
 	LedgerServiceWorkloadAPITargetPath       string `envDefault:"/ns/ledger/sa/service-ledger"             env:"LEDGER_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	PaymentServiceURI                        string `envDefault:"127.0.0.1:7030"                           env:"PAYMENT_SERVICE_URI"`
@@ -40,12 +47,27 @@ type LoanManagementConfig struct {
 	FundingServiceWorkloadAPITargetPath      string `envDefault:"/ns/fintech/sa/service-funding"           env:"FUNDING_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LimitsServiceURI                         string `envDefault:"http://service_limits:80"                 env:"LIMITS_SERVICE_URI"`
 	LimitsServiceWorkloadAPITargetPath       string `envDefault:""                                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
-	LimitsGateEnabledLoanDisbursement        bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_DISBURSEMENT"`
+	LimitsGateEnabledLoanDisbursement        bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_DISBURSEMENT"`
 	LimitsGateModeLoanDisbursement           string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_DISBURSEMENT"`
-	LimitsGateEnabledLoanRequestApproval     bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_REQUEST_APPROVAL"`
+	LimitsGateEnabledLoanRequestApproval     bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_REQUEST_APPROVAL"`
 	LimitsGateModeLoanRequestApproval        string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REQUEST_APPROVAL"`
-	LimitsGateEnabledLoanRepayment           bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_REPAYMENT"`
+	LimitsGateEnabledLoanRepayment           bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_REPAYMENT"`
 	LimitsGateModeLoanRepayment              string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REPAYMENT"`
+
+	// LenderDisplayName opens every borrower-facing message ("<lender>: your
+	// loan ... "). Set it to the trading name borrowers know.
+	LenderDisplayName string `envDefault:"Your lender" env:"LENDER_DISPLAY_NAME"`
+
+	// LoansStaffRoles are the claim roles that may read any client's loan
+	// records; every other caller is scoped to the client its profile owns.
+	LoansStaffRoles string `envDefault:"admin,operator,viewer" env:"LOANS_STAFF_ROLES"`
+
+	// DelinquencyScanInterval is how often overdue loans are re-assessed;
+	// DueReminderInterval how often reminders go out; DueReminderDays how many
+	// days before the due date the upcoming-payment reminder is sent.
+	DelinquencyScanInterval time.Duration `envDefault:"1h" env:"DELINQUENCY_SCAN_INTERVAL"`
+	DueReminderInterval     time.Duration `envDefault:"6h" env:"DUE_REMINDER_INTERVAL"`
+	DueReminderDays         int           `envDefault:"2"  env:"DUE_REMINDER_DAYS"`
 
 	DefaultGracePeriodDays   int `envDefault:"3"  env:"DEFAULT_GRACE_PERIOD_DAYS"`
 	DelinquencyThresholdDays int `envDefault:"7"  env:"DELINQUENCY_THRESHOLD_DAYS"`

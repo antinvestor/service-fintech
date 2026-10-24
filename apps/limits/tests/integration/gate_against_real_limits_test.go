@@ -40,15 +40,16 @@ import (
 	"time"
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -144,16 +145,18 @@ func (s *GateIntegrationSuite) SetupTest() {
 		partitionID: "partition-gate",
 		profileID:   "wf-maker",
 	}
-	interceptorOpt := connect.WithInterceptors(claimsInterceptor)
-	runtimePath, runtimeHandler := limitsv1connect.NewLimitsServiceHandler(runtimeH, interceptorOpt)
+	server := connect.NewServer(claimsInterceptor.server())
+	limitsv1connect.RegisterLimitsServiceHandler(server, runtimeH)
 
 	mux := http.NewServeMux()
-	mux.Handle(runtimePath, runtimeHandler)
+	connecthttp.Mount(mux, server)
 
 	srv := httptest.NewServer(mux)
 	s.T().Cleanup(srv.Close)
 
-	s.gateClient = limitsv1connect.NewLimitsServiceClient(srv.Client(), srv.URL)
+	s.gateClient = limitsv1connect.NewLimitsServiceClient(
+		connect.NewClient(connecthttp.NewTransport(srv.Client(), srv.URL)),
+	)
 }
 
 func (s *GateIntegrationSuite) databaseResource(ctx context.Context) definition.DependancyConn {

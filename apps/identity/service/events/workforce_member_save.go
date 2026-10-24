@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const WorkforceMemberSaveEvent = "workforce_member.save"
@@ -58,17 +58,8 @@ func (e *WorkforceMemberSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "member_id": m.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.repo.GetByID(ctx, m.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.repo.Update(ctx, m); err != nil {
-			logger.WithError(err).Error("could not update workforce member in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.repo.Create(ctx, m); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create workforce member in db")
+	if err := upsert.ByID(ctx, e.repo, m); err != nil {
+		logger.WithError(err).Error("could not save workforce member in db")
 		return err
 	}
 

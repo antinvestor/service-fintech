@@ -17,37 +17,31 @@ package business
 import (
 	"context"
 	"fmt"
-	"math"
 	"sort"
 	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
+	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
-	"github.com/pitabwire/util/decimalx"
 	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
-	"github.com/antinvestor/service-fintech/pkg/calculation"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/fundingcompat"
 )
 
 const (
-	// decimalPrecision is the number of decimal places for minor unit conversions (cents).
-	decimalPrecision = 2
 	// daysPerWeek is the number of days in a weekly period.
 	daysPerWeek = 7
 	// daysPerBiweek is the number of days in a biweekly period.
@@ -70,13 +64,19 @@ var validTransitions = map[loansv1.LoanStatus][]loansv1.LoanStatus{ //nolint:goc
 		loansv1.LoanStatus_LOAN_STATUS_PAID_OFF,
 		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
 	},
+	// A delinquent or defaulted loan that is paid in full goes straight to
+	// PAID_OFF: a borrower catching up is exactly what these states exist to
+	// be recovered from, and the automatic pay-off a settling repayment
+	// triggers runs through this same table.
 	loansv1.LoanStatus_LOAN_STATUS_DELINQUENT: {
 		loansv1.LoanStatus_LOAN_STATUS_DEFAULT,
 		loansv1.LoanStatus_LOAN_STATUS_ACTIVE,
+		loansv1.LoanStatus_LOAN_STATUS_PAID_OFF,
 		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
 	},
 	loansv1.LoanStatus_LOAN_STATUS_DEFAULT: {
 		loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF,
+		loansv1.LoanStatus_LOAN_STATUS_PAID_OFF,
 		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
 	},
 	loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED: {
@@ -91,6 +91,19 @@ var validTransitions = map[loansv1.LoanStatus][]loansv1.LoanStatus{ //nolint:goc
 		loansv1.LoanStatus_LOAN_STATUS_CLOSED,
 	},
 	loansv1.LoanStatus_LOAN_STATUS_CLOSED: {},
+}
+
+// transitionAllowed reports whether the loan state machine permits a move
+// between two statuses. Every path that changes a loan's status consults it,
+// so the automatic pay-off a fully settled repayment triggers and the
+// operator-driven transition can never disagree about what is legal.
+func transitionAllowed(from, to loansv1.LoanStatus) bool {
+	for _, allowed := range validTransitions[from] {
+		if allowed == to {
+			return true
+		}
+	}
+	return false
 }
 
 type LoanAccountBusiness interface {
@@ -124,6 +137,11 @@ type loanAccountBusiness struct {
 	scheduleBusiness RepaymentScheduleBusiness
 	operationsCli    operationsv1connect.OperationsServiceClient
 	auditWriter      *audit.Writer
+
+	scope             *ReadScope
+	disbRepo          repository.DisbursementRepository
+	scheduleEntryRepo repository.ScheduleEntryRepository
+	notifier          *LoanNotifier
 }
 
 func NewLoanAccountBusiness(
@@ -140,8 +158,28 @@ func NewLoanAccountBusiness(
 	scheduleBusiness RepaymentScheduleBusiness,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
+	opts ...Option,
 ) LoanAccountBusiness {
+	o := applyOptions(opts)
+	if (o.disbRepo == nil || o.scheduleEntryRepo == nil) && loanAccountRepo != nil && loanAccountRepo.Pool() != nil {
+		// The statement reads disbursements and the schedule; derive the
+		// repositories from the shared pool so a binary that has not wired
+		// them explicitly still produces a complete statement.
+		if o.disbRepo == nil {
+			o.disbRepo = repository.NewDisbursementRepository(
+				context.Background(), loanAccountRepo.Pool(), loanAccountRepo.WorkManager())
+		}
+		if o.scheduleEntryRepo == nil {
+			o.scheduleEntryRepo = repository.NewScheduleEntryRepository(
+				context.Background(), loanAccountRepo.Pool(), loanAccountRepo.WorkManager())
+		}
+	}
 	return &loanAccountBusiness{
+		scope:             o.scope,
+		disbRepo:          o.disbRepo,
+		scheduleEntryRepo: o.scheduleEntryRepo,
+		notifier:          o.notifier,
+
 		eventsMan:        eventsMan,
 		loanProductRepo:  loanProductRepo,
 		loanAccountRepo:  loanAccountRepo,
@@ -160,38 +198,116 @@ func NewLoanAccountBusiness(
 func (b *loanAccountBusiness) Create(ctx context.Context, loanRequestID string) (*loansv1.LoanAccountObject, error) {
 	logger := util.Log(ctx).WithField("method", "LoanAccountBusiness.Create")
 
-	la, lp, err := b.populateLoanFromRequest(ctx, logger, loanRequestID)
+	// A loan request has exactly one loan account. Resolving it first is what
+	// makes a retried create return the original loan rather than reserving
+	// funding a second time and then failing on the unique index.
+	if existing, err := b.loanAccountRepo.GetByLoanRequestID(ctx, loanRequestID); err == nil && existing != nil {
+		return existing.ToAPI(), nil
+	}
+
+	la, err := b.populateLoanFromRequest(ctx, logger, loanRequestID)
 	if err != nil {
-		return nil, err
-	}
-
-	if la.PrincipalAmount <= 0 {
-		return nil, fmt.Errorf("loan principal amount must be positive, got %d", la.PrincipalAmount)
-	}
-
-	if err = b.ensureLoanRequestFunding(ctx, logger, loanRequestID, la); err != nil {
 		return nil, err
 	}
 
 	la.GenID(ctx)
 	setInitialRepaymentDate(la)
 
-	if err = b.eventsMan.Emit(ctx, events.LoanAccountSaveEvent, la); err != nil {
-		logger.WithError(err).Error("could not emit loan account save event")
+	// Claim the request before any money moves. The claim is a conditional
+	// UPDATE, so of two concurrent creates exactly one proceeds; the loser
+	// resolves the winner's loan account and returns it.
+	claimed, claimErr := b.loanRequestRepo.ClaimForLoanCreation(ctx, loanRequestID, la.GetID())
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not claim loan request for loan creation")
+		return nil, claimErr
+	}
+	if !claimed {
+		return b.resolveExistingLoanAccount(ctx, loanRequestID)
+	}
+
+	account, err := b.completeLoanCreation(ctx, logger, la, loanRequestID)
+	if err != nil {
+		if releaseErr := b.loanRequestRepo.ReleaseLoanCreationClaim(
+			ctx, loanRequestID, la.GetID(),
+		); releaseErr != nil {
+			logger.WithError(releaseErr).Error("could not release loan request claim after failed loan creation")
+		}
 		return nil, err
 	}
 
-	b.createInitialBalance(ctx, logger, la, lp)
+	LoansCreated.Add(ctx, 1, attribute.String("currency", la.CurrencyCode))
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: "loan_account",
+		EntityID:   la.GetID(),
+		Action:     "loan.created",
+		Reason:     "loan account opened from approved request",
+		After: data.JSONMap{
+			fieldStatus:        loansv1.LoanStatus(la.Status).String(),
+			fieldAmount:        la.PrincipalAmount,
+			fieldCurrency:      la.CurrencyCode,
+			"term_days":        la.TermDays,
+			"interest_rate":    la.InterestRate,
+			fieldLoanRequestID: la.LoanRequestID,
+		},
+		Metadata: data.JSONMap{
+			fieldClientID:  la.ClientID,
+			fieldAgentID:   la.AgentID,
+			fieldProductID: la.ProductID,
+		},
+		Parent: &la.BaseModel,
+	}, func(auErr error) {
+		logger.WithError(auErr).Warn("audit emission failed for loan creation")
+	})
 
-	if b.scheduleBusiness != nil {
-		if _, schedErr := b.scheduleBusiness.Generate(ctx, la.GetID()); schedErr != nil {
-			logger.WithError(schedErr).Error("could not generate repayment schedule")
-		}
+	return account, nil
+}
+
+// completeLoanCreation reserves funding, writes the loan account, and derives
+// its opening schedule and balance. Every step is required: a loan without a
+// schedule cannot allocate a repayment across interest, fees and principal, so
+// a schedule failure fails the creation rather than leaving a loan that
+// silently treats every payment as principal.
+func (b *loanAccountBusiness) completeLoanCreation(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+	loanRequestID string,
+) (*loansv1.LoanAccountObject, error) {
+	if err := b.ensureLoanRequestFunding(ctx, logger, loanRequestID, la); err != nil {
+		return nil, err
 	}
 
-	LoansCreated.Add(ctx, 1, attribute.String("currency", la.CurrencyCode))
+	// Written synchronously rather than emitted: the schedule generator and
+	// every later read need the row to exist, and the event queue makes no
+	// promise about when it would.
+	if err := b.loanAccountRepo.Create(ctx, la); err != nil {
+		logger.WithError(err).Error("could not persist loan account")
+		return nil, err
+	}
+
+	schedule, schedErr := b.scheduleBusiness.GenerateFor(ctx, la, la.PrincipalAmount)
+	if schedErr != nil {
+		logger.WithError(schedErr).Error("could not generate repayment schedule")
+		return nil, schedErr
+	}
+
+	if err := b.createInitialBalance(ctx, la, schedule); err != nil {
+		return nil, err
+	}
 
 	return la.ToAPI(), nil
+}
+
+// resolveExistingLoanAccount returns the loan account that another caller
+// created for this request.
+func (b *loanAccountBusiness) resolveExistingLoanAccount(
+	ctx context.Context,
+	loanRequestID string,
+) (*loansv1.LoanAccountObject, error) {
+	if existing, err := b.loanAccountRepo.GetByLoanRequestID(ctx, loanRequestID); err == nil && existing != nil {
+		return existing.ToAPI(), nil
+	}
+	return nil, ErrLoanRequestNotApproved
 }
 
 // populateLoanFromRequest reads the local LoanRequest and populates a
@@ -200,7 +316,7 @@ func (b *loanAccountBusiness) populateLoanFromRequest(
 	ctx context.Context,
 	logger *util.LogEntry,
 	loanRequestID string,
-) (*models.LoanAccount, *models.LoanProduct, error) {
+) (*models.LoanAccount, error) {
 	la := &models.LoanAccount{
 		LoanRequestID: loanRequestID,
 		Status:        int32(loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT),
@@ -212,11 +328,11 @@ func (b *loanAccountBusiness) populateLoanFromRequest(
 	lr, lrErr := b.loanRequestRepo.GetByID(ctx, loanRequestID)
 	if lrErr != nil {
 		logger.WithError(lrErr).Error("could not fetch loan request")
-		return nil, nil, ErrLoanRequestNotFound
+		return nil, ErrLoanRequestNotFound
 	}
 
 	if lr.Status != int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_APPROVED) {
-		return nil, nil, ErrLoanRequestNotApproved
+		return nil, ErrLoanRequestNotApproved
 	}
 
 	la.ProductID = lr.ProductID
@@ -240,14 +356,14 @@ func (b *loanAccountBusiness) populateLoanFromRequest(
 		la.PaymentAccountRef = paymentAccountRef
 	}
 
-	lp := b.applyProductDefaults(ctx, logger, la, lr.ProductID)
+	b.applyProductDefaults(ctx, logger, la, lr.ProductID)
 	applyLedgerDefaults(la)
 
 	if la.PrincipalAmount <= 0 || la.TermDays <= 0 {
-		return nil, nil, ErrLoanRequestTermsNotSet
+		return nil, ErrLoanRequestTermsNotSet
 	}
 
-	return la, lp, nil
+	return la, nil
 }
 
 // applyProductDefaults enriches a loan account with product-level defaults
@@ -257,14 +373,14 @@ func (b *loanAccountBusiness) applyProductDefaults(
 	logger *util.LogEntry,
 	la *models.LoanAccount,
 	productID string,
-) *models.LoanProduct {
+) {
 	if productID == "" {
-		return nil
+		return
 	}
 	prod, prodErr := b.loanProductRepo.GetByID(ctx, productID)
 	if prodErr != nil || prod == nil {
 		logger.WithError(prodErr).Warn("could not fetch loan product, using application data only")
-		return nil
+		return
 	}
 	la.InterestMethod = prod.InterestMethod
 	la.RepaymentFrequency = prod.RepaymentFrequency
@@ -274,7 +390,6 @@ func (b *loanAccountBusiness) applyProductDefaults(
 	if la.CurrencyCode == "" {
 		la.CurrencyCode = prod.CurrencyCode
 	}
-	return prod
 }
 
 func (b *loanAccountBusiness) ensureLoanRequestFunding(
@@ -287,14 +402,14 @@ func (b *loanAccountBusiness) ensureLoanRequestFunding(
 		return ErrFundingServiceUnavailable
 	}
 
-	resp, err := b.fundingCli.FundLoan(ctx, connect.NewRequest(fundingcompat.NewFundLoanRequest(loanRequestID)))
+	resp, err := b.fundingCli.FundLoan(ctx, fundingcompat.NewFundLoanRequest(loanRequestID))
 	if err != nil {
 		logger.WithError(err).Error("could not reserve funding for loan request")
 		return ErrFundingAllocationUnavailable
 	}
 
-	totalAllocated, _ := models.MoneyToMinorUnits(resp.Msg.GetTotalAllocated())
-	if !resp.Msg.GetFullyFunded() || totalAllocated < la.PrincipalAmount {
+	totalAllocated, _ := models.MoneyToMinorUnits(resp.GetTotalAllocated())
+	if !resp.GetFullyFunded() || totalAllocated < la.PrincipalAmount {
 		return ErrLoanFundingInsufficient
 	}
 
@@ -304,8 +419,8 @@ func (b *loanAccountBusiness) ensureLoanRequestFunding(
 	la.Properties["loan_request_id"] = loanRequestID
 	la.Properties["funding_fully_funded"] = true
 	la.Properties["funding_total_allocated"] = float64(totalAllocated)
-	la.Properties["funding_allocation_count"] = float64(len(resp.Msg.GetAllocations()))
-	la.Properties["funding_allocations"] = fundingAllocationsJSON(resp.Msg.GetAllocations())
+	la.Properties["funding_allocation_count"] = float64(len(resp.GetAllocations()))
+	la.Properties["funding_allocations"] = fundingAllocationsJSON(resp.GetAllocations())
 	return nil
 }
 
@@ -365,14 +480,17 @@ func setInitialRepaymentDate(la *models.LoanAccount) {
 	la.FirstRepaymentDate = &firstRepayment
 }
 
-// createInitialBalance creates the initial loan balance snapshot and emits it.
+// createInitialBalance opens the loan's balance from the schedule that will
+// actually be collected. Recomputing interest independently drifts from the
+// schedule whenever the product amortises on a reducing balance, and a balance
+// that overstates interest never reaches zero, so the loan never pays off.
 func (b *loanAccountBusiness) createInitialBalance(
 	ctx context.Context,
-	logger *util.LogEntry,
 	la *models.LoanAccount,
-	lp *models.LoanProduct,
-) {
-	totalInterest, totalFees := computeInterestAndFees(la, lp)
+	schedule *ScheduleResult,
+) error {
+	totalInterest := schedule.TotalInterest()
+	totalFees := schedule.TotalFees()
 	now := time.Now().UTC()
 
 	balance := &models.LoanBalance{
@@ -388,14 +506,19 @@ func (b *loanAccountBusiness) createInitialBalance(
 	balance.GenID(ctx)
 
 	if err := b.eventsMan.Emit(ctx, events.LoanBalanceSaveEvent, balance); err != nil {
-		logger.WithError(err).Warn("could not emit loan balance save event")
+		util.Log(ctx).WithError(err).Error("could not emit loan balance save event")
+		return err
 	}
+	return nil
 }
 
 func (b *loanAccountBusiness) Get(ctx context.Context, id string) (*loansv1.LoanAccountObject, error) {
 	la, err := b.loanAccountRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
+	}
+	if scopeErr := b.scope.AuthorizeClient(ctx, la.ClientID); scopeErr != nil {
+		return nil, scopeErr
 	}
 	return la.ToAPI(), nil
 }
@@ -467,6 +590,9 @@ func (b *loanAccountBusiness) GetBalance(
 	ctx context.Context,
 	loanAccountID string,
 ) (*loansv1.LoanBalanceObject, error) {
+	if scopeErr := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, loanAccountID); scopeErr != nil {
+		return nil, scopeErr
+	}
 	balance, err := b.loanBalanceRepo.GetByLoanAccountID(ctx, loanAccountID)
 	if err != nil {
 		return nil, ErrBalanceNotFound
@@ -484,6 +610,9 @@ func (b *loanAccountBusiness) GetStatement(
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
 	}
+	if scopeErr := b.scope.AuthorizeClient(ctx, la.ClientID); scopeErr != nil {
+		return nil, scopeErr
+	}
 
 	balance, balErr := b.loanBalanceRepo.GetByLoanAccountID(ctx, req.GetLoanAccountId())
 	if balErr != nil {
@@ -495,16 +624,25 @@ func (b *loanAccountBusiness) GetStatement(
 		balanceAPI = balance.ToAPI()
 	}
 
+	raw, err := b.loadStatementEntries(ctx, la)
+	if err != nil {
+		return nil, err
+	}
+
 	fromDate := models.StringToTime(req.GetFromDate())
 	toDate := models.StringToTime(req.GetToDate())
-	statementEntries := b.buildStatementEntries(ctx, req.GetLoanAccountId(), fromDate, toDate)
 
 	return &loansv1.LoanStatementResponse{
 		Loan:    la.ToAPI(),
 		Balance: balanceAPI,
-		Entries: statementEntries,
+		Entries: buildStatementEntries(raw, la.CurrencyCode, fromDate, toDate),
 	}, nil
 }
+
+// statementRowLimit bounds every per-loan listing the statement reads. A loan
+// with more rows than this in any one table is truncated (and logged) rather
+// than allowed to pull an unbounded result set into memory.
+const statementRowLimit = 5000
 
 // statementEntry is an internal type used to sort and compute running balances
 // before converting to the proto LoanStatementEntry.
@@ -514,94 +652,151 @@ type statementEntry struct {
 	debit       int64 // charges to the borrower (increases balance)
 	credit      int64 // payments by the borrower (decreases balance)
 	reference   string
-	currency    string
 }
 
-// buildStatementEntries collects all financial events for a loan (disbursement,
-// penalties, repayments), sorts them chronologically, computes a running
-// balance, and returns proto statement entries filtered by the given date range.
+// loadStatementEntries reads the financial events of one loan — completed
+// disbursements, scheduled interest and fees, unwaived penalties and
+// repayments — with one bounded, index-served query per table, and refuses
+// to total rows that are not all in the loan's currency.
 //
-//nolint:gocognit,funlen // statement assembly is inherently complex
-func (b *loanAccountBusiness) buildStatementEntries(
+//nolint:gocognit,funlen // one pass over four row types; splitting it would only hide the flow
+func (b *loanAccountBusiness) loadStatementEntries(
 	ctx context.Context,
-	loanAccountID string,
-	fromDate, toDate *time.Time,
-) []*loansv1.LoanStatementEntry {
-	la, laErr := b.loanAccountRepo.GetByID(ctx, loanAccountID)
-	if laErr != nil {
-		return nil
+	la *models.LoanAccount,
+) ([]statementEntry, error) {
+	logger := util.Log(ctx).WithField("loan_account_id", la.GetID())
+	currency := la.CurrencyCode
+
+	sameCurrency := func(rowCurrency string) bool {
+		return rowCurrency == "" || rowCurrency == currency
+	}
+	warnTruncated := func(table string, n int) {
+		if n >= statementRowLimit {
+			logger.WithField("table", table).WithField("limit", statementRowLimit).
+				Warn("loan statement truncated: row limit reached")
+		}
 	}
 
 	var raw []statementEntry
 
-	// 1. Disbursement entry (the initial loan advance)
-	if la.DisbursedAt != nil {
+	// 1. Disbursements. Completed rows are the advances actually made. Loans
+	// created before disbursements were recorded as rows only carry
+	// DisbursedAt on the account, which is used as the fallback.
+	disbursed := false
+	if b.disbRepo != nil {
+		disbs, err := b.disbRepo.ListByLoanAccountID(ctx, la.GetID(), statementRowLimit)
+		if err != nil {
+			return nil, fmt.Errorf("statement disbursements: %w", err)
+		}
+		warnTruncated("disbursements", len(disbs))
+		for _, d := range disbs {
+			if d.Status != int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED) {
+				continue
+			}
+			if !sameCurrency(d.CurrencyCode) {
+				return nil, ErrStatementCurrencyMismatch
+			}
+			disbursed = true
+			raw = append(raw, statementEntry{
+				date:        d.CreatedAt,
+				description: "Loan disbursement",
+				debit:       d.Amount,
+				reference:   firstNonEmpty(d.PaymentReference, d.GetID()),
+			})
+		}
+	}
+	if !disbursed && la.DisbursedAt != nil {
 		raw = append(raw, statementEntry{
 			date:        *la.DisbursedAt,
 			description: "Loan disbursement",
 			debit:       la.PrincipalAmount,
-			currency:    la.CurrencyCode,
 			reference:   la.LoanRequestID,
 		})
 	}
 
-	// 2. Penalty entries
-	penQuery := data.NewSearchQuery(
-		data.WithSearchFiltersAndByValue(map[string]any{
-			"loan_account_id = ?": loanAccountID,
-		}),
-	)
-	if penResults, penErr := b.penaltyRepo.Search(ctx, penQuery); penErr == nil {
-		_ = workerpoolConsumeStream(ctx, penResults, func(batch []*models.Penalty) error {
-			for _, p := range batch {
-				if p.IsWaived {
-					continue
-				}
-				t := p.CreatedAt
-				raw = append(raw, statementEntry{
-					date:        t,
-					description: "Penalty: " + p.Reason,
-					debit:       p.Amount,
-					currency:    p.CurrencyCode,
-					reference:   p.GetID(),
-				})
+	// 2. Scheduled interest and fees fall due on each installment date.
+	if b.scheduleEntryRepo != nil {
+		entries, err := b.scheduleEntryRepo.GetByLoanAccountID(ctx, la.GetID())
+		if err != nil {
+			return nil, fmt.Errorf("statement schedule: %w", err)
+		}
+		for _, e := range entries {
+			charge := e.InterestDue + e.FeesDue
+			if charge <= 0 || e.DueDate == nil {
+				continue
 			}
-			return nil
+			if !sameCurrency(e.CurrencyCode) {
+				return nil, ErrStatementCurrencyMismatch
+			}
+			raw = append(raw, statementEntry{
+				date:        *e.DueDate,
+				description: fmt.Sprintf("Installment %d interest and fees due", e.InstallmentNumber),
+				debit:       charge,
+				reference:   e.GetID(),
+			})
+		}
+	}
+
+	// 3. Penalties that have not been waived.
+	penalties, err := b.penaltyRepo.ListByLoanAccountID(ctx, la.GetID(), statementRowLimit)
+	if err != nil {
+		return nil, fmt.Errorf("statement penalties: %w", err)
+	}
+	warnTruncated("penalties", len(penalties))
+	for _, p := range penalties {
+		if p.IsWaived {
+			continue
+		}
+		if !sameCurrency(p.CurrencyCode) {
+			return nil, ErrStatementCurrencyMismatch
+		}
+		raw = append(raw, statementEntry{
+			date:        p.CreatedAt,
+			description: "Penalty: " + p.Reason,
+			debit:       p.Amount,
+			reference:   p.GetID(),
 		})
 	}
 
-	// 3. Repayment entries
-	repQuery := data.NewSearchQuery(
-		data.WithSearchFiltersAndByValue(map[string]any{
-			"loan_account_id = ?": loanAccountID,
-		}),
-	)
-	if repResults, repErr := b.repaymentRepo.Search(ctx, repQuery); repErr == nil {
-		_ = workerpoolConsumeStream(ctx, repResults, func(batch []*models.Repayment) error {
-			for _, r := range batch {
-				raw = append(raw, statementEntry{
-					date:        r.CreatedAt,
-					description: "Repayment via " + r.Channel,
-					credit:      r.Amount,
-					currency:    r.CurrencyCode,
-					reference:   r.PaymentReference,
-				})
-			}
-			return nil
+	// 4. Repayments, excluding reversed ones.
+	repayments, err := b.repaymentRepo.ListByLoanAccountID(ctx, la.GetID(), statementRowLimit)
+	if err != nil {
+		return nil, fmt.Errorf("statement repayments: %w", err)
+	}
+	warnTruncated("repayments", len(repayments))
+	for _, r := range repayments {
+		if r.Status == int32(loansv1.RepaymentStatus_REPAYMENT_STATUS_REVERSED) {
+			continue
+		}
+		if !sameCurrency(r.CurrencyCode) {
+			return nil, ErrStatementCurrencyMismatch
+		}
+		raw = append(raw, statementEntry{
+			date:        r.CreatedAt,
+			description: "Repayment via " + r.Channel,
+			credit:      r.Amount,
+			reference:   firstNonEmpty(r.PaymentReference, r.GetID()),
 		})
 	}
 
-	// Sort chronologically
-	sort.Slice(raw, func(i, j int) bool {
+	sort.SliceStable(raw, func(i, j int) bool {
 		return raw[i].date.Before(raw[j].date)
 	})
+	return raw, nil
+}
 
-	// Compute running balance and filter by date range.
-	// If fromDate is set, emit an opening balance row for the period.
+// buildStatementEntries walks chronologically sorted entries, computes the
+// running balance in the loan's currency, and returns the proto rows inside
+// the date range. When fromDate is set, an opening balance row precedes the
+// first in-range entry so the period reconciles on its own.
+func buildStatementEntries(
+	raw []statementEntry,
+	currency string,
+	fromDate, toDate *time.Time,
+) []*loansv1.LoanStatementEntry {
 	var entries []*loansv1.LoanStatementEntry
 	var runningBalance int64
-	openingBalanceEmitted := fromDate == nil // skip opening balance if no date filter
-	currency := la.CurrencyCode
+	openingBalanceEmitted := fromDate == nil
 
 	for _, e := range raw {
 		runningBalance += e.debit - e.credit
@@ -610,9 +805,8 @@ func (b *loanAccountBusiness) buildStatementEntries(
 			continue
 		}
 
-		// Emit opening balance row before the first in-range entry
 		if !openingBalanceEmitted {
-			openingBalance := runningBalance - e.debit + e.credit // balance before this entry
+			openingBalance := runningBalance - e.debit + e.credit
 			entries = append(entries, &loansv1.LoanStatementEntry{
 				Date:        models.TimeToString(fromDate),
 				Description: "Opening balance brought forward",
@@ -624,19 +818,28 @@ func (b *loanAccountBusiness) buildStatementEntries(
 		entry := &loansv1.LoanStatementEntry{
 			Date:        models.TimeToString(&e.date),
 			Description: e.description,
-			Balance:     models.MinorUnitsToMoney(runningBalance, e.currency),
+			Balance:     models.MinorUnitsToMoney(runningBalance, currency),
 			Reference:   e.reference,
 		}
 		if e.debit > 0 {
-			entry.Debit = models.MinorUnitsToMoney(e.debit, e.currency)
+			entry.Debit = models.MinorUnitsToMoney(e.debit, currency)
 		}
 		if e.credit > 0 {
-			entry.Credit = models.MinorUnitsToMoney(e.credit, e.currency)
+			entry.Credit = models.MinorUnitsToMoney(e.credit, currency)
 		}
 		entries = append(entries, entry)
 	}
 
 	return entries
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // isTimeInRange checks whether a time falls within the given date range.
@@ -666,19 +869,10 @@ func (b *loanAccountBusiness) TransitionStatus(
 	currentStatus := loansv1.LoanStatus(la.Status)
 
 	// Validate transition
-	allowed, ok := validTransitions[currentStatus]
-	if !ok {
+	if _, ok := validTransitions[currentStatus]; !ok {
 		return nil, ErrInvalidStatusTransition
 	}
-
-	valid := false
-	for _, s := range allowed {
-		if s == newStatus {
-			valid = true
-			break
-		}
-	}
-	if !valid {
+	if !transitionAllowed(currentStatus, newStatus) {
 		return nil, ErrInvalidStatusTransition.Extend(
 			"cannot transition from " + currentStatus.String() + " to " + newStatus.String(),
 		)
@@ -700,14 +894,44 @@ func (b *loanAccountBusiness) TransitionStatus(
 		return nil, err
 	}
 
-	// Update loan account status
-	previousStatus := currentStatus
-	la.Status = int32(newStatus)
-	err = b.eventsMan.Emit(ctx, events.LoanAccountSaveEvent, la)
-	if err != nil {
-		logger.WithError(err).Error("could not emit loan account save event")
-		return nil, err
+	// Write-off cascade. When a loan crosses into WRITTEN_OFF the remaining
+	// outstanding balance stops being an asset and becomes a realised loss.
+	// We record that by posting a shutdown_loan_recovery transfer order
+	// (debit bad-debt expense, credit the loan asset account) for the full
+	// outstanding amount. It runs before the status is claimed and is
+	// idempotent on the writeoff:{loan_id} reference: a failure here leaves
+	// the loan in its current status so the caller can retry, where claiming
+	// first would strand it in WRITTEN_OFF — a status that only leads to
+	// CLOSED — with no bad-debt posting and no way to make one.
+	//
+	// Per-investor tranche loss absorption is intentionally deferred: it
+	// requires the funding service to enumerate tranches and post an
+	// investor_loss_absorption order per tranche. That's the natural next
+	// step once funding has an operations client wired; for now the loan's
+	// own ledger balance is settled correctly and reconciliation will
+	// surface the residual investor exposure.
+	if newStatus == loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF {
+		if writeOffErr := b.postWriteOffLedgerCascade(ctx, logger, la); writeOffErr != nil {
+			return nil, writeOffErr
+		}
 	}
+
+	// The status is claimed with a conditional write against the status we
+	// validated, so two transitions racing on the same loan cannot both
+	// succeed, and no other column on the row is overwritten from this
+	// possibly stale copy.
+	previousStatus := currentStatus
+	claimed, claimErr := b.loanAccountRepo.ClaimStatus(ctx, la.GetID(), la.Status, int32(newStatus))
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not update loan account status")
+		return nil, claimErr
+	}
+	if !claimed {
+		return nil, ErrInvalidStatusTransition.Extend(
+			"the loan status changed while this transition was being applied",
+		)
+	}
+	la.Status = int32(newStatus)
 
 	// Descriptive state-change audit. Captures the transition verb, the
 	// before/after status, the actor, and the reason in a single
@@ -733,25 +957,13 @@ func (b *loanAccountBusiness) TransitionStatus(
 		logger.WithError(auErr).Warn("audit emission failed for loan status change")
 	})
 
-	recordLoanStatusTransition(ctx, newStatus)
-
-	// Write-off cascade. When a loan crosses into WRITTEN_OFF the remaining
-	// outstanding balance stops being an asset and becomes a realised loss.
-	// We record that by posting a shutdown_loan_recovery transfer order
-	// (debit bad-debt expense, credit the loan asset account) for the full
-	// outstanding amount. Idempotent via the writeoff:{loan_id} reference.
-	//
-	// Per-investor tranche loss absorption is intentionally deferred: it
-	// requires the funding service to enumerate tranches and post an
-	// investor_loss_absorption order per tranche. That's the natural next
-	// step once funding has an operations client wired; for now the loan's
-	// own ledger balance is settled correctly and reconciliation will
-	// surface the residual investor exposure.
 	if newStatus == loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF {
-		if writeOffErr := b.postWriteOffLedgerCascade(ctx, logger, la); writeOffErr != nil {
-			return nil, writeOffErr
+		if balance, balErr := b.loanBalanceRepo.GetByLoanAccountID(ctx, la.GetID()); balErr == nil && balance != nil {
+			b.notifier.NotifyLoanWrittenOff(ctx, la, balance.TotalOutstanding)
 		}
 	}
+
+	recordLoanStatusTransition(ctx, newStatus)
 
 	return la.ToAPI(), nil
 }
@@ -819,17 +1031,17 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 		"penalties_outstanding": balance.PenaltiesOutstanding,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.ProductBadDebtExpenseAccount(la.ProductID),
 			CreditAccountRef: la.LedgerAssetAccountID,
-			Amount:           moneyx.FromSmallestUnit(la.CurrencyCode, outstanding, decimalPrecision),
+			Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, outstanding),
 			OrderType:        constants.SafeInt32FromInt(constants.TransferTypeShutdownLoanRecovery),
 			Reference:        reference,
 			Description:      "Loan write-off recovery",
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
 		logger.WithError(execErr).
@@ -860,40 +1072,4 @@ func computeFirstRepaymentDays(freq loansv1.RepaymentFrequency) int {
 	default:
 		return daysPerWeek
 	}
-}
-
-// computeInterestAndFees calculates total interest and fees for a loan based on
-// the product configuration. Returns (0, 0) if no product is provided.
-func computeInterestAndFees(la *models.LoanAccount, lp *models.LoanProduct) (int64, int64) {
-	if lp == nil {
-		return 0, 0
-	}
-	ppy := int64(
-		calculation.PeriodsPerYear(frequencyToPeriodType(loansv1.RepaymentFrequency(la.RepaymentFrequency))),
-	)
-	numInstallments := computeInstallmentCount(la.TermDays, loansv1.RepaymentFrequency(la.RepaymentFrequency))
-	if numInstallments <= 0 {
-		numInstallments = 1
-	}
-	principal := decimalx.FromMinorUnits(la.PrincipalAmount, decimalPrecision)
-	totalInterest := calculation.FlatRateInterest(principal, la.InterestRate, numInstallments, safeInt32(ppy)).
-		ToMinorUnits(decimalPrecision)
-	totalFees := calculation.FlatRateInterest(
-		principal,
-		lp.InsuranceFeePercent+lp.ProcessingFeePercent,
-		numInstallments,
-		safeInt32(ppy),
-	).ToMinorUnits(decimalPrecision)
-	return totalInterest, totalFees
-}
-
-// safeInt32 converts an int64 to int32 with clamping to avoid overflow.
-func safeInt32(v int64) int32 {
-	if v > math.MaxInt32 {
-		return math.MaxInt32
-	}
-	if v < math.MinInt32 {
-		return math.MinInt32
-	}
-	return int32(v)
 }

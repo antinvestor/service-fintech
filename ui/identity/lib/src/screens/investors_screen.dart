@@ -1,21 +1,21 @@
 import 'dart:async';
 
-import 'package:antinvestor_api_identity/antinvestor_api_identity.dart' as common;
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    as common;
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:antinvestor_ui_core/widgets/state_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 
 import '../providers/investor_providers.dart';
 import '../widgets/state_helpers.dart';
+import '../widgets/async_state_views.dart';
 
 class InvestorsScreen extends ConsumerStatefulWidget {
-  const InvestorsScreen({
-    super.key,
-    this.canManage = true,
-  });
+  const InvestorsScreen({super.key, this.canManage = true});
 
   final bool canManage;
 
@@ -45,7 +45,21 @@ class _InvestorsScreenState extends ConsumerState<InvestorsScreen> {
   @override
   Widget build(BuildContext context) {
     final investorsAsync = ref.watch(investorListProvider(_query));
-    final investors = investorsAsync.whenOrNull(data: (d) => d) ?? [];
+    if (investorsAsync.hasError) {
+      return ListErrorView(
+        title: 'Investors',
+        breadcrumbs: const ['Identity', 'Investors'],
+        error: investorsAsync.error!,
+        onRetry: () => ref.invalidate(investorListProvider(_query)),
+      );
+    }
+    if (investorsAsync.isLoading && !investorsAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'Investors',
+        breadcrumbs: ['Identity', 'Investors'],
+      );
+    }
+    final investors = investorsAsync.requireValue;
 
     return AdminEntityListPage<InvestorObject>(
       title: 'Investors',
@@ -70,8 +84,9 @@ class _InvestorsScreenState extends ConsumerState<InvestorsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
                     child: Text(
                       investor.name.isNotEmpty
                           ? investor.name[0].toUpperCase()
@@ -84,9 +99,11 @@ class _InvestorsScreenState extends ConsumerState<InvestorsScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(investor.name.isNotEmpty
-                      ? investor.name
-                      : 'Unnamed Investor'),
+                  Text(
+                    investor.name.isNotEmpty
+                        ? investor.name
+                        : 'Unnamed Investor',
+                  ),
                 ],
               ),
             ),
@@ -109,17 +126,14 @@ class _InvestorsScreenState extends ConsumerState<InvestorsScreen> {
     );
   }
 
-  void _showInvestorDialog(BuildContext context,
-      {InvestorObject? investor}) {
+  void _showInvestorDialog(BuildContext context, {InvestorObject? investor}) {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => _InvestorFormDialog(
         investor: investor,
         onSave: (updated) async {
           try {
-            await ref
-                .read(investorNotifierProvider.notifier)
-                .save(updated);
+            await ref.read(investorNotifierProvider.notifier).save(updated);
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -135,11 +149,14 @@ class _InvestorsScreenState extends ConsumerState<InvestorsScreen> {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Failed to save investor: $e'),
+                  content: Text(friendlyError(e)),
                   backgroundColor: Theme.of(context).colorScheme.error,
                 ),
               );
             }
+            // The dialog decides whether to stay open, so the user does not
+            // lose what they typed when the save fails.
+            rethrow;
           }
         },
       ),
@@ -169,9 +186,7 @@ class _InvestorDetail extends StatelessWidget {
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
               child: Text(
-                investor.name.isNotEmpty
-                    ? investor.name[0].toUpperCase()
-                    : '?',
+                investor.name.isNotEmpty ? investor.name[0].toUpperCase() : '?',
                 style: TextStyle(
                   color: theme.colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.w600,
@@ -187,13 +202,17 @@ class _InvestorDetail extends StatelessWidget {
                     investor.name.isNotEmpty
                         ? investor.name
                         : 'Unnamed Investor',
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  Text(investor.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    investor.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -227,14 +246,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -327,8 +352,7 @@ class _InvestorFormDialogState extends State<_InvestorFormDialog> {
             children: [
               FormFieldCard(
                 label: 'Name',
-                description:
-                    'The full legal or display name of the investor',
+                description: 'The full legal or display name of the investor',
                 isRequired: true,
                 child: TextFormField(
                   controller: _nameCtrl,
@@ -363,7 +387,7 @@ class _InvestorFormDialogState extends State<_InvestorFormDialog> {
                     'The current lifecycle state of this investor record',
                 isRequired: true,
                 child: DropdownButtonFormField<common.STATE>(
-                  value: _selectedState,
+                  initialValue: _selectedState,
                   items: _editableStates
                       .map(
                         (s) => DropdownMenuItem(

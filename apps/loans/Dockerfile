@@ -29,4 +29,6 @@ FROM cgr.dev/chainguard/static:latest
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/binary /service
+COPY --from=builder /app/apps/loans/migrations /migrations
+ENV DATABASE_MIGRATION_PATH=/migrations
 ENTRYPOINT ["/service"]

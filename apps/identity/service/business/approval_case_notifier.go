@@ -16,28 +16,25 @@ package business
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/v2/notification/v1/notificationv1connect"
 	notificationv1 "buf.build/gen/go/antinvestor/notification/protocolbuffers/go/notification/v1"
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
-	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
-	"connectrpc.com/connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/messages"
+	"github.com/antinvestor/service-fintech/pkg/notify"
 )
 
 const (
-	approvalCaseVerificationRequiredTemplate = "template.fintech.case.verification_required"
-	approvalCaseApprovalRequiredTemplate     = "template.fintech.case.approval_required"
-	approvalCaseApprovedTemplate             = "template.fintech.case.approved"
-	approvalCaseRejectedTemplate             = "template.fintech.case.rejected"
+	approvalCaseVerificationRequiredTemplate = messages.CaseVerificationRequired
+	approvalCaseApprovalRequiredTemplate     = messages.CaseApprovalRequired
+	approvalCaseApprovedTemplate             = messages.CaseApproved
+	approvalCaseRejectedTemplate             = messages.CaseRejected
 
 	caseNotificationType = "approval_case"
 	maxCaseRecipients    = 500
@@ -51,8 +48,7 @@ type approvalScope struct {
 // ApprovalCaseNotifier dispatches workflow notifications for reusable approval cases.
 // Delivery is best effort and never blocks the underlying business transition.
 type ApprovalCaseNotifier struct {
-	client           notificationv1connect.NotificationServiceClient
-	profileClient    profilev1connect.ProfileServiceClient
+	notifier         *notify.Notifier
 	workforceRepo    repository.WorkforceMemberRepository
 	orgUnitRepo      repository.OrgUnitRepository
 	clientRepo       repository.ClientRepository
@@ -62,7 +58,7 @@ type ApprovalCaseNotifier struct {
 
 func NewApprovalCaseNotifier(
 	client notificationv1connect.NotificationServiceClient,
-	profileClient profilev1connect.ProfileServiceClient,
+	_ profilev1connect.ProfileServiceClient,
 	workforceRepo repository.WorkforceMemberRepository,
 	orgUnitRepo repository.OrgUnitRepository,
 	clientRepo repository.ClientRepository,
@@ -70,8 +66,7 @@ func NewApprovalCaseNotifier(
 	accessRoleRepo repository.AccessRoleAssignmentRepository,
 ) *ApprovalCaseNotifier {
 	return &ApprovalCaseNotifier{
-		client:           client,
-		profileClient:    profileClient,
+		notifier:         notify.New(client, messages.Registry()),
 		workforceRepo:    workforceRepo,
 		orgUnitRepo:      orgUnitRepo,
 		clientRepo:       clientRepo,
@@ -347,123 +342,38 @@ func (n *ApprovalCaseNotifier) sendToProfiles(
 	profileIDs []string,
 	priority notificationv1.PRIORITY,
 ) {
-	logger := util.Log(ctx).WithFields(map[string]any{
-		logKeyComponent: componentApprovalCaseNotifier,
-		logKeyCaseID:    approvalCase.GetID(),
-		logKeyTemplate:  template,
-	})
-
-	if n == nil || n.client == nil {
-		logger.Warn("notification client is nil, skipping approval case notification")
-		return
-	}
-	if n.profileClient == nil {
-		logger.Warn("profile client is nil, skipping approval case notification")
+	if n == nil || !n.notifier.Enabled() {
+		util.Log(ctx).WithFields(map[string]any{
+			logKeyComponent: componentApprovalCaseNotifier,
+			logKeyCaseID:    approvalCase.GetID(),
+			logKeyTemplate:  template,
+		}).Warn("notifications are disabled, skipping approval case notification")
 		return
 	}
 
-	dataJSON := ""
-	if raw, err := json.Marshal(approvalCaseNotificationData(approvalCase)); err != nil {
-		logger.WithError(err).Warn("could not marshal approval case notification data")
-	} else {
-		dataJSON = string(raw)
+	vars := make(map[string]any)
+	for k, v := range approvalCaseNotificationData(approvalCase) {
+		vars[k] = v
 	}
 
+	// Each recipient is addressed by profile; the notification service picks
+	// the profile's reachable contact, so no contact detail is handled here.
 	sentTo := map[string]struct{}{}
 	for _, profileID := range profileIDs {
-		contactDetail, profileName, err := n.resolveProfileContact(ctx, profileID)
-		if err != nil {
-			logger.WithError(err).WithField("profile_id", profileID).
-				Warn("could not resolve approval case notification recipient")
+		if profileID == "" {
 			continue
 		}
-		if contactDetail == "" {
+		if _, found := sentTo[profileID]; found {
 			continue
 		}
-		if _, found := sentTo[contactDetail]; found {
-			continue
-		}
-		sentTo[contactDetail] = struct{}{}
-
-		n.send(ctx, template, contactDetail, profileName, dataJSON, priority)
-	}
-}
-
-func (n *ApprovalCaseNotifier) resolveProfileContact(
-	ctx context.Context,
-	profileID string,
-) (string, string, error) {
-	resp, err := n.profileClient.GetById(ctx, connect.NewRequest(&profilev1.GetByIdRequest{Id: profileID}))
-	if err != nil {
-		return "", "", err
-	}
-	profile := resp.Msg.GetData()
-	if profile == nil {
-		return "", "", fmt.Errorf("profile %s not found", profileID)
-	}
-
-	name := profileID
-	if props := profile.GetProperties(); props != nil {
-		if value, ok := props.AsMap()["name"].(string); ok && strings.TrimSpace(value) != "" {
-			name = value
-		}
-	}
-
-	fallbackDetail := ""
-	for _, contact := range profile.GetContacts() {
-		if contact == nil || strings.TrimSpace(contact.GetDetail()) == "" {
-			continue
-		}
-		if fallbackDetail == "" {
-			fallbackDetail = contact.GetDetail()
-		}
-		if contact.GetState() == commonv1.STATE_INACTIVE || contact.GetState() == commonv1.STATE_DELETED {
-			continue
-		}
-		if contact.GetVerified() {
-			return contact.GetDetail(), name, nil
-		}
-	}
-
-	return fallbackDetail, name, nil
-}
-
-func (n *ApprovalCaseNotifier) send(
-	ctx context.Context,
-	template, contactDetail, profileName, dataJSON string,
-	priority notificationv1.PRIORITY,
-) {
-	logger := util.Log(ctx).WithFields(map[string]any{
-		logKeyComponent: componentApprovalCaseNotifier,
-		logKeyTemplate:  template,
-		"recipient":     contactDetail,
-	})
-
-	stream, err := n.client.Send(ctx, connect.NewRequest(&notificationv1.SendRequest{
-		Data: []*notificationv1.Notification{
-			notificationv1.Notification_builder{
-				Type:     caseNotificationType,
-				Template: template,
-				Data:     dataJSON,
-				Recipient: commonv1.ContactLink_builder{
-					Detail:      contactDetail,
-					ProfileName: profileName,
-				}.Build(),
-				OutBound:    true,
-				AutoRelease: true,
-				Priority:    priority,
-			}.Build(),
-		},
-	}))
-	if err != nil {
-		logger.WithError(err).Error("could not send approval case notification")
-		return
-	}
-
-	for stream.Receive() {
-	}
-	if closeErr := stream.Close(); closeErr != nil {
-		logger.WithError(closeErr).Warn("error closing approval case notification stream")
+		sentTo[profileID] = struct{}{}
+		n.notifier.SendOrLog(ctx, notify.Message{
+			Template:  template,
+			Kind:      caseNotificationType,
+			Recipient: notify.ToProfile(profileID),
+			Vars:      vars,
+			Priority:  priority,
+		})
 	}
 }
 

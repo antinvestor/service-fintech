@@ -19,12 +19,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	"github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	"github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/datatypes"
@@ -108,7 +108,7 @@ func (s *ReservationRepoSuite) TestCreateAndGetByIdempotencyKey() {
 	r := sampleResv("idem-1", models.ActionLoanDisbursement, 1000)
 	s.Require().NoError(repo.Create(ctx, r))
 	s.NotEmpty(r.ID)
-	got, err := repo.GetByIdempotencyKey(ctx, "idem-1")
+	got, err := repo.GetByIdempotencyKey(ctx, "", "idem-1")
 	s.Require().NoError(err)
 	s.Equal(r.ID, got.ID)
 }
@@ -165,9 +165,10 @@ func (s *ReservationRepoSuite) TestBulkSetExpired_OnlyTouchesActive() {
 
 	// Call BulkSetExpired with all three IDs.
 	now := time.Now().UTC()
-	n, err := repo.BulkSetExpired(ctx, []string{active1.ID, active2.ID, committed.ID}, now)
+	expired, err := repo.BulkSetExpired(ctx, []string{active1.ID, active2.ID, committed.ID}, now)
 	s.Require().NoError(err)
-	s.Equal(2, n, "only the two active rows should be updated")
+	s.ElementsMatch([]string{active1.ID, active2.ID}, expired,
+		"only the two active rows should be reported as expired")
 
 	// Verify the active rows flipped.
 	got1, err := repo.GetByID(ctx, active1.ID)

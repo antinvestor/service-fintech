@@ -17,12 +17,10 @@ package models
 import (
 	"time"
 
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
-// Transfer type constants live in pkg/constants/transfer_types.go and are
-// the single source of truth across the codebase. The duplicate block that
-// used to live here has been removed; use constants.TransferType* everywhere.
+// Transfer type constants live in pkg/constants/transfer_types.go.
 
 // ObligationType defines the type of financial obligation.
 type ObligationType int32
@@ -47,9 +45,52 @@ type TransferOrder struct {
 	ExtraData        data.JSONMap
 	State            int32
 	Properties       data.JSONMap
+	// LedgerTransactionID is the id the ledger returned when the posting
+	// landed. A retry of an order that carries one skips the ledger call: the
+	// money has moved, only the side effects or the completion mark are owed.
+	LedgerTransactionID string `gorm:"type:varchar(50);index:idx_to_ledger_txn"`
+	// PaymentInitiatedAt is claimed once, immediately before the first call to
+	// the payment rail. A retry that finds it set does not send a second payout.
+	PaymentInitiatedAt *time.Time
+	// PaymentID is the payment service's id for the payout, when one was sent.
+	PaymentID string `gorm:"type:varchar(50)"`
+	// PayoutStatus is PayoutStatusFailed once the payment rail reported the
+	// payout as failed. Such an order never completes; it needs a reversal.
+	PayoutStatus string `gorm:"type:varchar(20)"`
+	// FailureReason records why the last execution attempt released the order.
+	FailureReason string `gorm:"type:text"`
+	// ObligationConsumed is set once the obligation this allocation order
+	// pays has been consumed. An allocation order without it was written but
+	// never completed; it is finished or parked, never assumed.
+	ObligationConsumed bool
+
+	payout payoutTarget `gorm:"-"`
 }
 
 func (m *TransferOrder) TableName() string { return "transfer_orders" }
+
+// LedgerPosted reports whether the ledger leg of this order has landed.
+func (m *TransferOrder) LedgerPosted() bool { return m.LedgerTransactionID != "" }
+
+// PayoutStatusFailed marks an order whose payout the rail rejected.
+const PayoutStatusFailed = "failed"
+
+// PayoutFailed reports whether the payment rail rejected this order's payout.
+func (m *TransferOrder) PayoutFailed() bool { return m.PayoutStatus == PayoutStatusFailed }
+
+// payoutTarget is the transient payout destination, set by the side-effect
+// handler for the execution in progress; never persisted.
+type payoutTarget struct {
+	recipientID string
+	route       string
+}
+
+func (m *TransferOrder) SetPayoutTarget(recipientID, route string) {
+	m.payout = payoutTarget{recipientID: recipientID, route: route}
+}
+
+func (m *TransferOrder) PayoutRecipient() string { return m.payout.recipientID }
+func (m *TransferOrder) PayoutRoute() string     { return m.payout.route }
 
 // Obligation represents a financial obligation for a member.
 type Obligation struct {
@@ -83,6 +124,10 @@ type IncomingPayment struct {
 	OwnerType     string `gorm:"type:varchar(50)"`
 	State         int32
 	Properties    data.JSONMap
+	// AllocatingAt is the lease an allocation run holds on the payment. One
+	// run at a time may allocate; a lease older than the stale window is
+	// taken over, so a crashed run never parks a payment for ever.
+	AllocatingAt *time.Time
 }
 
 func (m *IncomingPayment) TableName() string { return "incoming_payments" }

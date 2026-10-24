@@ -17,13 +17,12 @@ package business
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 
@@ -36,6 +35,9 @@ const (
 	AccessRoleKeyApprovalVerifier      = "approval_verifier"
 	AccessRoleKeyApprovalApprover      = "approval_approver"
 	AccessRoleKeyIdentityAdministrator = "identity_administrator"
+	// AccessRoleKeyFieldAgent marks a workforce member who onboards and
+	// serves borrowers in the field.
+	AccessRoleKeyFieldAgent = "field_agent"
 )
 
 type WorkforceBusiness interface {
@@ -114,6 +116,7 @@ type workforceBusiness struct {
 	teamMembershipRepo     repository.TeamMembershipRepository
 	accessRoleRepo         repository.AccessRoleAssignmentRepository
 	platformAccessCli      platformAccessClient
+	notifier               *WorkforceNotifier
 }
 
 func NewWorkforceBusiness(
@@ -128,8 +131,10 @@ func NewWorkforceBusiness(
 	teamMembershipRepo repository.TeamMembershipRepository,
 	accessRoleRepo repository.AccessRoleAssignmentRepository,
 	partitionCli tenancyv1connect.TenancyServiceClient,
+	opts ...Option,
 ) WorkforceBusiness {
 	return &workforceBusiness{
+		notifier:               applyOptions(opts).workforceNotifier,
 		eventsMan:              eventsMan,
 		organizationRepo:       organizationRepo,
 		orgUnitRepo:            orgUnitRepo,
@@ -149,6 +154,12 @@ func (b *workforceBusiness) WorkforceMemberSave(
 	obj *identityv1.WorkforceMemberObject,
 ) (*identityv1.WorkforceMemberObject, error) {
 	member := models.WorkforceMemberFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.workforceRepo, member); err != nil {
+		return nil, err
+	}
+	if err := validatePlatformRole(platformRoleOf(member)); err != nil {
+		return nil, err
+	}
 	if err := b.validateOrganization(ctx, member.OrganizationID); err != nil {
 		return nil, err
 	}
@@ -168,6 +179,7 @@ func (b *workforceBusiness) WorkforceMemberSave(
 
 	if isNew {
 		IdentityWorkforceAdded.Add(ctx, 1)
+		b.notifyMemberOnboarded(ctx, member)
 	} else if member.State == int32(commonv1.STATE_INACTIVE) || member.State == int32(commonv1.STATE_DELETED) {
 		IdentityWorkforceRemoved.Add(ctx, 1)
 	}
@@ -191,6 +203,32 @@ func (b *workforceBusiness) WorkforceMemberSave(
 	return member.ToAPI(), nil
 }
 
+// notifyMemberOnboarded invites a new member to sign in, naming the
+// organization they now work for.
+func (b *workforceBusiness) notifyMemberOnboarded(ctx context.Context, member *models.WorkforceMember) {
+	if !b.notifier.Enabled() {
+		return
+	}
+	orgName := ""
+	if org, err := b.organizationRepo.GetByID(ctx, member.OrganizationID); err == nil && org != nil {
+		orgName = org.Name
+	}
+	b.notifier.NotifyMemberOnboarded(ctx, member, workforceMemberName(member), orgName)
+}
+
+// workforceMemberName picks the display name recorded on the member, if any.
+func workforceMemberName(member *models.WorkforceMember) string {
+	if member == nil || member.Properties == nil {
+		return ""
+	}
+	for _, key := range []string{"name", "full_name", "display_name"} {
+		if v, ok := member.Properties[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func (b *workforceBusiness) WorkforceMemberGet(
 	ctx context.Context,
 	id string,
@@ -207,14 +245,18 @@ func (b *workforceBusiness) WorkforceMemberSearch(
 	req *identityv1.WorkforceMemberSearchRequest,
 	consumer func(ctx context.Context, batch []*identityv1.WorkforceMemberObject) error,
 ) error {
-	results, err := b.workforceRepo.Search(ctx, buildSearchQuery(
+	searchQuery, queryErr := buildSearchQuery(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
 			whereOrganizationID:    req.GetOrganizationId(),
 			"home_org_unit_id = ?": req.GetHomeOrgUnitId(),
 		},
-	))
+	)
+	if queryErr != nil {
+		return queryErr
+	}
+	results, err := b.workforceRepo.Search(ctx, searchQuery)
 	if err != nil {
 		return err
 	}
@@ -232,6 +274,9 @@ func (b *workforceBusiness) DepartmentSave(
 	obj *identityv1.DepartmentObject,
 ) (*identityv1.DepartmentObject, error) {
 	department := models.DepartmentFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.departmentRepo, department); err != nil {
+		return nil, err
+	}
 	if err := b.validateOrganization(ctx, department.OrganizationID); err != nil {
 		return nil, err
 	}
@@ -269,7 +314,11 @@ func (b *workforceBusiness) DepartmentSearch(
 	if req.GetKind() != identityv1.DepartmentKind_DEPARTMENT_KIND_UNSPECIFIED {
 		filters["kind = ?"] = int32(req.GetKind())
 	}
-	results, err := b.departmentRepo.Search(ctx, buildSearchQuery(req.GetQuery(), req.GetCursor(), filters))
+	searchQuery, queryErr := buildSearchQuery(req.GetQuery(), req.GetCursor(), filters)
+	if queryErr != nil {
+		return queryErr
+	}
+	results, err := b.departmentRepo.Search(ctx, searchQuery)
 	if err != nil {
 		return err
 	}
@@ -287,6 +336,9 @@ func (b *workforceBusiness) PositionSave(
 	obj *identityv1.PositionObject,
 ) (*identityv1.PositionObject, error) {
 	position := models.PositionFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.positionRepo, position); err != nil {
+		return nil, err
+	}
 	if err := b.validateOrganization(ctx, position.OrganizationID); err != nil {
 		return nil, err
 	}
@@ -323,7 +375,7 @@ func (b *workforceBusiness) PositionSearch(
 	req *identityv1.PositionSearchRequest,
 	consumer func(ctx context.Context, batch []*identityv1.PositionObject) error,
 ) error {
-	results, err := b.positionRepo.Search(ctx, buildSearchQuery(
+	searchQuery, queryErr := buildSearchQuery(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
@@ -332,7 +384,11 @@ func (b *workforceBusiness) PositionSearch(
 			"department_id = ?":          req.GetDepartmentId(),
 			"reports_to_position_id = ?": req.GetReportsToPositionId(),
 		},
-	))
+	)
+	if queryErr != nil {
+		return queryErr
+	}
+	results, err := b.positionRepo.Search(ctx, searchQuery)
 	if err != nil {
 		return err
 	}
@@ -351,6 +407,9 @@ func (b *workforceBusiness) PositionAssignmentSave(
 	obj *identityv1.PositionAssignmentObject,
 ) (*identityv1.PositionAssignmentObject, error) {
 	assignment := models.PositionAssignmentFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.positionAssignmentRepo, assignment); err != nil {
+		return nil, err
+	}
 	member, err := b.workforceRepo.GetByID(ctx, assignment.MemberID)
 	if err != nil {
 		return nil, ErrWorkforceMemberNotFound
@@ -392,14 +451,18 @@ func (b *workforceBusiness) PositionAssignmentSearch(
 	req *identityv1.PositionAssignmentSearchRequest,
 	consumer func(ctx context.Context, batch []*identityv1.PositionAssignmentObject) error,
 ) error {
-	results, err := b.positionAssignmentRepo.Search(ctx, buildSearchQuery(
+	searchQuery, queryErr := buildSearchQuery(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
 			whereMemberID:     req.GetMemberId(),
 			"position_id = ?": req.GetPositionId(),
 		},
-	))
+	)
+	if queryErr != nil {
+		return queryErr
+	}
+	results, err := b.positionAssignmentRepo.Search(ctx, searchQuery)
 	if err != nil {
 		return err
 	}
@@ -417,6 +480,9 @@ func (b *workforceBusiness) InternalTeamSave(
 	obj *identityv1.InternalTeamObject,
 ) (*identityv1.InternalTeamObject, error) {
 	team := models.InternalTeamFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.internalTeamRepo, team); err != nil {
+		return nil, err
+	}
 	if err := b.validateOrganization(ctx, team.OrganizationID); err != nil {
 		return nil, err
 	}
@@ -457,7 +523,11 @@ func (b *workforceBusiness) InternalTeamSearch(
 	if req.GetTeamType() != "" {
 		filters["team_type = ?"] = req.GetTeamType()
 	}
-	results, err := b.internalTeamRepo.Search(ctx, buildSearchQuery(req.GetQuery(), req.GetCursor(), filters))
+	searchQuery, queryErr := buildSearchQuery(req.GetQuery(), req.GetCursor(), filters)
+	if queryErr != nil {
+		return queryErr
+	}
+	results, err := b.internalTeamRepo.Search(ctx, searchQuery)
 	if err != nil {
 		return err
 	}
@@ -476,6 +546,9 @@ func (b *workforceBusiness) TeamMembershipSave(
 	obj *identityv1.TeamMembershipObject,
 ) (*identityv1.TeamMembershipObject, error) {
 	membership := models.TeamMembershipFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.teamMembershipRepo, membership); err != nil {
+		return nil, err
+	}
 	member, err := b.workforceRepo.GetByID(ctx, membership.MemberID)
 	if err != nil {
 		return nil, ErrWorkforceMemberNotFound
@@ -517,14 +590,18 @@ func (b *workforceBusiness) TeamMembershipSearch(
 	req *identityv1.TeamMembershipSearchRequest,
 	consumer func(ctx context.Context, batch []*identityv1.TeamMembershipObject) error,
 ) error {
-	results, err := b.teamMembershipRepo.Search(ctx, buildSearchQuery(
+	searchQuery, queryErr := buildSearchQuery(
 		req.GetQuery(),
 		req.GetCursor(),
 		map[string]any{
 			"team_id = ?": req.GetTeamId(),
 			whereMemberID: req.GetMemberId(),
 		},
-	))
+	)
+	if queryErr != nil {
+		return queryErr
+	}
+	results, err := b.teamMembershipRepo.Search(ctx, searchQuery)
 	if err != nil {
 		return err
 	}
@@ -542,12 +619,18 @@ func (b *workforceBusiness) AccessRoleAssignmentSave(
 	obj *identityv1.AccessRoleAssignmentObject,
 ) (*identityv1.AccessRoleAssignmentObject, error) {
 	assignment := models.AccessRoleAssignmentFromAPI(ctx, obj)
-	if assignment.RoleKey == "" {
-		return nil, ErrInvalidRoleKey
+	if err := carryStoredTenancy(ctx, b.accessRoleRepo, assignment); err != nil {
+		return nil, err
+	}
+	if err := validateRoleKey(assignment.RoleKey); err != nil {
+		return nil, err
 	}
 	member, err := b.workforceRepo.GetByID(ctx, assignment.MemberID)
 	if err != nil {
 		return nil, ErrWorkforceMemberNotFound
+	}
+	if member.ProfileID != "" && member.ProfileID == actorFromClaims(ctx) {
+		return nil, ErrSelfRoleGrant
 	}
 	if errScope := b.validateAccessScope(ctx, member, assignment); errScope != nil {
 		return nil, errScope
@@ -587,7 +670,11 @@ func (b *workforceBusiness) AccessRoleAssignmentSearch(
 	if req.GetScopeType() != identityv1.AccessScopeType_ACCESS_SCOPE_TYPE_UNSPECIFIED {
 		filters["scope_type = ?"] = int32(req.GetScopeType())
 	}
-	results, err := b.accessRoleRepo.Search(ctx, buildSearchQuery(req.GetQuery(), req.GetCursor(), filters))
+	searchQuery, queryErr := buildSearchQuery(req.GetQuery(), req.GetCursor(), filters)
+	if queryErr != nil {
+		return queryErr
+	}
+	results, err := b.accessRoleRepo.Search(ctx, searchQuery)
 	if err != nil {
 		return err
 	}
@@ -600,14 +687,14 @@ func (b *workforceBusiness) AccessRoleAssignmentSearch(
 	})
 }
 
-func buildSearchQuery(query string, cursor *commonv1.PageCursor, filters map[string]any) *data.SearchQuery {
-	var searchOpts []data.SearchOption
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+func buildSearchQuery(
+	query string,
+	cursor *commonv1.PageCursor,
+	filters map[string]any,
+) (*data.SearchQuery, error) {
+	searchOpts, cursorErr := cursorSearchOptions(cursor)
+	if cursorErr != nil {
+		return nil, cursorErr
 	}
 
 	andFilters := make(map[string]any, len(filters))
@@ -626,7 +713,7 @@ func buildSearchQuery(query string, cursor *commonv1.PageCursor, filters map[str
 		))
 	}
 
-	return data.NewSearchQuery(searchOpts...)
+	return data.NewSearchQuery(searchOpts...), nil
 }
 
 func isEmptyFilterValue(value any) bool {
@@ -818,6 +905,53 @@ func (b *workforceBusiness) validatePrimaryTeamMembership(
 	return nil
 }
 
+// validateRoleKey rejects role keys outside the catalogue this service knows
+// how to enforce, so a caller cannot mint a privileged role name of its own
+// and have a downstream consumer honour it.
+func validateRoleKey(roleKey string) error {
+	switch roleKey {
+	case AccessRoleKeyApprovalVerifier,
+		AccessRoleKeyApprovalApprover,
+		AccessRoleKeyIdentityAdministrator,
+		AccessRoleKeyFieldAgent:
+		return nil
+	default:
+		return ErrInvalidRoleKey
+	}
+}
+
+// callerIsGlobalAdministrator reports whether the caller already holds an
+// active GLOBAL identity_administrator assignment. GLOBAL scope skips every
+// containment check, so only an existing global administrator may grant it.
+func (b *workforceBusiness) callerIsGlobalAdministrator(ctx context.Context) (bool, error) {
+	profileID := actorFromClaims(ctx)
+	if profileID == "" {
+		return false, nil
+	}
+
+	assignments, err := b.accessRoleRepo.GetActiveByRoleAndScopes(
+		ctx,
+		AccessRoleKeyIdentityAdministrator,
+		identityv1.AccessScopeType_ACCESS_SCOPE_TYPE_GLOBAL,
+		nil,
+		0,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	for _, assignment := range assignments {
+		member, memberErr := b.workforceRepo.GetByID(ctx, assignment.MemberID)
+		if memberErr != nil {
+			continue
+		}
+		if member.ProfileID == profileID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (b *workforceBusiness) validateAccessScope(
 	ctx context.Context,
 	member *models.WorkforceMember,
@@ -827,6 +961,16 @@ func (b *workforceBusiness) validateAccessScope(
 	case identityv1.AccessScopeType_ACCESS_SCOPE_TYPE_UNSPECIFIED:
 		return ErrInvalidAccessScope
 	case identityv1.AccessScopeType_ACCESS_SCOPE_TYPE_GLOBAL:
+		if assignment.ScopeID != "" {
+			return ErrInvalidAccessScope
+		}
+		isAdmin, err := b.callerIsGlobalAdministrator(ctx)
+		if err != nil {
+			return err
+		}
+		if !isAdmin {
+			return ErrGlobalScopeForbidden
+		}
 		return nil
 	case identityv1.AccessScopeType_ACCESS_SCOPE_TYPE_ORGANIZATION:
 		if assignment.ScopeID == "" || assignment.ScopeID != member.OrganizationID {

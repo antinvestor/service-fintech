@@ -19,32 +19,35 @@ import (
 	"net/http"
 	"strings"
 
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldpb "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identitypb "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v2/tenancyv2connect"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/setup"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/v2/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v2/tenancyv2connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/security/interceptors/httptor"
+	"github.com/pitabwire/frame/v3/setup"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 
-	"github.com/antinvestor/common/audit"
+	"github.com/antinvestor/common/notification"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/identity/config"
 	"github.com/antinvestor/service-fintech/apps/identity/service/authz"
@@ -52,6 +55,12 @@ import (
 	identityevents "github.com/antinvestor/service-fintech/apps/identity/service/events"
 	"github.com/antinvestor/service-fintech/apps/identity/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/bootcheck"
+	"github.com/antinvestor/service-fintech/pkg/clients"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/messages"
+	"github.com/antinvestor/service-fintech/pkg/notify"
+	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 )
 
 func main() {
@@ -67,14 +76,24 @@ func main() {
 		cfg.ServiceName = "service_identity"
 	}
 
+	// Refuse to serve on an environment that is unsafe outside local
+	// development (docs/runbook/required-environment.md).
+	if err = bootcheck.Validate(tmpCtx, &cfg); err != nil {
+		util.Log(tmpCtx).WithError(err).Fatal("environment is not deployment-safe")
+	}
+
 	ctx, svc := frame.NewServiceWithContext(
 		tmpCtx,
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
 
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -85,6 +104,12 @@ func main() {
 	// register them under service-identity (ownership 403).
 	identitySD := identitypb.File_identity_v1_identity_proto.Services().ByName("IdentityService")
 	if frame.ShouldRunSetup(&cfg) {
+		// Every message the service sends is declared in pkg/messages and
+		// upserted with the notification service on each deploy.
+		notification.RegisterTemplateSync(svc, &cfg, notification.Target{
+			Endpoint:              cfg.NotificationServiceURI,
+			WorkloadAPITargetPath: cfg.NotificationServiceWorkloadAPITargetPath,
+		}, messages.Registry())
 		svc.Init(ctx, frame.WithPermissionRegistration(identitySD))
 		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
 			log.WithError(setupErr).Fatal("setup plan failed")
@@ -93,6 +118,13 @@ func main() {
 	}
 
 	sm := svc.SecurityManager()
+
+	// RPC-level audit delivery. Required when running securely; a nil client
+	// is tolerated (and logged) only for local development.
+	auditCli, err := clients.ResolveAuditClient(ctx, &cfg, cfg.IsRunSecurely(), cfg.AuditConfig)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup audit client")
+	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
@@ -113,12 +145,7 @@ func main() {
 		log.WithError(err).Fatal("main -- Could not setup auth contract client")
 	}
 
-	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
-	if notifErr != nil {
-		log.WithError(notifErr).
-			Warn("main -- Could not setup notification client, agent notifications will be disabled")
-	}
-	agentNotifier := business.NewAgentNotifier(notificationCli, profileCli, cfg.AgentOnboardingTemplate)
+	notifiers := setupNotifiers(ctx, cfg)
 
 	// Get database pool
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
@@ -134,10 +161,11 @@ func main() {
 		dbPool,
 		workMan,
 		cfg,
-		agentNotifier,
+		notifiers,
 		partitionCli,
 		authContractCli,
 		profileCli,
+		auditCli,
 	)
 
 	svc.Init(ctx, serviceOptions...)
@@ -148,6 +176,30 @@ func main() {
 	}
 }
 
+// serviceNotifiers carries the message senders the businesses are wired with.
+type serviceNotifiers struct {
+	notificationCli notificationv1connect.NotificationServiceClient
+	client          *business.ClientNotifier
+	workforce       *business.WorkforceNotifier
+}
+
+// setupNotifiers builds the notification client and the senders over it. A
+// client that cannot be built disables notifications with a warning; that is
+// acceptable for local development only, and every dropped message is counted.
+func setupNotifiers(ctx context.Context, cfg aconfig.IdentityConfig) serviceNotifiers {
+	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
+	if notifErr != nil {
+		util.Log(ctx).WithError(notifErr).
+			Warn("main -- Could not setup notification client, notifications will be disabled")
+	}
+	notifier := notify.New(notificationCli, messages.Registry())
+	return serviceNotifiers{
+		notificationCli: notificationCli,
+		client:          business.NewClientNotifier(notifier, cfg.LenderDisplayName),
+		workforce:       business.NewWorkforceNotifier(notifier),
+	}
+}
+
 func setupServiceOptions( //nolint:funlen // sequential service wiring
 	ctx context.Context,
 	sm security.Manager,
@@ -155,10 +207,11 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	dbPool pool.Pool,
 	workMan workerpool.Manager,
 	cfg aconfig.IdentityConfig,
-	agentNotifier *business.AgentNotifier,
+	notifiers serviceNotifiers,
 	partitionCli tenancyv1connect.TenancyServiceClient,
 	authContractCli tenancyv2connect.AuthContractServiceClient,
 	profileCli profilev1connect.ProfileServiceClient,
+	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	organizationRepo := repository.NewOrganizationRepository(ctx, dbPool, workMan)
 	orgUnitRepo := repository.NewOrgUnitRepository(ctx, dbPool, workMan)
@@ -183,8 +236,8 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	clientDataHistoryRepo := repository.NewClientDataEntryHistoryRepository(ctx, dbPool, workMan)
 
 	approvalCaseNotifier := business.NewApprovalCaseNotifier(
-		agentNotifier.Client(),
-		agentNotifier.ProfileClient(),
+		notifiers.notificationCli,
+		profileCli,
 		workforceMemberRepo,
 		orgUnitRepo,
 		clientRepo,
@@ -204,8 +257,8 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		branchRepo,
 		agentRepo,
 		agentBranchRepo,
-		agentNotifier,
 	)
+	clientRelationshipRepo := repository.NewClientRelationshipRepository(ctx, dbPool, workMan)
 	clientBusiness := business.NewClientBusiness(
 		ctx,
 		evtsMan,
@@ -216,6 +269,9 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		workforceMemberRepo,
 		internalTeamRepo,
 		teamMembershipRepo,
+		business.WithClientNotifier(notifiers.client),
+		business.WithProfiles(profileCli),
+		business.WithRelationships(clientRelationshipRepo),
 	)
 	workforceBusiness := business.NewWorkforceBusiness(
 		evtsMan,
@@ -229,20 +285,25 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		teamMembershipRepo,
 		accessRoleAssignmentRepo,
 		partitionCli,
+		business.WithWorkforceNotifier(notifiers.workforce),
 	)
-	groupBusiness := business.NewClientGroupBusiness(ctx, evtsMan, agentRepo, groupRepo)
+	groupBusiness := business.NewClientGroupBusiness(ctx, evtsMan, workforceMemberRepo, orgUnitRepo, groupRepo)
 	membershipBusiness := business.NewMembershipBusiness(ctx, evtsMan, groupRepo, membershipRepo)
 	investorBusiness := business.NewInvestorBusiness(ctx, evtsMan, investorRepo)
-	clientDataBusiness := business.NewClientDataBusiness(ctx, evtsMan, clientDataEntryRepo, clientDataHistoryRepo)
+	clientDataBusiness := business.NewClientDataBusiness(ctx, evtsMan, clientDataEntryRepo, clientDataHistoryRepo,
+		business.WithClientNotifier(notifiers.client), business.WithClientLookup(clientRepo))
 
 	formTemplateRepo := repository.NewFormTemplateRepository(ctx, dbPool, workMan)
 	formSubmissionRepo := repository.NewFormSubmissionRepository(ctx, dbPool, workMan)
 	formTemplateBusiness := business.NewFormTemplateBusiness(ctx, evtsMan, formTemplateRepo)
 	formSubmissionBusiness := business.NewFormSubmissionBusiness(ctx, evtsMan, formSubmissionRepo, formTemplateRepo)
 
-	clientRelationshipRepo := repository.NewClientRelationshipRepository(ctx, dbPool, workMan)
-	clientRelationshipBusiness := business.NewClientRelationshipBusiness(ctx, evtsMan, clientRelationshipRepo)
+	clientRelationshipBusiness := business.NewClientRelationshipBusiness(ctx, evtsMan, clientRelationshipRepo,
+		business.WithRelationshipValidation(clientRepo, workforceMemberRepo, teamMembershipRepo))
 
+	if cfg.IsRunSecurely() && strings.TrimSpace(cfg.OAuthRedirectURIs) == "" {
+		util.Log(ctx).Fatal("main -- OAUTH_REDIRECT_URIS must be set when RUN_SERVICE_SECURELY=true")
+	}
 	oauthRedirectURIs := strings.Split(cfg.OAuthRedirectURIs, ",")
 	oauthAudiences := strings.Split(cfg.OAuthAudiences, ",")
 	loginClientBusiness := business.NewLoginClientBusiness(
@@ -256,6 +317,8 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		loginClientBusiness, clientDataBusiness,
 		formTemplateBusiness, formSubmissionBusiness,
 		clientRelationshipBusiness,
+		auditCli,
+		oauthRedirectURIs,
 	)
 
 	// Runtime options only — permissions are registered exclusively in the
@@ -349,6 +412,8 @@ func setupConnectServer(
 	formTemplateBusiness business.FormTemplateBusiness,
 	formSubmissionBusiness business.FormSubmissionBusiness,
 	clientRelationshipBusiness business.ClientRelationshipBusiness,
+	auditCli auditv1connect.AuditServiceClient,
+	loginRedirectURIs []string,
 ) http.Handler {
 	// Create handlers with injected dependencies
 	identityHandler := handlers.NewIdentityServer(
@@ -395,13 +460,14 @@ func setupConnectServer(
 	)
 
 	// Layer 3: Audit interceptor logs all non-idempotent calls and failed reads.
-	identityAuditInterceptor := audit.NewInterceptor("service_identity", nil)
-	fieldAuditInterceptor := audit.NewInterceptor("service_field", nil)
+	identityAuditInterceptor := clients.AuditInterceptor("service_identity", auditCli)
+	fieldAuditInterceptor := clients.AuditInterceptor("service_field", auditCli)
 
 	identityInterceptorList, err := connectInterceptors.DefaultList(
 		ctx,
 		sm.GetAuthenticator(ctx),
 		tenancyAccessInterceptor,
+		tenantassert.Interceptor(),
 		identityFunctionAccessInterceptor,
 		identityAuditInterceptor,
 	)
@@ -411,28 +477,41 @@ func setupConnectServer(
 
 	fieldInterceptorList, err := connectInterceptors.DefaultList(
 		ctx, sm.GetAuthenticator(ctx),
-		tenancyAccessInterceptor, fieldFunctionAccessInterceptor, fieldAuditInterceptor)
+		tenancyAccessInterceptor, tenantassert.Interceptor(), fieldFunctionAccessInterceptor, fieldAuditInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create field interceptors")
 	}
 
-	identityInterceptorOption := connect.WithInterceptors(identityInterceptorList...)
-	fieldInterceptorOption := connect.WithInterceptors(fieldInterceptorList...)
+	// Each service keeps its own interceptor chain, so each gets its own
+	// server; both mount on the same mux.
+	identityServer := connect.NewServer(identityInterceptorList...)
+	identityv1connect.RegisterIdentityServiceHandler(identityServer, identityHandler)
+	fieldServer := connect.NewServer(fieldInterceptorList...)
+	fieldv1connect.RegisterFieldServiceHandler(fieldServer, fieldHandler)
 
-	// Register both services on the same mux with their own interceptors
-	identityPath, identityServerHandler := identityv1connect.NewIdentityServiceHandler(
-		identityHandler,
-		identityInterceptorOption,
-	)
-	fieldPath, fieldServerHandler := fieldv1connect.NewFieldServiceHandler(fieldHandler, fieldInterceptorOption)
-
-	// Login targets endpoint — unauthenticated, no interceptors
-	loginTargetsHandler := handlers.NewLoginTargetsHandler(loginClientBusiness)
+	// Login targets: pre-login, so no authenticator; origin-restricted and rate limited instead.
+	loginTargetsHandler := handlers.NewLoginTargetsHandler(loginClientBusiness, loginRedirectURIs)
 
 	mux := http.NewServeMux()
-	mux.Handle(identityPath, identityServerHandler)
-	mux.Handle(fieldPath, fieldServerHandler)
+	connecthttp.Mount(mux, identityServer)
+	connecthttp.Mount(mux, fieldServer)
 	mux.Handle("/api/v1/login-targets/", loginTargetsHandler)
+	mountUICapabilities(mux, sm.GetAuthenticator(ctx), auth)
 
 	return mux
+}
+
+// mountUICapabilities exposes the UI capability endpoints behind the same
+// authenticator the Connect handlers use, answered by the same authorizer the
+// function access interceptors check against.
+func mountUICapabilities(mux *http.ServeMux, authenticator security.Authenticator, auth security.Authorizer) {
+	capabilities := handlers.NewUICapabilitiesHandler(
+		handlers.NewCapabilityChecker(auth),
+		handlers.ServiceNamespaceCatalog(),
+	)
+	authenticated := func(next http.HandlerFunc) http.Handler {
+		return httptor.AuthenticationMiddleware(next, authenticator)
+	}
+	mux.Handle(handlers.CapabilitiesPath, authenticated(capabilities.List))
+	mux.Handle(handlers.CapabilitiesBatchCheckPath, authenticated(capabilities.BatchCheck))
 }

@@ -41,10 +41,16 @@ class PolicyDetailCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     policy.id.isEmpty ? '(unsaved)' : policy.id,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-                Text('v${policy.version}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  'v${policy.version}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -65,25 +71,33 @@ class PolicyDetailCard extends StatelessWidget {
             if (policy.limitKind == LimitKind.LIMIT_KIND_ROLLING_WINDOW_COUNT)
               _kv('Cap count', policy.capCount.toString())
             else
-              _kvWidget(
-                'Cap',
-                CurrencyAmountText(amount: policy.capAmount),
-              ),
+              _kvWidget('Cap', CurrencyAmountText(amount: policy.capAmount)),
             if (policy.window.seconds.toInt() > 0)
               _kv('Window', formatDuration(policy.window.seconds.toInt())),
             const Divider(),
-            const Text('Approver tiers', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Approver tiers',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
             ApproverTiersDisplay(tiers: policy.approverTiers),
             const SizedBox(height: 12),
-            const Text('Attribute filter', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Attribute filter',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
             AttributeFilterDisplay(
-              filter: policy.hasAttributeFilter() ? policy.attributeFilter : null,
+              filter: policy.hasAttributeFilter()
+                  ? policy.attributeFilter
+                  : null,
             ),
             if (policy.notes.isNotEmpty) ...[
               const Divider(),
-              const Text('Notes', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Notes',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 4),
               Text(policy.notes),
             ],
@@ -96,19 +110,22 @@ class PolicyDetailCard extends StatelessWidget {
   Widget _kv(String key, String value) => _kvWidget(key, Text(value));
 
   Widget _kvWidget(String key, Widget value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 130,
-              child: Text(
-                key,
-                style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black54),
-              ),
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            key,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              color: Colors.black54,
             ),
-            Expanded(child: value),
-          ],
+          ),
         ),
-      );
+        Expanded(child: value),
+      ],
+    ),
+  );
 }

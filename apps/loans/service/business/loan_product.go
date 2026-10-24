@@ -19,13 +19,14 @@ import (
 	"strconv"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
 type LoanProductBusiness interface {
@@ -61,6 +62,12 @@ func (b *loanProductBusiness) Save(
 	logger := util.Log(ctx).WithField("method", "LoanProductBusiness.Save")
 
 	lp := models.LoanProductFromAPI(ctx, obj)
+	if lp == nil {
+		return nil, apperrors.NewError(apperrors.BadRequest, "loan product payload is required")
+	}
+	if err := validateLoanProduct(lp); err != nil {
+		return nil, err
+	}
 
 	err := b.eventsMan.Emit(ctx, events.LoanProductSaveEvent, lp)
 	if err != nil {
@@ -131,4 +138,29 @@ func (b *loanProductBusiness) Search(
 		}
 		return consumer(ctx, apiResults)
 	})
+}
+
+// validateLoanProduct rejects a product whose envelope cannot produce a legal
+// loan. A product with a maximum below its minimum, or a zero-length term,
+// only fails later, when a borrower has already been told they qualify.
+func validateLoanProduct(lp *models.LoanProduct) error {
+	switch {
+	case lp.Name == "":
+		return ErrLoanProductNameRequired
+	case lp.Code == "":
+		return ErrLoanProductCodeRequired
+	case lp.CurrencyCode == "":
+		return ErrLoanProductCurrencyRequired
+	case lp.MinAmount < 0 || lp.MaxAmount < 0 ||
+		(lp.MaxAmount > 0 && lp.MinAmount > lp.MaxAmount):
+		return ErrLoanProductAmountRangeInvalid
+	case lp.MinTermDays < 0 || lp.MaxTermDays < 0 ||
+		(lp.MaxTermDays > 0 && lp.MinTermDays > lp.MaxTermDays):
+		return ErrLoanProductTermRangeInvalid
+	case lp.AnnualInterestRate < 0 || lp.ProcessingFeePercent < 0 ||
+		lp.InsuranceFeePercent < 0 || lp.LatePenaltyRate < 0:
+		return ErrLoanProductRatesInvalid
+	default:
+		return nil
+	}
 }

@@ -19,15 +19,25 @@ import (
 	"errors"
 	"time"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/tenancy"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/tenancy"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
 )
+
+// ErrNotPendingApproval is returned when a reservation cannot be activated
+// because it is no longer in the pending_approval state.
+var ErrNotPendingApproval = errors.New("reservation: not pending approval")
+
+// ErrReservationNotReleasable is returned when a release finds no row in a
+// releasable state (already terminal, wrong tenant, or missing). Callers that
+// cascade a release from an approval decision treat it as "nothing to do";
+// every other error is a real failure.
+var ErrReservationNotReleasable = errors.New("reservation: cannot release (terminal or missing)")
 
 // SubjectFilter narrows pending-sum queries to a specific subject ref.
 type SubjectFilter struct {
@@ -41,7 +51,9 @@ type SubjectFilter struct {
 type ReservationRepository interface {
 	Create(ctx context.Context, r *models.Reservation) error
 	GetByID(ctx context.Context, id string) (*models.Reservation, error)
-	GetByIdempotencyKey(ctx context.Context, key string) (*models.Reservation, error)
+	// GetByIdempotencyKey returns the reservation for (tenantID, key), or
+	// (nil, nil) when no such row exists. Any other error is propagated.
+	GetByIdempotencyKey(ctx context.Context, tenantID, key string) (*models.Reservation, error)
 	PendingSum(ctx context.Context, action models.Action, currency string, subject SubjectFilter) (int64, error)
 	// PendingSumTx is identical to PendingSum but executes within the supplied
 	// gorm transaction so the read participates in the caller's advisory lock.
@@ -79,8 +91,11 @@ type ReservationRepository interface {
 	// BulkSetExpired transitions all rows in ids from 'active' to 'expired'
 	// in a single UPDATE ... WHERE id IN (...) round-trip. Cross-tenant:
 	// TenancyPartition is intentionally not applied (matches ListExpiredActive).
-	// Returns the number of rows actually updated.
-	BulkSetExpired(ctx context.Context, ids []string, at time.Time) (int, error)
+	// Returns the ids of the rows actually updated.
+	BulkSetExpired(ctx context.Context, ids []string, at time.Time) ([]string, error)
+	// BulkSetExpiredTx runs BulkSetExpired inside the caller's transaction so
+	// the expiry and its audit rows commit together.
+	BulkSetExpiredTx(ctx context.Context, tx *gorm.DB, ids []string, at time.Time) ([]string, error)
 	SetReversed(ctx context.Context, id string, at time.Time) error
 	// SetReversedTx runs SetReversed inside caller-supplied tx with status='committed' guard.
 	SetReversedTx(ctx context.Context, tx *gorm.DB, id string, at time.Time) error
@@ -118,10 +133,21 @@ func (r *reservationRepository) Create(ctx context.Context, m *models.Reservatio
 	return r.BaseRepository.Create(ctx, m)
 }
 
-func (r *reservationRepository) GetByIdempotencyKey(ctx context.Context, key string) (*models.Reservation, error) {
+func (r *reservationRepository) GetByIdempotencyKey(
+	ctx context.Context,
+	tenantID, key string,
+) (*models.Reservation, error) {
 	db := r.dbPool.DB(ctx, true)
 	var out models.Reservation
-	if err := db.Where("idempotency_key = ?", key).First(&out).Error; err != nil {
+	q := db.Where("idempotency_key = ?", key)
+	if tenantID != "" {
+		q = q.Where("tenant_id = ?", tenantID)
+	}
+	if err := q.First(&out).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			//nolint:nilnil // documented contract: (nil, nil) means "no such reservation"
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &out, nil
@@ -262,7 +288,7 @@ func (r *reservationRepository) SetReleased(ctx context.Context, id, reason stri
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return errors.New("reservation: cannot release (terminal or missing)")
+		return ErrReservationNotReleasable
 	}
 	return nil
 }
@@ -281,7 +307,7 @@ func (r *reservationRepository) SetReleasedTx(ctx context.Context, tx *gorm.DB, 
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return errors.New("reservation: cannot release (terminal, wrong tenant, or missing)")
+		return ErrReservationNotReleasable
 	}
 	return nil
 }
@@ -293,27 +319,54 @@ func (r *reservationRepository) SetExpired(ctx context.Context, id string, at ti
 		Updates(map[string]any{colStatus: string(models.ReservationStatusExpired), colModifiedAt: at}).Error
 }
 
-func (r *reservationRepository) BulkSetExpired(ctx context.Context, ids []string, at time.Time) (int, error) {
-	if len(ids) == 0 {
-		return 0, nil
-	}
+func (r *reservationRepository) BulkSetExpired(ctx context.Context, ids []string, at time.Time) ([]string, error) {
 	// Cross-tenant: bypass RLS to match ListExpiredActive.
 	ctx = tenancy.WithSkipEnforcement(ctx)
-	res := r.dbPool.DB(ctx, false).
-		Table(models.Reservation{}.TableName()).
-		Where("id IN ? AND status = ?", ids, string(models.ReservationStatusActive)).
-		Updates(map[string]any{
-			colStatus:     string(models.ReservationStatusExpired),
-			colModifiedAt: at,
-		})
-	return int(res.RowsAffected), res.Error
+	return bulkSetExpired(ctx, r.dbPool.DB(ctx, false), ids, at)
+}
+
+func (r *reservationRepository) BulkSetExpiredTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	ids []string,
+	at time.Time,
+) ([]string, error) {
+	return bulkSetExpired(ctx, tx.WithContext(ctx), ids, at)
+}
+
+func bulkSetExpired(_ context.Context, db *gorm.DB, ids []string, at time.Time) ([]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	type idRow struct{ ID string }
+	var updated []idRow
+	err := db.Raw(
+		"UPDATE "+models.Reservation{}.TableName()+
+			" SET status = ?, modified_at = ? WHERE id IN ? AND status = ? RETURNING id",
+		string(models.ReservationStatusExpired), at, ids, string(models.ReservationStatusActive),
+	).Scan(&updated).Error
+	if err != nil {
+		return nil, err
+	}
+	expired := make([]string, 0, len(updated))
+	for _, u := range updated {
+		expired = append(expired, u.ID)
+	}
+	return expired, nil
 }
 
 func (r *reservationRepository) SetReversed(ctx context.Context, id string, at time.Time) error {
 	db := r.dbPool.DB(ctx, false)
-	return db.Table(models.Reservation{}.TableName()).
-		Where("id = ?", id).
-		Updates(map[string]any{colStatus: string(models.ReservationStatusReversed), colModifiedAt: at}).Error
+	res := db.Table(models.Reservation{}.TableName()).
+		Where("id = ? AND status = ?", id, string(models.ReservationStatusCommitted)).
+		Updates(map[string]any{colStatus: string(models.ReservationStatusReversed), colModifiedAt: at})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return errors.New("reservation: cannot reverse (not committed or missing)")
+	}
+	return nil
 }
 
 func (r *reservationRepository) SetReversedTx(ctx context.Context, tx *gorm.DB, id string, at time.Time) error {
@@ -347,11 +400,17 @@ func (r *reservationRepository) SetActive(ctx context.Context, id string) error 
 }
 
 func (r *reservationRepository) SetActiveTx(ctx context.Context, tx *gorm.DB, id string) error {
-	return tx.WithContext(ctx).
+	res := tx.WithContext(ctx).
 		Table(models.Reservation{}.TableName()).
 		Where("id = ? AND status = ?", id, string(models.ReservationStatusPendingApproval)).
-		Updates(map[string]any{colStatus: string(models.ReservationStatusActive), colModifiedAt: time.Now().UTC()}).
-		Error
+		Updates(map[string]any{colStatus: string(models.ReservationStatusActive), colModifiedAt: time.Now().UTC()})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotPendingApproval
+	}
+	return nil
 }
 
 func (r *reservationRepository) HardDeleteTerminalBefore(ctx context.Context, cutoff time.Time) (int, error) {

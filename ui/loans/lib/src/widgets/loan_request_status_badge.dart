@@ -46,10 +46,7 @@ class LoanRequestStatusBadge extends StatelessWidget {
         'Cancelled',
         Colors.red,
       ),
-      LoanRequestStatus.LOAN_REQUEST_STATUS_EXPIRED => (
-        'Expired',
-        Colors.red,
-      ),
+      LoanRequestStatus.LOAN_REQUEST_STATUS_EXPIRED => ('Expired', Colors.red),
       LoanRequestStatus.LOAN_REQUEST_STATUS_LOAN_CREATED => (
         'Loan Created',
         Colors.green,

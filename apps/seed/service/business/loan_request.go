@@ -18,17 +18,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 
-	"github.com/antinvestor/service-fintech/apps/seed/service/events"
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
 	"github.com/antinvestor/service-fintech/apps/seed/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/constants"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 // KYCStatus is the verdict the KYCVerifier returns for a client.
@@ -82,6 +83,15 @@ type LoanCreator interface {
 		loanAccountID string,
 		idempotencyKey string,
 	) (disbursementID string, err error)
+
+	// FindDisbursement reports whether a disbursement carrying the given
+	// idempotency key exists on the loan account. It is how seed settles a
+	// disbursement whose transport failed without saying whether money moved.
+	FindDisbursement(
+		ctx context.Context,
+		loanAccountID string,
+		idempotencyKey string,
+	) (disbursementID string, found bool, err error)
 }
 
 // LoanCreationRequest is the payload passed to LoanCreator. Kept as a
@@ -96,6 +106,9 @@ type LoanCreationRequest struct {
 	InterestRateBP int64 // basis points
 	TermDays       int32
 	IdempotencyKey string
+	// PayoutAccountRef is where the loan is paid out: the borrower's mobile
+	// money number. The loans service refuses to disburse without one.
+	PayoutAccountRef string
 }
 
 // ErrClientNotKYCVerified is returned when a loan request cannot proceed
@@ -150,8 +163,16 @@ type loanRequestBusiness struct {
 	tierRepo    repository.CreditTierRepository
 	kycVerifier KYCVerifier
 	loanCreator LoanCreator
-	eventsMan   fevents.Manager
 	auditWriter *audit.Writer
+	payouts     PayoutDestinationResolver
+}
+
+// Option configures optional collaborators of the loan request business.
+type Option func(*loanRequestBusiness)
+
+// WithPayoutResolver installs the resolver of the borrower's payout destination.
+func WithPayoutResolver(r PayoutDestinationResolver) Option {
+	return func(b *loanRequestBusiness) { b.payouts = r }
 }
 
 // NewLoanRequestBusiness builds the business bound to its dependencies.
@@ -166,26 +187,32 @@ func NewLoanRequestBusiness(
 	tierRepo repository.CreditTierRepository,
 	kycVerifier KYCVerifier,
 	loanCreator LoanCreator,
-	eventsMan fevents.Manager,
 	auditWriter *audit.Writer,
+	opts ...Option,
 ) LoanRequestBusiness {
-	return &loanRequestBusiness{
+	b := &loanRequestBusiness{
 		cpBusiness:  cpBusiness,
 		cpRepo:      cpRepo,
 		lrRepo:      lrRepo,
 		tierRepo:    tierRepo,
 		kycVerifier: kycVerifier,
 		loanCreator: loanCreator,
-		eventsMan:   eventsMan,
 		auditWriter: auditWriter,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(b)
+		}
+	}
+	return b
 }
 
 // RequestLoan is the complete customer-initiated loan pipeline. The
 // stages are:
 //
 //  1. Idempotency  — a non-empty key that already maps to a row short-
-//     circuits to that row so retries are safe.
+//     circuits to that row so retries are safe. A stored row that did not
+//     succeed comes back with the error its status implies.
 //  2. KYC check    — the verifier reports verified/pending/failed.
 //  3. Profile      — seed ensures a credit profile exists for the
 //     client, provisioned to tier-1 with the product's policy.
@@ -218,18 +245,21 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 		return nil, err
 	}
 
+	// Settle any prior request whose disbursement never confirmed. Until that
+	// is resolved the client's outstanding-loan slot stays reserved, so this
+	// runs before anything reads or claims it.
+	b.reconcileUnconfirmedDisbursement(ctx, logger, req.ClientID, req.CurrencyCode)
+
 	// Idempotency first: a retry with the same key must not create a
 	// second loan request. If the prior row exists we return it as-is
 	// regardless of what state it's in, matching the rest of the
 	// platform's "retries converge on a single record" convention.
-	if req.IdempotencyKey != "" {
-		existing, err := b.lrRepo.GetByIdempotencyKey(ctx, req.IdempotencyKey)
-		if err == nil && existing != nil {
-			return existing, nil
-		}
-		if err != nil && !errors.Is(err, repository.ErrLoanRequestNotFound) {
-			return nil, fmt.Errorf("idempotency lookup: %w", err)
-		}
+	existing, err := b.lrRepo.GetByIdempotencyKey(ctx, req.IdempotencyKey)
+	if err == nil && existing != nil {
+		return existing, storedRequestError(existing)
+	}
+	if !errors.Is(err, repository.ErrLoanRequestNotFound) {
+		return nil, fmt.Errorf("idempotency lookup: %w", err)
 	}
 
 	// KYC check.
@@ -255,12 +285,9 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 			fmt.Sprintf("profile status is %d", profile.Status))
 	}
 
-	if profile.OutstandingLoanCount > 0 {
-		return b.persistEligibilityFailure(ctx, req, ErrLoanAlreadyOutstanding,
-			"client already has an outstanding seed loan")
-	}
-
-	if profile.MaxLoanAmount > 0 && req.Amount > profile.MaxLoanAmount {
+	// A zero limit means the profile was never provisioned against a tier.
+	// Treating it as "no cap" let any amount through.
+	if profile.MaxLoanAmount <= 0 || req.Amount > profile.MaxLoanAmount {
 		return b.persistEligibilityFailure(ctx, req, ErrAmountExceedsLimit,
 			fmt.Sprintf("requested %d exceeds tier %d limit %d",
 				req.Amount, profile.Tier, profile.MaxLoanAmount))
@@ -268,7 +295,19 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 
 	tier, tierErr := b.cpBusiness.EvaluateTier(ctx, profile)
 	if tierErr != nil {
-		return nil, fmt.Errorf("evaluate tier: %w", tierErr)
+		return nil, tierErr
+	}
+
+	// Reserve the single outstanding-loan slot before anything downstream runs.
+	// This conditional UPDATE is what stops two concurrent requests from both
+	// originating a loan for the same client.
+	reserved, reserveErr := b.cpRepo.AtomicReserveLoanSlot(ctx, profile.GetID())
+	if reserveErr != nil {
+		return nil, fmt.Errorf("reserve loan slot: %w", reserveErr)
+	}
+	if !reserved {
+		return b.persistEligibilityFailure(ctx, req, ErrLoanAlreadyOutstanding,
+			"client already has an outstanding seed loan")
 	}
 
 	// Persist the submitted loan request so downstream steps have a
@@ -291,8 +330,9 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 	lr.GenID(ctx)
 	lr.CopyPartitionInfo(&profile.BaseModel)
 
-	if emitErr := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); emitErr != nil {
-		return nil, fmt.Errorf("persist loan request: %w", emitErr)
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		b.releaseSlot(ctx, logger, profile.GetID())
+		return nil, fmt.Errorf("persist loan request: %w", saveErr)
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
@@ -324,35 +364,47 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 	// authority on AccountRef records; this call is a best-effort
 	// idempotent provisioning.
 	if err = b.ensureClientSuspense(ctx, logger, req.ClientID, req.CurrencyCode, lr); err != nil {
-		return nil, b.persistRequestFailure(ctx, lr, err, "ensure client suspense account")
+		return nil, b.persistRequestFailure(ctx, profile.GetID(), lr, err, "ensure client suspense account")
 	}
 
 	// Downstream application.
+	// The loan is paid out to the borrower's own phone; without a destination
+	// the loans service would create an account nothing can disburse.
+	payout := ""
+	if b.payouts != nil {
+		resolved, payoutErr := b.payouts.PayoutDestination(ctx, req.ClientID)
+		if payoutErr != nil {
+			return nil, b.persistRequestFailure(ctx, profile.GetID(), lr, payoutErr, "resolve payout destination")
+		}
+		payout = resolved
+	}
+
 	appID, appErr := b.loanCreator.CreateApplication(ctx, LoanCreationRequest{
-		ClientID:       req.ClientID,
-		ProductID:      req.ProductID,
-		Amount:         req.Amount,
-		CurrencyCode:   req.CurrencyCode,
-		Purpose:        req.Purpose,
-		InterestRateBP: tier.InterestRate,
-		TermDays:       tier.TermDays,
-		IdempotencyKey: "seed:" + lr.GetID(),
+		ClientID:         req.ClientID,
+		ProductID:        req.ProductID,
+		Amount:           req.Amount,
+		CurrencyCode:     req.CurrencyCode,
+		Purpose:          req.Purpose,
+		InterestRateBP:   tier.InterestRate,
+		TermDays:         tier.TermDays,
+		IdempotencyKey:   "seed:" + lr.GetID(),
+		PayoutAccountRef: payout,
 	})
 	if appErr != nil {
-		return nil, b.persistRequestFailure(ctx, lr, appErr, "create application")
+		return nil, b.persistRequestFailure(ctx, profile.GetID(), lr, appErr, "create application")
 	}
 	lr.ApplicationID = appID
 
 	// Loan account.
 	loanAccountID, laErr := b.loanCreator.CreateLoanAccount(ctx, appID)
 	if laErr != nil {
-		return nil, b.persistRequestFailure(ctx, lr, laErr, "create loan account")
+		return nil, b.persistRequestFailure(ctx, profile.GetID(), lr, laErr, "create loan account")
 	}
 	lr.LoanAccountID = loanAccountID
 	lr.Status = int32(models.LoanRequestStatusApproved)
 	lr.ApprovedAt = &now
-	if emitErr := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); emitErr != nil {
-		logger.WithError(emitErr).Warn("could not persist loan request after approval")
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		return nil, b.persistRequestFailure(ctx, profile.GetID(), lr, saveErr, "record loan account")
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
@@ -371,27 +423,25 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 	})
 
 	// Disburse.
-	disbID, disbErr := b.loanCreator.Disburse(ctx, loanAccountID, "seed:"+lr.GetID())
+	disbID, disbErr := b.loanCreator.Disburse(ctx, loanAccountID, disbursementKey(lr.GetID()))
 	if disbErr != nil {
-		return nil, b.persistRequestFailure(ctx, lr, disbErr, "disburse loan")
+		return nil, b.persistDisbursementUnconfirmed(ctx, lr, disbErr)
 	}
 	lr.DisbursementID = disbID
 	lr.Status = int32(models.LoanRequestStatusDisbursed)
 	disbursedAt := time.Now().UTC()
 	lr.DisbursedAt = &disbursedAt
 
-	// Mark the profile borrowed (outstanding+1, lifetime totals). Any
-	// concurrent paid-off hook against a previous loan for the same
-	// client still serialises cleanly via the SQL arithmetic.
-	if _, borrowErr := b.cpRepo.AtomicMarkBorrowed(ctx, profile.GetID(), req.Amount); borrowErr != nil {
+	// The slot was reserved before disbursement; only the lifetime totals are
+	// left to stamp. A failure here is drift, not a double loan, so it is
+	// logged and left for reconciliation: the money has already moved.
+	if _, borrowErr := b.cpRepo.AtomicRecordBorrowedAmount(ctx, profile.GetID(), req.Amount); borrowErr != nil {
 		logger.WithError(borrowErr).
-			Error("could not mark profile borrowed after disbursement")
-		// Don't fail the request: the money has moved. Audit captures
-		// the drift so operators can reconcile.
+			Error("could not record borrowed totals after disbursement")
 	}
 
-	if emitErr := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); emitErr != nil {
-		logger.WithError(emitErr).Warn("could not persist loan request after disbursement")
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		logger.WithError(saveErr).Error("could not persist loan request after disbursement")
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
@@ -449,8 +499,8 @@ func (b *loanRequestBusiness) HandlePaidOff(
 
 	now := time.Now().UTC()
 	lr.CompletedAt = &now
-	if emitErr := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); emitErr != nil {
-		logger.WithError(emitErr).Warn("could not mark loan request completed")
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		return fmt.Errorf("mark loan request completed: %w", saveErr)
 	}
 
 	if _, err = b.cpBusiness.RecordSuccessfulRepayment(
@@ -529,21 +579,25 @@ func (b *loanRequestBusiness) persistEligibilityFailure(
 ) (*models.LoanRequest, error) {
 	now := time.Now().UTC()
 	lr := &models.LoanRequest{
-		ClientID:       req.ClientID,
-		ProductID:      req.ProductID,
-		Amount:         req.Amount,
-		CurrencyCode:   req.CurrencyCode,
-		Purpose:        req.Purpose,
-		Status:         int32(models.LoanRequestStatusEligibilityFailed),
-		DeniedReason:   detail,
-		IdempotencyKey: req.IdempotencyKey,
-		RequestedAt:    &now,
+		ClientID:     req.ClientID,
+		ProductID:    req.ProductID,
+		Amount:       req.Amount,
+		CurrencyCode: req.CurrencyCode,
+		Purpose:      req.Purpose,
+		Status:       int32(models.LoanRequestStatusEligibilityFailed),
+		DeniedReason: detail,
+		RequestedAt:  &now,
 	}
 	lr.GenID(ctx)
-	if emitErr := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); emitErr != nil {
+	// The request never reached the pipeline, so the customer's key is not
+	// consumed: the failure row parks under a prefixed key (the same
+	// convention the loans service uses for failed disbursements) and a
+	// genuine retry with the original key runs the pipeline again.
+	lr.IdempotencyKey = failedKeyPrefix + lr.GetID()
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
 		// Best-effort: we still return the eligibility failure to the
 		// caller, using the audit log as the authoritative record.
-		util.Log(ctx).WithError(emitErr).Warn("could not persist eligibility failure loan request")
+		util.Log(ctx).WithError(saveErr).Warn("could not persist eligibility failure loan request")
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
@@ -559,7 +613,7 @@ func (b *loanRequestBusiness) persistEligibilityFailure(
 			fieldAmount:       req.Amount,
 			fieldCurrencyCode: req.CurrencyCode,
 			fieldProductID:    req.ProductID,
-			"error":           cause.Error(),
+			fieldError:        cause.Error(),
 		},
 		Parent: &lr.BaseModel,
 	}, func(auErr error) {
@@ -575,13 +629,20 @@ func (b *loanRequestBusiness) persistEligibilityFailure(
 // captures where the failure happened.
 func (b *loanRequestBusiness) persistRequestFailure(
 	ctx context.Context,
+	profileID string,
 	lr *models.LoanRequest,
 	cause error,
 	stage string,
 ) error {
+	logger := util.Log(ctx)
+	// The money never moved, so give the outstanding-loan slot back.
+	b.releaseSlot(ctx, logger, profileID)
+
 	lr.Status = int32(models.LoanRequestStatusFailed)
 	lr.DeniedReason = fmt.Sprintf("%s: %s", stage, cause.Error())
-	_ = b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr)
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		logger.WithError(saveErr).Error("could not persist failed loan request")
+	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
 		EntityType: entityLoanRequest,
@@ -591,7 +652,7 @@ func (b *loanRequestBusiness) persistRequestFailure(
 		After:      data.JSONMap{fieldStatus: lr.Status},
 		Metadata: data.JSONMap{
 			"stage":            stage,
-			"error":            cause.Error(),
+			fieldError:         cause.Error(),
 			"application_id":   lr.ApplicationID,
 			fieldLoanAccountID: lr.LoanAccountID,
 		},
@@ -603,22 +664,208 @@ func (b *loanRequestBusiness) persistRequestFailure(
 	return fmt.Errorf("%s: %w", stage, cause)
 }
 
+// persistDisbursementUnconfirmed marks a loan request whose disbursement call
+// failed without a verdict. Unlike persistRequestFailure it keeps the
+// outstanding-loan slot reserved: a transport error is not evidence that the
+// money stayed put, and letting the client borrow again would risk two live
+// loans. The next request for the same client reconciles the row.
+func (b *loanRequestBusiness) persistDisbursementUnconfirmed(
+	ctx context.Context,
+	lr *models.LoanRequest,
+	cause error,
+) error {
+	logger := util.Log(ctx)
+
+	lr.Status = int32(models.LoanRequestStatusDisbursementUnconfirmed)
+	lr.DeniedReason = fmt.Sprintf("%s: %s", stageDisburse, cause.Error())
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		logger.WithError(saveErr).Error("could not persist unconfirmed disbursement")
+	}
+
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: entityLoanRequest,
+		EntityID:   lr.GetID(),
+		Action:     "seed.loan_request.disbursement_unconfirmed",
+		Reason:     lr.DeniedReason,
+		After:      data.JSONMap{fieldStatus: lr.Status},
+		Metadata: data.JSONMap{
+			"stage":            stageDisburse,
+			fieldError:         cause.Error(),
+			fieldLoanAccountID: lr.LoanAccountID,
+			fieldClientID:      lr.ClientID,
+		},
+		Parent: &lr.BaseModel,
+	}, func(auErr error) {
+		logger.WithError(auErr).Warn("audit emission failed for unconfirmed disbursement")
+	})
+
+	return fmt.Errorf("%s: %w", stageDisburse, cause)
+}
+
+// reconcileUnconfirmedDisbursement settles a prior request left in the
+// DisbursementUnconfirmed state by asking the loans service whether the
+// disbursement carrying its idempotency key exists. Found means the money
+// moved and the reserved slot is genuinely taken; absent means it never
+// happened and the slot goes back. An unreachable loans service leaves the
+// row and the slot untouched: the new request is refused rather than risking
+// a second live loan.
+func (b *loanRequestBusiness) reconcileUnconfirmedDisbursement(
+	ctx context.Context,
+	logger *util.LogEntry,
+	clientID, currencyCode string,
+) {
+	stuck, err := b.lrRepo.GetUnconfirmedDisbursement(ctx, clientID, currencyCode)
+	if err != nil {
+		if !errors.Is(err, repository.ErrLoanRequestNotFound) {
+			logger.WithError(err).Error("could not look up an unconfirmed disbursement")
+		}
+		return
+	}
+
+	disbID, found, findErr := b.loanCreator.FindDisbursement(
+		ctx, stuck.LoanAccountID, disbursementKey(stuck.GetID()))
+	if findErr != nil {
+		logger.WithError(findErr).
+			Error("could not reconcile an unconfirmed disbursement; the loan slot stays reserved")
+		return
+	}
+
+	if found {
+		b.settleConfirmedDisbursement(ctx, logger, stuck, disbID)
+		return
+	}
+	b.settleAbsentDisbursement(ctx, logger, stuck)
+}
+
+// settleConfirmedDisbursement records that the money did move: the request is
+// Disbursed, the lifetime totals are stamped, and the slot stays reserved.
+func (b *loanRequestBusiness) settleConfirmedDisbursement(
+	ctx context.Context,
+	logger *util.LogEntry,
+	lr *models.LoanRequest,
+	disbursementID string,
+) {
+	now := time.Now().UTC()
+	lr.DisbursementID = disbursementID
+	lr.Status = int32(models.LoanRequestStatusDisbursed)
+	lr.DisbursedAt = &now
+	lr.DeniedReason = ""
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		logger.WithError(saveErr).Error("could not persist a reconciled disbursement")
+	}
+	if _, borrowErr := b.cpRepo.AtomicRecordBorrowedAmount(ctx, lr.CreditProfileID, lr.Amount); borrowErr != nil {
+		logger.WithError(borrowErr).Error("could not record borrowed totals after reconciliation")
+	}
+
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: entityLoanRequest,
+		EntityID:   lr.GetID(),
+		Action:     "seed.loan_request.disbursement_confirmed",
+		Reason:     "reconciliation found the disbursement downstream",
+		After: data.JSONMap{
+			fieldStatus:       lr.Status,
+			"disbursement_id": lr.DisbursementID,
+		},
+		Metadata: data.JSONMap{
+			fieldLoanAccountID: lr.LoanAccountID,
+			fieldClientID:      lr.ClientID,
+		},
+		Parent: &lr.BaseModel,
+	}, func(auErr error) {
+		logger.WithError(auErr).Warn("audit emission failed for disbursement confirmation")
+	})
+}
+
+// settleAbsentDisbursement records that the money never moved: the request is
+// Failed and the outstanding-loan slot is released so the client can borrow.
+func (b *loanRequestBusiness) settleAbsentDisbursement(
+	ctx context.Context,
+	logger *util.LogEntry,
+	lr *models.LoanRequest,
+) {
+	lr.Status = int32(models.LoanRequestStatusFailed)
+	lr.DeniedReason = stageDisburse + ": no disbursement was recorded downstream"
+	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
+		logger.WithError(saveErr).Error("could not persist a reconciled failed request")
+	}
+	b.releaseSlot(ctx, logger, lr.CreditProfileID)
+
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: entityLoanRequest,
+		EntityID:   lr.GetID(),
+		Action:     "seed.loan_request.disbursement_reversed",
+		Reason:     lr.DeniedReason,
+		After:      data.JSONMap{fieldStatus: lr.Status},
+		Metadata: data.JSONMap{
+			fieldLoanAccountID: lr.LoanAccountID,
+			fieldClientID:      lr.ClientID,
+		},
+		Parent: &lr.BaseModel,
+	}, func(auErr error) {
+		logger.WithError(auErr).Warn("audit emission failed for disbursement reversal")
+	})
+}
+
+// storedRequestError maps a stored loan request onto the error its status
+// implies, so an idempotent replay of a request that did not succeed is not
+// answered as a success.
+func storedRequestError(lr *models.LoanRequest) error {
+	switch models.LoanRequestStatus(lr.Status) {
+	case models.LoanRequestStatusEligibilityFailed:
+		return apperrors.NewError(apperrors.Unprocessable,
+			"the loan request did not pass eligibility")
+	case models.LoanRequestStatusFailed:
+		return apperrors.NewError(apperrors.Unprocessable,
+			"the loan request failed before the money moved")
+	case models.LoanRequestStatusDisbursementUnconfirmed:
+		return apperrors.NewError(apperrors.Conflict,
+			"a prior disbursement is awaiting reconciliation")
+	case models.LoanRequestStatusCancelled:
+		return apperrors.NewError(apperrors.Conflict, "the loan request was cancelled")
+	case models.LoanRequestStatusUnspecified,
+		models.LoanRequestStatusSubmitted,
+		models.LoanRequestStatusApproved,
+		models.LoanRequestStatusDisbursed:
+		return nil
+	}
+	return nil
+}
+
+// disbursementKey is the idempotency key seed hands the loans service for a
+// loan request's disbursement. It is derived, not stored, so reconciliation
+// can rebuild it from the request id alone.
+func disbursementKey(loanRequestID string) string {
+	return "seed:" + loanRequestID
+}
+
+// releaseSlot returns the outstanding-loan slot reserved before origination.
+func (b *loanRequestBusiness) releaseSlot(ctx context.Context, logger *util.LogEntry, profileID string) {
+	if profileID == "" {
+		return
+	}
+	if err := b.cpRepo.AtomicReleaseLoanSlot(ctx, profileID); err != nil {
+		logger.WithError(err).Error("could not release reserved loan slot")
+	}
+}
+
 // validateRequestInput performs cheap structural validation on the
 // incoming RequestLoanInput. Business rules (KYC, limit, status) are
 // enforced later in the pipeline; these checks catch missing required
 // fields before we commit any state.
 func validateRequestInput(req RequestLoanInput) error {
-	if req.ClientID == "" {
-		return errors.New("client id is required")
-	}
-	if req.ProductID == "" {
-		return errors.New("product id is required")
-	}
-	if req.CurrencyCode == "" {
-		return errors.New("currency code is required")
-	}
-	if req.Amount <= 0 {
-		return errors.New("amount must be positive")
+	switch {
+	case req.ClientID == "":
+		return apperrors.NewError(apperrors.BadRequest, "client id is required")
+	case req.ProductID == "":
+		return apperrors.NewError(apperrors.BadRequest, "product id is required")
+	case req.CurrencyCode == "":
+		return apperrors.NewError(apperrors.BadRequest, "currency code is required")
+	case req.Amount <= 0:
+		return apperrors.NewError(apperrors.BadRequest, "amount must be positive")
+	case strings.TrimSpace(req.IdempotencyKey) == "":
+		// Without a key, a retried request originates a second loan and two
+		// rows collide on the partial unique index.
+		return apperrors.NewError(apperrors.BadRequest, "idempotency key is required")
 	}
 	return nil
 }

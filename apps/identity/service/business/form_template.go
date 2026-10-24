@@ -16,11 +16,12 @@ package business
 
 import (
 	"context"
-	"strconv"
+	"errors"
+	"fmt"
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
@@ -62,6 +63,9 @@ func (b *formTemplateBusiness) Save(
 	logger := util.Log(ctx).WithField("method", "FormTemplateBusiness.Save")
 
 	ft := models.FormTemplateFromAPI(ctx, obj)
+	if err := carryStoredTenancy(ctx, b.formTemplateRepo, ft); err != nil {
+		return nil, err
+	}
 
 	if ft.Status == 0 {
 		ft.Status = int32(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_DRAFT)
@@ -93,14 +97,11 @@ func (b *formTemplateBusiness) Search(
 
 	var searchOpts []data.SearchOption
 
-	cursor := req.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+	cursorOpts, cursorErr := cursorSearchOptions(req.GetCursor())
+	if cursorErr != nil {
+		return cursorErr
 	}
+	searchOpts = append(searchOpts, cursorOpts...)
 
 	andQueryVal := map[string]any{}
 	if req.GetOrganizationId() != "" {
@@ -153,13 +154,24 @@ func (b *formTemplateBusiness) Publish(ctx context.Context, id string) (*identit
 		return nil, ErrFormTemplateNotDraft
 	}
 
-	ft.Status = int32(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_PUBLISHED)
-	ft.Version++
-
-	if errEmit := b.eventsMan.Emit(ctx, events.FormTemplateSaveEvent, ft); errEmit != nil {
-		logger.WithError(errEmit).Error("could not emit form template publish event")
-		return nil, errEmit
+	// The status flip and the version bump are one conditional statement, so
+	// a concurrent publish cannot bump the version twice or land on a
+	// template that already left draft.
+	published, err := b.formTemplateRepo.Publish(
+		ctx,
+		id,
+		actorFromClaims(ctx),
+		int32(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_DRAFT),
+		int32(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_PUBLISHED),
+	)
+	switch {
+	case err == nil:
+	case errors.Is(err, repository.ErrFormTemplateNotInStatus):
+		return nil, ErrFormTemplateNotDraft
+	default:
+		logger.WithError(err).Error("could not publish form template")
+		return nil, fmt.Errorf("publish form template: %w", err)
 	}
 
-	return ft.ToAPI(), nil
+	return published.ToAPI(), nil
 }

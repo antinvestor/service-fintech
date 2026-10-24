@@ -17,33 +17,34 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
-	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
 	fundingpb "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/setup"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/setup"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
-
-	auditmw "github.com/antinvestor/common/audit"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/funding/config"
 	"github.com/antinvestor/service-fintech/apps/funding/service/business"
@@ -51,6 +52,9 @@ import (
 	fundinghandlers "github.com/antinvestor/service-fintech/apps/funding/service/handlers"
 	fundingmodels "github.com/antinvestor/service-fintech/apps/funding/service/models"
 	"github.com/antinvestor/service-fintech/apps/funding/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/bootcheck"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
 	stawimodels "github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	stawirepo "github.com/antinvestor/service-fintech/apps/stawi/service/repository"
@@ -73,14 +77,24 @@ func main() {
 		cfg.ServiceName = "service_funding"
 	}
 
+	// Refuse to serve on an environment that is unsafe outside local
+	// development (docs/runbook/required-environment.md).
+	if err = bootcheck.Validate(tmpCtx, &cfg); err != nil {
+		util.Log(tmpCtx).WithError(err).Fatal("environment is not deployment-safe")
+	}
+
 	ctx, svc := frame.NewServiceWithContext(
 		tmpCtx,
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
 
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -96,6 +110,13 @@ func main() {
 	}
 
 	sm := svc.SecurityManager()
+
+	// RPC-level audit delivery. Required when running securely; a nil client
+	// is tolerated (and logged) only for local development.
+	auditCli, err := clients.ResolveAuditClient(ctx, &cfg, cfg.IsRunSecurely(), cfg.AuditConfig)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup audit client")
+	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
@@ -124,9 +145,11 @@ func main() {
 	// Limits client. Optional — when LimitsServiceURI is empty, SetupClient
 	// returns nil and the gate is disabled at runtime regardless of the config flag.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if limitsErr != nil {
-		log.WithError(limitsErr).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"funding_deposit":  cfg.LimitsGateEnabledFundingDeposit,
+		"funding_withdraw": cfg.LimitsGateEnabledFundingWithdraw,
+	}); gateErr != nil {
+		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
 	}
 
 	serviceOptions := setupServiceOptions(
@@ -139,6 +162,7 @@ func main() {
 		operationsCli,
 		limitsCli,
 		cfg,
+		auditCli,
 	)
 
 	svc.Init(ctx, serviceOptions...)
@@ -159,12 +183,15 @@ func setupServiceOptions(
 	operationsCli operationsv1connect.OperationsServiceClient,
 	limitsCli limitsv1connect.LimitsServiceClient,
 	cfg aconfig.FundingConfig,
+	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	// Funding repositories
 	lfRepo := repository.NewLoanFundingRepository(ctx, dbPool, workMan)
-	faRepo := repository.NewFundingAllocationRepository(ctx, dbPool, workMan)
+	claimRepo := repository.NewLoanFundingClaimRepository(ctx, dbPool, workMan)
+	lossRepo := repository.NewLossAbsorptionRepository(ctx, dbPool, workMan)
 	ftRepo := repository.NewFundingTrancheRepository(ctx, dbPool, workMan)
 	iaRepo := repository.NewInvestorAccountRepository(ctx, dbPool, workMan)
+	icmRepo := repository.NewInvestorCapitalMovementRepository(ctx, dbPool, workMan)
 	auditRepo := audit.NewRepository(ctx, dbPool, workMan)
 	auditWriter := audit.NewWriter(evtsMan)
 
@@ -181,16 +208,18 @@ func setupServiceOptions(
 		ctx,
 		evtsMan,
 		lfRepo,
-		faRepo,
+		claimRepo,
+		lossRepo,
 		&loanRequestAdapter{repo: loRepo, loanMgmtCli: loanMgmtCli},
 		iaRepo,
 		ftRepo,
-		platformClients,
+		business.NewSourceBalances(platformClients),
 	)
 	iaBiz := business.NewInvestorAccountBusiness(
 		ctx,
 		evtsMan,
 		iaRepo,
+		icmRepo,
 		operationsCli,
 		auditWriter,
 		limitsCli,
@@ -201,14 +230,13 @@ func setupServiceOptions(
 	)
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
 		frame.WithRegisterEvents(
 			fundingevents.NewLoanFundingSave(ctx, lfRepo),
-			fundingevents.NewFundingAllocationSave(ctx, faRepo),
 			fundingevents.NewFundingTrancheSave(ctx, ftRepo),
 			fundingevents.NewInvestorAccountSave(ctx, iaRepo),
 			audit.NewEventSave(ctx, auditRepo),
@@ -250,10 +278,17 @@ func (a *loanRequestAdapter) GetByID(ctx context.Context, id string) (*business.
 	if a.loanMgmtCli != nil {
 		resp, err := a.loanMgmtCli.LoanRequestGet(
 			ctx,
-			connect.NewRequest(&loansv1.LoanRequestGetRequest{Id: id}),
+			&loansv1.LoanRequestGetRequest{Id: id},
 		)
-		if err == nil && resp.Msg.GetData() != nil {
-			return loanRequestToRequestInfo(resp.Msg.GetData()), nil
+		if err == nil && resp.GetData() != nil {
+			info, convErr := loanRequestToRequestInfo(resp.GetData())
+			if convErr != nil {
+				// A malformed rate must not be funded as 0%: skip the loan.
+				util.Log(ctx).WithError(convErr).WithField("loan_request_id", id).
+					Warn("skipping loan request with an unparseable interest rate")
+				return nil, fmt.Errorf("loan request %s: %w", id, convErr)
+			}
+			return info, nil
 		}
 	}
 
@@ -273,9 +308,9 @@ func loanOfferToRequestInfo(o *stawimodels.LoanOffer) *business.LoanRequestInfo 
 	return info
 }
 
-func loanRequestToRequestInfo(lr *loansv1.LoanRequestObject) *business.LoanRequestInfo {
+func loanRequestToRequestInfo(lr *loansv1.LoanRequestObject) (*business.LoanRequestInfo, error) {
 	if lr == nil {
-		return nil
+		return nil, nil //nolint:nilnil // absent request maps to absent info, as before
 	}
 
 	amount, currency := fundingmodels.MoneyToMinorUnits(lr.GetApprovedAmount())
@@ -287,7 +322,11 @@ func loanRequestToRequestInfo(lr *loansv1.LoanRequestObject) *business.LoanReque
 	if properties == nil {
 		properties = data.JSONMap{}
 	}
-	properties["interest_rate"] = float64(fundingmodels.StringToBasisPoints(lr.GetInterestRate()))
+	rate, err := fundingmodels.ParseRate(lr.GetInterestRate())
+	if err != nil {
+		return nil, fmt.Errorf("parse interest rate %q: %w", lr.GetInterestRate(), err)
+	}
+	properties["interest_rate"] = float64(rate)
 
 	info := &business.LoanRequestInfo{
 		Amount:     amount,
@@ -296,7 +335,7 @@ func loanRequestToRequestInfo(lr *loansv1.LoanRequestObject) *business.LoanReque
 	}
 	info.GenID(context.Background())
 	info.ID = lr.GetId()
-	return info
+	return info, nil
 }
 
 func setupConnectServer(
@@ -305,6 +344,7 @@ func setupConnectServer(
 	_ pool.Pool,
 	iaBiz business.InvestorAccountBusiness,
 	faBiz business.FundingAllocationBusiness,
+	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz)
 
@@ -319,21 +359,20 @@ func setupConnectServer(
 	functionChecker := authorizer.NewFunctionChecker(auth, svcPerms.Namespace)
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
-	fundingAuditInterceptor := auditmw.NewInterceptor("service_funding", nil)
+	fundingAuditInterceptor := clients.AuditInterceptor("service_funding", auditCli)
 
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
 		ctx, sm.GetAuthenticator(ctx),
-		tenancyAccessInterceptor, functionAccessInterceptor, fundingAuditInterceptor)
+		tenancyAccessInterceptor, tenantassert.Interceptor(), functionAccessInterceptor, fundingAuditInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}
 
-	interceptorOption := connect.WithInterceptors(defaultInterceptorList...)
-
-	fundingPath, fundingServerHandler := fundingv1connect.NewFundingServiceHandler(fundingHandler, interceptorOption)
+	server := connect.NewServer(defaultInterceptorList...)
+	fundingv1connect.RegisterFundingServiceHandler(server, fundingHandler)
 
 	mux := http.NewServeMux()
-	mux.Handle(fundingPath, fundingServerHandler)
+	connecthttp.Mount(mux, server)
 
 	return mux
 }

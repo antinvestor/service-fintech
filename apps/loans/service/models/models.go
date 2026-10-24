@@ -18,18 +18,26 @@ import (
 	"context"
 	"time"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // ---------------------------------------------------------------------------
 // LoanAccount
 // ---------------------------------------------------------------------------
 
+// LoanAccount is a disbursed or pending loan.
+//
+// Uniqueness on this table, and on the others in this package, is
+// partition-scoped and lives in apps/loans/migrations rather than in these
+// tags: a unique index declared here is enforced across every tenant in the
+// table, which row-level security does not narrow.
 type LoanAccount struct {
 	data.BaseModel
-	LoanRequestID                 string `gorm:"type:varchar(50);uniqueIndex:uq_loan_request"`
+	LoanRequestID                 string `gorm:"type:varchar(50);index:idx_la_loan_request"`
 	ProductID                     string `gorm:"type:varchar(50);index:idx_la_product"`
 	ClientID                      string `gorm:"type:varchar(50);index:idx_la_client"`
 	AgentID                       string `gorm:"type:varchar(50);index:idx_la_agent"`
@@ -286,7 +294,7 @@ func ScheduleEntryFromAPI(ctx context.Context, obj *loansv1.ScheduleEntryObject)
 
 type LoanBalance struct {
 	data.BaseModel
-	LoanAccountID        string `gorm:"type:varchar(50);uniqueIndex:uq_lb_loan"`
+	LoanAccountID        string `gorm:"type:varchar(50);index:idx_lb_loan"`
 	CurrencyCode         string `gorm:"type:varchar(3)"`
 	PrincipalOutstanding int64
 	InterestAccrued      int64
@@ -323,7 +331,7 @@ type LoanProduct struct {
 	data.BaseModel
 	OrganizationID       string `gorm:"type:varchar(50);index:idx_lp_organization"`
 	Name                 string `gorm:"type:varchar(255)"`
-	Code                 string `gorm:"type:varchar(50);uniqueIndex:uq_lp_code"`
+	Code                 string `gorm:"type:varchar(50);index:idx_lp_code"`
 	Description          string `gorm:"type:text"`
 	ProductType          int32
 	CurrencyCode         string `gorm:"type:varchar(3)"`
@@ -442,11 +450,29 @@ type Repayment struct {
 	FeesApplied         int64
 	PenaltiesApplied    int64
 	ExcessAmount        int64
-	IdempotencyKey      string `gorm:"type:varchar(100);uniqueIndex:uq_rep_idem"`
+	IdempotencyKey      string `gorm:"type:varchar(100);index:idx_rep_idem"`
 	Properties          data.JSONMap
+	// CollectedBy is the profile of the staff member or field agent who
+	// recorded the repayment, from the caller's claims. Empty when the
+	// borrower paid directly. Cash collected in the field is reconciled
+	// against this person.
+	CollectedBy string `gorm:"type:varchar(50);index:idx_rep_collector"`
 }
 
 func (m *Repayment) TableName() string { return "repayments" }
+
+// apiPropertiesStruct exposes the collector on the wire until the proto
+// carries a field for it, without mutating the stored properties.
+func (m *Repayment) apiPropertiesStruct() *structpb.Struct {
+	out := data.JSONMap{}
+	for k, v := range m.Properties {
+		out[k] = v
+	}
+	if m.CollectedBy != "" {
+		out["collected_by"] = m.CollectedBy
+	}
+	return out.ToProtoStruct()
+}
 
 func (m *Repayment) ToAPI() *loansv1.RepaymentObject {
 	cc := m.CurrencyCode
@@ -466,7 +492,7 @@ func (m *Repayment) ToAPI() *loansv1.RepaymentObject {
 		PenaltiesApplied:    MinorUnitsToMoney(m.PenaltiesApplied, cc),
 		ExcessAmount:        MinorUnitsToMoney(m.ExcessAmount, cc),
 		IdempotencyKey:      m.IdempotencyKey,
-		Properties:          m.Properties.ToProtoStruct(),
+		Properties:          m.apiPropertiesStruct(),
 	}
 }
 
@@ -701,7 +727,7 @@ type Disbursement struct {
 	Channel             string `gorm:"type:varchar(50)"`
 	RecipientReference  string `gorm:"type:varchar(100)"`
 	FailureReason       string `gorm:"type:text"`
-	IdempotencyKey      string `gorm:"type:varchar(100);uniqueIndex:uq_disb_idem"`
+	IdempotencyKey      string `gorm:"type:varchar(100);index:idx_disb_idem"`
 	Properties          data.JSONMap
 }
 

@@ -18,11 +18,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'limits_transport_provider.dart';
 
 /// Read-only verdict preview. Used by PolicyVerdictPlayground.
-final checkProvider =
-    FutureProvider.family<CheckResponse, LimitIntent>(
-  (ref, intent) async {
-    final client = ref.watch(limitsServiceClientProvider);
-    final response = await client.check(CheckRequest(intent: intent));
-    return response;
-  },
-);
+final checkProvider = FutureProvider.family<CheckResponse, LimitIntent>((
+  ref,
+  intent,
+) async {
+  final client = ref.watch(limitsServiceClientProvider);
+  final response = await client.check(CheckRequest(intent: intent));
+  return response;
+});

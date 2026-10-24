@@ -30,6 +30,10 @@ class AuditFeedScreen extends ConsumerStatefulWidget {
 class _AuditFeedScreenState extends ConsumerState<AuditFeedScreen> {
   AuditSearchParams _params = const AuditSearchParams();
 
+  /// The cursor of each page the operator has walked back through, so "newer"
+  /// can return to where they were.
+  final List<String> _pageStack = [];
+
   @override
   Widget build(BuildContext context) {
     final asyncList = ref.watch(auditSearchProvider(_params));
@@ -49,7 +53,10 @@ class _AuditFeedScreenState extends ConsumerState<AuditFeedScreen> {
           const ShadowBreachAlert(),
           AuditEventFilters(
             params: _params,
-            onChanged: (p) => setState(() => _params = p),
+            onChanged: (p) => setState(() {
+              _params = p;
+              _pageStack.clear();
+            }),
           ),
           const Divider(height: 24),
           asyncList.when(
@@ -59,13 +66,39 @@ class _AuditFeedScreenState extends ConsumerState<AuditFeedScreen> {
                 child: CircularProgressIndicator(),
               ),
             ),
-            error: (e, _) => Center(child: Text('Failed: $e')),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Text('Failed: $e'),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    onPressed: () =>
+                        ref.invalidate(auditSearchProvider(_params)),
+                  ),
+                ],
+              ),
+            ),
             data: (events) {
               if (events.isEmpty) {
-                return const Center(child: Text('No audit events match.'));
+                return Column(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('No audit events match.'),
+                    ),
+                    if (_pageStack.isNotEmpty) _pager(events),
+                  ],
+                );
               }
               return Column(
-                children: [for (final e in events) AuditEventTile(event: e)],
+                children: [
+                  for (final e in events) AuditEventTile(event: e),
+                  const SizedBox(height: 12),
+                  _pager(events),
+                ],
               );
             },
           ),
@@ -73,4 +106,34 @@ class _AuditFeedScreenState extends ConsumerState<AuditFeedScreen> {
       ),
     );
   }
+
+  Widget _pager(List<dynamic> events) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      TextButton.icon(
+        icon: const Icon(Icons.chevron_left),
+        label: const Text('Newer'),
+        onPressed: _pageStack.isEmpty
+            ? null
+            : () => setState(() {
+                _pageStack.removeLast();
+                _params = _params.copyWith(
+                  page: _pageStack.isEmpty ? '' : _pageStack.last,
+                );
+              }),
+      ),
+      const SizedBox(width: 16),
+      TextButton.icon(
+        icon: const Icon(Icons.chevron_right),
+        label: const Text('Older'),
+        onPressed: events.length < auditPageSize
+            ? null
+            : () => setState(() {
+                final lastId = events.last.id as String;
+                _pageStack.add(lastId);
+                _params = _params.copyWith(page: lastId);
+              }),
+      ),
+    ],
+  );
 }

@@ -16,24 +16,21 @@ package business
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
-	"github.com/pitabwire/util/decimalx"
+	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/calculation"
 )
 
 const (
-	// decimalPrecisionRS is the number of decimal places for minor unit conversions (cents).
-	decimalPrecisionRS = 2
 	// daysPerWeekRS is the number of days in a weekly period.
 	daysPerWeekRS = 7
 	// daysPerBiweekRS is the number of days in a biweekly period.
@@ -42,8 +39,50 @@ const (
 	daysPerMonthRS = 30
 )
 
+// ScheduleResult carries the freshly generated schedule alongside its
+// entries, so callers that have to derive further state from the schedule
+// (the opening loan balance, for instance) can read it in memory instead of
+// racing the asynchronous persistence of the entries.
+type ScheduleResult struct {
+	Schedule *models.RepaymentSchedule
+	Entries  []*models.ScheduleEntry
+}
+
+// API renders the result as the proto schedule object.
+func (r *ScheduleResult) API() *loansv1.RepaymentScheduleObject {
+	return r.Schedule.ToAPI(r.Entries)
+}
+
+// TotalInterest returns the interest the schedule expects to collect.
+func (r *ScheduleResult) TotalInterest() int64 {
+	var total int64
+	for _, e := range r.Entries {
+		total += e.InterestDue
+	}
+	return total
+}
+
+// TotalFees returns the fees (insurance plus processing) the schedule expects
+// to collect.
+func (r *ScheduleResult) TotalFees() int64 {
+	var total int64
+	for _, e := range r.Entries {
+		total += e.FeesDue
+	}
+	return total
+}
+
 type RepaymentScheduleBusiness interface {
 	Generate(ctx context.Context, loanAccountID string) (*loansv1.RepaymentScheduleObject, error)
+	// GenerateFor builds a schedule for a loan account already held in
+	// memory, amortising principalMinor rather than the account's original
+	// principal. Restructures pass the outstanding principal; new loans pass
+	// the full principal.
+	GenerateFor(
+		ctx context.Context,
+		la *models.LoanAccount,
+		principalMinor int64,
+	) (*ScheduleResult, error)
 	GetActive(ctx context.Context, loanAccountID string) (*loansv1.RepaymentScheduleObject, error)
 }
 
@@ -76,58 +115,78 @@ func (b *repaymentScheduleBusiness) Generate(
 	ctx context.Context,
 	loanAccountID string,
 ) (*loansv1.RepaymentScheduleObject, error) {
-	logger := util.Log(ctx).WithField("method", "RepaymentScheduleBusiness.Generate")
-
 	la, err := b.loanAccountRepo.GetByID(ctx, loanAccountID)
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
 	}
 
-	// Deactivate any existing active schedule
-	existingSchedule, existErr := b.scheduleRepo.GetActivByLoanAccountID(ctx, loanAccountID)
-	if existErr == nil && existingSchedule != nil {
-		existingSchedule.IsActive = false
-		err = b.eventsMan.Emit(ctx, events.RepaymentScheduleSaveEvent, existingSchedule)
-		if err != nil {
-			logger.WithError(err).Warn("could not deactivate existing schedule")
-		}
+	result, err := b.GenerateFor(ctx, la, la.PrincipalAmount)
+	if err != nil {
+		return nil, err
+	}
+	return result.API(), nil
+}
+
+func (b *repaymentScheduleBusiness) GenerateFor(
+	ctx context.Context,
+	la *models.LoanAccount,
+	principalMinor int64,
+) (*ScheduleResult, error) {
+	logger := util.Log(ctx).WithField("method", "RepaymentScheduleBusiness.GenerateFor")
+
+	if la == nil {
+		return nil, ErrLoanAccountNotFound
+	}
+	if principalMinor <= 0 {
+		return nil, apperrors.NewError(apperrors.Unprocessable,
+			"cannot generate a repayment schedule for a non-positive principal")
 	}
 
-	// Create new schedule
 	now := time.Now().UTC()
 	schedule := &models.RepaymentSchedule{
-		LoanAccountID: loanAccountID,
+		LoanAccountID: la.GetID(),
 		Version:       1,
 		IsActive:      true,
 		GeneratedAt:   &now,
 	}
-	if existingSchedule != nil {
+
+	existingSchedule, existErr := b.scheduleRepo.GetActivByLoanAccountID(ctx, la.GetID())
+	if existErr == nil && existingSchedule != nil {
 		schedule.Version = existingSchedule.Version + 1
 	}
 	schedule.GenID(ctx)
 
-	err = b.eventsMan.Emit(ctx, events.RepaymentScheduleSaveEvent, schedule)
+	entryModels, err := b.generateScheduleEntries(ctx, la, schedule, principalMinor)
 	if err != nil {
+		return nil, err
+	}
+
+	// The schedule and its entries are only published once the entries have
+	// been built and validated, so a rejected schedule never leaves a
+	// half-written version behind.
+	if existingSchedule != nil {
+		existingSchedule.IsActive = false
+		if deactivateErr := b.eventsMan.Emit(
+			ctx, events.RepaymentScheduleSaveEvent, existingSchedule,
+		); deactivateErr != nil {
+			logger.WithError(deactivateErr).Error("could not deactivate existing schedule")
+			return nil, deactivateErr
+		}
+	}
+
+	if err = b.eventsMan.Emit(ctx, events.RepaymentScheduleSaveEvent, schedule); err != nil {
 		logger.WithError(err).Error("could not emit repayment schedule save event")
 		return nil, err
 	}
 
-	// Generate entries using calculation package with product parameters
-	entryModels, err := b.generateScheduleEntries(ctx, la, schedule)
-	if err != nil {
-		logger.WithError(err).Error("could not generate schedule entries")
-		return nil, err
-	}
-
 	for _, entry := range entryModels {
-		emitErr := b.eventsMan.Emit(ctx, events.ScheduleEntrySaveEvent, entry)
-		if emitErr != nil {
+		if emitErr := b.eventsMan.Emit(ctx, events.ScheduleEntrySaveEvent, entry); emitErr != nil {
 			logger.WithError(emitErr).Error("could not emit schedule entry save event")
 			return nil, emitErr
 		}
 	}
 
-	return schedule.ToAPI(entryModels), nil
+	return &ScheduleResult{Schedule: schedule, Entries: entryModels}, nil
 }
 
 func (b *repaymentScheduleBusiness) GetActive(
@@ -153,49 +212,40 @@ func (b *repaymentScheduleBusiness) generateScheduleEntries(
 	ctx context.Context,
 	la *models.LoanAccount,
 	schedule *models.RepaymentSchedule,
+	principalMinor int64,
 ) ([]*models.ScheduleEntry, error) {
-	// Load loan product for fee rates
 	lp, err := b.loanProductRepo.GetByID(ctx, la.ProductID)
 	if err != nil {
-		return nil, fmt.Errorf("could not load loan product: %w", err)
+		return nil, ErrLoanProductNotFound
 	}
 
-	// Determine installment count from term and frequency
 	numInstallments := computeInstallmentCount(la.TermDays, loansv1.RepaymentFrequency(la.RepaymentFrequency))
 	if numInstallments <= 0 {
 		numInstallments = 1
 	}
 
-	// Use interest rate from loan account (may override product)
 	interestRate := la.InterestRate
 	if interestRate == 0 {
 		interestRate = lp.AnnualInterestRate
 	}
 
-	// Calculate first due date
-	var firstDueDate time.Time
-	switch {
-	case la.FirstRepaymentDate != nil:
-		firstDueDate = *la.FirstRepaymentDate
-	case la.DisbursedAt != nil:
-		firstDueDate = advanceByFrequency(*la.DisbursedAt, loansv1.RepaymentFrequency(la.RepaymentFrequency), 1)
-	default:
-		return nil, errors.New("cannot generate schedule: loan has no disbursement date or first repayment date")
+	firstDueDate, dueErr := scheduleFirstDueDate(la)
+	if dueErr != nil {
+		return nil, dueErr
 	}
 
-	// Map repayment frequency to period type used by calculation package
-	periodType := frequencyToPeriodType(loansv1.RepaymentFrequency(la.RepaymentFrequency))
-
-	// Determine interest method: use loan account override, fall back to product
 	interestMethod := la.InterestMethod
 	if interestMethod == 0 {
 		interestMethod = lp.InterestMethod
 	}
 
-	// Generate schedule using product parameters
-	principal := decimalx.FromMinorUnits(la.PrincipalAmount, decimalPrecisionRS)
-	entries := calculation.GenerateScheduleFromProduct(
-		principal,
+	decimals := moneyx.Decimals(la.CurrencyCode)
+	periodType, freqErr := frequencyToPeriodType(loansv1.RepaymentFrequency(la.RepaymentFrequency))
+	if freqErr != nil {
+		return nil, freqErr
+	}
+	entries := calculation.GenerateMinorScheduleFromProduct(
+		principalMinor,
 		interestRate,
 		lp.InsuranceFeePercent,
 		lp.ProcessingFeePercent,
@@ -203,22 +253,21 @@ func (b *repaymentScheduleBusiness) generateScheduleEntries(
 		numInstallments,
 		firstDueDate,
 		periodType,
+		decimals,
 	)
 
-	// Convert calculation entries to model entries
-	var modelEntries []*models.ScheduleEntry
+	modelEntries := make([]*models.ScheduleEntry, 0, len(entries))
 	for _, e := range entries {
-		feesDue := e.FeesDue.Add(e.InsuranceDue).ToMinorUnits(decimalPrecisionRS) // combine into fees
-		principalDue := e.PrincipalDue.ToMinorUnits(decimalPrecisionRS)
-		interestDue := e.InterestDue.ToMinorUnits(decimalPrecisionRS)
-		totalDue := principalDue + interestDue + feesDue
+		dueDate := e.DueDate
+		feesDue := e.FeesDue + e.InsuranceDue
+		totalDue := e.PrincipalDue + e.InterestDue + feesDue
 		entry := &models.ScheduleEntry{
 			ScheduleID:        schedule.GetID(),
 			LoanAccountID:     la.GetID(),
 			InstallmentNumber: e.InstallmentNumber,
-			DueDate:           &e.DueDate,
-			PrincipalDue:      principalDue,
-			InterestDue:       interestDue,
+			DueDate:           &dueDate,
+			PrincipalDue:      e.PrincipalDue,
+			InterestDue:       e.InterestDue,
 			FeesDue:           feesDue,
 			TotalDue:          totalDue,
 			Outstanding:       totalDue,
@@ -229,34 +278,43 @@ func (b *repaymentScheduleBusiness) generateScheduleEntries(
 		modelEntries = append(modelEntries, entry)
 	}
 
-	// Validate schedule invariant: sum of principal must equal loan principal
-	if invariantErr := validateScheduleInvariant(modelEntries, la); invariantErr != nil {
-		return nil, fmt.Errorf("schedule invariant violation: %w", invariantErr)
+	if invariantErr := validateScheduleInvariant(modelEntries, principalMinor); invariantErr != nil {
+		return nil, invariantErr
 	}
 
 	return modelEntries, nil
 }
 
-// validateScheduleInvariant verifies that the sum of all schedule entry
-// principal amounts equals the loan principal. A tolerance of 1 minor unit
-// is allowed to accommodate rounding dust from the last-entry remainder.
-func validateScheduleInvariant(entries []*models.ScheduleEntry, la *models.LoanAccount) error {
+// scheduleFirstDueDate resolves when the first installment falls due.
+func scheduleFirstDueDate(la *models.LoanAccount) (time.Time, error) {
+	switch {
+	case la.FirstRepaymentDate != nil:
+		return *la.FirstRepaymentDate, nil
+	case la.DisbursedAt != nil:
+		return advanceByFrequency(
+			*la.DisbursedAt,
+			loansv1.RepaymentFrequency(la.RepaymentFrequency),
+			1,
+		), nil
+	default:
+		return time.Time{}, apperrors.NewError(apperrors.Unprocessable,
+			"cannot generate a repayment schedule: the loan has no disbursement date "+
+				"and no first repayment date")
+	}
+}
+
+// validateScheduleInvariant verifies that the installments amortise exactly
+// the principal they were generated from. The generator distributes in minor
+// units, so any difference at all means the schedule is wrong, not rounded.
+func validateScheduleInvariant(entries []*models.ScheduleEntry, principalMinor int64) error {
 	var sumPrincipal int64
 	for _, e := range entries {
 		sumPrincipal += e.PrincipalDue
 	}
 
-	const tolerance int64 = 1 // at most 1 minor unit (e.g. 1 cent) of rounding
-	diff := sumPrincipal - la.PrincipalAmount
-	if diff < 0 {
-		diff = -diff
-	}
-
-	if diff > tolerance {
-		return fmt.Errorf(
-			"sum of schedule principal (%d) differs from loan principal (%d) by %d, exceeding tolerance of %d",
-			sumPrincipal, la.PrincipalAmount, diff, tolerance,
-		)
+	if sumPrincipal != principalMinor {
+		return apperrors.NewError(apperrors.Unprocessable,
+			"generated repayment schedule does not amortise the loan principal")
 	}
 	return nil
 }
@@ -268,17 +326,19 @@ const (
 )
 
 // frequencyToPeriodType maps RepaymentFrequency enum to the period type int
-// used by the calculation package (1=WEEKLY, 2=BIWEEKLY, 3=MONTHLY).
-func frequencyToPeriodType(freq loansv1.RepaymentFrequency) int32 {
-	switch freq { //nolint:exhaustive // unspecified and unsupported frequencies default to monthly
+// used by the calculation package (1=WEEKLY, 2=BIWEEKLY, 3=MONTHLY). The
+// calculation package has no daily or quarterly period, so those are refused
+// rather than silently billed as monthly.
+func frequencyToPeriodType(freq loansv1.RepaymentFrequency) (int32, error) {
+	switch freq { //nolint:exhaustive // every other frequency is unsupported
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_WEEKLY:
-		return periodTypeWeeklyRS
+		return periodTypeWeeklyRS, nil
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_BIWEEKLY:
-		return periodTypeBiweeklyRS
+		return periodTypeBiweeklyRS, nil
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_MONTHLY:
-		return periodTypeMonthlyRS
+		return periodTypeMonthlyRS, nil
 	default:
-		return periodTypeMonthlyRS
+		return 0, ErrUnsupportedRepaymentFrequency
 	}
 }
 

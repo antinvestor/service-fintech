@@ -18,15 +18,20 @@ import (
 	"context"
 	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/business"
 )
 
-// defaultReserveTTL applies when the caller does not provide a reservation TTL.
-const defaultReserveTTL = 5 * time.Minute
+const (
+	// defaultReserveTTL applies when the caller does not provide a reservation TTL.
+	defaultReserveTTL = 5 * time.Minute
+	// maxReserveTTL is the server-side ceiling on a caller-requested TTL. The
+	// proto carries no bound, so a client could otherwise pin cap space for
+	// years by asking for a long-lived reservation.
+	maxReserveTTL = time.Hour
+)
 
 // RuntimeService implements limitsv1connect.LimitsServiceHandler. It
 // wraps ReservationBusiness in connect-rpc shape; all business logic
@@ -44,63 +49,66 @@ func NewRuntimeService(biz business.ReservationBusiness) *RuntimeService {
 // Check evaluates a LimitIntent without persisting anything.
 func (s *RuntimeService) Check(
 	ctx context.Context,
-	req *connect.Request[limitsv1.CheckRequest],
-) (*connect.Response[limitsv1.CheckResponse], error) {
-	out, err := s.biz.Check(ctx, req.Msg.GetIntent())
+	req *limitsv1.CheckRequest,
+) (*limitsv1.CheckResponse, error) {
+	out, err := s.biz.Check(ctx, req.GetIntent())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(out), nil
+	return out, nil
 }
 
 // Reserve creates a reservation for the given intent.
 func (s *RuntimeService) Reserve(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
-	ttl := req.Msg.GetTtl().AsDuration()
-	if ttl <= 0 {
+	req *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
+	ttl := req.GetTtl().AsDuration()
+	switch {
+	case ttl <= 0:
 		ttl = defaultReserveTTL
+	case ttl > maxReserveTTL:
+		ttl = maxReserveTTL
 	}
-	out, err := s.biz.Reserve(ctx, req.Msg.GetIntent(), req.Msg.GetIdempotencyKey(), ttl)
+	out, err := s.biz.Reserve(ctx, req.GetIntent(), req.GetIdempotencyKey(), ttl)
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(out), nil
+	return out, nil
 }
 
 // Commit transitions an active reservation to committed and materialises ledger entries.
 func (s *RuntimeService) Commit(
 	ctx context.Context,
-	req *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
-	out, err := s.biz.Commit(ctx, req.Msg.GetReservationId())
+	req *limitsv1.CommitRequest,
+) (*limitsv1.CommitResponse, error) {
+	out, err := s.biz.Commit(ctx, req.GetReservationId())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(out), nil
+	return out, nil
 }
 
 // Release cancels an active or pending-approval reservation.
 func (s *RuntimeService) Release(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ReleaseRequest],
-) (*connect.Response[limitsv1.ReleaseResponse], error) {
-	out, err := s.biz.Release(ctx, req.Msg.GetReservationId(), req.Msg.GetReason())
+	req *limitsv1.ReleaseRequest,
+) (*limitsv1.ReleaseResponse, error) {
+	out, err := s.biz.Release(ctx, req.GetReservationId(), req.GetReason())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(out), nil
+	return out, nil
 }
 
 // Reverse creates a reversal traceability record and marks the committed reservation reversed.
 func (s *RuntimeService) Reverse(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ReverseRequest],
-) (*connect.Response[limitsv1.ReverseResponse], error) {
-	out, err := s.biz.Reverse(ctx, req.Msg.GetReservationId(), req.Msg.GetIdempotencyKey(), req.Msg.GetReason())
+	req *limitsv1.ReverseRequest,
+) (*limitsv1.ReverseResponse, error) {
+	out, err := s.biz.Reverse(ctx, req.GetReservationId(), req.GetIdempotencyKey(), req.GetReason())
 	if err != nil {
-		return nil, err
+		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(out), nil
+	return out, nil
 }

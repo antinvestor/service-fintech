@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const MembershipSaveEvent = "membership.save"
@@ -58,17 +58,8 @@ func (e *MembershipSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "membership_id": membership.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.membershipRepo.GetByID(ctx, membership.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.membershipRepo.Update(ctx, membership); err != nil {
-			logger.WithError(err).Error("could not update membership in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.membershipRepo.Create(ctx, membership); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create membership in db")
+	if err := upsert.ByID(ctx, e.membershipRepo, membership); err != nil {
+		logger.WithError(err).Error("could not save membership in db")
 		return err
 	}
 

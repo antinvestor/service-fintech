@@ -1,6 +1,8 @@
-import 'package:antinvestor_api_identity/antinvestor_api_identity.dart' as common;
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    as common;
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
+import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,8 @@ import '../providers/org_unit_providers.dart';
 import '../providers/organization_providers.dart';
 import '../providers/workforce_member_providers.dart';
 import '../widgets/org_unit_helpers.dart';
+import '../widgets/async_state_views.dart';
+import '../widgets/load_more_action.dart';
 
 class WorkforceMembersScreen extends ConsumerStatefulWidget {
   const WorkforceMembersScreen({
@@ -33,11 +37,8 @@ class _WorkforceMembersScreenState
   String _searchQuery = '';
   String _orgFilter = '';
 
-  WorkforceMemberListParams get _params => (
-        query: _searchQuery,
-        organizationId: _orgFilter,
-        homeOrgUnitId: '',
-      );
+  WorkforceMemberListParams get _params =>
+      (query: _searchQuery, organizationId: _orgFilter, homeOrgUnitId: '');
 
   void _onSearch(String value) {
     setState(() => _searchQuery = value.trim());
@@ -45,8 +46,24 @@ class _WorkforceMembersScreenState
 
   @override
   Widget build(BuildContext context) {
-    final membersAsync = ref.watch(workforceMemberListProvider(_params));
-    final members = membersAsync.whenOrNull(data: (d) => d) ?? [];
+    final provider = workforceMemberPagedListProvider(_params);
+    final membersAsync = ref.watch(provider);
+    if (membersAsync.hasError) {
+      return ListErrorView(
+        title: 'Workforce Members',
+        breadcrumbs: const ['Identity', 'Workforce Members'],
+        error: membersAsync.error!,
+        onRetry: () => ref.invalidate(provider),
+      );
+    }
+    if (membersAsync.isLoading && !membersAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'Workforce Members',
+        breadcrumbs: ['Identity', 'Workforce Members'],
+      );
+    }
+    final page = membersAsync.requireValue;
+    final members = page.items;
     final orgsAsync = ref.watch(organizationListProvider(''));
 
     return AdminEntityListPage<WorkforceMemberObject>(
@@ -66,13 +83,26 @@ class _WorkforceMembersScreenState
               if (widget.onNavigateToCreate != null) {
                 widget.onNavigateToCreate!();
               } else {
-                context.go('/workforce/members/new');
+                _showMemberDialog(context);
               }
             }
           : null,
-      actions: [_buildFilters(orgsAsync)],
+      actions: [
+        _buildFilters(orgsAsync),
+        const SizedBox(width: 8),
+        LoadMoreAction(
+          loadedCount: members.length,
+          hasMore: page.hasMore,
+          isLoading: page.isLoadingMore,
+          errorMessage: page.loadMoreError == null
+              ? null
+              : friendlyError(page.loadMoreError!),
+          onLoadMore: () => ref.read(provider.notifier).loadMore(),
+        ),
+      ],
       rowBuilder: (member, selected, onSelect) {
-        final name = member.hasProperties() &&
+        final name =
+            member.hasProperties() &&
                 member.properties.fields.containsKey('name')
             ? member.properties.fields['name']!.stringValue
             : member.profileId;
@@ -87,11 +117,14 @@ class _WorkforceMembersScreenState
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.badge_outlined,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.primary),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.badge_outlined,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(name),
@@ -99,9 +132,11 @@ class _WorkforceMembersScreenState
               ),
             ),
             DataCell(Text(engagementLabel(member.engagementType))),
-            DataCell(Text(member.homeOrgUnitId.isNotEmpty
-                ? member.homeOrgUnitId
-                : '-')),
+            DataCell(
+              Text(
+                member.homeOrgUnitId.isNotEmpty ? member.homeOrgUnitId : '-',
+              ),
+            ),
             DataCell(Text(member.state.name)),
           ],
         );
@@ -110,7 +145,7 @@ class _WorkforceMembersScreenState
         if (widget.onNavigateToDetail != null) {
           widget.onNavigateToDetail!(member.id);
         } else {
-          context.go('/workforce/members/${member.id}');
+          context.go('/workforce/${member.id}');
         }
       },
       detailBuilder: (member) => _MemberDetail(
@@ -128,16 +163,16 @@ class _WorkforceMembersScreenState
     );
   }
 
-  Widget _buildFilters(
-      AsyncValue<List<OrganizationObject>> orgsAsync) {
-    final orgs = orgsAsync.whenOrNull(data: (d) => d) ?? [];
+  Widget _buildFilters(AsyncValue<List<OrganizationObject>> orgsAsync) {
+    // A failed org lookup only empties this filter; the list itself already
+    // renders its own error state.
+    final orgs = orgsAsync.value ?? const <OrganizationObject>[];
     return DropdownButton<String>(
       value: _orgFilter,
       hint: const Text('All Orgs'),
       underline: const SizedBox.shrink(),
       items: [
-        const DropdownMenuItem(
-            value: '', child: Text('All Organizations')),
+        const DropdownMenuItem(value: '', child: Text('All Organizations')),
         ...orgs.map(
           (o) => DropdownMenuItem(
             value: o.id,
@@ -161,9 +196,7 @@ class _WorkforceMembersScreenState
 
     if (result != null && context.mounted) {
       try {
-        await ref
-            .read(workforceMemberNotifierProvider.notifier)
-            .save(result);
+        await ref.read(workforceMemberNotifierProvider.notifier).save(result);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -202,8 +235,8 @@ class _MemberDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final name = member.hasProperties() &&
-            member.properties.fields.containsKey('name')
+    final name =
+        member.hasProperties() && member.properties.fields.containsKey('name')
         ? member.properties.fields['name']!.stringValue
         : member.profileId;
 
@@ -215,21 +248,29 @@ class _MemberDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(Icons.badge_outlined,
-                  color: theme.colorScheme.primary),
+              child: Icon(
+                Icons.badge_outlined,
+                color: theme.colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(member.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    member.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -244,13 +285,13 @@ class _MemberDetail extends StatelessWidget {
         const SizedBox(height: 20),
         _DetailRow(label: 'Profile ID', value: member.profileId),
         _DetailRow(
-            label: 'Engagement',
-            value: engagementLabel(member.engagementType)),
+          label: 'Engagement',
+          value: engagementLabel(member.engagementType),
+        ),
         _DetailRow(
-            label: 'Org Unit',
-            value: member.homeOrgUnitId.isNotEmpty
-                ? member.homeOrgUnitId
-                : '-'),
+          label: 'Org Unit',
+          value: member.homeOrgUnitId.isNotEmpty ? member.homeOrgUnitId : '-',
+        ),
         _DetailRow(label: 'State', value: member.state.name),
       ],
     );
@@ -271,14 +312,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -291,8 +338,7 @@ class _MemberFormDialog extends ConsumerStatefulWidget {
   final WorkforceMemberObject? member;
 
   @override
-  ConsumerState<_MemberFormDialog> createState() =>
-      _MemberFormDialogState();
+  ConsumerState<_MemberFormDialog> createState() => _MemberFormDialogState();
 }
 
 class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
@@ -310,13 +356,13 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
   void initState() {
     super.initState();
     final m = widget.member;
-    _profileIdController =
-        TextEditingController(text: m?.profileId ?? '');
+    _profileIdController = TextEditingController(text: m?.profileId ?? '');
     _geoIdController = TextEditingController(text: m?.geoId ?? '');
     _selectedOrgId = m?.organizationId ?? '';
     _selectedOrgUnitId = m?.homeOrgUnitId ?? '';
     _engagementTypeCtrl = TextEditingController(
-        text: m?.engagementType ?? 'employee');
+      text: m?.engagementType ?? 'employee',
+    );
     _state = m?.state ?? common.STATE.CREATED;
   }
 
@@ -332,13 +378,15 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orgsAsync = ref.watch(organizationListProvider(''));
-    final orgUnitsAsync = ref.watch(orgUnitListProvider((
-      organizationId: _selectedOrgId,
-      query: '',
-      parentId: '',
-      rootOnly: false,
-      type: OrgUnitType.ORG_UNIT_TYPE_UNSPECIFIED,
-    )));
+    final orgUnitsAsync = ref.watch(
+      orgUnitListProvider((
+        organizationId: _selectedOrgId,
+        query: '',
+        parentId: '',
+        rootOnly: false,
+        type: OrgUnitType.ORG_UNIT_TYPE_UNSPECIFIED,
+      )),
+    );
 
     return AlertDialog(
       title: Row(
@@ -427,14 +475,14 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                 ),
                 FormFieldCard(
                   label: 'Organization',
-                  description:
-                      'The organization this member belongs to.',
+                  description: 'The organization this member belongs to.',
                   isRequired: true,
                   child: orgsAsync.when(
                     loading: () => const LinearProgressIndicator(),
                     error: (e, _) => Text('Failed to load: $e'),
                     data: (orgs) => DropdownButtonFormField<String>(
-                      value: _selectedOrgId.isNotEmpty &&
+                      initialValue:
+                          _selectedOrgId.isNotEmpty &&
                               orgs.any((o) => o.id == _selectedOrgId)
                           ? _selectedOrgId
                           : null,
@@ -446,8 +494,7 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                           .map(
                             (o) => DropdownMenuItem(
                               value: o.id,
-                              child: Text(
-                                  o.name.isNotEmpty ? o.name : o.id),
+                              child: Text(o.name.isNotEmpty ? o.name : o.id),
                             ),
                           )
                           .toList(),
@@ -476,15 +523,14 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                         );
                       }
                       return DropdownButtonFormField<String>(
-                        value: _selectedOrgUnitId.isNotEmpty &&
-                                units.any(
-                                    (u) => u.id == _selectedOrgUnitId)
+                        initialValue:
+                            _selectedOrgUnitId.isNotEmpty &&
+                                units.any((u) => u.id == _selectedOrgUnitId)
                             ? _selectedOrgUnitId
                             : null,
                         decoration: const InputDecoration(
                           hintText: 'Select org unit',
-                          prefixIcon:
-                              Icon(Icons.account_tree_outlined),
+                          prefixIcon: Icon(Icons.account_tree_outlined),
                         ),
                         items: [
                           const DropdownMenuItem(
@@ -494,13 +540,12 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                           ...units.map(
                             (u) => DropdownMenuItem(
                               value: u.id,
-                              child: Text(
-                                  u.name.isNotEmpty ? u.name : u.id),
+                              child: Text(u.name.isNotEmpty ? u.name : u.id),
                             ),
                           ),
                         ],
-                        onChanged: (v) => setState(
-                            () => _selectedOrgUnitId = v ?? ''),
+                        onChanged: (v) =>
+                            setState(() => _selectedOrgUnitId = v ?? ''),
                       );
                     },
                   ),
@@ -522,7 +567,7 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                   description: 'The current status of this member.',
                   isRequired: true,
                   child: DropdownButtonFormField<common.STATE>(
-                    value: _state,
+                    initialValue: _state,
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.toggle_on_outlined),
                     ),
@@ -577,6 +622,9 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
         engagementType: _engagementTypeCtrl.text.trim(),
         geoId: _geoIdController.text.trim(),
         state: _state,
+        // Properties carry the display name and the platform role; rebuilding
+        // the object without them would wipe both on every edit.
+        properties: widget.member?.properties,
       ),
     );
   }

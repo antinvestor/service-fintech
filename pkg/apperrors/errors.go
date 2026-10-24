@@ -16,7 +16,6 @@ package apperrors
 
 import (
 	"fmt"
-	"strings"
 )
 
 const (
@@ -75,7 +74,12 @@ func NewError(code int, message string) *Error {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%d  : - %s  ", e.code, e.message)
+	return e.message
+}
+
+// Message returns the caller-facing description without the code.
+func (e *Error) Message() string {
+	return e.message
 }
 
 func (e *Error) ErrorCode() int {
@@ -87,14 +91,6 @@ func (e *Error) Extend(message string) *Error {
 		code:    e.code,
 		message: fmt.Sprintf("%s - %s", e.message, message),
 	}
-}
-
-func (e *Error) Override(errs ...error) error {
-	extraInfo := make([]string, len(errs))
-	for i, err := range errs {
-		extraInfo[i] = err.Error()
-	}
-	return fmt.Errorf("%w\nAdditional errors:\n%s", e, strings.Join(extraInfo, "\n"))
 }
 
 func (e *Error) IsRetriable() bool {

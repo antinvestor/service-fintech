@@ -3149,6 +3149,8 @@ class WithdrawalSearchRequest extends $pb.GeneratedMessage {
   static WithdrawalSearchRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<WithdrawalSearchRequest>(create);
   static WithdrawalSearchRequest? _defaultInstance;
 
+  /// Optional: when empty, withdrawals across every account the caller can
+  /// see are returned (e.g. an approval queue filtered by status).
   @$pb.TagNumber(1)
   $core.String get savingsAccountId => $_getSZ(0);
   @$pb.TagNumber(1)
@@ -3542,6 +3544,7 @@ class SavingsStatementRequest extends $pb.GeneratedMessage {
     $core.String? savingsAccountId,
     $core.String? fromDate,
     $core.String? toDate,
+    $8.PageCursor? cursor,
   }) {
     final $result = create();
     if (savingsAccountId != null) {
@@ -3553,6 +3556,9 @@ class SavingsStatementRequest extends $pb.GeneratedMessage {
     if (toDate != null) {
       $result.toDate = toDate;
     }
+    if (cursor != null) {
+      $result.cursor = cursor;
+    }
     return $result;
   }
   SavingsStatementRequest._() : super();
@@ -3563,6 +3569,7 @@ class SavingsStatementRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'savingsAccountId')
     ..aOS(2, _omitFieldNames ? '' : 'fromDate')
     ..aOS(3, _omitFieldNames ? '' : 'toDate')
+    ..aOM<$8.PageCursor>(4, _omitFieldNames ? '' : 'cursor', subBuilder: $8.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -3613,6 +3620,18 @@ class SavingsStatementRequest extends $pb.GeneratedMessage {
   $core.bool hasToDate() => $_has(2);
   @$pb.TagNumber(3)
   void clearToDate() => clearField(3);
+
+  /// Page window over the statement entries. Unset returns the first page.
+  @$pb.TagNumber(4)
+  $8.PageCursor get cursor => $_getN(3);
+  @$pb.TagNumber(4)
+  set cursor($8.PageCursor v) { setField(4, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasCursor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCursor() => clearField(4);
+  @$pb.TagNumber(4)
+  $8.PageCursor ensureCursor() => $_ensure(3);
 }
 
 class SavingsStatementResponse extends $pb.GeneratedMessage {
@@ -3620,6 +3639,7 @@ class SavingsStatementResponse extends $pb.GeneratedMessage {
     SavingsAccountObject? account,
     SavingsBalanceObject? balance,
     $core.Iterable<SavingsStatementEntry>? entries,
+    $8.PageCursor? nextCursor,
   }) {
     final $result = create();
     if (account != null) {
@@ -3631,6 +3651,9 @@ class SavingsStatementResponse extends $pb.GeneratedMessage {
     if (entries != null) {
       $result.entries.addAll(entries);
     }
+    if (nextCursor != null) {
+      $result.nextCursor = nextCursor;
+    }
     return $result;
   }
   SavingsStatementResponse._() : super();
@@ -3641,6 +3664,7 @@ class SavingsStatementResponse extends $pb.GeneratedMessage {
     ..aOM<SavingsAccountObject>(1, _omitFieldNames ? '' : 'account', subBuilder: SavingsAccountObject.create)
     ..aOM<SavingsBalanceObject>(2, _omitFieldNames ? '' : 'balance', subBuilder: SavingsBalanceObject.create)
     ..pc<SavingsStatementEntry>(3, _omitFieldNames ? '' : 'entries', $pb.PbFieldType.PM, subBuilder: SavingsStatementEntry.create)
+    ..aOM<$8.PageCursor>(4, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
     ..hasRequiredFields = false
   ;
 
@@ -3689,6 +3713,18 @@ class SavingsStatementResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(3)
   $core.List<SavingsStatementEntry> get entries => $_getList(2);
+
+  /// Cursor for the next page of entries; unset when this page is the last.
+  @$pb.TagNumber(4)
+  $8.PageCursor get nextCursor => $_getN(3);
+  @$pb.TagNumber(4)
+  set nextCursor($8.PageCursor v) { setField(4, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasNextCursor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearNextCursor() => clearField(4);
+  @$pb.TagNumber(4)
+  $8.PageCursor ensureNextCursor() => $_ensure(3);
 }
 
 class SavingsServiceApi {

@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const FormSubmissionSaveEvent = "form_submission.save"
@@ -61,17 +61,8 @@ func (e *FormSubmissionSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "form_submission_id": fs.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.formSubmissionRepo.GetByID(ctx, fs.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.formSubmissionRepo.Update(ctx, fs); err != nil {
-			logger.WithError(err).Error("could not update form submission in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.formSubmissionRepo.Create(ctx, fs); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create form submission in db")
+	if err := upsert.ByID(ctx, e.formSubmissionRepo, fs); err != nil {
+		logger.WithError(err).Error("could not save form submission in db")
 		return err
 	}
 

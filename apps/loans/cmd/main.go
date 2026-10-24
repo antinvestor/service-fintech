@@ -17,31 +17,38 @@ package main
 import (
 	"context"
 	"net/http"
+	"strings"
+	"time"
 
-	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loanspb "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/setup"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/v2/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/setup"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 
-	auditmw "github.com/antinvestor/common/audit"
+	"github.com/antinvestor/common/notification"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/loans/config"
 	"github.com/antinvestor/service-fintech/apps/loans/service/authz"
@@ -49,9 +56,25 @@ import (
 	lmevents "github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/bootcheck"
+	"github.com/antinvestor/service-fintech/pkg/clients"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
+	"github.com/antinvestor/service-fintech/pkg/messages"
+	"github.com/antinvestor/service-fintech/pkg/notify"
+	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
 )
+
+// backgroundJobs carries what the periodic loan jobs need beyond the
+// businesses: their cadence and the database manager for the advisory lock.
+type backgroundJobs struct {
+	dbManager               datastore.Manager
+	delinquencyScanInterval time.Duration
+	dueReminderInterval     time.Duration
+	dueReminderDays         int
+}
 
 func main() {
 	tmpCtx := context.Background()
@@ -66,14 +89,24 @@ func main() {
 		cfg.ServiceName = "service_loans"
 	}
 
+	// Refuse to serve on an environment that is unsafe outside local
+	// development (docs/runbook/required-environment.md).
+	if err = bootcheck.Validate(tmpCtx, &cfg); err != nil {
+		util.Log(tmpCtx).WithError(err).Fatal("environment is not deployment-safe")
+	}
+
 	ctx, svc := frame.NewServiceWithContext(
 		tmpCtx,
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
 
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -81,6 +114,13 @@ func main() {
 	// Frame setup job (DO_SETUP / argv setup): no peer clients required.
 	loansSD := loanspb.File_loans_v1_loans_proto.Services().ByName("LoanManagementService")
 	if frame.ShouldRunSetup(&cfg) {
+		// Every message the service sends is declared in pkg/messages and
+		// upserted with the notification service on each deploy, so a
+		// template a borrower is owed exists before the first send.
+		notification.RegisterTemplateSync(svc, &cfg, notification.Target{
+			Endpoint:              cfg.NotificationServiceURI,
+			WorkloadAPITargetPath: cfg.NotificationServiceWorkloadAPITargetPath,
+		}, messages.Registry())
 		svc.Init(ctx, frame.WithPermissionRegistration(loansSD))
 		if setupErr := svc.RunSetupForProcess(ctx, &cfg); setupErr != nil {
 			log.WithError(setupErr).Fatal("setup plan failed")
@@ -89,35 +129,18 @@ func main() {
 	}
 
 	sm := svc.SecurityManager()
+
+	// RPC-level audit delivery. Required when running securely; a nil client
+	// is tolerated (and logged) only for local development.
+	auditCli, err := clients.ResolveAuditClient(ctx, &cfg, cfg.IsRunSecurely(), cfg.AuditConfig)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup audit client")
+	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
 
-	// Setup external service clients
-	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
-	if notifErr != nil {
-		log.WithError(notifErr).
-			Warn("main -- Could not setup notification client, notifications will be disabled")
-	}
-	loanNotifier := business.NewLoanNotifier(notificationCli)
-
-	operationsCli, opsErr := setupOperationsClient(ctx, cfg)
-	if opsErr != nil {
-		log.WithError(opsErr).
-			Warn("main -- Could not setup operations client, transfer orders will be disabled")
-	}
-
-	fundingCli, fundingErr := setupFundingClient(ctx, cfg)
-	if fundingErr != nil {
-		log.WithError(fundingErr).
-			Warn("main -- Could not setup funding client, loan creation will fail closed")
-	}
-
-	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if limitsErr != nil {
-		log.WithError(limitsErr).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
-	}
+	peers := setupPeerClients(ctx, cfg)
 
 	// Get database pool
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
@@ -132,16 +155,28 @@ func main() {
 		evtsMan,
 		dbPool,
 		workMan,
-		fundingCli,
-		loanNotifier,
-		operationsCli,
-		limitsCli,
+		peers.funding,
+		peers.loanNotifier,
+		peers.payoutChecker,
+		peers.operations,
+		peers.limits,
+		peers.readScope,
 		cfg.LimitsGateEnabledLoanDisbursement,
 		cfg.LimitsGateModeLoanDisbursement,
 		cfg.LimitsGateEnabledLoanRequestApproval,
 		cfg.LimitsGateModeLoanRequestApproval,
 		cfg.LimitsGateEnabledLoanRepayment,
 		cfg.LimitsGateModeLoanRepayment,
+		cfg.DelinquencyThresholdDays,
+		cfg.DefaultThresholdDays,
+		peers.agentProfiles,
+		backgroundJobs{
+			dbManager:               svc.DatastoreManager(),
+			delinquencyScanInterval: cfg.DelinquencyScanInterval,
+			dueReminderInterval:     cfg.DueReminderInterval,
+			dueReminderDays:         cfg.DueReminderDays,
+		},
+		auditCli,
 	)
 
 	svc.Init(ctx, serviceOptions...)
@@ -161,14 +196,21 @@ func setupServiceOptions(
 	workMan workerpool.Manager,
 	fundingCli fundingv1connect.FundingServiceClient,
 	loanNotifier *business.LoanNotifier,
+	payoutChecker business.PayoutDestinationChecker,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	limitsCli limitsv1connect.LimitsServiceClient,
+	readScope *business.ReadScope,
 	limitsGateEnabledDisbursement bool,
 	limitsGateModeDisbursement string,
 	limitsGateEnabledLoanRequestApproval bool,
 	limitsGateModeLoanRequestApproval string,
 	limitsGateEnabledLoanRepayment bool,
 	limitsGateModeLoanRepayment string,
+	delinquencyThresholdDays int,
+	defaultThresholdDays int,
+	agentProfiles business.AgentProfileResolver,
+	jobs backgroundJobs,
+	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	lpRepo := repository.NewLoanProductRepository(ctx, dbPool, workMan)
 	loanRequestRepo := repository.NewLoanRequestRepository(ctx, dbPool, workMan)
@@ -195,11 +237,17 @@ func setupServiceOptions(
 		limitsCli,
 		limitsGateEnabledLoanRequestApproval,
 		limitsGateModeLoanRequestApproval,
+		business.WithReadScope(readScope),
+		business.WithNotifier(loanNotifier),
+		business.WithAuditWriter(auditWriter),
 	)
 	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo)
 	laBusiness := business.NewLoanAccountBusiness(
 		ctx, evtsMan, lpRepo, laRepo, lbRepo, lscRepo, repRepo, penRepo,
 		loanRequestRepo, fundingCli, scheduleBusiness, operationsCli, auditWriter,
+		business.WithReadScope(readScope),
+		business.WithStatementSources(disbRepo, seRepo),
+		business.WithNotifier(loanNotifier),
 	)
 	// paidOffHook is currently nil here. A deployment that runs seed
 	// inside the loans process (or wires an RPC client for a seed
@@ -221,9 +269,14 @@ func setupServiceOptions(
 		limitsCli,
 		limitsGateEnabledLoanRepayment,
 		limitsGateModeLoanRepayment,
+		business.WithReadScope(readScope),
 	)
-	penaltyBusiness := business.NewPenaltyBusiness(ctx, evtsMan, penRepo, laRepo, operationsCli, auditWriter)
-	restructBusiness := business.NewLoanRestructureBusiness(ctx, evtsMan, lrRepo, laRepo, scheduleBusiness)
+	penaltyBusiness := business.NewPenaltyBusiness(ctx, penRepo, laRepo, lbRepo, operationsCli, auditWriter,
+		business.WithNotifier(loanNotifier), business.WithScheduleEntries(seRepo))
+	restructBusiness := business.NewLoanRestructureBusiness(
+		ctx, evtsMan, lrRepo, laRepo, lbRepo, rsRepo, laBusiness, scheduleBusiness,
+		business.WithNotifier(loanNotifier),
+	)
 	reconBusiness := business.NewReconciliationBusiness(ctx, evtsMan, reconRepo)
 	disbBusiness := business.NewDisbursementBusiness(
 		ctx,
@@ -236,13 +289,39 @@ func setupServiceOptions(
 		limitsCli,
 		limitsGateEnabledDisbursement,
 		limitsGateModeDisbursement,
+		business.WithReadScope(readScope),
+		business.WithScheduleBusiness(scheduleBusiness),
+		business.WithNotifier(loanNotifier),
+		business.WithPayoutDestinationChecker(payoutChecker),
 	)
 
 	portfolioBusiness := business.NewPortfolioBusiness(ctx, dbPool)
+	cpaBusiness := business.NewClientProductAccessBusiness(ctx, evtsMan, cpaRepo, lpRepo)
+	collectionBusiness := business.NewCollectionBusiness(ctx, laRepo, lbRepo, loanNotifier)
 
-	connectHandler := setupConnectServer(ctx, sm, dbPool,
+	// Delinquency is a background obligation, not a request: without a job
+	// running it no loan ever becomes delinquent, no late penalty is charged,
+	// and portfolio-at-risk reports a clean book for ever.
+	scanner := business.NewDelinquencyScanner(
+		laRepo, seRepo, penaltyBusiness, laBusiness, lpRepo,
+		delinquencyThresholdDays, defaultThresholdDays,
+		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
+	)
+	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, jobs.dueReminderDays)
+	// Both jobs run on every replica but under a database advisory lock, so
+	// a scan is never duplicated and each reminder is claimed on its own
+	// installment regardless.
+	go runPeriodically(ctx, jobs.delinquencyScanInterval, func(ctx context.Context) error {
+		return dbmigrate.Locked(ctx, jobs.dbManager, "loans:delinquency-scan", scanner.Run)
+	})
+	go runPeriodically(ctx, jobs.dueReminderInterval, func(ctx context.Context) error {
+		return dbmigrate.Locked(ctx, jobs.dbManager, "loans:due-reminders", reminders.Run)
+	})
+
+	connectHandler := setupConnectServer(ctx, sm,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
-		penaltyBusiness, restructBusiness, reconBusiness, portfolioBusiness, disbBusiness, lscRepo)
+		penaltyBusiness, restructBusiness, reconBusiness, portfolioBusiness, disbBusiness,
+		cpaBusiness, collectionBusiness, lscRepo, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -288,6 +367,134 @@ func setupOperationsClient(
 	}, operationsv1connect.NewOperationsServiceClient)
 }
 
+// peerClients are the outbound service clients the runtime process needs.
+type peerClients struct {
+	loanNotifier  *business.LoanNotifier
+	payoutChecker business.PayoutDestinationChecker
+	agentProfiles business.AgentProfileResolver
+	operations    operationsv1connect.OperationsServiceClient
+	funding       fundingv1connect.FundingServiceClient
+	limits        limitsv1connect.LimitsServiceClient
+	readScope     *business.ReadScope
+}
+
+// setupPeerClients builds every peer client. Optional peers degrade with a
+// warning; the field client is required because per-client read scoping
+// cannot fail open.
+func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) peerClients {
+	log := util.Log(ctx)
+
+	notificationCli, notifErr := setupNotificationClient(ctx, cfg)
+	if notifErr != nil {
+		log.WithError(notifErr).
+			Warn("main -- Could not setup notification client, notifications will be disabled")
+	}
+
+	operationsCli, opsErr := setupOperationsClient(ctx, cfg)
+	if opsErr != nil {
+		log.WithError(opsErr).
+			Warn("main -- Could not setup operations client, transfer orders will be disabled")
+	}
+
+	fundingCli, fundingErr := setupFundingClient(ctx, cfg)
+	if fundingErr != nil {
+		log.WithError(fundingErr).
+			Warn("main -- Could not setup funding client, loan creation will fail closed")
+	}
+
+	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"loan_disbursement":     cfg.LimitsGateEnabledLoanDisbursement,
+		"loan_request_approval": cfg.LimitsGateEnabledLoanRequestApproval,
+		"loan_repayment":        cfg.LimitsGateEnabledLoanRepayment,
+	}); gateErr != nil {
+		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
+	}
+
+	fieldCli, fieldErr := setupFieldClient(ctx, cfg)
+	if fieldErr != nil {
+		log.WithError(fieldErr).Fatal("main -- Could not setup field client")
+	}
+
+	// Money leaves only to a destination that belongs to the borrower; the
+	// borrower's contacts live on the profile service. Without it no
+	// disbursement can be verified, which is the right failure.
+	profileCli, profileErr := setupProfileClient(ctx, cfg)
+	if profileErr != nil {
+		log.WithError(profileErr).Fatal("main -- Could not setup profile client")
+	}
+	clientProfiles := business.NewFieldClientProfileResolver(fieldCli)
+
+	// Field agents are workforce members on the identity service; the
+	// arrears notice to an agent needs their profile.
+	identityCli, identityErr := setupIdentityClient(ctx, cfg)
+	if identityErr != nil {
+		log.WithError(identityErr).Warn("main -- Could not setup identity client, agent notifications will be disabled")
+	}
+
+	return peerClients{
+		payoutChecker: business.NewProfilePayoutChecker(clientProfiles, profileCli),
+		agentProfiles: business.NewIdentityAgentProfileResolver(identityCli),
+		loanNotifier: business.NewLoanNotifier(
+			notify.New(notificationCli, messages.Registry()),
+			clientProfiles,
+			cfg.LenderDisplayName,
+		),
+		operations: operationsCli,
+		funding:    fundingCli,
+		limits:     limitsCli,
+		readScope: business.NewReadScope(
+			business.NewFieldClientResolver(fieldCli), splitCSV(cfg.LoansStaffRoles)...,
+		),
+	}
+}
+
+// splitCSV turns a comma-separated env value into a trimmed slice.
+func splitCSV(value string) []string {
+	var out []string
+	for _, part := range strings.Split(value, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// setupFieldClient resolves the client a profile belongs to. FieldService is
+// served by the identity binary, so it targets the identity service account.
+func setupFieldClient(
+	ctx context.Context,
+	cfg aconfig.LoanManagementConfig,
+) (fieldv1connect.FieldServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.FieldServiceURI,
+		WorkloadAPITargetPath: cfg.FieldServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceIdentity,
+	}, fieldv1connect.NewFieldServiceClient)
+}
+
+func setupIdentityClient(
+	ctx context.Context,
+	cfg aconfig.LoanManagementConfig,
+) (identityv1connect.IdentityServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.IdentityServiceURI,
+		WorkloadAPITargetPath: cfg.IdentityServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceIdentity,
+	}, identityv1connect.NewIdentityServiceClient)
+}
+
+func setupProfileClient(
+	ctx context.Context,
+	cfg aconfig.LoanManagementConfig,
+) (profilev1connect.ProfileServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.ProfileServiceURI,
+		WorkloadAPITargetPath: cfg.ProfileServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceProfile,
+	}, profilev1connect.NewProfileServiceClient)
+}
+
 func setupFundingClient(
 	ctx context.Context,
 	cfg aconfig.LoanManagementConfig,
@@ -313,7 +520,6 @@ func setupLimitsClient(
 func setupConnectServer(
 	ctx context.Context,
 	sm security.Manager,
-	_ pool.Pool,
 	lpBusiness business.LoanProductBusiness,
 	lrBusiness business.LoanRequestBusiness,
 	laBusiness business.LoanAccountBusiness,
@@ -324,7 +530,10 @@ func setupConnectServer(
 	reconBusiness business.ReconciliationBusiness,
 	portfolioBusiness business.PortfolioBusiness,
 	disbBusiness business.DisbursementBusiness,
+	cpaBusiness business.ClientProductAccessBusiness,
+	collectionBusiness business.CollectionBusiness,
 	statusChangeRepo repository.LoanStatusChangeRepository,
+	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	// Create handler with injected dependencies
 	lmHandler := handlers.NewLoanManagementServer(
@@ -338,6 +547,8 @@ func setupConnectServer(
 		reconBusiness,
 		portfolioBusiness,
 		disbBusiness,
+		cpaBusiness,
+		collectionBusiness,
 		statusChangeRepo,
 	)
 
@@ -354,22 +565,36 @@ func setupConnectServer(
 	functionChecker := authorizer.NewFunctionChecker(auth, svcPerms.Namespace)
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
-	loansAuditInterceptor := auditmw.NewInterceptor("service_loans", nil)
+	loansAuditInterceptor := clients.AuditInterceptor("service_loans", auditCli)
 
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
 		ctx, sm.GetAuthenticator(ctx),
-		tenancyAccessInterceptor, functionAccessInterceptor, loansAuditInterceptor)
+		tenancyAccessInterceptor, tenantassert.Interceptor(), functionAccessInterceptor, loansAuditInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}
 
-	interceptorOption := connect.WithInterceptors(defaultInterceptorList...)
-
-	// Register the loan management service on the mux
-	lmPath, lmServerHandler := loansv1connect.NewLoanManagementServiceHandler(lmHandler, interceptorOption)
+	server := connect.NewServer(defaultInterceptorList...)
+	loansv1connect.RegisterLoanManagementServiceHandler(server, lmHandler)
 
 	mux := http.NewServeMux()
-	mux.Handle(lmPath, lmServerHandler)
+	connecthttp.Mount(mux, server)
 
 	return mux
+}
+
+// runPeriodically calls fn on the given interval until ctx is cancelled.
+func runPeriodically(ctx context.Context, interval time.Duration, fn func(context.Context) error) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := fn(ctx); err != nil {
+				util.Log(ctx).WithError(err).Error("delinquency scan failed")
+			}
+		}
+	}
 }

@@ -116,13 +116,15 @@ message ClientObject {
     (buf.validate.field).string.pattern = "[0-9a-z_-]{3,40}"
   ];
   string agent_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
-  ]; // Deprecated legacy field handler
+  ]; // Deprecated legacy field handler; optional
   string profile_id = 3 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
-  ]; // Profile service user ID
+  ]; // Profile service user ID; created from the captured phone number when absent
   string name = 4 [(buf.validate.field).string.min_len = 1]; // Display name
   common.v1.STATE state = 5; // Current state
   google.protobuf.Struct properties = 6; // Additional metadata
@@ -194,7 +196,11 @@ message AgentSearchRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ]; // Optional filter by parent agent
-  common.v1.PageCursor cursor = 4; // Pagination
+  common.v1.PageCursor cursor = 4 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
   string organization_id = 5 [
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.min_len = 3,
@@ -250,7 +256,11 @@ message AgentBranchListRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ]; // List agents for a branch
-  common.v1.PageCursor cursor = 3; // Pagination
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
 }
 
 message AgentBranchListResponse {
@@ -285,7 +295,11 @@ message ClientSearchRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ]; // Deprecated legacy filter by agent
-  common.v1.PageCursor cursor = 3; // Pagination
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }]; // Pagination
   string owning_team_id = 4 [
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
@@ -294,6 +308,10 @@ message ClientSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ]; // Optional filter by relationship handler
+  string profile_id = 6 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ]; // Optional exact filter by the client's profile
 }
 
 message ClientSearchResponse {
@@ -368,7 +386,11 @@ message ClientRelationshipSearchRequest {
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
-  common.v1.PageCursor cursor = 3;
+  common.v1.PageCursor cursor = 3 [(buf.validate.field).cel = {
+    id: "cursor.limit_max"
+    message: "cursor.limit must be at most 200"
+    expression: "this.limit <= 200"
+  }];
 }
 
 message ClientRelationshipSearchResponse {
@@ -439,12 +461,18 @@ service FieldService {
         ]
       },
       {
+        // Field agents hold the member role. They register and serve
+        // borrowers inside their own teams; the identity service scopes
+        // every client read and write to the teams and relationships the
+        // agent holds.
         role: ROLE_MEMBER
         permissions: [
           "agent_view",
           "agent_subagent_manage",
           "client_view",
-          "client_relationship_view"
+          "client_manage",
+          "client_relationship_view",
+          "client_relationship_manage"
         ]
       },
       {

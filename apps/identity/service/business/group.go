@@ -18,8 +18,8 @@ import (
 	"context"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
@@ -32,45 +32,57 @@ type ClientGroupBusiness interface {
 	Get(ctx context.Context, id string) (*models.ClientGroup, error)
 	Search(
 		ctx context.Context,
-		query, agentID, branchID string,
-		groupType int32,
-		cursor *data.SearchQuery,
+		query, ownerMemberID, orgUnitID string,
+		cursor *commonv1.PageCursor,
 		consumer func(ctx context.Context, batch []*models.ClientGroup) error,
 	) error
 }
 
 type clientGroupBusiness struct {
-	eventsMan fevents.Manager
-	agentRepo repository.AgentRepository
-	groupRepo repository.ClientGroupRepository
+	eventsMan     fevents.Manager
+	workforceRepo repository.WorkforceMemberRepository
+	orgUnitRepo   repository.OrgUnitRepository
+	groupRepo     repository.ClientGroupRepository
 }
 
 func NewClientGroupBusiness(
 	_ context.Context,
 	eventsMan fevents.Manager,
-	agentRepo repository.AgentRepository,
+	workforceRepo repository.WorkforceMemberRepository,
+	orgUnitRepo repository.OrgUnitRepository,
 	groupRepo repository.ClientGroupRepository,
 ) ClientGroupBusiness {
 	return &clientGroupBusiness{
-		eventsMan: eventsMan,
-		agentRepo: agentRepo,
-		groupRepo: groupRepo,
+		eventsMan:     eventsMan,
+		workforceRepo: workforceRepo,
+		orgUnitRepo:   orgUnitRepo,
+		groupRepo:     groupRepo,
 	}
 }
 
 func (b *clientGroupBusiness) Save(ctx context.Context, group *models.ClientGroup) (*models.ClientGroup, error) {
 	logger := util.Log(ctx).WithField("method", "ClientGroupBusiness.Save")
 
-	// Validate agent exists and is active
-	agent, err := b.agentRepo.GetByID(ctx, group.AgentID)
+	// AgentID carries the owning workforce member since the agent model retired.
+	if group.AgentID == "" {
+		return nil, ErrGroupOwnerRequired
+	}
+	owner, err := b.workforceRepo.GetByID(ctx, group.AgentID)
 	if err != nil {
-		logger.WithError(err).Warn("agent not found for group")
-		return nil, ErrAgentNotFound
+		logger.WithError(err).Warn("owning workforce member not found for group")
+		return nil, ErrWorkforceMemberNotFound
+	}
+	if commonv1.STATE(owner.State) != commonv1.STATE_ACTIVE &&
+		commonv1.STATE(owner.State) != commonv1.STATE_CREATED {
+		return nil, ErrWorkforceMemberInactive
 	}
 
-	if commonv1.STATE(agent.State) != commonv1.STATE_ACTIVE &&
-		commonv1.STATE(agent.State) != commonv1.STATE_CREATED {
-		return nil, ErrAgentInactive
+	// BranchID carries the owning org unit.
+	if group.BranchID != "" {
+		if _, unitErr := b.orgUnitRepo.GetByID(ctx, group.BranchID); unitErr != nil {
+			logger.WithError(unitErr).Warn("org unit not found for group")
+			return nil, ErrOrgUnitNotFound
+		}
 	}
 
 	isNew := group.GetID() == ""
@@ -81,6 +93,8 @@ func (b *clientGroupBusiness) Save(ctx context.Context, group *models.ClientGrou
 
 	if isNew {
 		group.GenID(ctx)
+	} else if err = carryStoredTenancy(ctx, b.groupRepo, group); err != nil {
+		return nil, err
 	}
 
 	err = b.eventsMan.Emit(ctx, events.ClientGroupSaveEvent, group)
@@ -100,26 +114,26 @@ func (b *clientGroupBusiness) Get(ctx context.Context, id string) (*models.Clien
 	return group, nil
 }
 
+//nolint:dupl // client group and membership search share a filter shape
 func (b *clientGroupBusiness) Search(
 	ctx context.Context,
-	query, agentID, branchID string,
-	groupType int32,
-	_ *data.SearchQuery,
+	query, ownerMemberID, orgUnitID string,
+	cursor *commonv1.PageCursor,
 	consumer func(ctx context.Context, batch []*models.ClientGroup) error,
 ) error {
 	logger := util.Log(ctx).WithField("method", "ClientGroupBusiness.Search")
 
-	var searchOpts []data.SearchOption
+	searchOpts, cursorErr := cursorSearchOptions(cursor)
+	if cursorErr != nil {
+		return cursorErr
+	}
 
 	andQueryVal := map[string]any{}
-	if agentID != "" {
-		andQueryVal["agent_id = ?"] = agentID
+	if ownerMemberID != "" {
+		andQueryVal["agent_id = ?"] = ownerMemberID
 	}
-	if branchID != "" {
-		andQueryVal["branch_id = ?"] = branchID
-	}
-	if groupType != 0 {
-		andQueryVal["group_type = ?"] = groupType
+	if orgUnitID != "" {
+		andQueryVal["branch_id = ?"] = orgUnitID
 	}
 
 	if len(andQueryVal) > 0 {

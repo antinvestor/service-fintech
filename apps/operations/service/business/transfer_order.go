@@ -18,17 +18,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
+	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
 	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 	utilmoney "github.com/pitabwire/util/moneyx"
@@ -36,12 +40,17 @@ import (
 	"github.com/antinvestor/service-fintech/apps/operations/service/events"
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
 	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/calculation"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
+
+// errUnresolvedAccountRef is returned when a transfer order's debit or credit
+// account cannot be resolved to a ledger account.
+var errUnresolvedAccountRef = errors.New("transfer order account ref could not be resolved to a ledger account")
 
 const (
 	// decimalPrecisionTO is the number of decimal places for minor unit conversions.
@@ -63,6 +72,9 @@ type transferOrderBusiness struct {
 	limitsCli         limitsv1connect.LimitsServiceClient
 	limitsGateEnabled bool
 	limitsGateMode    string
+	// locator overrides the payment-service lookup used to confirm an
+	// earlier payout; nil means search the configured payment client.
+	locator PayoutLocator
 }
 
 func NewTransferOrderBusiness(
@@ -121,7 +133,10 @@ func (b *transferOrderBusiness) Save(ctx context.Context, order *models.Transfer
 		order.State = int32(constants.StateJustCreated)
 	}
 	order.GenID(ctx)
-	return b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, order)
+
+	// The write is synchronous: Execute reads the row back by id immediately
+	// after Save returns, so a queued projection would race the read.
+	return b.toRepo.CreateIfAbsent(ctx, order)
 }
 
 // Execute processes a transfer order based on its type.
@@ -161,10 +176,286 @@ func (b *transferOrderBusiness) Execute(ctx context.Context, orderID string) err
 			util.Log(innerCtx).With("limits_reservation_id", reservationID).
 				Info("transfer order execute gated by limits")
 			return b.executeInner(innerCtx, orderID)
-		})
+		},
+		limits.InPartition(order.TenantID, order.PartitionID),
+	)
 }
 
+// postLedgerOnce posts the ledger leg unless an earlier attempt already did,
+// recording the transaction id on the order so no retry posts twice. On
+// failure the execution claim is released and the error returned.
+func (b *transferOrderBusiness) postLedgerOnce(
+	ctx context.Context,
+	logger *util.LogEntry,
+	order *models.TransferOrder,
+) (string, error) {
+	orderID := order.GetID()
+	if order.LedgerTransactionID != "" {
+		logger.WithField("ledger_transaction_id", order.LedgerTransactionID).
+			Info("ledger already posted by an earlier attempt, resuming side effects")
+		return order.LedgerTransactionID, nil
+	}
+
+	debitRef, creditRef := b.resolveAccountRefs(ctx, order)
+	ledgerTxnID, err := b.executeBaseLedgerTransfer(ctx, order, debitRef, creditRef)
+	if err != nil {
+		logger.WithError(err).Error("base ledger transfer failed")
+		b.releaseExecution(ctx, logger, orderID, "ledger: "+err.Error())
+		return "", err
+	}
+	if markErr := b.toRepo.MarkLedgerPosted(ctx, orderID, ledgerTxnID); markErr != nil {
+		// The ledger dedupes on the order id, so a retry that re-posts
+		// converges on the same transaction; the release below is safe.
+		logger.WithError(markErr).Error("could not record ledger transaction id")
+		b.releaseExecution(ctx, logger, orderID, "record ledger id: "+markErr.Error())
+		return "", markErr
+	}
+	order.LedgerTransactionID = ledgerTxnID
+	return ledgerTxnID, nil
+}
+
+// claimForExecution takes the order into StateCheckCreated. A fresh order is
+// claimed from JustCreated/Active. An order another execution left in
+// CheckCreated is resumed only once that execution is stale; while it is
+// fresh the caller gets ErrTransferOrderInProgress so it retries later rather
+// than racing a live posting.
+func (b *transferOrderBusiness) claimForExecution(ctx context.Context, order *models.TransferOrder) error {
+	claimed, err := b.toRepo.ClaimState(
+		ctx,
+		order.GetID(),
+		[]int32{int32(constants.StateJustCreated), int32(constants.StateActive)},
+		int32(constants.StateCheckCreated),
+	)
+	if err != nil {
+		return fmt.Errorf("could not claim transfer order for execution: %w", err)
+	}
+	if claimed {
+		return nil
+	}
+
+	current, err := b.toRepo.GetByID(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("transfer order not found: %w", err)
+	}
+	switch current.State {
+	case int32(constants.StateInactive), int32(constants.StateDeleted):
+		// Finished between our read and our claim: report success through
+		// the caller's normal path by re-running the completed guard.
+		*order = *current
+		return errAlreadyCompleted
+	case int32(constants.StateShutdown):
+		return ErrTransferOrderFailed
+	case int32(constants.StateCheckCreated):
+		staleBefore := time.Now().Add(-staleExecutionAfter)
+		if current.ModifiedAt.After(staleBefore) {
+			return ErrTransferOrderInProgress
+		}
+		resumed, resumeErr := b.toRepo.ClaimStaleExecution(ctx, order.GetID(), staleBefore)
+		if resumeErr != nil {
+			return fmt.Errorf("could not resume stale transfer order: %w", resumeErr)
+		}
+		if !resumed {
+			return ErrTransferOrderInProgress
+		}
+		*order = *current
+		util.Log(ctx).WithField("order_id", order.GetID()).
+			WithField("stale_since", current.ModifiedAt).
+			Warn("resuming transfer order abandoned by an earlier execution")
+		return nil
+	default:
+		return ErrTransferOrderInProgress
+	}
+}
+
+// errAlreadyCompleted is an internal signal that the order finished while
+// this execution was claiming it; Execute maps it to success.
+var errAlreadyCompleted = errors.New("transfer order completed by another execution")
+
+// releaseExecution hands the order back to JustCreated after a failed
+// attempt. It is best-effort: if the release itself fails the row stays in
+// CheckCreated and the stale-execution path resumes it later.
+func (b *transferOrderBusiness) releaseExecution(ctx context.Context, logger *util.LogEntry, orderID, reason string) {
+	released, err := b.toRepo.ReleaseExecution(ctx, orderID, reason)
+	if err != nil {
+		logger.WithError(err).Error("could not release transfer order after failure")
+		return
+	}
+	if !released {
+		logger.Warn("transfer order was not in the executing state when released")
+	}
+}
+
+// RecordFailure marks the transfer order behind a reference as failed and
+// records why. The workflow compensation step calls it when a ledger transfer
+// comes back non-2xx, so the order stops looking executable and an operator
+// can see the reason without reading logs.
+func (b *transferOrderBusiness) RecordFailure(
+	ctx context.Context,
+	reference, reason string,
+) (map[string]interface{}, error) {
+	reference = strings.TrimSpace(reference)
+	if reference == "" {
+		return nil, apperrors.NewError(apperrors.BadRequest, "reference is required")
+	}
+
+	order, err := b.toRepo.GetByReference(ctx, reference)
+	if err != nil || order == nil {
+		return nil, apperrors.ErrDataNotFound.Extend("transfer order")
+	}
+
+	if order.State == int32(constants.StateInactive) {
+		return map[string]interface{}{
+			fieldReference:       reference,
+			fieldTransferOrderID: order.GetID(),
+			fieldStatus:          "already_completed",
+		}, nil
+	}
+
+	// An order whose ledger leg posted or whose payout reached the rail has
+	// moved money. It cannot be declared failed; it needs a reversal order.
+	if order.LedgerPosted() || order.PaymentInitiatedAt != nil {
+		return nil, ErrTransferOrderProgressed
+	}
+	claimed, claimErr := b.toRepo.MarkFailedIfUnposted(ctx, order.GetID())
+	if claimErr != nil {
+		return nil, claimErr
+	}
+	if !claimed {
+		// Lost a race with an execution that progressed the order between
+		// our read and the conditional update.
+		return nil, ErrTransferOrderProgressed
+	}
+
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: entityTransferOrder,
+		EntityID:   order.GetID(),
+		Action:     "transfer_order.failed",
+		Reason:     reason,
+		Metadata: data.JSONMap{
+			fieldReference: reference,
+		},
+		Parent: &order.BaseModel,
+	}, func(auErr error) {
+		util.Log(ctx).WithError(auErr).Warn("audit emission failed for transfer order failure")
+	})
+
+	return map[string]interface{}{
+		fieldReference:       reference,
+		fieldTransferOrderID: order.GetID(),
+		fieldStatus:          "recorded",
+		"newly_failed":       claimed,
+	}, nil
+}
+
+// staleExecutionAfter is how long an order may sit in StateCheckCreated before
+// a retry treats the previous execution as dead and resumes it. Live
+// executions finish in seconds; anything older was interrupted mid-flight.
+const staleExecutionAfter = 2 * time.Minute
+
+var (
+	// ErrTransferOrderInProgress is returned when another execution currently
+	// holds the order. The caller must retry later; it must not treat the
+	// order as settled.
+	ErrTransferOrderInProgress = apperrors.NewError(apperrors.ServiceUnavailable,
+		"transfer order execution is in progress; retry later")
+	// ErrTransferOrderFailed is returned for an order an operator or the
+	// workflow marked failed through RecordFailure. It will not execute again.
+	ErrTransferOrderFailed = apperrors.NewError(apperrors.Unprocessable,
+		"transfer order was marked failed and cannot be executed")
+	// ErrTransferOrderProgressed is returned when a caller tries to mark an
+	// order failed after its ledger leg posted or its payout reached the
+	// rail. Money has moved; the remedy is a reversal order, not a flag.
+	ErrTransferOrderProgressed = apperrors.NewError(apperrors.Unprocessable,
+		"transfer order has already moved money and cannot be marked failed; reverse it instead")
+	// ErrPayoutPendingConfirmation is returned while an earlier attempt's
+	// payout is being confirmed with the payment service. The order is not
+	// settled; the caller retries later.
+	ErrPayoutPendingConfirmation = apperrors.NewError(apperrors.ServiceUnavailable,
+		"payout from an earlier attempt is awaiting confirmation; retry later")
+	// ErrPayoutFailed is returned when the payment rail reports the payout as
+	// failed after the ledger leg posted. The order is not settled and must
+	// not be resent; it needs a reversal or re-route by an operator.
+	ErrPayoutFailed = apperrors.NewError(apperrors.Unprocessable,
+		"payout failed at the payment rail after the ledger posted; reverse or re-route the order")
+)
+
+// payoutConfirmationGrace is how long after an unconfirmed payout claim the
+// payment service is given to show the payment before the claim is treated
+// as never having reached the rail. The payment service persists a Send
+// through its queue, so a lookup right after an ambiguous error can miss a
+// payment that did land.
+const payoutConfirmationGrace = 10 * time.Minute
+
+// PayoutLocator finds a payout the payment service holds for an order
+// reference. It is the slice of the payment client sendPayment needs to
+// confirm an earlier attempt without sending again.
+type PayoutLocator interface {
+	FindByReference(ctx context.Context, reference string) (*paymentv1.Payment, error)
+}
+
+// connectPayoutLocator searches the payment service by reference id.
+type connectPayoutLocator struct {
+	cli paymentv1connect.PaymentServiceClient
+}
+
+func (l connectPayoutLocator) FindByReference(ctx context.Context, reference string) (*paymentv1.Payment, error) {
+	stream, err := l.cli.Search(ctx, commonv1.SearchRequest_builder{
+		Query:      reference,
+		Properties: []string{"reference_id"},
+		Cursor:     commonv1.PageCursor_builder{Limit: payoutSearchLimit}.Build(),
+	}.Build())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = stream.Close() }()
+	seen := 0
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return nil, recvErr
+		}
+		for _, p := range msg.GetData() {
+			seen++
+			if p.GetReferenceId() == reference {
+				return p, nil
+			}
+		}
+	}
+
+	if seen > 0 {
+		// The search ORs a text match with the exact reference filter, so
+		// any result set that holds other payments but not ours may have
+		// crowded ours out. Only an empty answer means "not found": "not
+		// found" licenses a resend, "inconclusive" does not.
+		return nil, ErrPayoutLookupInconclusive
+	}
+	return nil, nil //nolint:nilnil // no payment is a valid answer, not an error
+}
+
+// ErrPayoutLookupInconclusive is returned when the payment service search
+// could not rule a payout in or out; the caller keeps waiting.
+var ErrPayoutLookupInconclusive = errors.New("payout lookup inconclusive: results returned without the reference")
+
+const payoutSearchLimit = 100
+
 // executeInner runs the core transfer order execution logic after any gate check.
+//
+// The order is a small state machine the caller may drive any number of
+// times with the same reference:
+//
+//	JustCreated/Active ──claim──▶ CheckCreated ──ledger, side effects──▶ Inactive
+//	        ▲                          │
+//	        └──────release on error────┘
+//
+// Every failure releases the claim and returns the error, so a retry
+// re-enters instead of being told the order is done. Progress that already
+// cost money is remembered on the row: a posted ledger transaction id means
+// the ledger leg is skipped on resume, and a claimed payment initiation means
+// the payout is never sent twice. Only reaching StateInactive is success;
+// callers must treat every returned error as "not settled".
 func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string) error {
 	logger := util.Log(ctx).WithField("method", "TransferOrderBusiness.Execute").
 		WithField("order_id", orderID)
@@ -178,28 +469,33 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	typeName := constants.TransferTypeName(orderType)
 	logger = logger.WithField("order_type", typeName)
 
-	if order.State == int32(constants.StateInactive) || order.State == int32(constants.StateDeleted) {
+	switch order.State {
+	case int32(constants.StateInactive), int32(constants.StateDeleted):
 		logger.Info("transfer order already completed, skipping")
 		return nil
+	case int32(constants.StateShutdown):
+		return ErrTransferOrderFailed
 	}
 
-	order.State = int32(constants.StateCheckCreated)
-	if err = b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, order); err != nil {
-		return fmt.Errorf("could not claim transfer order for execution: %w", err)
+	if err = b.claimForExecution(ctx, order); err != nil {
+		if errors.Is(err, errAlreadyCompleted) {
+			logger.Info("transfer order completed by another execution")
+			return nil
+		}
+		return err
 	}
+	order.State = int32(constants.StateCheckCreated)
 
 	logger.Info("executing transfer order")
 
-	debitRef, creditRef := b.resolveAccountRefs(ctx, order)
-
-	ledgerTxnID, execErr := b.executeBaseLedgerTransfer(ctx, order, debitRef, creditRef)
-	if execErr != nil {
-		logger.WithError(execErr).Error("base ledger transfer failed")
-		return execErr
+	ledgerTxnID, err := b.postLedgerOnce(ctx, logger, order)
+	if err != nil {
+		return err
 	}
 
 	if sideEffectErr := b.dispatchSideEffect(ctx, logger, orderType, order); sideEffectErr != nil {
 		logger.WithError(sideEffectErr).Error("side effect failed")
+		b.releaseExecution(ctx, logger, orderID, "side effect: "+sideEffectErr.Error())
 		return sideEffectErr
 	}
 
@@ -211,19 +507,36 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 		logger.WithError(syncErr).Warn("CBS sync record logging failed (non-fatal)")
 	}
 
-	// Step 6: Mark the transfer order as completed
-	order.State = int32(constants.StateInactive)
-	if emitErr := b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, order); emitErr != nil {
-		logger.WithError(emitErr).Error("could not update transfer order state")
-		return emitErr
+	// Step 6: Mark the transfer order as completed. An order whose payout
+	// the rail rejected never completes; it is released for a reversal.
+	if order.PayoutFailed() {
+		b.releaseExecution(ctx, logger, orderID, "payout failed at the payment rail")
+		return ErrPayoutFailed
 	}
+	done, doneErr := b.toRepo.ClaimState(
+		ctx,
+		orderID,
+		[]int32{int32(constants.StateCheckCreated)},
+		int32(constants.StateInactive),
+	)
+	if doneErr != nil {
+		logger.WithError(doneErr).Error("could not update transfer order state")
+		return doneErr
+	}
+	if !done {
+		// Someone else moved the row while we held it. The ledger id is
+		// persisted, so whichever execution finishes converges on one posting.
+		logger.Warn("transfer order left the executing state during completion")
+		return ErrTransferOrderInProgress
+	}
+	order.State = int32(constants.StateInactive)
 
 	// Step 7: Audit. Captures every successful money movement in one
 	// descriptive record for later tracing. Best-effort: we don't fail
 	// the operation if audit recording fails because the money has
 	// already moved and the primary record of it lives in transfer_orders.
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "transfer_order",
+		EntityType: entityTransferOrder,
 		EntityID:   order.GetID(),
 		Action:     "transfer_order.executed",
 		Reason:     fmt.Sprintf("posted %s ledger transaction", typeName),
@@ -238,7 +551,7 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 			fieldCurrency:        order.Currency,
 			"debit_account_ref":  order.DebitAccountRef,
 			"credit_account_ref": order.CreditAccountRef,
-			"reference":          order.Reference,
+			fieldReference:       order.Reference,
 		},
 		Parent: &order.BaseModel,
 	}, func(err error) {
@@ -268,7 +581,7 @@ func noErr(fn func(ctx context.Context, order *models.TransferOrder)) transferHa
 func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 	return map[int]transferHandler{
 		constants.TransferTypeLoan:                                      b.handleLoanDisbursement,
-		constants.TransferTypeLoanRepayment:                             noErr(b.handleLoanRepayment),
+		constants.TransferTypeLoanRepayment:                             b.handleLoanRepayment,
 		constants.TransferTypeLoanInterest:                              noErr(b.handleLoanInterest),
 		constants.TransferTypeLoanInterestRepayment:                     noErr(b.handleLoanInterestRepayment),
 		constants.TransferTypeLoanInsurance:                             noErr(b.handleLoanInsurance),
@@ -287,6 +600,7 @@ func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 		constants.TransferTypePaymentAllocated:                          noErr(b.handlePaymentAllocated),
 		constants.TransferTypePenalty:                                   noErr(b.handlePenalty),
 		constants.TransferTypePenaltyCancel:                             noErr(b.handlePenaltyCancel),
+		constants.TransferTypePenaltyRepayment:                          noErr(b.handlePenaltyRepayment),
 		constants.TransferTypePenaltyIncomeDistribution:                 noErr(b.handlePenaltyIncomeDistribution),
 		constants.TransferTypeCost:                                      noErr(b.handleCost),
 		constants.TransferTypeServiceFee:                                noErr(b.handleServiceFee),
@@ -338,6 +652,9 @@ func (b *transferOrderBusiness) resolveAccountRefs(
 	return debitRef, creditRef
 }
 
+// resolveAccountRef loads an AccountRef, falling back to treating the id as a
+// ledger account name. The fallback only applies to a genuine miss: a database
+// failure must not silently post against a fabricated account.
 func (b *transferOrderBusiness) resolveAccountRef(
 	ctx context.Context,
 	refID string,
@@ -346,6 +663,11 @@ func (b *transferOrderBusiness) resolveAccountRef(
 	ref, err := b.arRepo.GetByID(ctx, refID)
 	if err == nil && ref != nil {
 		return ref
+	}
+	if err != nil && !data.ErrorIsNoRows(err) {
+		util.Log(ctx).WithError(err).WithField("account_ref", refID).
+			Error("could not load account ref")
+		return nil
 	}
 
 	return &models.AccountRef{
@@ -379,6 +701,12 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 		creditLedgerID = creditRef.LedgerID
 	}
 
+	// An order that names an account but resolves to no ledger id would post a
+	// half-formed entry. Refuse instead of writing it.
+	if debitLedgerID == "" || creditLedgerID == "" {
+		return "", errUnresolvedAccountRef
+	}
+
 	logger.WithField("debit_ledger", debitLedgerID).
 		WithField("credit_ledger", creditLedgerID).
 		WithField("amount", order.Amount).
@@ -410,7 +738,7 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 		Type:    ledgerv1.TransactionType_NORMAL,
 	}).Build()
 
-	resp, err := b.clients.LedgerClient.CreateTransaction(ctx, connect.NewRequest(req))
+	resp, err := b.clients.LedgerClient.CreateTransaction(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("ledger CreateTransaction failed: %w", err)
 	}
@@ -419,7 +747,7 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 	// back to the ledger entry. The ledger service dedupes on the request id
 	// (which is order.GetID()) so retries return the same transaction id.
 	var ledgerTxnID string
-	if txn := resp.Msg.GetData(); txn != nil {
+	if txn := resp.GetData(); txn != nil {
 		ledgerTxnID = txn.GetId()
 	}
 	return ledgerTxnID, nil
@@ -460,9 +788,9 @@ func (b *transferOrderBusiness) logCBSSyncRecord(
 }
 
 // minorToMoney converts a minor-unit int64 amount and currency code to a
-// google.type.Money protobuf value. Assumes 2-decimal-place currencies.
+// google.type.Money protobuf value using the currency's ISO-4217 exponent.
 func minorToMoney(currency string, amount int64) *commonv1.Money {
-	return utilmoney.FromInt64(currency, amount, decimalPrecisionTO)
+	return utilmoney.FromMinorUnitsByCurrency(currency, amount)
 }
 
 // sendPayment is a helper that calls PaymentClient.Send with common parameters.
@@ -473,11 +801,32 @@ func (b *transferOrderBusiness) sendPayment(
 	recipientID string,
 	route string,
 ) error {
-	if b.clients.PaymentClient == nil {
-		util.Log(ctx).Warn("PaymentClient not configured, skipping payment send")
-		return nil
+	if b.clients == nil || b.clients.PaymentClient == nil {
+		return errPaymentClientUnavailable
 	}
 
+	order.SetPayoutTarget(recipientID, route)
+
+	// Claim the payout exactly once. The payment service does not dedupe on
+	// our reference, so a resumed execution that finds the claim taken must
+	// not send again blindly: the earlier attempt may have reached the rail,
+	// and confirmEarlierPayout settles which it was.
+	claimed, err := b.toRepo.ClaimPaymentInitiation(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("claim payment initiation: %w", err)
+	}
+	if !claimed {
+		return b.confirmEarlierPayout(ctx, order)
+	}
+
+	return b.sendPayoutNow(ctx, order)
+}
+
+// sendPayoutNow calls the payment rail for an order whose payout claim this
+// attempt holds, and records the payment id the rail returns.
+func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models.TransferOrder) error {
+	recipientID := order.PayoutRecipient()
+	route := order.PayoutRoute()
 	req := (&paymentv1.SendRequest_builder{
 		Data: (&paymentv1.Payment_builder{
 			ReferenceId: order.Reference,
@@ -490,11 +839,162 @@ func (b *transferOrderBusiness) sendPayment(
 		}).Build(),
 	}).Build()
 
-	_, err := b.clients.PaymentClient.Send(ctx, connect.NewRequest(req))
+	resp, err := b.clients.PaymentClient.Send(ctx, req)
 	if err != nil {
+		// The claim stays: we cannot tell whether the rail accepted the
+		// request before the error. Reconciliation against the payment
+		// service by reference settles it; a blind resend could pay twice.
 		return fmt.Errorf("payment send failed: %w", err)
 	}
+	status := resp.GetData()
+	if status == nil {
+		return nil
+	}
+	if status.GetStatus() == commonv1.STATUS_FAILED {
+		// Rejected synchronously by the rail: record it so no retry can
+		// complete or resend this order; it needs a reversal.
+		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), status.GetId(),
+			"payout rejected by the payment rail"); markErr != nil {
+			util.Log(ctx).WithError(markErr).WithField("order_id", order.GetID()).
+				Error("could not record rejected payout on transfer order")
+		}
+		order.PayoutStatus = models.PayoutStatusFailed
+		return ErrPayoutFailed
+	}
+	if status.GetId() != "" {
+		if recErr := b.toRepo.RecordPaymentID(ctx, order.GetID(), status.GetId()); recErr != nil {
+			util.Log(ctx).WithError(recErr).WithField("order_id", order.GetID()).
+				Warn("could not record payment id on transfer order")
+		}
+	}
 	return nil
+}
+
+var errPaymentClientUnavailable = errors.New("payment client is not configured; refusing to execute a payout order")
+
+// confirmEarlierPayout settles what an earlier attempt's payout claim means
+// when this attempt finds it taken. A recorded payment id means the rail
+// accepted it: nothing more to send. Otherwise the payment service is asked
+// whether it holds a payment for the order reference; if it does, its id is
+// recorded and the payout counts as initiated. If it does not and the claim
+// is older than the confirmation grace, the Send never landed and the claim
+// is cleared so this attempt may send. Within the grace, or when the lookup
+// fails, the order is left unsettled and the caller retries later.
+func (b *transferOrderBusiness) confirmEarlierPayout(ctx context.Context, order *models.TransferOrder) error {
+	logger := util.Log(ctx).WithField("order_id", order.GetID())
+
+	current, err := b.toRepo.GetByID(ctx, order.GetID())
+	if err != nil {
+		return fmt.Errorf("reload transfer order: %w", err)
+	}
+	if current.PayoutFailed() {
+		return ErrPayoutFailed
+	}
+
+	// A recorded payment id says the rail accepted the request, not that the
+	// payout succeeded. Ask the payment service for its current word.
+	payment, err := b.payoutLocator().FindByReference(ctx, order.Reference)
+	if err != nil {
+		logger.WithError(err).Warn("could not confirm earlier payout with the payment service")
+		return ErrPayoutPendingConfirmation
+	}
+	if payment != nil {
+		if current.PaymentID != "" && payment.GetId() != current.PaymentID {
+			// The service answered with a different payment for our
+			// reference. Not ours to act on either way; keep waiting.
+			logger.WithFields(map[string]any{
+				"recorded_payment_id": current.PaymentID,
+				"found_payment_id":    payment.GetId(),
+			}).Warn("payout lookup returned a payment other than the recorded one")
+			return ErrPayoutPendingConfirmation
+		}
+		if current.PaymentID == "" && !payoutMatchesOrder(payment, order) {
+			logger.WithField("found_payment_id", payment.GetId()).
+				Warn("payout lookup returned a payment that does not match the order")
+			return ErrPayoutPendingConfirmation
+		}
+		return b.settleFoundPayout(ctx, logger, order, current, payment)
+	}
+	if current.PaymentID != "" {
+		// We hold an id the service no longer shows: not something to act on
+		// blindly either way. Keep waiting for a conclusive answer.
+		logger.WithField("payment_id", current.PaymentID).Warn("recorded payout not found at the payment service")
+		return ErrPayoutPendingConfirmation
+	}
+
+	if current.PaymentInitiatedAt == nil {
+		// Cleared between our claim attempt and now; the next attempt claims.
+		return ErrPayoutPendingConfirmation
+	}
+	observed := *current.PaymentInitiatedAt
+	if time.Since(observed) < payoutConfirmationGrace {
+		return ErrPayoutPendingConfirmation
+	}
+
+	// Compare-and-swap on the stale claim: every resumer that saw the same
+	// timestamp races on one UPDATE and exactly one wins the right to send.
+	retaken, err := b.toRepo.RetakePaymentInitiation(ctx, order.GetID(), observed)
+	if err != nil {
+		return fmt.Errorf("retake stale payout claim: %w", err)
+	}
+	if !retaken {
+		return ErrPayoutPendingConfirmation
+	}
+	logger.Warn("earlier payout never reached the payment service; claim retaken, sending now")
+	return b.sendPayoutNow(ctx, order)
+}
+
+// settleFoundPayout interprets the payment the service holds for the order.
+func (b *transferOrderBusiness) settleFoundPayout(
+	ctx context.Context,
+	logger *util.LogEntry,
+	order, current *models.TransferOrder,
+	payment *paymentv1.Payment,
+) error {
+	if payment.GetStatus() == commonv1.STATUS_FAILED {
+		// The rail took the request and rejected it: the ledger leg is
+		// posted but no cash reached the recipient. This is not settled
+		// and must not be resent blindly; it needs a reversal or a
+		// re-route by an operator. The marker, claim and payment id stay
+		// so the order can neither complete nor pay twice meanwhile.
+		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), payment.GetId(),
+			"payout failed at the payment rail"); markErr != nil {
+			logger.WithError(markErr).Error("could not record failed payout on transfer order")
+		}
+		order.PayoutStatus = models.PayoutStatusFailed
+		logger.WithField("payment_id", payment.GetId()).Error("earlier payout failed at the payment rail")
+		return ErrPayoutFailed
+	}
+	if current.PaymentID == "" {
+		if recErr := b.toRepo.RecordPaymentID(ctx, order.GetID(), payment.GetId()); recErr != nil {
+			logger.WithError(recErr).Warn("could not record confirmed payment id")
+		}
+	}
+	logger.WithField("payment_id", payment.GetId()).Info("earlier payout confirmed by the payment service")
+	return nil
+}
+
+// payoutMatchesOrder checks a payment found by reference really is this
+// order's payout: outbound, same currency and amount.
+func payoutMatchesOrder(payment *paymentv1.Payment, order *models.TransferOrder) bool {
+	if payment == nil || !payment.GetOutbound() {
+		return false
+	}
+	amt := payment.GetAmount()
+	if amt == nil {
+		return false
+	}
+	if !strings.EqualFold(amt.GetCurrencyCode(), order.Currency) {
+		return false
+	}
+	return utilmoney.ToInt64(amt, utilmoney.Decimals(order.Currency)) == order.Amount
+}
+
+func (b *transferOrderBusiness) payoutLocator() PayoutLocator {
+	if b.locator != nil {
+		return b.locator
+	}
+	return connectPayoutLocator{cli: b.clients.PaymentClient}
 }
 
 // extraDataString safely extracts a string value from the order's ExtraData map.
@@ -780,13 +1280,41 @@ func (b *transferOrderBusiness) handleLoanDisbursement(ctx context.Context, orde
 	return nil
 }
 
+// recordRepaymentWithLender records an allocated group payment as a repayment
+// on the loans service. The ledger leg has already posted and is retained on
+// the order, so a failure here returns an error: the claim is released and
+// the order retries the lender call alone. The order reference is the
+// idempotency key, so a retry after a late success records one repayment.
+func (b *transferOrderBusiness) recordRepaymentWithLender(
+	ctx context.Context,
+	logger *util.LogEntry,
+	order *models.TransferOrder,
+	loanID string,
+) error {
+	if b.clients == nil || b.clients.LenderLoanMgmt == nil {
+		return errors.New("record loan repayment with lender: loans client not configured")
+	}
+	_, err := b.clients.LenderLoanMgmt.RepaymentRecord(ctx, &loansv1.RepaymentRecordRequest{
+		LoanAccountId:    loanID,
+		Amount:           minorToMoney(order.Currency, order.Amount),
+		PaymentReference: order.Reference,
+		Channel:          "savings",
+		IdempotencyKey:   order.Reference,
+	})
+	if err != nil {
+		return fmt.Errorf("record loan repayment with lender for loan %s: %w", loanID, err)
+	}
+	logger.WithField("loan_id", loanID).Info("loan repayment recorded with the lender")
+	return nil
+}
+
 // handleLoanRepayment processes a loan principal repayment transfer.
 // Debit: member suspense -> Credit: subscription loans account.
 // Side effect: records the repayment in Lender loans.
 func (b *transferOrderBusiness) handleLoanRepayment(
 	ctx context.Context,
 	order *models.TransferOrder,
-) {
+) error {
 	logger := util.Log(ctx).WithField("handler", "handleLoanRepayment").
 		WithField("order_id", order.GetID())
 
@@ -805,6 +1333,17 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 		WithField("interest", interestPortion).
 		WithField("fees", feesPortion).
 		Info("recording loan repayment in lender system")
+
+	// A group member's payment allocated to their loan must reach the loans
+	// service, or the loan never shows the repayment. Only orders this
+	// service raised from a payment allocation (server-set source marker) are
+	// fed back; the order reference is the idempotency key, so a replayed
+	// order records one repayment. The loans service then raises its own
+	// repayment orders, which redistribute to investors below, so a forwarded
+	// order must not redistribute as well.
+	if loanID != "" && extraDataString(order, extraKeySource) == allocationSourceMarker {
+		return b.recordRepaymentWithLender(ctx, logger, order, loanID)
+	}
 
 	// Loan repayment recording is handled by the loans app via its own event
 	// pipeline. The operations app only manages ledger postings and redistribution.
@@ -829,6 +1368,7 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 	if feesPortion > 0 {
 		b.redistributeRepayment(ctx, order, feesPortion, "fees", constants.TransferTypeServiceFee)
 	}
+	return nil
 }
 
 // handleLoanInterest processes a loan interest charge transfer.
@@ -1144,6 +1684,14 @@ func (b *transferOrderBusiness) handlePenalty(
 
 // handlePenaltyCancel reverses a previously posted penalty.
 // Debit: group penalty income -> Credit: member suspense.
+// handlePenaltyRepayment is the settlement of an accrued penalty: the base
+// transfer clears the member's penalty receivable. No further side effect.
+func (b *transferOrderBusiness) handlePenaltyRepayment(ctx context.Context, order *models.TransferOrder) {
+	util.Log(ctx).WithField("handler", "handlePenaltyRepayment").
+		WithField("order_id", order.GetID()).
+		Info("penalty repayment: penalty receivable settled")
+}
+
 func (b *transferOrderBusiness) handlePenaltyCancel(
 	ctx context.Context,
 	order *models.TransferOrder,

@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package events
+package events //nolint:dupl // similar event handlers for different entity types
 
 import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const LoanStatusChangeSaveEvent = "loan_status_change.save"
@@ -66,12 +66,10 @@ func (e *LoanStatusChangeSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "loan_status_change_id": lsc.GetID()})
 	defer logger.Release()
 
-	if err := e.loanStatusChangeRepo.Create(ctx, lsc); err != nil {
-		if data.ErrorIsDuplicateKey(err) {
-			return nil
-		}
-		logger.WithError(err).Error("could not create loan status change in db")
+	if err := upsert.ByID(ctx, e.loanStatusChangeRepo, lsc); err != nil {
+		logger.WithError(err).Error("could not persist loan status change")
 		return err
 	}
+
 	return nil
 }

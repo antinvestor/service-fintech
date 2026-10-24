@@ -1,4 +1,5 @@
-import 'package:antinvestor_api_identity/antinvestor_api_identity.dart' as common;
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    as common;
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_core/widgets/profile_badge.dart';
 import 'package:antinvestor_ui_core/widgets/state_badge.dart';
@@ -17,7 +18,7 @@ class WorkforceMemberDetailScreen extends ConsumerWidget {
     super.key,
     required this.memberId,
     this.canManage = true,
-    this.backRoute = '/workforce/members',
+    this.backRoute = '/workforce',
   });
 
   final String memberId;
@@ -73,8 +74,7 @@ class _MemberDetailContent extends ConsumerStatefulWidget {
       _MemberDetailContentState();
 }
 
-class _MemberDetailContentState
-    extends ConsumerState<_MemberDetailContent> {
+class _MemberDetailContentState extends ConsumerState<_MemberDetailContent> {
   late WorkforceMemberObject _member;
 
   @override
@@ -95,8 +95,7 @@ class _MemberDetailContentState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final membershipsAsync = ref.watch(
-      teamMembershipListProvider(
-          (teamId: '', memberId: _member.id)),
+      teamMembershipListProvider((teamId: '', memberId: _member.id)),
     );
 
     return CustomScrollView(
@@ -115,8 +114,7 @@ class _MemberDetailContentState
                 ProfileBadge(
                   profileId: _member.profileId,
                   name: _memberName,
-                  description:
-                      engagementLabel(_member.engagementType),
+                  description: engagementLabel(_member.engagementType),
                   avatarSize: 48,
                   trailing: const SizedBox.shrink(),
                 ),
@@ -151,17 +149,14 @@ class _MemberDetailContentState
                     ),
                     const SizedBox(height: 12),
                     _InfoRow(label: 'Member ID', value: _member.id),
-                    _InfoRow(
-                        label: 'Profile ID',
-                        value: _member.profileId),
+                    _InfoRow(label: 'Profile ID', value: _member.profileId),
                     _InfoRow(
                       label: 'Organization',
                       value: _member.organizationId,
                     ),
                     _InfoRow(
                       label: 'Engagement',
-                      value: engagementLabel(
-                          _member.engagementType),
+                      value: engagementLabel(_member.engagementType),
                     ),
                     if (_member.homeOrgUnitId.isNotEmpty)
                       _InfoRow(
@@ -169,8 +164,7 @@ class _MemberDetailContentState
                         value: _member.homeOrgUnitId,
                       ),
                     if (_member.geoId.isNotEmpty)
-                      _InfoRow(
-                          label: 'Geo ID', value: _member.geoId),
+                      _InfoRow(label: 'Geo ID', value: _member.geoId),
                   ],
                 ),
               ),
@@ -201,14 +195,14 @@ class _MemberDetailContentState
         membershipsAsync.when(
           loading: () => const SliverToBoxAdapter(
             child: Center(
-                child: Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(),
-            )),
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: CircularProgressIndicator(),
+              ),
+            ),
           ),
           error: (error, _) => SliverToBoxAdapter(
-            child:
-                Center(child: Text('Failed to load: $error')),
+            child: Center(child: Text('Failed to load: $error')),
           ),
           data: (memberships) {
             if (memberships.isEmpty) {
@@ -221,16 +215,13 @@ class _MemberDetailContentState
                         Icon(
                           Icons.groups_outlined,
                           size: 48,
-                          color: theme.colorScheme.onSurface
-                              .withAlpha(80),
+                          color: theme.colorScheme.onSurface.withAlpha(80),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'No team memberships',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withAlpha(140),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onSurface.withAlpha(140),
                           ),
                         ),
                       ],
@@ -241,11 +232,9 @@ class _MemberDetailContentState
             }
 
             return SliverPadding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 24, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                    (context, index) {
+                delegate: SliverChildBuilderDelegate((context, index) {
                   final m = memberships[index];
                   return Card(
                     elevation: 0,
@@ -277,21 +266,17 @@ class _MemberDetailContentState
   Future<void> _editMember(BuildContext context) async {
     final result = await showDialog<WorkforceMemberObject>(
       context: context,
-      builder: (context) =>
-          _MemberEditDialog(member: _member),
+      builder: (context) => _MemberEditDialog(member: _member),
     );
     if (result == null || !mounted) return;
 
     try {
-      await ref
-          .read(workforceMemberNotifierProvider.notifier)
-          .save(result);
+      await ref.read(workforceMemberNotifierProvider.notifier).save(result);
       if (!mounted) return;
       setState(() => _member = result);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Member updated successfully')),
+        const SnackBar(content: Text('Member updated successfully')),
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -357,11 +342,11 @@ class _MemberEditDialogState extends State<_MemberEditDialog> {
   @override
   void initState() {
     super.initState();
-    _geoIdController =
-        TextEditingController(text: widget.member.geoId);
+    _geoIdController = TextEditingController(text: widget.member.geoId);
     _selectedState = widget.member.state;
     _engagementTypeCtrl = TextEditingController(
-        text: widget.member.engagementType);
+      text: widget.member.engagementType,
+    );
   }
 
   @override
@@ -443,7 +428,7 @@ class _MemberEditDialogState extends State<_MemberEditDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<common.STATE>(
-                value: _selectedState,
+                initialValue: _selectedState,
                 decoration: const InputDecoration(
                   labelText: 'State',
                   prefixIcon: Icon(Icons.toggle_on_outlined),
@@ -454,8 +439,9 @@ class _MemberEditDialogState extends State<_MemberEditDialog> {
                     child: Text('Created'),
                   ),
                   DropdownMenuItem(
-                      value: common.STATE.ACTIVE,
-                      child: Text('Active')),
+                    value: common.STATE.ACTIVE,
+                    child: Text('Active'),
+                  ),
                   DropdownMenuItem(
                     value: common.STATE.INACTIVE,
                     child: Text('Inactive'),
@@ -476,8 +462,7 @@ class _MemberEditDialogState extends State<_MemberEditDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-            onPressed: _onSave, child: const Text('Update')),
+        FilledButton(onPressed: _onSave, child: const Text('Update')),
       ],
     );
   }
@@ -493,6 +478,9 @@ class _MemberEditDialogState extends State<_MemberEditDialog> {
       engagementType: _engagementTypeCtrl.text.trim(),
       geoId: _geoIdController.text.trim(),
       state: _selectedState,
+      // Properties carry the display name and the platform role; rebuilding
+      // the object without them would wipe both on every edit.
+      properties: widget.member.properties,
     );
 
     Navigator.pop(context, updated);

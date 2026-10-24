@@ -23,13 +23,14 @@ import (
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -56,6 +57,20 @@ type AdminHandlerSuite struct {
 	resvBiz      business.ReservationBusiness
 	approvalRepo repository.ApprovalRequestRepository
 	ledgerRepo   repository.LedgerRepository
+}
+
+// approverCtx builds claims that carry the approver tier's role, which the
+// Decide path enforces.
+func approverCtx(ctx context.Context, profileID string) context.Context {
+	claims := &security.AuthenticationClaims{
+		TenantID:    "tenant-a",
+		PartitionID: "partition-a",
+		AccessID:    util.IDString(),
+		ContactID:   profileID,
+		Roles:       []string{"branch_manager"},
+	}
+	claims.Subject = profileID
+	return claims.ClaimsToContext(ctx)
 }
 
 func (s *AdminHandlerSuite) SetupSuite() {
@@ -117,6 +132,7 @@ func (s *AdminHandlerSuite) SetupTest() {
 		auditing,
 		nil,
 		dbPool,
+		nil,
 	)
 	ledgerBiz := business.NewLedgerSearchBusiness(ledgerRepo)
 	resvBiz := business.NewReservationBusiness(
@@ -159,21 +175,21 @@ func (s *AdminHandlerSuite) TestPolicySaveThenGet() {
 		ApprovalTtl:   durationpb.New(72 * time.Hour),
 	}
 
-	saveResp, err := s.handler.PolicySave(ctx, connect.NewRequest(&limitsv1.PolicySaveRequest{Data: in}))
+	saveResp, err := s.handler.PolicySave(ctx, &limitsv1.PolicySaveRequest{Data: in})
 	s.Require().NoError(err)
-	s.NotEmpty(saveResp.Msg.GetData().GetId())
+	s.NotEmpty(saveResp.GetData().GetId())
 
 	getResp, err := s.handler.PolicyGet(
 		ctx,
-		connect.NewRequest(&limitsv1.PolicyGetRequest{Id: saveResp.Msg.GetData().GetId()}),
+		&limitsv1.PolicyGetRequest{Id: saveResp.GetData().GetId()},
 	)
 	s.Require().NoError(err)
-	s.Equal(saveResp.Msg.GetData().GetId(), getResp.Msg.GetData().GetId())
+	s.Equal(saveResp.GetData().GetId(), getResp.GetData().GetId())
 }
 
 func (s *AdminHandlerSuite) TestPolicyGetMissingReturnsNotFound() {
 	ctx := s.WithAuthClaims(s.T().Context(), "tenant-a", "partition-a", "")
-	_, err := s.handler.PolicyGet(ctx, connect.NewRequest(&limitsv1.PolicyGetRequest{Id: "nonexistent"}))
+	_, err := s.handler.PolicyGet(ctx, &limitsv1.PolicyGetRequest{Id: "nonexistent"})
 	s.Require().Error(err)
 	s.Equal(connect.CodeNotFound, connect.CodeOf(err))
 }
@@ -190,18 +206,18 @@ func (s *AdminHandlerSuite) TestPolicyDelete() {
 		Mode:          limitsv1.PolicyMode_POLICY_MODE_SHADOW,
 		EffectiveFrom: timestamppb.New(time.Now().UTC()),
 	}
-	saveResp, err := s.handler.PolicySave(ctx, connect.NewRequest(&limitsv1.PolicySaveRequest{Data: in}))
+	saveResp, err := s.handler.PolicySave(ctx, &limitsv1.PolicySaveRequest{Data: in})
 	s.Require().NoError(err)
 
 	_, err = s.handler.PolicyDelete(
 		ctx,
-		connect.NewRequest(&limitsv1.PolicyDeleteRequest{Id: saveResp.Msg.GetData().GetId()}),
+		&limitsv1.PolicyDeleteRequest{Id: saveResp.GetData().GetId()},
 	)
 	s.Require().NoError(err)
 
 	_, err = s.handler.PolicyGet(
 		ctx,
-		connect.NewRequest(&limitsv1.PolicyGetRequest{Id: saveResp.Msg.GetData().GetId()}),
+		&limitsv1.PolicyGetRequest{Id: saveResp.GetData().GetId()},
 	)
 	s.Equal(connect.CodeNotFound, connect.CodeOf(err))
 }
@@ -347,10 +363,10 @@ func (s *AdminHandlerSuite) TestApprovalRequestGet() {
 	s.Require().Len(rows, 1)
 	arID := rows[0].ID
 
-	resp, err := s.handler.ApprovalRequestGet(ctx, connect.NewRequest(&limitsv1.ApprovalRequestGetRequest{Id: arID}))
+	resp, err := s.handler.ApprovalRequestGet(ctx, &limitsv1.ApprovalRequestGetRequest{Id: arID})
 	s.Require().NoError(err)
-	s.Equal(arID, resp.Msg.GetData().GetId())
-	s.Equal(resvID, resp.Msg.GetData().GetReservationId())
+	s.Equal(arID, resp.GetData().GetId())
+	s.Equal(resvID, resp.GetData().GetReservationId())
 }
 
 // TestApprovalRequestDecide_Approve: seed pending approval + reservation,
@@ -366,15 +382,15 @@ func (s *AdminHandlerSuite) TestApprovalRequestDecide_Approve() {
 	arID := rows[0].ID
 
 	// Approver context: different from maker.
-	ctxApprover := s.WithAuthClaims(s.T().Context(), "tenant-a", "partition-a", "wf-approver-distinct")
+	ctxApprover := approverCtx(s.T().Context(), "wf-approver-distinct")
 
-	resp, err := s.handler.ApprovalRequestDecide(ctxApprover, connect.NewRequest(&limitsv1.ApprovalRequestDecideRequest{
+	resp, err := s.handler.ApprovalRequestDecide(ctxApprover, &limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,
 		Decision: "approve",
 		Note:     "approved by handler test",
-	}))
+	})
 	s.Require().NoError(err)
-	s.Equal(limitsv1.ApprovalStatus_APPROVAL_STATUS_APPROVED, resp.Msg.GetData().GetStatus())
+	s.Equal(limitsv1.ApprovalStatus_APPROVAL_STATUS_APPROVED, resp.GetData().GetStatus())
 }
 
 // ─── Ledger handler tests ─────────────────────────────────────────────

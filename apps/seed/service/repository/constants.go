@@ -19,4 +19,15 @@ package repository
 const (
 	colModifiedAt = "modified_at"
 	colVersion    = "version"
+
+	// colOutstandingLoanCount is the slot counter the reservation writes.
+	colOutstandingLoanCount = "outstanding_loan_count"
+
+	// stateActive is the numeric active state used for seeded config rows.
+	stateActive = int32(3)
+
+	// creditProfileTable is the table the atomic counter updates target
+	// directly; see the comment on AtomicMarkBorrowed for why they cannot go
+	// through gorm's Model().
+	creditProfileTable = "seed_credit_profiles"
 )

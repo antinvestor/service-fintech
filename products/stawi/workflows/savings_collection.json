@@ -103,7 +103,8 @@
                               "group_id": "{{ payload.group_id }}",
                               "amount_applied": "{{ vars.apply_result.body.amount_applied }}",
                               "remaining_obligation": "{{ vars.apply_result.body.remaining_obligation }}"
-                            }
+                            },
+                            "dedupe_key": "suspense_auto_applied:{{ vars.member.id }}:{{ payload.group_id }}:{{ payload.period_id }}"
                           }
                         }
                       }
@@ -138,7 +139,8 @@
                   "savings_due": "{{ vars.obligation.savings_due }}",
                   "loan_repayment_due": "{{ vars.obligation.loan_repayment_due }}",
                   "due_date": "{{ vars.obligation.due_date }}"
-                }
+                },
+                "dedupe_key": "savings_obligation_due:{{ vars.obligation.member_id }}:{{ payload.period_id }}:{{ payload.group_id }}"
               }
             }
           }
@@ -184,7 +186,8 @@
                   "group_id": "{{ payload.group_id }}",
                   "amount_outstanding": "{{ vars.delinquent.amount_outstanding }}",
                   "due_date": "{{ vars.delinquent.due_date }}"
-                }
+                },
+                "dedupe_key": "savings_reminder_first:{{ vars.delinquent.member_id }}:{{ payload.group_id }}:{{ payload.period_id }}"
               }
             }
           }
@@ -230,7 +233,8 @@
                   "group_id": "{{ payload.group_id }}",
                   "amount_outstanding": "{{ vars.delinquent.amount_outstanding }}",
                   "due_date": "{{ vars.delinquent.due_date }}"
-                }
+                },
+                "dedupe_key": "savings_reminder_second:{{ vars.delinquent.member_id }}:{{ payload.group_id }}:{{ payload.period_id }}"
               }
             }
           }
@@ -255,7 +259,8 @@
                   "period_id": "{{ payload.period_id }}",
                   "delinquent_count": "{{ vars.outstanding_second.body.count }}",
                   "total_outstanding": "{{ vars.outstanding_second.body.total_outstanding }}"
-                }
+                },
+                "dedupe_key": "leader_delinquency_report:{{ payload.period_id }}:{{ payload.group_id }}"
               }
             }
           }
@@ -302,7 +307,8 @@
                   "amount_outstanding": "{{ vars.delinquent.amount_outstanding }}",
                   "due_date": "{{ vars.delinquent.due_date }}",
                   "penalty_warning": true
-                }
+                },
+                "dedupe_key": "savings_reminder_final:{{ vars.delinquent.member_id }}:{{ payload.group_id }}:{{ payload.period_id }}"
               }
             }
           }
@@ -327,7 +333,8 @@
                   "period_id": "{{ payload.period_id }}",
                   "delinquent_count": "{{ vars.outstanding_final.body.count }}",
                   "total_outstanding": "{{ vars.outstanding_final.body.total_outstanding }}"
-                }
+                },
+                "dedupe_key": "leader_final_delinquency_report:{{ payload.period_id }}:{{ payload.group_id }}"
               }
             }
           }

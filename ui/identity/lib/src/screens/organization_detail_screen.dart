@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_audit/antinvestor_ui_audit.dart';
 import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
@@ -22,13 +20,14 @@ import 'package:antinvestor_ui_profile/antinvestor_ui_profile.dart'
 import 'org_unit_form_dialog.dart';
 import 'organization_form_wizard.dart';
 import 'organizations_screen.dart';
+import '../widgets/async_state_views.dart';
 
 class OrganizationDetailScreen extends ConsumerWidget {
   const OrganizationDetailScreen({
     super.key,
     required this.organizationId,
     this.canManage = true,
-    this.backRoute = '/organization/organizations',
+    this.backRoute = '/organizations',
     this.onPickLogo,
     this.filesBaseUrl,
   });
@@ -41,19 +40,16 @@ class OrganizationDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<OrganizationObject>(
-      future: _loadOrganization(ref),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final organization = snapshot.data;
-        if (organization == null) {
-          return const Center(child: Text('Organization not found'));
-        }
+    final organizationAsync = ref.watch(
+      organizationByIdProvider(organizationId),
+    );
+    return organizationAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => DetailErrorView(
+        error: error,
+        onRetry: () => ref.invalidate(organizationByIdProvider(organizationId)),
+      ),
+      data: (organization) {
         return _OrganizationDetailContent(
           organization: organization,
           canManage: canManage,
@@ -63,14 +59,6 @@ class OrganizationDetailScreen extends ConsumerWidget {
         );
       },
     );
-  }
-
-  Future<OrganizationObject> _loadOrganization(WidgetRef ref) async {
-    final client = ref.read(identityServiceClientProvider);
-    final response = await client.organizationGet(
-      OrganizationGetRequest(id: organizationId),
-    );
-    return response.data;
   }
 }
 
@@ -117,306 +105,335 @@ class _OrganizationDetailContentState
       )),
     );
     final childOrgsAsync = ref.watch(
-      filteredOrganizationListProvider((
-        query: '',
-        parentId: _organization.id,
-      )),
+      filteredOrganizationListProvider((query: '', parentId: _organization.id)),
     );
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1080),
         child: CustomScrollView(
-      slivers: [
-        // -- Header -----------------------------------------------------------
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => context.go(widget.backRoute),
-                  tooltip: 'Back to Organizations',
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _organization.name,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                        ),
+          slivers: [
+            // -- Header -----------------------------------------------------------
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => context.go(widget.backRoute),
+                      tooltip: 'Back to Organizations',
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _organization.name,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          Text(
+                            'Code: ${_organization.code}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withAlpha(140),
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Code: ${_organization.code}',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withAlpha(140),
-                        ),
+                    ),
+                    StateBadge(state: toCommonState(_organization.state)),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _setAsActiveOrganization(context),
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: const Text('Set Active'),
+                    ),
+                    if (widget.canManage) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit Organization',
+                        onPressed: () => _editOrganization(context),
                       ),
                     ],
-                  ),
+                  ],
                 ),
-                StateBadge(state: toCommonState(_organization.state)),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _setAsActiveOrganization(context),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Set Active'),
-                ),
-                if (widget.canManage) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    tooltip: 'Edit Organization',
-                    onPressed: () => _editOrganization(context),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-        ),
 
-        // -- Profile header (avatar, name, type, description) -------------------
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: _ProfileSection(
-              profileId: _organization.profileId,
-              organizationName: _organization.name,
-              organizationType: _organization.organizationType,
-              description: _prop('description'),
-              logoContentUri: _prop('logo_content_uri'),
-              filesBaseUrl: widget.filesBaseUrl,
-              state: _organization.state,
-            ),
-          ),
-        ),
-
-        // -- Organization info card -------------------------------------------
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: _buildInfoCard(theme),
-          ),
-        ),
-
-        // -- Coverage area badge ------------------------------------------------
-        if (_organization.geoId.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(
-                      color: theme.colorScheme.outlineVariant.withAlpha(38)),
+            // -- Profile header (avatar, name, type, description) -------------------
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: _ProfileSection(
+                  profileId: _organization.profileId,
+                  organizationName: _organization.name,
+                  organizationType: _organization.organizationType,
+                  description: _prop('description'),
+                  logoContentUri: _prop('logo_content_uri'),
+                  filesBaseUrl: widget.filesBaseUrl,
+                  state: _organization.state,
                 ),
+              ),
+            ),
+
+            // -- Organization info card -------------------------------------------
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: _buildInfoCard(theme),
+              ),
+            ),
+
+            // -- Coverage area badge ------------------------------------------------
+            if (_organization.geoId.isNotEmpty)
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Text('Coverage Area',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant)),
-                      const SizedBox(width: 16),
-                      Expanded(child: AreaBadge(areaId: _organization.geoId)),
-                    ],
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withAlpha(38),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Coverage Area',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: AreaBadge(areaId: _organization.geoId),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
 
-        // -- Profile contacts & addresses (inline management) -------------------
-        if (_organization.profileId.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: ProfileInlineManager(
-                  profileId: _organization.profileId),
-            ),
-          ),
-
-        // -- Client ID card ---------------------------------------------------
-        if (_organization.clientId.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: _buildClientIdCard(theme),
-            ),
-          ),
-
-        // -- Sub-Organizations (always shown, with create button) ---------------
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-            child: Row(
-              children: [
-                _SectionHeader(
-                  icon: Icons.corporate_fare,
-                  title: 'Sub-Organizations',
-                ),
-                const Spacer(),
-                if (widget.canManage)
-                  FilledButton.icon(
-                    onPressed: () => _showChildOrgWizard(context),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Child Org'),
+            // -- Profile contacts & addresses (inline management) -------------------
+            if (_organization.profileId.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: ProfileInlineManager(
+                    profileId: _organization.profileId,
                   ),
-              ],
-            ),
-          ),
-        ),
-        childOrgsAsync.when(
-            loading: () => const SliverToBoxAdapter(
+                ),
+              ),
+
+            // -- Client ID card ---------------------------------------------------
+            if (_organization.clientId.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                  child: _buildClientIdCard(theme),
+                ),
+              ),
+
+            // -- Sub-Organizations (always shown, with create button) ---------------
+            SliverToBoxAdapter(
               child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Row(
+                  children: [
+                    _SectionHeader(
+                      icon: Icons.corporate_fare,
+                      title: 'Sub-Organizations',
+                    ),
+                    const Spacer(),
+                    if (widget.canManage)
+                      FilledButton.icon(
+                        onPressed: () => _showChildOrgWizard(context),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Child Org'),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            childOrgsAsync.when(
+              loading: () => const SliverToBoxAdapter(
+                child: Padding(
                   padding: EdgeInsets.all(32),
-                  child: Center(child: CircularProgressIndicator())),
-            ),
-            error: (error, _) => SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('Failed to load: $error'),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ),
-            ),
-            data: (childOrgs) {
-              if (childOrgs.isEmpty) {
-                return const SliverToBoxAdapter(
+              error: (error, _) => SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Failed to load: $error'),
+                ),
+              ),
+              data: (childOrgs) {
+                if (childOrgs.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      child: Text('No sub-organizations yet'),
+                    ),
+                  );
+                }
+                return SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    child: Text('No sub-organizations yet'),
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    child: _DataTableCard(
+                      columns: const ['NAME', 'TYPE', 'CODE', 'STATE'],
+                      rows: childOrgs
+                          .map(
+                            (child) => DataRow(
+                              onSelectChanged: (_) =>
+                                  context.go('/organizations/${child.id}'),
+                              cells: [
+                                DataCell(Text(child.name)),
+                                DataCell(
+                                  Text(orgTypeLabel(child.organizationType)),
+                                ),
+                                DataCell(Text(child.code)),
+                                DataCell(
+                                  StateBadge(state: toCommonState(child.state)),
+                                ),
+                              ],
+                            ),
+                          )
+                          .toList(),
+                    ),
                   ),
                 );
-              }
-              return SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                  child: _DataTableCard(
-                    columns: const ['NAME', 'TYPE', 'CODE', 'STATE'],
-                    rows: childOrgs.map((child) => DataRow(
-                      onSelectChanged: (_) =>
-                          context.go('/organizations/${child.id}'),
-                      cells: [
-                        DataCell(Text(child.name)),
-                        DataCell(Text(orgTypeLabel(child.organizationType))),
-                        DataCell(Text(child.code)),
-                        DataCell(StateBadge(state: toCommonState(child.state))),
-                      ],
-                    )).toList(),
-                  ),
-                ),
-              );
-            },
-          ),
+              },
+            ),
 
-        // -- Org Units -------------------------------------------------------
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-            child: Row(
-              children: [
-                _SectionHeader(
-                  icon: Icons.account_tree_outlined,
-                  title: 'Top-Level Org Units',
-                ),
-                const Spacer(),
-                if (widget.canManage)
-                  FilledButton.icon(
-                    onPressed: () => _showOrgUnitDialog(context),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Org Unit'),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        orgUnitsAsync.when(
-          loading: () => const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          ),
-          error: (error, _) => SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('Failed to load org units: $error'),
-            ),
-          ),
-          data: (orgUnits) {
-            if (orgUnits.isEmpty) {
-              return const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: Text('No org units yet'),
-                ),
-              );
-            }
-            return SliverToBoxAdapter(
+            // -- Org Units -------------------------------------------------------
+            SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                child: _DataTableCard(
-                  columns: const ['ID', 'NAME', 'TYPE', 'CODE', 'STATE'],
-                  rows: orgUnits.map((orgUnit) {
-                    final shortId = orgUnit.id.length > 12
-                        ? '${orgUnit.id.substring(0, 12)}\u2026'
-                        : orgUnit.id;
-                    return DataRow(
-                      onSelectChanged: (_) => context.go(
-                        '/org-units/${orgUnit.id}',
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Row(
+                  children: [
+                    _SectionHeader(
+                      icon: Icons.account_tree_outlined,
+                      title: 'Top-Level Org Units',
+                    ),
+                    const Spacer(),
+                    if (widget.canManage)
+                      FilledButton.icon(
+                        onPressed: () => _showOrgUnitDialog(context),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Org Unit'),
                       ),
-                      cells: [
-                        DataCell(Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SelectableText(shortId,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontFamily: 'monospace', fontSize: 11)),
-                            const SizedBox(width: 4),
-                            InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: orgUnit.id));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('ID copied'),
-                                      duration: Duration(seconds: 1)),
-                                );
-                              },
-                              child: Icon(Icons.copy, size: 14,
-                                  color: theme.colorScheme.onSurfaceVariant),
-                            ),
-                          ],
-                        )),
-                        DataCell(Text(orgUnit.name)),
-                        DataCell(Text(orgUnitTypeLabel(orgUnit.type))),
-                        DataCell(Text(orgUnit.code)),
-                        DataCell(StateBadge(state: toCommonState(orgUnit.state))),
-                      ],
-                    );
-                  }).toList(),
+                  ],
                 ),
               ),
-            );
-          },
-        ),
-
-        // -- Audit Trail -------------------------------------------------------
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-            child: ObjectAuditTrail(
-              resourceType: 'organization',
-              resourceId: _organization.id,
-              maxEntries: 20,
             ),
-          ),
+            orgUnitsAsync.when(
+              loading: () => const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
+              error: (error, _) => SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Failed to load org units: $error'),
+                ),
+              ),
+              data: (orgUnits) {
+                if (orgUnits.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      child: Text('No org units yet'),
+                    ),
+                  );
+                }
+                return SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    child: _DataTableCard(
+                      columns: const ['ID', 'NAME', 'TYPE', 'CODE', 'STATE'],
+                      rows: orgUnits.map((orgUnit) {
+                        final shortId = orgUnit.id.length > 12
+                            ? '${orgUnit.id.substring(0, 12)}\u2026'
+                            : orgUnit.id;
+                        return DataRow(
+                          onSelectChanged: (_) =>
+                              context.go('/org-units/${orgUnit.id}'),
+                          cells: [
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SelectableText(
+                                    shortId,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontFamily: 'monospace',
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  InkWell(
+                                    onTap: () {
+                                      Clipboard.setData(
+                                        ClipboardData(text: orgUnit.id),
+                                      );
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('ID copied'),
+                                          duration: Duration(seconds: 1),
+                                        ),
+                                      );
+                                    },
+                                    child: Icon(
+                                      Icons.copy,
+                                      size: 14,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DataCell(Text(orgUnit.name)),
+                            DataCell(Text(orgUnitTypeLabel(orgUnit.type))),
+                            DataCell(Text(orgUnit.code)),
+                            DataCell(
+                              StateBadge(state: toCommonState(orgUnit.state)),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // -- Audit Trail -------------------------------------------------------
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                child: ObjectAuditTrail(
+                  resourceType: 'organization',
+                  resourceId: _organization.id,
+                  maxEntries: 20,
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
       ),
     );
   }
@@ -425,10 +442,12 @@ class _OrganizationDetailContentState
 
   Widget _buildInfoCard(ThemeData theme) {
     final items = <_InfoTile>[];
-    items.add(_InfoTile(
-      label: 'Organization Type',
-      value: orgTypeLabel(_organization.organizationType),
-    ));
+    items.add(
+      _InfoTile(
+        label: 'Organization Type',
+        value: orgTypeLabel(_organization.organizationType),
+      ),
+    );
     if (_organization.code.isNotEmpty) {
       items.add(_InfoTile(label: 'Code', value: _organization.code));
     }
@@ -455,15 +474,19 @@ class _OrganizationDetailContentState
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: items.sublist(0, mid),
-                  )),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: items.sublist(0, mid),
+                    ),
+                  ),
                   const SizedBox(width: 24),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: items.sublist(mid),
-                  )),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: items.sublist(mid),
+                    ),
+                  ),
                 ],
               );
             }
@@ -495,8 +518,12 @@ class _OrganizationDetailContentState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Client ID', style: theme.textTheme.labelMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text(
+                    'Client ID',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   SelectableText(
                     _organization.clientId,
@@ -569,8 +596,7 @@ class _OrganizationDetailContentState
           ref.invalidate(filteredOrganizationListProvider);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Child organization created')),
+              const SnackBar(content: Text('Child organization created')),
             );
           }
         },
@@ -681,11 +707,6 @@ class _ProfileSection extends ConsumerWidget {
       }
     }
 
-    // If we have a profile, load it for contacts/addresses.
-    final profileAsync = profileId.isNotEmpty
-        ? ref.watch(profileByIdProvider(profileId))
-        : null;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -695,7 +716,8 @@ class _ProfileSection extends ConsumerWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: BorderSide(
-                color: theme.colorScheme.outlineVariant.withAlpha(38)),
+              color: theme.colorScheme.outlineVariant.withAlpha(38),
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -710,24 +732,31 @@ class _ProfileSection extends ConsumerWidget {
                       : null,
                   child: displayLogoUri.isNotEmpty
                       ? null
-                      : Text(initial,
+                      : Text(
+                          initial,
                           style: theme.textTheme.headlineMedium?.copyWith(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w700,
-                          )),
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 24),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(organizationName,
-                          style: theme.textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700)),
+                      Text(
+                        organizationName,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.secondaryContainer,
                           borderRadius: BorderRadius.circular(16),
@@ -742,10 +771,12 @@ class _ProfileSection extends ConsumerWidget {
                       ),
                       if (description.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        Text(description,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            )),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -780,9 +811,12 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: theme.colorScheme.primary),
         const SizedBox(width: 8),
-        Text(title,
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -800,14 +834,12 @@ class _DataTableCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-            color: theme.colorScheme.outlineVariant.withAlpha(38)),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(38)),
       ),
       clipBehavior: Clip.antiAlias,
       child: DataTable(
         showCheckboxColumn: false,
-        columns:
-            columns.map((c) => DataColumn(label: Text(c))).toList(),
+        columns: columns.map((c) => DataColumn(label: Text(c))).toList(),
         rows: rows,
       ),
     );
@@ -827,14 +859,20 @@ class _InfoTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            value,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

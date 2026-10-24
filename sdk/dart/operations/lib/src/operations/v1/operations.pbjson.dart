@@ -17,6 +17,79 @@ import '../../common/v1/common.pbjson.dart' as $8;
 import '../../common/v1/money.pbjson.dart' as $7;
 import '../../google/protobuf/struct.pbjson.dart' as $6;
 
+@$core.Deprecated('Use transferOrderTypeDescriptor instead')
+const TransferOrderType$json = {
+  '1': 'TransferOrderType',
+  '2': [
+    {'1': 'TRANSFER_ORDER_TYPE_UNSPECIFIED', '2': 0},
+    {'1': 'TRANSFER_ORDER_TYPE_PAYMENT', '2': 1},
+    {'1': 'TRANSFER_ORDER_TYPE_PAYMENT_IDENTIFIED', '2': 2},
+    {'1': 'TRANSFER_ORDER_TYPE_PAYMENT_ALLOCATED', '2': 3},
+    {'1': 'TRANSFER_ORDER_TYPE_DISBURSEMENT', '2': 6},
+    {'1': 'TRANSFER_ORDER_TYPE_DISBURSEMENT_REVERSAL', '2': 7},
+    {'1': 'TRANSFER_ORDER_TYPE_DISBURSEMENT_REVERSAL_REROUTE', '2': 8},
+    {'1': 'TRANSFER_ORDER_TYPE_TERMINAL_DISBURSEMENT', '2': 9},
+    {'1': 'TRANSFER_ORDER_TYPE_TERMINAL_DISBURSEMENT_RECOVERY', '2': 10},
+    {'1': 'TRANSFER_ORDER_TYPE_COST', '2': 11},
+    {'1': 'TRANSFER_ORDER_TYPE_SERVICE_FEE', '2': 16},
+    {'1': 'TRANSFER_ORDER_TYPE_REGISTRATION_FEE', '2': 21},
+    {'1': 'TRANSFER_ORDER_TYPE_PERIODIC_SAVING', '2': 25},
+    {'1': 'TRANSFER_ORDER_TYPE_PERIODIC_SAVINGS_INTEREST_INCOME_DISTRIBUTION', '2': 26},
+    {'1': 'TRANSFER_ORDER_TYPE_PERIODIC_SAVING_RECOVERY', '2': 27},
+    {'1': 'TRANSFER_ORDER_TYPE_PENALTY', '2': 31},
+    {'1': 'TRANSFER_ORDER_TYPE_PENALTY_CANCEL', '2': 32},
+    {'1': 'TRANSFER_ORDER_TYPE_PENALTY_INCOME_DISTRIBUTION', '2': 33},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_FUNDING_EXTERNAL_LENDING', '2': 36},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_FUNDING_EXTERNAL_LENDING_PAYBACK', '2': 37},
+    {'1': 'TRANSFER_ORDER_TYPE_INVESTOR_DEPLOYMENT', '2': 38},
+    {'1': 'TRANSFER_ORDER_TYPE_INVESTOR_PRINCIPAL_RETURN', '2': 39},
+    {'1': 'TRANSFER_ORDER_TYPE_INVESTOR_INCOME_DISTRIBUTION', '2': 40},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN', '2': 41},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_REPAYMENT', '2': 42},
+    {'1': 'TRANSFER_ORDER_TYPE_SHUTDOWN_LOAN_RECOVERY', '2': 43},
+    {'1': 'TRANSFER_ORDER_TYPE_PLATFORM_FIRST_LOSS_ABSORPTION', '2': 44},
+    {'1': 'TRANSFER_ORDER_TYPE_INVESTOR_LOSS_ABSORPTION', '2': 45},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_INTEREST', '2': 46},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_INTEREST_REPAYMENT', '2': 47},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION', '2': 48},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_INSURANCE', '2': 51},
+    {'1': 'TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT', '2': 52},
+    {'1': 'TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT', '2': 71},
+  ],
+};
+
+/// Descriptor for `TransferOrderType`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List transferOrderTypeDescriptor = $convert.base64Decode(
+    'ChFUcmFuc2Zlck9yZGVyVHlwZRIjCh9UUkFOU0ZFUl9PUkRFUl9UWVBFX1VOU1BFQ0lGSUVEEA'
+    'ASHwobVFJBTlNGRVJfT1JERVJfVFlQRV9QQVlNRU5UEAESKgomVFJBTlNGRVJfT1JERVJfVFlQ'
+    'RV9QQVlNRU5UX0lERU5USUZJRUQQAhIpCiVUUkFOU0ZFUl9PUkRFUl9UWVBFX1BBWU1FTlRfQU'
+    'xMT0NBVEVEEAMSJAogVFJBTlNGRVJfT1JERVJfVFlQRV9ESVNCVVJTRU1FTlQQBhItCilUUkFO'
+    'U0ZFUl9PUkRFUl9UWVBFX0RJU0JVUlNFTUVOVF9SRVZFUlNBTBAHEjUKMVRSQU5TRkVSX09SRE'
+    'VSX1RZUEVfRElTQlVSU0VNRU5UX1JFVkVSU0FMX1JFUk9VVEUQCBItCilUUkFOU0ZFUl9PUkRF'
+    'Ul9UWVBFX1RFUk1JTkFMX0RJU0JVUlNFTUVOVBAJEjYKMlRSQU5TRkVSX09SREVSX1RZUEVfVE'
+    'VSTUlOQUxfRElTQlVSU0VNRU5UX1JFQ09WRVJZEAoSHAoYVFJBTlNGRVJfT1JERVJfVFlQRV9D'
+    'T1NUEAsSIwofVFJBTlNGRVJfT1JERVJfVFlQRV9TRVJWSUNFX0ZFRRAQEigKJFRSQU5TRkVSX0'
+    '9SREVSX1RZUEVfUkVHSVNUUkFUSU9OX0ZFRRAVEicKI1RSQU5TRkVSX09SREVSX1RZUEVfUEVS'
+    'SU9ESUNfU0FWSU5HEBkSRQpBVFJBTlNGRVJfT1JERVJfVFlQRV9QRVJJT0RJQ19TQVZJTkdTX0'
+    'lOVEVSRVNUX0lOQ09NRV9ESVNUUklCVVRJT04QGhIwCixUUkFOU0ZFUl9PUkRFUl9UWVBFX1BF'
+    'UklPRElDX1NBVklOR19SRUNPVkVSWRAbEh8KG1RSQU5TRkVSX09SREVSX1RZUEVfUEVOQUxUWR'
+    'AfEiYKIlRSQU5TRkVSX09SREVSX1RZUEVfUEVOQUxUWV9DQU5DRUwQIBIzCi9UUkFOU0ZFUl9P'
+    'UkRFUl9UWVBFX1BFTkFMVFlfSU5DT01FX0RJU1RSSUJVVElPThAhEjUKMVRSQU5TRkVSX09SRE'
+    'VSX1RZUEVfTE9BTl9GVU5ESU5HX0VYVEVSTkFMX0xFTkRJTkcQJBI9CjlUUkFOU0ZFUl9PUkRF'
+    'Ul9UWVBFX0xPQU5fRlVORElOR19FWFRFUk5BTF9MRU5ESU5HX1BBWUJBQ0sQJRIrCidUUkFOU0'
+    'ZFUl9PUkRFUl9UWVBFX0lOVkVTVE9SX0RFUExPWU1FTlQQJhIxCi1UUkFOU0ZFUl9PUkRFUl9U'
+    'WVBFX0lOVkVTVE9SX1BSSU5DSVBBTF9SRVRVUk4QJxI0CjBUUkFOU0ZFUl9PUkRFUl9UWVBFX0'
+    'lOVkVTVE9SX0lOQ09NRV9ESVNUUklCVVRJT04QKBIcChhUUkFOU0ZFUl9PUkRFUl9UWVBFX0xP'
+    'QU4QKRImCiJUUkFOU0ZFUl9PUkRFUl9UWVBFX0xPQU5fUkVQQVlNRU5UECoSLgoqVFJBTlNGRV'
+    'JfT1JERVJfVFlQRV9TSFVURE9XTl9MT0FOX1JFQ09WRVJZECsSNgoyVFJBTlNGRVJfT1JERVJf'
+    'VFlQRV9QTEFURk9STV9GSVJTVF9MT1NTX0FCU09SUFRJT04QLBIwCixUUkFOU0ZFUl9PUkRFUl'
+    '9UWVBFX0lOVkVTVE9SX0xPU1NfQUJTT1JQVElPThAtEiUKIVRSQU5TRkVSX09SREVSX1RZUEVf'
+    'TE9BTl9JTlRFUkVTVBAuEi8KK1RSQU5TRkVSX09SREVSX1RZUEVfTE9BTl9JTlRFUkVTVF9SRV'
+    'BBWU1FTlQQLxI5CjVUUkFOU0ZFUl9PUkRFUl9UWVBFX0xPQU5fSU5URVJFU1RfSU5DT01FX0RJ'
+    'U1RSSUJVVElPThAwEiYKIlRSQU5TRkVSX09SREVSX1RZUEVfTE9BTl9JTlNVUkFOQ0UQMxIwCi'
+    'xUUkFOU0ZFUl9PUkRFUl9UWVBFX0xPQU5fSU5TVVJBTkNFX1JFUEFZTUVOVBA0EjIKLlRSQU5T'
+    'RkVSX09SREVSX1RZUEVfSU5URVJfU1VCU0NSSVBUSU9OX1BBWU1FTlQQRw==');
+
 @$core.Deprecated('Use transferOrderObjectDescriptor instead')
 const TransferOrderObject$json = {
   '1': 'TransferOrderObject',
@@ -25,11 +98,19 @@ const TransferOrderObject$json = {
     {'1': 'debit_account_ref', '3': 2, '4': 1, '5': 9, '10': 'debitAccountRef'},
     {'1': 'credit_account_ref', '3': 3, '4': 1, '5': 9, '10': 'creditAccountRef'},
     {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
-    {'1': 'order_type', '3': 6, '4': 1, '5': 5, '10': 'orderType'},
+    {
+      '1': 'order_type',
+      '3': 6,
+      '4': 1,
+      '5': 5,
+      '8': {'3': true},
+      '10': 'orderType',
+    },
     {'1': 'reference', '3': 7, '4': 1, '5': 9, '10': 'reference'},
     {'1': 'description', '3': 8, '4': 1, '5': 9, '10': 'description'},
     {'1': 'extra_data', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'extraData'},
     {'1': 'state', '3': 10, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
+    {'1': 'transfer_type', '3': 11, '4': 1, '5': 14, '6': '.operations.v1.TransferOrderType', '10': 'transferType'},
   ],
   '9': [
     {'1': 5, '2': 6},
@@ -41,10 +122,11 @@ final $typed_data.Uint8List transferOrderObjectDescriptor = $convert.base64Decod
     'ChNUcmFuc2Zlck9yZGVyT2JqZWN0Eg4KAmlkGAEgASgJUgJpZBIqChFkZWJpdF9hY2NvdW50X3'
     'JlZhgCIAEoCVIPZGViaXRBY2NvdW50UmVmEiwKEmNyZWRpdF9hY2NvdW50X3JlZhgDIAEoCVIQ'
     'Y3JlZGl0QWNjb3VudFJlZhIoCgZhbW91bnQYBCABKAsyEC5jb21tb24udjEuTW9uZXlSBmFtb3'
-    'VudBIdCgpvcmRlcl90eXBlGAYgASgFUglvcmRlclR5cGUSHAoJcmVmZXJlbmNlGAcgASgJUgly'
-    'ZWZlcmVuY2USIAoLZGVzY3JpcHRpb24YCCABKAlSC2Rlc2NyaXB0aW9uEjYKCmV4dHJhX2RhdG'
-    'EYCSABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0UglleHRyYURhdGESJgoFc3RhdGUYCiAB'
-    'KA4yEC5jb21tb24udjEuU1RBVEVSBXN0YXRlSgQIBRAG');
+    'VudBIhCgpvcmRlcl90eXBlGAYgASgFQgIYAVIJb3JkZXJUeXBlEhwKCXJlZmVyZW5jZRgHIAEo'
+    'CVIJcmVmZXJlbmNlEiAKC2Rlc2NyaXB0aW9uGAggASgJUgtkZXNjcmlwdGlvbhI2CgpleHRyYV'
+    '9kYXRhGAkgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIJZXh0cmFEYXRhEiYKBXN0YXRl'
+    'GAogASgOMhAuY29tbW9uLnYxLlNUQVRFUgVzdGF0ZRJFCg10cmFuc2Zlcl90eXBlGAsgASgOMi'
+    'Aub3BlcmF0aW9ucy52MS5UcmFuc2Zlck9yZGVyVHlwZVIMdHJhbnNmZXJUeXBlSgQIBRAG');
 
 @$core.Deprecated('Use transferOrderExecuteRequestDescriptor instead')
 const TransferOrderExecuteRequest$json = {
@@ -77,29 +159,40 @@ const TransferOrderSearchRequest$json = {
   '1': 'TransferOrderSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'order_type', '3': 2, '4': 1, '5': 5, '10': 'orderType'},
+    {
+      '1': 'order_type',
+      '3': 2,
+      '4': 1,
+      '5': 5,
+      '8': {'3': true},
+      '10': 'orderType',
+    },
     {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {'1': 'transfer_type', '3': 4, '4': 1, '5': 14, '6': '.operations.v1.TransferOrderType', '10': 'transferType'},
   ],
 };
 
 /// Descriptor for `TransferOrderSearchRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List transferOrderSearchRequestDescriptor = $convert.base64Decode(
-    'ChpUcmFuc2Zlck9yZGVyU2VhcmNoUmVxdWVzdBIUCgVxdWVyeRgBIAEoCVIFcXVlcnkSHQoKb3'
-    'JkZXJfdHlwZRgCIAEoBVIJb3JkZXJUeXBlEi0KBmN1cnNvchgDIAEoCzIVLmNvbW1vbi52MS5Q'
-    'YWdlQ3Vyc29yUgZjdXJzb3I=');
+    'ChpUcmFuc2Zlck9yZGVyU2VhcmNoUmVxdWVzdBIUCgVxdWVyeRgBIAEoCVIFcXVlcnkSIQoKb3'
+    'JkZXJfdHlwZRgCIAEoBUICGAFSCW9yZGVyVHlwZRItCgZjdXJzb3IYAyABKAsyFS5jb21tb24u'
+    'djEuUGFnZUN1cnNvclIGY3Vyc29yEkUKDXRyYW5zZmVyX3R5cGUYBCABKA4yIC5vcGVyYXRpb2'
+    '5zLnYxLlRyYW5zZmVyT3JkZXJUeXBlUgx0cmFuc2ZlclR5cGU=');
 
 @$core.Deprecated('Use transferOrderSearchResponseDescriptor instead')
 const TransferOrderSearchResponse$json = {
   '1': 'TransferOrderSearchResponse',
   '2': [
     {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.operations.v1.TransferOrderObject', '10': 'data'},
+    {'1': 'next_cursor', '3': 2, '4': 1, '5': 9, '10': 'nextCursor'},
   ],
 };
 
 /// Descriptor for `TransferOrderSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List transferOrderSearchResponseDescriptor = $convert.base64Decode(
     'ChtUcmFuc2Zlck9yZGVyU2VhcmNoUmVzcG9uc2USNgoEZGF0YRgBIAMoCzIiLm9wZXJhdGlvbn'
-    'MudjEuVHJhbnNmZXJPcmRlck9iamVjdFIEZGF0YQ==');
+    'MudjEuVHJhbnNmZXJPcmRlck9iamVjdFIEZGF0YRIfCgtuZXh0X2N1cnNvchgCIAEoCVIKbmV4'
+    'dEN1cnNvcg==');
 
 @$core.Deprecated('Use incomingPaymentNotifyRequestDescriptor instead')
 const IncomingPaymentNotifyRequest$json = {

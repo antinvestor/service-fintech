@@ -82,6 +82,7 @@ enum SavingsPeriodType {
   SAVINGS_PERIOD_TYPE_BIWEEKLY = 3;
   SAVINGS_PERIOD_TYPE_MONTHLY = 4;
   SAVINGS_PERIOD_TYPE_QUARTERLY = 5;
+  SAVINGS_PERIOD_TYPE_ANNUALLY = 6;
 }
 
 // CompoundingFrequency defines how often interest is compounded.
@@ -495,7 +496,10 @@ message WithdrawalGetResponse {
 }
 
 message WithdrawalSearchRequest {
+  // Optional: when empty, withdrawals across every account the caller can
+  // see are returned (e.g. an approval queue filtered by status).
   string savings_account_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
@@ -553,12 +557,16 @@ message SavingsStatementRequest {
   ];
   string from_date = 2;
   string to_date = 3;
+  // Page window over the statement entries. Unset returns the first page.
+  common.v1.PageCursor cursor = 4;
 }
 
 message SavingsStatementResponse {
   SavingsAccountObject account = 1;
   SavingsBalanceObject balance = 2;
   repeated SavingsStatementEntry entries = 3;
+  // Cursor for the next page of entries; unset when this page is the last.
+  common.v1.PageCursor next_cursor = 4;
 }
 
 // -----------------------------------------------------

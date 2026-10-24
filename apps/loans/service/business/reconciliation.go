@@ -19,8 +19,8 @@ import (
 	"strconv"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/events"
@@ -70,7 +70,6 @@ func (b *reconciliationBusiness) Save(
 	return recon.ToAPI(), nil
 }
 
-//nolint:dupl // similar search logic for different entity types
 func (b *reconciliationBusiness) Search(
 	ctx context.Context,
 	req *loansv1.ReconciliationSearchRequest,

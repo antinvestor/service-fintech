@@ -1,14 +1,17 @@
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
+import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/identity_transport_provider.dart';
 import '../providers/organization_providers.dart';
 import '../providers/team_providers.dart';
-import '../widgets/org_unit_helpers.dart' show teamTypeLabel, teamTypeIcon, membershipRoleLabel;
+import '../widgets/org_unit_helpers.dart'
+    show teamTypeLabel, teamTypeIcon, membershipRoleLabel;
+import '../widgets/async_state_views.dart';
+import '../widgets/load_more_action.dart';
 
 // ---------------------------------------------------------------------------
 // Team type helpers
@@ -31,10 +34,27 @@ class _TeamsScreenState extends ConsumerState<TeamsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final teamsAsync = ref.watch(
-      internalTeamListProvider((query: _query, organizationId: '')),
-    );
-    final teams = teamsAsync.whenOrNull(data: (d) => d) ?? [];
+    final provider = internalTeamPagedListProvider((
+      query: _query,
+      organizationId: '',
+    ));
+    final teamsAsync = ref.watch(provider);
+    if (teamsAsync.hasError) {
+      return ListErrorView(
+        title: 'Teams',
+        breadcrumbs: const ['Identity', 'Teams'],
+        error: teamsAsync.error!,
+        onRetry: () => ref.invalidate(provider),
+      );
+    }
+    if (teamsAsync.isLoading && !teamsAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'Teams',
+        breadcrumbs: ['Identity', 'Teams'],
+      );
+    }
+    final page = teamsAsync.requireValue;
+    final teams = page.items;
 
     return AdminEntityListPage<InternalTeamObject>(
       title: 'Teams',
@@ -48,6 +68,17 @@ class _TeamsScreenState extends ConsumerState<TeamsScreen> {
       ],
       items: teams,
       onSearch: (value) => setState(() => _query = value.trim()),
+      actions: [
+        LoadMoreAction(
+          loadedCount: teams.length,
+          hasMore: page.hasMore,
+          isLoading: page.isLoadingMore,
+          errorMessage: page.loadMoreError == null
+              ? null
+              : friendlyError(page.loadMoreError!),
+          onLoadMore: () => ref.read(provider.notifier).loadMore(),
+        ),
+      ],
       addLabel: widget.canManage ? 'Create Team' : null,
       onAdd: widget.canManage ? () => _showTeamDialog(context) : null,
       rowBuilder: (team, selected, onSelect) {
@@ -55,22 +86,29 @@ class _TeamsScreenState extends ConsumerState<TeamsScreen> {
           selected: selected,
           onSelectChanged: (_) => onSelect(),
           cells: [
-            DataCell(Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(teamTypeIcon(team.teamType),
-                    size: 18, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(team.name),
-              ],
-            )),
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    teamTypeIcon(team.teamType),
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(team.name),
+                ],
+              ),
+            ),
             DataCell(Text(teamTypeLabel(team.teamType))),
             DataCell(Text(team.code)),
-            DataCell(Text(
-              team.objective.length > 50
-                  ? '${team.objective.substring(0, 50)}...'
-                  : team.objective,
-            )),
+            DataCell(
+              Text(
+                team.objective.length > 50
+                    ? '${team.objective.substring(0, 50)}...'
+                    : team.objective,
+              ),
+            ),
             DataCell(_StatePill(team.state)),
           ],
         );
@@ -125,21 +163,29 @@ class _TeamInlineDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(teamTypeIcon(team.teamType),
-                  color: theme.colorScheme.primary),
+              child: Icon(
+                teamTypeIcon(team.teamType),
+                color: theme.colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(team.name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(team.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    team.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    team.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -160,9 +206,12 @@ class _TeamInlineDetail extends StatelessWidget {
             children: [
               SizedBox(
                 width: 100,
-                child: Text('State',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
+                child: Text(
+                  'State',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
               _StatePill(team.state),
             ],
@@ -189,27 +238,15 @@ class TeamDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<InternalTeamObject>(
-      future: _loadTeam(ref),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final team = snapshot.data;
-        if (team == null) return const Center(child: Text('Team not found'));
-        return _TeamDetailContent(team: team, canManage: canManage);
-      },
+    final teamAsync = ref.watch(internalTeamByIdProvider(teamId));
+    return teamAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => DetailErrorView(
+        error: error,
+        onRetry: () => ref.invalidate(internalTeamByIdProvider(teamId)),
+      ),
+      data: (team) => _TeamDetailContent(team: team, canManage: canManage),
     );
-  }
-
-  Future<InternalTeamObject> _loadTeam(WidgetRef ref) async {
-    final client = ref.read(identityServiceClientProvider);
-    final response =
-        await client.internalTeamGet(InternalTeamGetRequest(id: teamId));
-    return response.data;
   }
 }
 
@@ -219,8 +256,7 @@ class _TeamDetailContent extends ConsumerStatefulWidget {
   final bool canManage;
 
   @override
-  ConsumerState<_TeamDetailContent> createState() =>
-      _TeamDetailContentState();
+  ConsumerState<_TeamDetailContent> createState() => _TeamDetailContentState();
 }
 
 class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
@@ -261,8 +297,7 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color:
-                            theme.colorScheme.primaryContainer.withAlpha(80),
+                        color: theme.colorScheme.primaryContainer.withAlpha(80),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -276,10 +311,13 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_team.name,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.5)),
+                          Text(
+                            _team.name,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
                           Text(
                             '${teamTypeLabel(_team.teamType)}${_team.code.isNotEmpty ? ' \u2022 ${_team.code}' : ''}',
                             style: theme.textTheme.bodyMedium?.copyWith(
@@ -317,13 +355,19 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.people_outline,
-                        size: 20, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.people_outline,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('Team Members',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Team Members',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     if (widget.canManage)
                       FilledButton.icon(
@@ -349,7 +393,8 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onChanged: (v) => setState(() => _memberSearchQuery = v.trim()),
+                  onChanged: (v) =>
+                      setState(() => _memberSearchQuery = v.trim()),
                 ),
               ),
             ),
@@ -385,10 +430,11 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                       child: Center(
                         child: Column(
                           children: [
-                            Icon(Icons.people_outline,
-                                size: 40,
-                                color: theme.colorScheme.onSurface
-                                    .withAlpha(60)),
+                            Icon(
+                              Icons.people_outline,
+                              size: 40,
+                              color: theme.colorScheme.onSurface.withAlpha(60),
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               _memberSearchQuery.isNotEmpty
@@ -432,11 +478,15 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                             cells: [
                               DataCell(Text(m.memberId)),
                               DataCell(_RolePill(m.membershipRole)),
-                              DataCell(m.isPrimaryTeam
-                                  ? Icon(Icons.star,
-                                      size: 18,
-                                      color: theme.colorScheme.tertiary)
-                                  : const SizedBox.shrink()),
+                              DataCell(
+                                m.isPrimaryTeam
+                                    ? Icon(
+                                        Icons.star,
+                                        size: 18,
+                                        color: theme.colorScheme.tertiary,
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
                               DataCell(_StatePill(m.state)),
                             ],
                           );
@@ -458,9 +508,7 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withAlpha(38),
-        ),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(38)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -485,14 +533,18 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: items.sublist(0, mid))),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: items.sublist(0, mid),
+                    ),
+                  ),
                   const SizedBox(width: 24),
                   Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: items.sublist(mid))),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: items.sublist(mid),
+                    ),
+                  ),
                 ],
               );
             }
@@ -530,19 +582,17 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
     if (result == null || !context.mounted) return;
 
     try {
-      await ref
-          .read(teamMembershipNotifierProvider.notifier)
-          .save(result);
+      await ref.read(teamMembershipNotifierProvider.notifier).save(result);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member added to team')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Member added to team')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
   }
@@ -578,10 +628,10 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.team?.name ?? '');
     _codeCtrl = TextEditingController(text: widget.team?.code ?? '');
-    _objectiveCtrl =
-        TextEditingController(text: widget.team?.objective ?? '');
+    _objectiveCtrl = TextEditingController(text: widget.team?.objective ?? '');
     _teamTypeCtrl = TextEditingController(
-        text: widget.team?.teamType ?? 'portfolio');
+      text: widget.team?.teamType ?? 'portfolio',
+    );
     _selectedOrgId = widget.team?.organizationId ?? '';
     _selectedOrgUnitId = widget.team?.homeOrgUnitId ?? '';
   }
@@ -621,7 +671,7 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orgsAsync = ref.watch(organizationListProvider(''));
-    final orgs = orgsAsync.whenOrNull(data: (d) => d) ?? [];
+    final orgs = orgsAsync.value ?? const <OrganizationObject>[];
 
     return Dialog(
       clipBehavior: Clip.antiAlias,
@@ -637,7 +687,8 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                      color: theme.colorScheme.outlineVariant.withAlpha(60)),
+                    color: theme.colorScheme.outlineVariant.withAlpha(60),
+                  ),
                 ),
               ),
               child: Row(
@@ -649,8 +700,11 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.groups_outlined,
-                        color: theme.colorScheme.primary, size: 22),
+                    child: Icon(
+                      Icons.groups_outlined,
+                      color: theme.colorScheme.primary,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -659,13 +713,15 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
                       children: [
                         Text(
                           _isEditing ? 'Edit Team' : 'New Team',
-                          style: theme.textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         Text(
                           'Define an execution team with a clear objective.',
                           style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant),
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -735,7 +791,8 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
                         child: TextFormField(
                           controller: _objectiveCtrl,
                           decoration: const InputDecoration(
-                            hintText: 'e.g. Manage portfolio for Western region',
+                            hintText:
+                                'e.g. Manage portfolio for Western region',
                             prefixIcon: Icon(Icons.flag_outlined),
                           ),
                           maxLines: 2,
@@ -744,16 +801,20 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
                       FormFieldCard(
                         label: 'Organization',
                         child: DropdownButtonFormField<String>(
-                          value: _selectedOrgId.isNotEmpty ? _selectedOrgId : null,
+                          initialValue: _selectedOrgId.isNotEmpty
+                              ? _selectedOrgId
+                              : null,
                           decoration: const InputDecoration(
                             hintText: 'Select organization',
                             prefixIcon: Icon(Icons.business_outlined),
                           ),
                           items: orgs
-                              .map((o) => DropdownMenuItem(
-                                    value: o.id,
-                                    child: Text(o.name),
-                                  ))
+                              .map(
+                                (o) => DropdownMenuItem(
+                                  value: o.id,
+                                  child: Text(o.name),
+                                ),
+                              )
                               .toList(),
                           onChanged: (v) =>
                               setState(() => _selectedOrgId = v ?? ''),
@@ -769,7 +830,8 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                      color: theme.colorScheme.outlineVariant.withAlpha(60)),
+                    color: theme.colorScheme.outlineVariant.withAlpha(60),
+                  ),
                 ),
               ),
               child: Row(
@@ -787,11 +849,12 @@ class _TeamFormDialogState extends ConsumerState<TeamFormDialog> {
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Icon(_isEditing ? Icons.save : Icons.add, size: 18),
-                    label:
-                        Text(_isEditing ? 'Update' : 'Create Team'),
+                    label: Text(_isEditing ? 'Update' : 'Create Team'),
                   ),
                 ],
               ),
@@ -869,8 +932,7 @@ class _AddTeamMemberDialogState extends State<_AddTeamMemberDialog> {
               const SizedBox(height: 12),
               SwitchListTile(
                 title: const Text('Primary team'),
-                subtitle:
-                    const Text('Mark this as the member\'s primary team'),
+                subtitle: const Text('Mark this as the member\'s primary team'),
                 value: _isPrimary,
                 onChanged: (v) => setState(() => _isPrimary = v),
               ),
@@ -918,21 +980,18 @@ class _StatePill extends StatelessWidget {
     final theme = Theme.of(context);
     final (Color bg, Color fg) = switch (label) {
       'ACTIVE' => (
-          theme.colorScheme.tertiary.withAlpha(20),
-          theme.colorScheme.tertiary
-        ),
+        theme.colorScheme.tertiary.withAlpha(20),
+        theme.colorScheme.tertiary,
+      ),
       'CREATED' => (
-          theme.colorScheme.secondary.withAlpha(20),
-          theme.colorScheme.secondary
-        ),
+        theme.colorScheme.secondary.withAlpha(20),
+        theme.colorScheme.secondary,
+      ),
       'INACTIVE' || 'DELETED' => (
-          theme.colorScheme.error.withAlpha(20),
-          theme.colorScheme.error
-        ),
-      _ => (
-          theme.colorScheme.outline.withAlpha(20),
-          theme.colorScheme.outline
-        ),
+        theme.colorScheme.error.withAlpha(20),
+        theme.colorScheme.error,
+      ),
+      _ => (theme.colorScheme.outline.withAlpha(20), theme.colorScheme.outline),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -940,9 +999,14 @@ class _StatePill extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(label,
-          style: theme.textTheme.labelSmall?.copyWith(
-              color: fg, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+      ),
     );
   }
 }
@@ -991,14 +1055,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -1019,14 +1089,20 @@ class _InfoTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            value,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );

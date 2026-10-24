@@ -27,6 +27,7 @@ const SavingsPeriodType$json = {
     {'1': 'SAVINGS_PERIOD_TYPE_BIWEEKLY', '2': 3},
     {'1': 'SAVINGS_PERIOD_TYPE_MONTHLY', '2': 4},
     {'1': 'SAVINGS_PERIOD_TYPE_QUARTERLY', '2': 5},
+    {'1': 'SAVINGS_PERIOD_TYPE_ANNUALLY', '2': 6},
   ],
 };
 
@@ -35,7 +36,8 @@ final $typed_data.Uint8List savingsPeriodTypeDescriptor = $convert.base64Decode(
     'ChFTYXZpbmdzUGVyaW9kVHlwZRIjCh9TQVZJTkdTX1BFUklPRF9UWVBFX1VOU1BFQ0lGSUVEEA'
     'ASHQoZU0FWSU5HU19QRVJJT0RfVFlQRV9EQUlMWRABEh4KGlNBVklOR1NfUEVSSU9EX1RZUEVf'
     'V0VFS0xZEAISIAocU0FWSU5HU19QRVJJT0RfVFlQRV9CSVdFRUtMWRADEh8KG1NBVklOR1NfUE'
-    'VSSU9EX1RZUEVfTU9OVEhMWRAEEiEKHVNBVklOR1NfUEVSSU9EX1RZUEVfUVVBUlRFUkxZEAU=');
+    'VSSU9EX1RZUEVfTU9OVEhMWRAEEiEKHVNBVklOR1NfUEVSSU9EX1RZUEVfUVVBUlRFUkxZEAUS'
+    'IAocU0FWSU5HU19QRVJJT0RfVFlQRV9BTk5VQUxMWRAG');
 
 @$core.Deprecated('Use compoundingFrequencyDescriptor instead')
 const CompoundingFrequency$json = {
@@ -773,10 +775,10 @@ const WithdrawalSearchRequest$json = {
 
 /// Descriptor for `WithdrawalSearchRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List withdrawalSearchRequestDescriptor = $convert.base64Decode(
-    'ChdXaXRoZHJhd2FsU2VhcmNoUmVxdWVzdBI3ChJzYXZpbmdzX2FjY291bnRfaWQYASABKAlCCb'
-    'pIBnIEEAMYKFIQc2F2aW5nc0FjY291bnRJZBI0CgZzdGF0dXMYAiABKA4yHC5zYXZpbmdzLnYx'
-    'LldpdGhkcmF3YWxTdGF0dXNSBnN0YXR1cxItCgZjdXJzb3IYAyABKAsyFS5jb21tb24udjEuUG'
-    'FnZUN1cnNvclIGY3Vyc29y');
+    'ChdXaXRoZHJhd2FsU2VhcmNoUmVxdWVzdBI6ChJzYXZpbmdzX2FjY291bnRfaWQYASABKAlCDL'
+    'pICdgBAXIEEAMYKFIQc2F2aW5nc0FjY291bnRJZBI0CgZzdGF0dXMYAiABKA4yHC5zYXZpbmdz'
+    'LnYxLldpdGhkcmF3YWxTdGF0dXNSBnN0YXR1cxItCgZjdXJzb3IYAyABKAsyFS5jb21tb24udj'
+    'EuUGFnZUN1cnNvclIGY3Vyc29y');
 
 @$core.Deprecated('Use withdrawalSearchResponseDescriptor instead')
 const WithdrawalSearchResponse$json = {
@@ -878,6 +880,7 @@ const SavingsStatementRequest$json = {
     {'1': 'savings_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'savingsAccountId'},
     {'1': 'from_date', '3': 2, '4': 1, '5': 9, '10': 'fromDate'},
     {'1': 'to_date', '3': 3, '4': 1, '5': 9, '10': 'toDate'},
+    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
   ],
 };
 
@@ -885,7 +888,8 @@ const SavingsStatementRequest$json = {
 final $typed_data.Uint8List savingsStatementRequestDescriptor = $convert.base64Decode(
     'ChdTYXZpbmdzU3RhdGVtZW50UmVxdWVzdBI3ChJzYXZpbmdzX2FjY291bnRfaWQYASABKAlCCb'
     'pIBnIEEAMYKFIQc2F2aW5nc0FjY291bnRJZBIbCglmcm9tX2RhdGUYAiABKAlSCGZyb21EYXRl'
-    'EhcKB3RvX2RhdGUYAyABKAlSBnRvRGF0ZQ==');
+    'EhcKB3RvX2RhdGUYAyABKAlSBnRvRGF0ZRItCgZjdXJzb3IYBCABKAsyFS5jb21tb24udjEuUG'
+    'FnZUN1cnNvclIGY3Vyc29y');
 
 @$core.Deprecated('Use savingsStatementResponseDescriptor instead')
 const SavingsStatementResponse$json = {
@@ -894,6 +898,7 @@ const SavingsStatementResponse$json = {
     {'1': 'account', '3': 1, '4': 1, '5': 11, '6': '.savings.v1.SavingsAccountObject', '10': 'account'},
     {'1': 'balance', '3': 2, '4': 1, '5': 11, '6': '.savings.v1.SavingsBalanceObject', '10': 'balance'},
     {'1': 'entries', '3': 3, '4': 3, '5': 11, '6': '.savings.v1.SavingsStatementEntry', '10': 'entries'},
+    {'1': 'next_cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'nextCursor'},
   ],
 };
 
@@ -902,7 +907,8 @@ final $typed_data.Uint8List savingsStatementResponseDescriptor = $convert.base64
     'ChhTYXZpbmdzU3RhdGVtZW50UmVzcG9uc2USOgoHYWNjb3VudBgBIAEoCzIgLnNhdmluZ3Mudj'
     'EuU2F2aW5nc0FjY291bnRPYmplY3RSB2FjY291bnQSOgoHYmFsYW5jZRgCIAEoCzIgLnNhdmlu'
     'Z3MudjEuU2F2aW5nc0JhbGFuY2VPYmplY3RSB2JhbGFuY2USOwoHZW50cmllcxgDIAMoCzIhLn'
-    'NhdmluZ3MudjEuU2F2aW5nc1N0YXRlbWVudEVudHJ5UgdlbnRyaWVz');
+    'NhdmluZ3MudjEuU2F2aW5nc1N0YXRlbWVudEVudHJ5UgdlbnRyaWVzEjYKC25leHRfY3Vyc29y'
+    'GAQgASgLMhUuY29tbW9uLnYxLlBhZ2VDdXJzb3JSCm5leHRDdXJzb3I=');
 
 const $core.Map<$core.String, $core.dynamic> SavingsServiceBase$json = {
   '1': 'SavingsService',

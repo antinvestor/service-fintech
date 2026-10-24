@@ -22,14 +22,14 @@ import (
 	"errors"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,6 +100,36 @@ func (r *stubLoanRequestRepo) Search(
 }
 
 // Compile-time checks.
+func (r *stubLoanRequestRepo) ClaimStatus(
+	_ context.Context,
+	_ string,
+	fromStatuses []int32,
+	toStatus int32,
+	values map[string]any,
+) (bool, error) {
+	if r.request == nil {
+		return false, nil
+	}
+	for _, from := range fromStatuses {
+		if r.request.Status == from {
+			r.request.Status = toStatus
+			if v, ok := values["decided_by"].(string); ok {
+				r.request.DecidedBy = v
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *stubLoanRequestRepo) ClaimForLoanCreation(_ context.Context, _, _ string) (bool, error) {
+	return true, nil
+}
+
+func (r *stubLoanRequestRepo) ReleaseLoanCreationClaim(_ context.Context, _, _ string) error {
+	return nil
+}
+
 var _ repository.LoanRequestRepository = (*stubLoanRequestRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.LoanRequest] = (*stubLoanRequestRepo)(nil)
 
@@ -165,11 +195,12 @@ var _ datastore.BaseRepository[*loansmodels.LoanProduct] = (*stubLoanProductRepo
 // submittedLoanRequest returns a minimal LoanRequest in SUBMITTED state.
 func submittedLoanRequest() *loansmodels.LoanRequest {
 	lr := &loansmodels.LoanRequest{
-		ClientID:        "client-lr-1",
-		OrganizationID:  "org-lr-1",
-		CurrencyCode:    "KES",
-		RequestedAmount: 50000,
-		Status:          int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED),
+		ClientID:          "client-lr-1",
+		OrganizationID:    "org-lr-1",
+		CurrencyCode:      "KES",
+		RequestedAmount:   50000,
+		RequestedTermDays: 90,
+		Status:            int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED),
 	}
 	lr.GenID(context.Background())
 	return lr
@@ -245,7 +276,7 @@ func TestApprove_GateDenied(t *testing.T) {
 	lrRepo := &stubLoanRequestRepo{request: lr}
 	lpRepo := &stubLoanProductRepo{}
 	limitsCli := &stubLimitsClient{
-		reserveErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("lr limit breached")),
+		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "lr limit breached"),
 	}
 
 	b := buildLRBusiness(lrRepo, lpRepo, limitsCli, true)

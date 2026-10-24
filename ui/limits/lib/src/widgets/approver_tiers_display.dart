@@ -36,11 +36,13 @@ class ApproverTiersDisplay extends StatelessWidget {
       ],
       rows: [
         for (final t in tiers)
-          DataRow(cells: [
-            DataCell(Text(t.upTo == Int64.ZERO ? '∞' : t.upTo.toString())),
-            DataCell(Text(t.role)),
-            DataCell(Text('${t.approvers}')),
-          ]),
+          DataRow(
+            cells: [
+              DataCell(Text(t.upTo == Int64.ZERO ? '∞' : t.upTo.toString())),
+              DataCell(Text(t.role)),
+              DataCell(Text('${t.approvers}')),
+            ],
+          ),
       ],
     );
   }

@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
@@ -27,8 +28,11 @@ import (
 
 // PolicyCache wraps the candidate-policy repository with an expirable LRU
 // cache keyed by (tenant_id, org_unit_id, action, currency). Entries expire
-// after 30 s to bound staleness from operator policy changes. PolicyBusiness
-// calls InvalidateTenant on Save/Delete for sub-second propagation.
+// after the configured TTL to bound staleness from operator policy changes.
+// PolicyBusiness calls InvalidateTenant on Save/Delete, which purges the local
+// process immediately, and emits events.EventPolicyInvalidate so replicas that
+// subscribe via PolicyInvalidateHandler purge too; the TTL bounds staleness for
+// any replica the event does not reach.
 type PolicyCache struct {
 	inner repository.CandidatePolicyRepository
 	cache *expirable.LRU[string, []*models.Policy]
@@ -37,22 +41,29 @@ type PolicyCache struct {
 const (
 	// policyCacheSize bounds the candidate-policy LRU.
 	policyCacheSize = 2048
-	// policyCacheTTL is how long cached candidate sets stay fresh.
-	policyCacheTTL = 30 * time.Second
+	// defaultPolicyCacheTTL is how long cached candidate sets stay fresh when
+	// the caller does not configure a TTL.
+	defaultPolicyCacheTTL = 30 * time.Second
 )
 
-// NewPolicyCache constructs a cache wrapping inner.
-func NewPolicyCache(inner repository.CandidatePolicyRepository) *PolicyCache {
+// NewPolicyCache constructs a cache wrapping inner. A non-positive ttl falls
+// back to defaultPolicyCacheTTL. The TTL is the upper bound on how long a
+// policy change takes to reach a replica that misses the invalidation event.
+func NewPolicyCache(inner repository.CandidatePolicyRepository, ttl time.Duration) *PolicyCache {
+	if ttl <= 0 {
+		ttl = defaultPolicyCacheTTL
+	}
 	return &PolicyCache{
 		inner: inner,
-		cache: expirable.NewLRU[string, []*models.Policy](policyCacheSize, nil, policyCacheTTL),
+		cache: expirable.NewLRU[string, []*models.Policy](policyCacheSize, nil, ttl),
 	}
 }
 
 // FindCandidates returns cached candidates when available; falls through to the
 // wrapped repository on a miss and populates the cache on success.
 func (c *PolicyCache) FindCandidates(ctx context.Context, q repository.CandidateQuery) ([]*models.Policy, error) {
-	key := fmt.Sprintf("%s|%s|%s|%s", q.TenantID, q.OrgUnitID, string(q.Action), q.CurrencyCode)
+	key := fmt.Sprintf("%s|%s|%s|%s|%s", q.TenantID, q.OrgUnitID, string(q.Action), q.CurrencyCode,
+		strings.Join(q.PartitionIDs, ","))
 	if hit, ok := c.cache.Get(key); ok {
 		return hit, nil
 	}
@@ -64,9 +75,10 @@ func (c *PolicyCache) FindCandidates(ctx context.Context, q repository.Candidate
 	return rows, nil
 }
 
-// InvalidateTenant purges the entire cache. The cache is small (≤2048 entries)
-// and tenant policy changes are rare relative to the read rate, so a full purge
-// is acceptable and avoids the complexity of partial invalidation.
+// InvalidateTenant purges this process's entire cache. The cache is small
+// (≤2048 entries) and tenant policy changes are rare relative to the read rate,
+// so a full purge is acceptable and avoids partial-invalidation complexity.
+// Peer replicas are reached through PolicyInvalidateHandler.
 func (c *PolicyCache) InvalidateTenant(_ string) {
 	c.cache.Purge()
 }

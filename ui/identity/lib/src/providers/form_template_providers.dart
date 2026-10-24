@@ -5,45 +5,45 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'identity_transport_provider.dart';
 
 /// Search form templates.
-typedef FormTemplateListParams = ({
-  String query,
-  String organizationId,
-});
+typedef FormTemplateListParams = ({String query, String organizationId});
 
-final formTemplateListProvider = FutureProvider.family<
-    List<FormTemplateObject>, FormTemplateListParams>((ref, params) async {
-  final client = ref.watch(identityServiceClientProvider);
-  final request = FormTemplateSearchRequest(
-    query: params.query,
-    cursor: PageCursor(limit: 50),
-  );
+final formTemplateListProvider =
+    FutureProvider.family<List<FormTemplateObject>, FormTemplateListParams>((
+      ref,
+      params,
+    ) async {
+      final client = ref.watch(identityServiceClientProvider);
+      final request = FormTemplateSearchRequest(
+        query: params.query,
+        cursor: PageCursor(limit: 50),
+      );
 
-  if (params.organizationId.isNotEmpty) {
-    request.organizationId = params.organizationId;
-  }
+      if (params.organizationId.isNotEmpty) {
+        request.organizationId = params.organizationId;
+      }
 
-  return collectStream(
-    client.formTemplateSearch(request),
-    extract: (response) => response.data,
-  );
-});
+      return collectStream(
+        client.formTemplateSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 /// Get a single form template by ID.
 final formTemplateDetailProvider =
     FutureProvider.family<FormTemplateObject, String>((ref, id) async {
-  final client = ref.watch(identityServiceClientProvider);
-  final response =
-      await client.formTemplateGet(FormTemplateGetRequest(id: id));
-  return response.data;
-});
+      final client = ref.watch(identityServiceClientProvider);
+      final response = await client.formTemplateGet(
+        FormTemplateGetRequest(id: id),
+      );
+      return response.data;
+    });
 
 /// Notifier for form template mutations.
 class FormTemplateNotifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncValue.data(null);
 
-  IdentityServiceClient get _client =>
-      ref.read(identityServiceClientProvider);
+  IdentityServiceClient get _client => ref.read(identityServiceClientProvider);
 
   Future<FormTemplateObject> save(FormTemplateObject template) async {
     state = const AsyncValue.loading();
@@ -80,16 +80,11 @@ class FormTemplateNotifier extends Notifier<AsyncValue<void>> {
 
 final formTemplateNotifierProvider =
     NotifierProvider<FormTemplateNotifier, AsyncValue<void>>(
-        FormTemplateNotifier.new);
+      FormTemplateNotifier.new,
+    );
 
 /// Entity types that can have form requirements.
-enum FormEntityType {
-  client,
-  agent,
-  investor,
-  group,
-  application,
-}
+enum FormEntityType { client, agent, investor, group, application }
 
 /// Loads published form templates for a given entity type.
 typedef EntityFormTemplateParams = ({
@@ -97,46 +92,50 @@ typedef EntityFormTemplateParams = ({
   String organizationId,
 });
 
-final entityFormTemplatesProvider = FutureProvider.family<
-    List<FormTemplateObject>, EntityFormTemplateParams>((ref, params) async {
-  final client = ref.watch(identityServiceClientProvider);
-  final request = FormTemplateSearchRequest(
-    entityType: params.entityType.name,
-    status: FormTemplateStatus.FORM_TEMPLATE_STATUS_PUBLISHED,
-    cursor: PageCursor(limit: 20),
-  );
-  if (params.organizationId.isNotEmpty) {
-    request.organizationId = params.organizationId;
-  }
-  return collectStream(
-    client.formTemplateSearch(request),
-    extract: (response) => response.data,
-  );
-});
+final entityFormTemplatesProvider =
+    FutureProvider.family<List<FormTemplateObject>, EntityFormTemplateParams>((
+      ref,
+      params,
+    ) async {
+      final client = ref.watch(identityServiceClientProvider);
+      final request = FormTemplateSearchRequest(
+        entityType: params.entityType.name,
+        status: FormTemplateStatus.FORM_TEMPLATE_STATUS_PUBLISHED,
+        cursor: PageCursor(limit: 20),
+      );
+      if (params.organizationId.isNotEmpty) {
+        request.organizationId = params.organizationId;
+      }
+      return collectStream(
+        client.formTemplateSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 /// Search form submissions for a given entity.
 final formSubmissionListProvider =
-    FutureProvider.family<List<FormSubmissionObject>, String>(
-        (ref, entityId) async {
-  final client = ref.watch(identityServiceClientProvider);
-  final request = FormSubmissionSearchRequest(
-    entityId: entityId,
-    cursor: PageCursor(limit: 50),
-  );
+    FutureProvider.family<List<FormSubmissionObject>, String>((
+      ref,
+      entityId,
+    ) async {
+      final client = ref.watch(identityServiceClientProvider);
+      final request = FormSubmissionSearchRequest(
+        entityId: entityId,
+        cursor: PageCursor(limit: 50),
+      );
 
-  return collectStream(
-    client.formSubmissionSearch(request),
-    extract: (response) => response.data,
-  );
-});
+      return collectStream(
+        client.formSubmissionSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 /// Notifier for form submission mutations.
 class FormSubmissionNotifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncValue.data(null);
 
-  IdentityServiceClient get _client =>
-      ref.read(identityServiceClientProvider);
+  IdentityServiceClient get _client => ref.read(identityServiceClientProvider);
 
   Future<FormSubmissionObject> save(FormSubmissionObject submission) async {
     state = const AsyncValue.loading();
@@ -159,4 +158,5 @@ class FormSubmissionNotifier extends Notifier<AsyncValue<void>> {
 
 final formSubmissionNotifierProvider =
     NotifierProvider<FormSubmissionNotifier, AsyncValue<void>>(
-        FormSubmissionNotifier.new);
+      FormSubmissionNotifier.new,
+    );

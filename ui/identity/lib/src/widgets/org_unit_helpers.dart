@@ -66,24 +66,24 @@ String teamTypeLabel(String type) {
 
 /// Icon for a string-based team type.
 IconData teamTypeIcon(String type) => switch (type.toLowerCase()) {
-      'portfolio' => Icons.pie_chart_outline,
-      'servicing' => Icons.support_agent,
-      'collections' => Icons.account_balance_wallet,
-      'recovery' => Icons.assignment_return,
-      'sales' => Icons.trending_up,
-      'pilot' => Icons.science_outlined,
-      'shared_service' => Icons.hub_outlined,
-      'agent_network' => Icons.groups_3_outlined,
-      'external_partner' => Icons.handshake_outlined,
-      'channel' => Icons.route_outlined,
-      _ => Icons.groups_outlined,
-    };
+  'portfolio' => Icons.pie_chart_outline,
+  'servicing' => Icons.support_agent,
+  'collections' => Icons.account_balance_wallet,
+  'recovery' => Icons.assignment_return,
+  'sales' => Icons.trending_up,
+  'pilot' => Icons.science_outlined,
+  'shared_service' => Icons.hub_outlined,
+  'agent_network' => Icons.groups_3_outlined,
+  'external_partner' => Icons.handshake_outlined,
+  'channel' => Icons.route_outlined,
+  _ => Icons.groups_outlined,
+};
 
 /// Human-readable label for an AccessScopeType.
 String scopeLabel(AccessScopeType scope) => switch (scope) {
-      AccessScopeType.ACCESS_SCOPE_TYPE_GLOBAL => 'Global',
-      AccessScopeType.ACCESS_SCOPE_TYPE_ORGANIZATION => 'Organization',
-      AccessScopeType.ACCESS_SCOPE_TYPE_ORG_UNIT => 'Org Unit',
-      AccessScopeType.ACCESS_SCOPE_TYPE_TEAM => 'Team',
-      _ => 'Unspecified',
-    };
+  AccessScopeType.ACCESS_SCOPE_TYPE_GLOBAL => 'Global',
+  AccessScopeType.ACCESS_SCOPE_TYPE_ORGANIZATION => 'Organization',
+  AccessScopeType.ACCESS_SCOPE_TYPE_ORG_UNIT => 'Org Unit',
+  AccessScopeType.ACCESS_SCOPE_TYPE_TEAM => 'Team',
+  _ => 'Unspecified',
+};

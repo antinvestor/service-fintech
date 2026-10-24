@@ -21,15 +21,16 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/queue"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/queue"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -118,6 +119,56 @@ func (r *stubTransferOrderRepo) GetByReference(_ context.Context, _ string) (*mo
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (r *stubTransferOrderRepo) CreateIfAbsent(_ context.Context, _ *models.TransferOrder) error {
+	return nil
+}
+
+func (r *stubTransferOrderRepo) ClaimState(
+	_ context.Context,
+	_ string,
+	_ []int32,
+	toState int32,
+) (bool, error) {
+	if r.order != nil {
+		r.order.State = toState
+	}
+	return true, nil
+}
+
+func (r *stubTransferOrderRepo) ClaimStaleExecution(_ context.Context, _ string, _ time.Time) (bool, error) {
+	return false, nil
+}
+func (r *stubTransferOrderRepo) ReleaseExecution(_ context.Context, _, _ string) (bool, error) {
+	if r.order != nil {
+		r.order.State = int32(constants.StateJustCreated)
+	}
+	return true, nil
+}
+func (r *stubTransferOrderRepo) MarkLedgerPosted(_ context.Context, _, txnID string) error {
+	if r.order != nil {
+		r.order.LedgerTransactionID = txnID
+	}
+	return nil
+}
+func (r *stubTransferOrderRepo) ClaimPaymentInitiation(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+func (r *stubTransferOrderRepo) RecordPaymentID(_ context.Context, _, _ string) error     { return nil }
+func (r *stubTransferOrderRepo) MarkPayoutFailed(_ context.Context, _, _, _ string) error { return nil }
+func (r *stubTransferOrderRepo) RetakePaymentInitiation(_ context.Context, _ string, _ time.Time) (bool, error) {
+	return true, nil
+}
+func (r *stubTransferOrderRepo) MarkFailedIfUnposted(_ context.Context, _ string) (bool, error) {
+	if r.order != nil {
+		r.order.State = int32(constants.StateShutdown)
+	}
+	return true, nil
+}
+
+func (r *stubTransferOrderRepo) ConsumeObligationForOrder(_ context.Context, _, _ string, _ int64) (bool, error) {
+	return true, nil
+}
+
 var _ repository.TransferOrderRepository = (*stubTransferOrderRepo)(nil)
 
 // stubTransferLimitsClient implements limitsv1connect.LimitsServiceClient.
@@ -131,43 +182,43 @@ type stubTransferLimitsClient struct {
 
 func (s *stubTransferLimitsClient) Check(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CheckRequest],
-) (*connect.Response[limitsv1.CheckResponse], error) {
-	return connect.NewResponse(&limitsv1.CheckResponse{}), nil
+	_ *limitsv1.CheckRequest,
+) (*limitsv1.CheckResponse, error) {
+	return &limitsv1.CheckResponse{}, nil
 }
 
 func (s *stubTransferLimitsClient) Reserve(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
+	_ *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
 	s.reserveCalls++
 	if s.reserveErr != nil {
 		return nil, s.reserveErr
 	}
-	return connect.NewResponse(s.reserveResp), nil
+	return s.reserveResp, nil
 }
 
 func (s *stubTransferLimitsClient) Commit(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
+	_ *limitsv1.CommitRequest,
+) (*limitsv1.CommitResponse, error) {
 	s.commitCalls++
-	return connect.NewResponse(&limitsv1.CommitResponse{}), nil
+	return &limitsv1.CommitResponse{}, nil
 }
 
 func (s *stubTransferLimitsClient) Release(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReleaseRequest],
-) (*connect.Response[limitsv1.ReleaseResponse], error) {
+	_ *limitsv1.ReleaseRequest,
+) (*limitsv1.ReleaseResponse, error) {
 	s.releaseCalls++
-	return connect.NewResponse(&limitsv1.ReleaseResponse{}), nil
+	return &limitsv1.ReleaseResponse{}, nil
 }
 
 func (s *stubTransferLimitsClient) Reverse(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReverseRequest],
-) (*connect.Response[limitsv1.ReverseResponse], error) {
-	return connect.NewResponse(&limitsv1.ReverseResponse{}), nil
+	_ *limitsv1.ReverseRequest,
+) (*limitsv1.ReverseResponse, error) {
+	return &limitsv1.ReverseResponse{}, nil
 }
 
 var _ limitsv1connect.LimitsServiceClient = (*stubTransferLimitsClient)(nil)
@@ -260,7 +311,7 @@ func TestTransferOrderExecute_GateDenied(t *testing.T) {
 	order := inactiveTransferOrder("UGX", 10_000)
 	toRepo := &stubTransferOrderRepo{order: order}
 	limitsCli := &stubTransferLimitsClient{
-		reserveErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("transfer limit breached")),
+		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "transfer limit breached"),
 	}
 
 	b := buildTransferOrderBusiness(toRepo, limitsCli, true)

@@ -14,6 +14,8 @@
 
 package stawi
 
+import "strings"
+
 // ProductConfig defines SACCO/Grameen-model product configuration.
 // These are product-level defaults that can be overridden per group.
 type ProductConfig struct {
@@ -30,11 +32,13 @@ type ProductConfig struct {
 	MaxLeverage int64 `envDefault:"220" env:"STAWI_MAX_LEVERAGE"` // basis points (2.20x)
 
 	// Loan terms
-	LoanInterestRatePA  int64 `envDefault:"2400" env:"STAWI_LOAN_INTEREST_RATE"`  // basis points (24%)
-	LoanInsuranceRate   int64 `envDefault:"0"    env:"STAWI_LOAN_INSURANCE_RATE"` // basis points
-	LoanTenurePeriods   int32 `envDefault:"4"    env:"STAWI_LOAN_TENURE_PERIODS"`
-	LoanGracePeriod     int32 `envDefault:"1"    env:"STAWI_LOAN_GRACE_PERIOD"`
-	LoanMaturityPeriods int32 `envDefault:"4"    env:"STAWI_LOAN_MATURITY_PERIODS"`
+	LoanInterestRatePA int64 `envDefault:"2400" env:"STAWI_LOAN_INTEREST_RATE"`  // basis points (24%)
+	LoanInsuranceRate  int64 `envDefault:"0"    env:"STAWI_LOAN_INSURANCE_RATE"` // basis points
+	LoanTenurePeriods  int32 `envDefault:"4"    env:"STAWI_LOAN_TENURE_PERIODS"`
+	// LoanProductID is the loans-service product group loans are written on.
+	LoanProductID       string `envDefault:"stawi" env:"STAWI_LOAN_PRODUCT_ID"`
+	LoanGracePeriod     int32  `envDefault:"1"     env:"STAWI_LOAN_GRACE_PERIOD"`
+	LoanMaturityPeriods int32  `envDefault:"4"     env:"STAWI_LOAN_MATURITY_PERIODS"`
 
 	// Savings
 	RegistrationFee int64 `envDefault:"0" env:"STAWI_REGISTRATION_FEE"` // minor units
@@ -56,4 +60,23 @@ type ProductConfig struct {
 // FineRates returns the escalating fine rates as a slice.
 func (c *ProductConfig) FineRates() []int64 {
 	return []int64{c.LateFineRate1, c.LateFineRate2, c.LateFineRate3}
+}
+
+// Days in each period type, as the loans service counts a term.
+const (
+	daysPerWeeklyPeriod   int32 = 7
+	daysPerBiweeklyPeriod int32 = 14
+	daysPerMonthlyPeriod  int32 = 30
+)
+
+// LoanTermDays is the loan tenure expressed in days for the loans service.
+func (c *ProductConfig) LoanTermDays() int32 {
+	days := daysPerWeeklyPeriod
+	switch strings.ToUpper(strings.TrimSpace(c.PeriodType)) {
+	case "BIWEEKLY":
+		days = daysPerBiweeklyPeriod
+	case "MONTHLY":
+		days = daysPerMonthlyPeriod
+	}
+	return c.LoanTenurePeriods * days
 }

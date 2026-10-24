@@ -82,7 +82,8 @@
                         "member_id": "{{ vars.member.id }}",
                         "savings_total": "{{ vars.member.savings_total }}",
                         "penalties": "{{ vars.member.penalties }}"
-                      }
+                      },
+                      "dedupe_key": "period_closed_summary:{{ vars.member.id }}:{{ payload.period_id }}:{{ payload.group_id }}"
                     }
                   }
                 }
@@ -135,6 +136,7 @@
                         "duration": "{{ vars.loan_window_result.body.window_duration }}"
                       }
                     },
+                    "output_var": "loan_window",
                     "retry": "default"
                   }
                 },
@@ -148,7 +150,8 @@
                       "data": {
                         "group_id": "{{ payload.group_id }}",
                         "window_closes_at": "{{ vars.loan_window_result.body.window_closes_at }}"
-                      }
+                      },
+                      "dedupe_key": "loan_window_opened:{{ vars.loan_window.body.loan_window_id }}:{{ payload.group_id }}"
                     }
                   }
                 }
@@ -183,7 +186,8 @@
                   "period_id": "{{ vars.new_period.body.period_id }}",
                   "start_date": "{{ vars.new_period.body.start_date }}",
                   "end_date": "{{ vars.new_period.body.end_date }}"
-                }
+                },
+                "dedupe_key": "new_period_opened:{{ vars.new_period.body.period_id }}:{{ payload.group_id }}"
               }
             }
           }
@@ -220,7 +224,8 @@
                       "data": {
                         "group_id": "{{ payload.group_id }}",
                         "period_id": "{{ payload.period_id }}"
-                      }
+                      },
+                      "dedupe_key": "period_extended:{{ payload.period_id }}:{{ payload.group_id }}"
                     }
                   }
                 }

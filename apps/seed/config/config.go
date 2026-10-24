@@ -15,7 +15,9 @@
 package config
 
 import (
-	"github.com/pitabwire/frame/v2/config"
+	"github.com/pitabwire/frame/v3/config"
+
+	"github.com/antinvestor/service-fintech/pkg/clients"
 )
 
 // SeedConfig is the service configuration for the seed direct-to-client
@@ -26,6 +28,7 @@ import (
 // double-entry record.
 type SeedConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
 
 	// Identity service — used to verify KYC and resolve client identities.
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                  env:"IDENTITY_SERVICE_URI"`
@@ -38,8 +41,25 @@ type SeedConfig struct {
 
 	// Operations service — used to provision client suspense accounts
 	// at first-loan-request time.
+	// Profile service — the borrower's payout destination (mobile money
+	// number) is one of their profile contacts.
+	ProfileServiceURI                   string `envDefault:"127.0.0.1:7005"                 env:"PROFILE_SERVICE_URI"`
+	ProfileServiceWorkloadAPITargetPath string `envDefault:"/ns/profile/sa/service-profile" env:"PROFILE_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
 	OperationsServiceURI                   string `envDefault:"127.0.0.1:7060"                    env:"OPERATIONS_SERVICE_URI"`
 	OperationsServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-operations" env:"OPERATIONS_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
+	// Seed product policy.
+	//
+	// SeedCreditTierLadder overrides the credit ladder the setup job
+	// provisions. Entries are comma-separated and shaped
+	// tier:min_successful_repayments:max_loan_amount_minor:interest_bp:term_days[:name].
+	// Empty means repository.DefaultTierLadder.
+	SeedProductID         string `envDefault:"seed"       env:"SEED_PRODUCT_ID"`
+	SeedCurrencyCode      string `envDefault:"KES"        env:"SEED_CURRENCY_CODE"`
+	SeedStaffRole         string `envDefault:"seed_staff" env:"SEED_STAFF_ROLE"`
+	SeedKYCRequiredFields string `envDefault:""           env:"SEED_KYC_REQUIRED_FIELDS"`
+	SeedCreditTierLadder  string `envDefault:""           env:"SEED_CREDIT_TIER_LADDER"`
 
 	// Tenancy service.
 	TenancyServiceURI                   string `envDefault:"127.0.0.1:7003"              env:"TENANCY_SERVICE_URI"`

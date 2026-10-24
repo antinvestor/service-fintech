@@ -18,9 +18,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
@@ -45,6 +45,15 @@ type LoanRequestRepository interface {
 	// request from the loans-service loan account id that the hook
 	// carries.
 	GetByLoanAccountID(ctx context.Context, loanAccountID string) (*models.LoanRequest, error)
+
+	// GetUnconfirmedDisbursement returns the client's most recent loan
+	// request left in the DisbursementUnconfirmed state, so the next request
+	// can reconcile it against the loans service before deciding whether the
+	// outstanding-loan slot is genuinely taken.
+	GetUnconfirmedDisbursement(
+		ctx context.Context,
+		clientID, currencyCode string,
+	) (*models.LoanRequest, error)
 }
 
 type loanRequestRepository struct {
@@ -76,6 +85,28 @@ func (r *loanRequestRepository) GetByIdempotencyKey(
 	entity := &models.LoanRequest{}
 	err := r.dbPool.DB(ctx, true).
 		Where("idempotency_key = ?", key).
+		First(entity).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrLoanRequestNotFound
+		}
+		return nil, err
+	}
+	return entity, nil
+}
+
+func (r *loanRequestRepository) GetUnconfirmedDisbursement(
+	ctx context.Context,
+	clientID, currencyCode string,
+) (*models.LoanRequest, error) {
+	if clientID == "" || currencyCode == "" {
+		return nil, ErrLoanRequestNotFound
+	}
+	entity := &models.LoanRequest{}
+	err := r.dbPool.DB(ctx, true).
+		Where("client_id = ? AND currency_code = ? AND status = ?",
+			clientID, currencyCode, int32(models.LoanRequestStatusDisbursementUnconfirmed)).
+		Order("created_at DESC").
 		First(entity).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
 	"github.com/antinvestor/service-fintech/apps/seed/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 // LoanRequestSaveEvent persists a seed loan request snapshot. Loan
@@ -71,17 +71,8 @@ func (e *LoanRequestSave) Execute(ctx context.Context, payload any) error {
 	})
 	defer logger.Release()
 
-	existing, getErr := e.repo.GetByID(ctx, lr.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.repo.Update(ctx, lr); err != nil {
-			logger.WithError(err).Error("could not update loan request")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.repo.Create(ctx, lr); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create loan request")
+	if err := upsert.ByID(ctx, e.repo, lr); err != nil {
+		logger.WithError(err).Error("could not persist loan request")
 		return err
 	}
 	return nil

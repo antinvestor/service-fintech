@@ -21,6 +21,7 @@ class SavingsPeriodType extends $pb.ProtobufEnum {
   static const SavingsPeriodType SAVINGS_PERIOD_TYPE_BIWEEKLY = SavingsPeriodType._(3, _omitEnumNames ? '' : 'SAVINGS_PERIOD_TYPE_BIWEEKLY');
   static const SavingsPeriodType SAVINGS_PERIOD_TYPE_MONTHLY = SavingsPeriodType._(4, _omitEnumNames ? '' : 'SAVINGS_PERIOD_TYPE_MONTHLY');
   static const SavingsPeriodType SAVINGS_PERIOD_TYPE_QUARTERLY = SavingsPeriodType._(5, _omitEnumNames ? '' : 'SAVINGS_PERIOD_TYPE_QUARTERLY');
+  static const SavingsPeriodType SAVINGS_PERIOD_TYPE_ANNUALLY = SavingsPeriodType._(6, _omitEnumNames ? '' : 'SAVINGS_PERIOD_TYPE_ANNUALLY');
 
   static const $core.List<SavingsPeriodType> values = <SavingsPeriodType> [
     SAVINGS_PERIOD_TYPE_UNSPECIFIED,
@@ -29,6 +30,7 @@ class SavingsPeriodType extends $pb.ProtobufEnum {
     SAVINGS_PERIOD_TYPE_BIWEEKLY,
     SAVINGS_PERIOD_TYPE_MONTHLY,
     SAVINGS_PERIOD_TYPE_QUARTERLY,
+    SAVINGS_PERIOD_TYPE_ANNUALLY,
   ];
 
   static final $core.Map<$core.int, SavingsPeriodType> _byValue = $pb.ProtobufEnum.initByValue(values);

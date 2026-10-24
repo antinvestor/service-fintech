@@ -21,7 +21,7 @@ import (
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util/decimalx"
 	moneyx "github.com/pitabwire/util/moneyx"
 )
@@ -70,8 +70,10 @@ func MoneyToMinorUnits(m *commonv1.Money) (int64, string) {
 // Organization represents a top-level lending institution mapped to a partition.
 type Organization struct {
 	data.BaseModel
-	Name             string `gorm:"type:varchar(255)"`
-	Code             string `gorm:"type:varchar(50);uniqueIndex:uq_organization_code"`
+	Name string `gorm:"type:varchar(255)"`
+	// Code uniqueness is scoped to the partition by the 002 SQL migration;
+	// a model level unique index here would be global across tenants.
+	Code             string `gorm:"type:varchar(50)"`
 	ProfileID        string `gorm:"type:varchar(50)"`
 	ClientID         string `gorm:"type:varchar(50)"` // OAuth client ID for partition-scoped login
 	GeoID            string `gorm:"type:varchar(50)"`
@@ -124,7 +126,6 @@ func OrganizationFromAPI(ctx context.Context, obj *identityv1.OrganizationObject
 		model.Properties = (&data.JSONMap{}).FromProtoStruct(obj.GetProperties())
 	}
 
-	model.PartitionID = obj.GetPartitionId()
 	model.GenID(ctx)
 	if model.ValidXID(obj.GetId()) {
 		model.ID = obj.GetId()
@@ -140,13 +141,14 @@ type Branch struct {
 	OrganizationID string `gorm:"type:varchar(50);index:idx_branch_organization"`
 	ParentID       string `gorm:"type:varchar(50);index:idx_org_unit_parent"`
 	Name           string `gorm:"type:varchar(255)"`
-	Code           string `gorm:"type:varchar(50);uniqueIndex:uq_branch_code"`
-	ProfileID      string `gorm:"type:varchar(50)"` // Profile for contacts, addresses, avatar
-	GeoID          string `gorm:"type:varchar(50)"`
-	UnitType       int32  `gorm:"column:unit_type;index:idx_org_unit_type"`
-	ClientID       string `gorm:"type:varchar(50)"` // OAuth client ID for partition-scoped login
-	State          int32
-	Properties     data.JSONMap
+	// Code uniqueness is scoped to the partition by the 002 SQL migration.
+	Code       string `gorm:"type:varchar(50)"`
+	ProfileID  string `gorm:"type:varchar(50)"` // Profile for contacts, addresses, avatar
+	GeoID      string `gorm:"type:varchar(50)"`
+	UnitType   int32  `gorm:"column:unit_type;index:idx_org_unit_type"`
+	ClientID   string `gorm:"type:varchar(50)"` // OAuth client ID for partition-scoped login
+	State      int32
+	Properties data.JSONMap
 }
 
 func (m *Branch) TableName() string { return "org_units" }
@@ -190,7 +192,6 @@ func OrgUnitFromAPI(ctx context.Context, obj *identityv1.OrgUnitObject) *Branch 
 		model.Properties = (&data.JSONMap{}).FromProtoStruct(obj.GetProperties())
 	}
 
-	model.PartitionID = obj.GetPartitionId()
 	model.GenID(ctx)
 	if model.ValidXID(obj.GetId()) {
 		model.ID = obj.GetId()
@@ -318,7 +319,7 @@ type Client struct {
 	data.BaseModel
 	AgentID           string `gorm:"column:agent_id;type:varchar(50);index:idx_client_agent"`
 	OwningTeamID      string `gorm:"type:varchar(50);index:idx_client_owning_team;not null;default:''"`
-	ProfileID         string `gorm:"type:varchar(50);uniqueIndex:uq_client_profile"`
+	ProfileID         string `gorm:"type:varchar(50);index:idx_client_profile"`
 	Name              string `gorm:"type:varchar(255)"`
 	CurrencyCode      string `gorm:"type:varchar(3)"`
 	SystemCreditLimit int64

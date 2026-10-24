@@ -1,6 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
+import 'package:antinvestor_ui_core/logging/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -18,19 +19,57 @@ class UploadResult {
   final String httpUrl;
 }
 
-/// Upload image bytes to the files service as a public image.
+/// Raised when an upload is rejected before or after it reaches the server.
 ///
-/// Uses the HTTP multipart upload endpoint at /v1/media/upload
-/// which is the standard upload path for the files service.
-/// Returns the HTTP download URL for backwards compatibility.
-/// Use [uploadPublicImageFull] to get both mxc:// and HTTP URLs.
-Future<String> uploadPublicImage(
-  WidgetRef ref,
-  Uint8List bytes,
-  String filename,
-) async {
-  final result = await uploadPublicImageFull(ref, bytes, filename);
-  return result.httpUrl;
+/// Carries only a caller-facing message: the raw server body can contain
+/// storage paths and internal identifiers and never reaches the UI.
+class UploadException implements Exception {
+  const UploadException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Largest image the files service accepts for a logo or avatar.
+const maxUploadBytes = 5 * 1024 * 1024;
+
+/// How long an upload may take before it is abandoned.
+const uploadTimeout = Duration(seconds: 60);
+
+/// Image types the files service will serve back as an image.
+const allowedImageExtensions = <String, String>{
+  'png': 'image/png',
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'gif': 'image/gif',
+  'webp': 'image/webp',
+};
+
+/// Resolves [filename] to an allowed image content type.
+///
+/// Returns null when the extension is missing or not an image type, so the
+/// caller can reject the file without spending bandwidth on it.
+String? imageContentTypeFor(String filename) {
+  final dot = filename.lastIndexOf('.');
+  if (dot < 0 || dot == filename.length - 1) return null;
+  return allowedImageExtensions[filename.substring(dot + 1).toLowerCase()];
+}
+
+/// Validates image bytes against the upload limits.
+///
+/// Returns null when the upload may proceed, or a caller-facing reason.
+String? validateImageUpload(Uint8List bytes, String filename) {
+  if (bytes.isEmpty) return 'The selected file is empty.';
+  if (bytes.length > maxUploadBytes) {
+    final limitMb = maxUploadBytes ~/ (1024 * 1024);
+    return 'Image is larger than the ${limitMb}MB limit.';
+  }
+  if (imageContentTypeFor(filename) == null) {
+    return 'Only ${allowedImageExtensions.keys.join(', ')} images are accepted.';
+  }
+  return null;
 }
 
 /// Upload image bytes and return both the mxc:// content URI and HTTP URL.
@@ -43,12 +82,18 @@ Future<UploadResult> uploadPublicImageFull(
   Uint8List bytes,
   String filename,
 ) async {
+  final rejection = validateImageUpload(bytes, filename);
+  if (rejection != null) throw UploadException(rejection);
+
   final authRepo = ref.read(authRepositoryProvider);
-  final token = await authRepo.getAccessToken();
-  if (token == null) throw Exception('Not authenticated');
+  final token = await authRepo.ensureValidAccessToken();
+  if (token == null || token.isEmpty) {
+    throw const UploadException('Your session has expired. Sign in again.');
+  }
 
   final uri = Uri.parse(
-    '${AppConfig.filesBaseUrl}/v1/media/upload?filename=${Uri.encodeComponent(filename)}',
+    '${AppConfig.filesBaseUrl}/v1/media/upload'
+    '?filename=${Uri.encodeComponent(filename)}',
   );
 
   final request = http.MultipartRequest('POST', uri)
@@ -57,26 +102,37 @@ Future<UploadResult> uploadPublicImageFull(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
 
-  debugPrint('[FileUpload] Uploading ${bytes.length} bytes to $uri');
-
-  final streamedResponse = await request.send();
-  final body = await streamedResponse.stream.bytesToString();
-
-  debugPrint('[FileUpload] Response ${streamedResponse.statusCode}: $body');
+  final streamedResponse = await request.send().timeout(uploadTimeout);
+  final body = await streamedResponse.stream.bytesToString().timeout(
+    uploadTimeout,
+  );
 
   if (streamedResponse.statusCode != 200) {
-    throw Exception('Upload failed (${streamedResponse.statusCode}): $body');
+    AppLogger.warning(
+      'Public image upload failed with status ${streamedResponse.statusCode}',
+    );
+    throw UploadException(
+      'Upload failed (${streamedResponse.statusCode}). Please try again.',
+    );
   }
 
-  final data = jsonDecode(body) as Map<String, dynamic>;
-  final contentUri = data['content_uri'] as String?;
-  if (contentUri == null || contentUri.isEmpty) {
-    throw Exception('Upload succeeded but no content_uri in response');
+  final contentUri = _contentUriFrom(body);
+  if (contentUri == null) {
+    throw const UploadException('Upload succeeded but returned no file id.');
   }
 
-  final httpUrl = mxcToHttpUrl(contentUri);
-  debugPrint('[FileUpload] Content URI: $contentUri -> HTTP: $httpUrl');
-  return UploadResult(mxcUri: contentUri, httpUrl: httpUrl);
+  return UploadResult(mxcUri: contentUri, httpUrl: mxcToHttpUrl(contentUri));
+}
+
+String? _contentUriFrom(String body) {
+  try {
+    final data = jsonDecode(body) as Map<String, dynamic>;
+    final contentUri = data['content_uri'] as String?;
+    if (contentUri == null || contentUri.isEmpty) return null;
+    return contentUri;
+  } on FormatException {
+    return null;
+  }
 }
 
 /// Convert an mxc:// content URI to an HTTP download URL.

@@ -21,13 +21,14 @@ import (
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -122,7 +123,7 @@ func (s *ApprovalBusinessSuite) approvalEnv(tenantID, partitionID string) (
 		evaluator, resolver, auditing, dbPool, nil,
 	)
 	approvalBiz := business.NewApprovalBusiness(
-		approvalRepo, decisionRepo, resvRepo, policyRepo, evaluator, auditing, nil, dbPool,
+		approvalRepo, decisionRepo, resvRepo, policyRepo, evaluator, auditing, nil, dbPool, nil,
 	)
 
 	_ = policyVerRepo
@@ -165,6 +166,23 @@ func (s *ApprovalBusinessSuite) reservePendingApproval(
 	s.Require().Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_PENDING_APPROVAL,
 		resp.GetReservation().GetStatus(), "expected pending_approval")
 	return resp.GetReservation().GetId()
+}
+
+// withApproverClaims builds claims that carry the approver tier's role. The
+// tier role is enforced on Decide, so an approver context without it is
+// rejected — which is exactly what TestDecide_WrongRole asserts.
+func withApproverClaims(ctx context.Context, tenantID, partitionID, profileID string, roles ...string) context.Context {
+	claims := &security.AuthenticationClaims{
+		TenantID:    tenantID,
+		PartitionID: partitionID,
+		AccessID:    util.IDString(),
+		ContactID:   profileID,
+		SessionID:   util.IDString(),
+		DeviceID:    "test-device",
+		Roles:       roles,
+	}
+	claims.Subject = profileID
+	return claims.ClaimsToContext(ctx)
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────
@@ -241,8 +259,8 @@ func (s *ApprovalBusinessSuite) TestGet_HappyPath_IncludesDecisions() {
 	arID := rows[0].ID
 
 	// Decide twice (each as different approver context).
-	ctxApprover1 := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-approver-1")
-	ctxApprover2 := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-approver-2")
+	ctxApprover1 := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-approver-1", "branch_manager")
+	ctxApprover2 := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-approver-2", "branch_manager")
 
 	_, err = approvalBiz.Decide(ctxApprover1, &limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,
@@ -279,7 +297,7 @@ func (s *ApprovalBusinessSuite) TestDecide_Approve_SingleRequired() {
 	arID := rows[0].ID
 
 	// Approver context: different from maker (wf-1 is the maker).
-	ctxApprover := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-different")
+	ctxApprover := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-different", "branch_manager")
 
 	result, err := approvalBiz.Decide(ctxApprover, &limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,
@@ -315,8 +333,8 @@ func (s *ApprovalBusinessSuite) TestDecide_Approve_MultiRequired_Partial() {
 	s.Require().Len(rows, 1)
 	arID := rows[0].ID
 
-	ctxApprover1 := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-approver-a")
-	ctxApprover2 := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-approver-b")
+	ctxApprover1 := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-approver-a", "branch_manager")
+	ctxApprover2 := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-approver-b", "branch_manager")
 
 	// First approval: still pending (only 1 of 2).
 	result1, err := approvalBiz.Decide(ctxApprover1, &limitsv1.ApprovalRequestDecideRequest{
@@ -350,7 +368,7 @@ func (s *ApprovalBusinessSuite) TestDecide_Reject_ReleasesReservation() {
 	s.Require().Len(rows, 1)
 	arID := rows[0].ID
 
-	ctxApprover := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-different")
+	ctxApprover := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-different", "branch_manager")
 
 	result, err := approvalBiz.Decide(ctxApprover, &limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,
@@ -415,7 +433,7 @@ func (s *ApprovalBusinessSuite) TestDecide_RecheckFails_AutoRejected() {
 		Update("approver_tiers", "[]")
 
 	// Decide(approve): re-evaluation fetches the updated policy → Breached=true → auto-reject.
-	ctxApprover := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-different")
+	ctxApprover := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-different", "branch_manager")
 	result, err := approvalBiz.Decide(ctxApprover, &limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,
 		Decision: "approve",
@@ -467,7 +485,7 @@ func (s *ApprovalBusinessSuite) TestDecide_DoubleVoteRejected() {
 	s.Require().Len(rows, 1)
 	arID := rows[0].ID
 
-	ctxApprover := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-approver-unique")
+	ctxApprover := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-approver-unique", "branch_manager")
 
 	// First vote succeeds.
 	_, err = approvalBiz.Decide(ctxApprover, &limitsv1.ApprovalRequestDecideRequest{
@@ -505,7 +523,7 @@ func (s *ApprovalBusinessSuite) TestDecide_RequestExpired() {
 		Where("id = ?", arID).
 		Update("expires_at", past)
 
-	ctxApprover := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-different")
+	ctxApprover := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-different", "branch_manager")
 	_, err = approvalBiz.Decide(ctxApprover, &limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,
 		Decision: "approve",
@@ -535,7 +553,7 @@ func (s *ApprovalBusinessSuite) TestDecide_Transactional_ApproveAndActivateAtomi
 	s.Require().Len(rows, 1)
 	arID := rows[0].ID
 
-	ctxApprover := s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-different")
+	ctxApprover := withApproverClaims(ctx, "tenant-a", "partition-a", "wf-different", "branch_manager")
 	resp, err := approvalBiz.Decide(ctxApprover, &limitsv1.ApprovalRequestDecideRequest{
 		Id:       arID,
 		Decision: "approve",

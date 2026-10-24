@@ -22,32 +22,15 @@ import (
 	moneyx "github.com/pitabwire/util/moneyx"
 )
 
-// decimalPrecision is the precision used by the String<->MinorUnits and
-// basis-point helpers below. Money conversions go via moneyx and honour
-// ISO 4217 per currency.
-const decimalPrecision = 2
-
-// MinorUnitsToString converts minor units (e.g. cents) stored as int64 to a decimal string.
-// For example, 123456 becomes "1234.56".
-func MinorUnitsToString(v int64) string {
-	return decimalx.FromMinorUnits(v, decimalPrecision).String()
-}
-
-// StringToMinorUnits converts a decimal string to minor units (int64).
-// Uses string splitting to avoid float precision issues.
-// For example, "1234.56" becomes 123456.
-func StringToMinorUnits(s string) int64 {
-	d, err := decimalx.NewFromString(s)
-	if err != nil {
-		return 0
-	}
-	return d.ToMinorUnits(decimalPrecision)
-}
+// rateDecimalPlaces is the precision of an interest rate on the wire: rates
+// travel as a percentage string with two decimals ("12.50"). Money never uses
+// this — money conversions go through moneyx and honour ISO 4217 per currency.
+const rateDecimalPlaces = 2
 
 // BasisPointsToString converts basis points stored as int64 to a percentage string.
 // For example, 1250 becomes "12.50".
 func BasisPointsToString(v int64) string {
-	return decimalx.FromMinorUnits(v, decimalPrecision).String()
+	return decimalx.FromMinorUnits(v, rateDecimalPlaces).String()
 }
 
 // StringToBasisPoints converts a percentage string to basis points (int64).
@@ -58,7 +41,7 @@ func StringToBasisPoints(s string) int64 {
 	if err != nil {
 		return 0
 	}
-	return d.ToMinorUnits(decimalPrecision)
+	return d.ToMinorUnits(rateDecimalPlaces)
 }
 
 // TimeToString converts a *time.Time to an RFC3339 string. Returns "" if nil.

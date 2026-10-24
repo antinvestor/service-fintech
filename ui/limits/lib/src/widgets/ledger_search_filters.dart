@@ -21,9 +21,50 @@ import '../utils/enum_labels.dart';
 class LedgerSearchFilters extends StatelessWidget {
   final LedgerSearchParams params;
   final ValueChanged<LedgerSearchParams> onChanged;
-  const LedgerSearchFilters({super.key, required this.params, required this.onChanged});
+  const LedgerSearchFilters({
+    super.key,
+    required this.params,
+    required this.onChanged,
+  });
 
   void _emit(LedgerSearchParams next) => onChanged(next);
+
+  Widget _dateFilter(
+    BuildContext context, {
+    required String label,
+    required DateTime? value,
+    required ValueChanged<DateTime?> onPicked,
+  }) => SizedBox(
+    width: 170,
+    child: InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        border: const OutlineInputBorder(),
+        suffixIcon: value == null
+            ? const Icon(Icons.event, size: 18)
+            : IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () => onPicked(null),
+              ),
+      ),
+      child: InkWell(
+        onTap: () async {
+          final now = DateTime.now();
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: value ?? now,
+            firstDate: DateTime(now.year - 5),
+            lastDate: DateTime(now.year + 1),
+          );
+          if (picked != null) onPicked(picked);
+        },
+        child: Text(
+          value == null ? 'Any' : value.toIso8601String().substring(0, 10),
+        ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -35,18 +76,21 @@ class LedgerSearchFilters extends StatelessWidget {
           width: 220,
           child: DropdownButtonFormField<LimitAction>(
             initialValue: params.action,
-            decoration: const InputDecoration(labelText: 'Action', isDense: true),
+            decoration: const InputDecoration(
+              labelText: 'Action',
+              isDense: true,
+            ),
             items: LimitAction.values
-                .map((a) => DropdownMenuItem(value: a, child: Text(limitActionLabel(a))))
+                .map(
+                  (a) => DropdownMenuItem(
+                    value: a,
+                    child: Text(limitActionLabel(a)),
+                  ),
+                )
                 .toList(),
             onChanged: (v) {
               if (v != null) {
-                _emit(LedgerSearchParams(
-                  action: v,
-                  subjectType: params.subjectType,
-                  subjectId: params.subjectId,
-                  currencyCode: params.currencyCode,
-                ));
+                _emit(params.copyWith(action: v));
               }
             },
           ),
@@ -55,18 +99,21 @@ class LedgerSearchFilters extends StatelessWidget {
           width: 200,
           child: DropdownButtonFormField<SubjectType>(
             initialValue: params.subjectType,
-            decoration: const InputDecoration(labelText: 'Subject', isDense: true),
+            decoration: const InputDecoration(
+              labelText: 'Subject',
+              isDense: true,
+            ),
             items: SubjectType.values
-                .map((s) => DropdownMenuItem(value: s, child: Text(subjectTypeLabel(s))))
+                .map(
+                  (s) => DropdownMenuItem(
+                    value: s,
+                    child: Text(subjectTypeLabel(s)),
+                  ),
+                )
                 .toList(),
             onChanged: (v) {
               if (v != null) {
-                _emit(LedgerSearchParams(
-                  action: params.action,
-                  subjectType: v,
-                  subjectId: params.subjectId,
-                  currencyCode: params.currencyCode,
-                ));
+                _emit(params.copyWith(subjectType: v));
               }
             },
           ),
@@ -79,12 +126,7 @@ class LedgerSearchFilters extends StatelessWidget {
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (v) => _emit(LedgerSearchParams(
-              action: params.action,
-              subjectType: params.subjectType,
-              subjectId: v,
-              currencyCode: params.currencyCode,
-            )),
+            onSubmitted: (v) => _emit(params.copyWith(subjectId: v.trim())),
           ),
         ),
         SizedBox(
@@ -95,12 +137,28 @@ class LedgerSearchFilters extends StatelessWidget {
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (v) => _emit(LedgerSearchParams(
-              action: params.action,
-              subjectType: params.subjectType,
-              subjectId: params.subjectId,
-              currencyCode: v.toUpperCase(),
-            )),
+            onSubmitted: (v) =>
+                _emit(params.copyWith(currencyCode: v.trim().toUpperCase())),
+          ),
+        ),
+        _dateFilter(
+          context,
+          label: 'From',
+          value: params.from,
+          onPicked: (picked) => _emit(
+            picked == null
+                ? params.copyWith(clearFrom: true)
+                : params.copyWith(from: picked),
+          ),
+        ),
+        _dateFilter(
+          context,
+          label: 'To',
+          value: params.to,
+          onPicked: (picked) => _emit(
+            picked == null
+                ? params.copyWith(clearTo: true)
+                : params.copyWith(to: picked),
           ),
         ),
       ],

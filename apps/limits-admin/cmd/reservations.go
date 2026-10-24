@@ -16,15 +16,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -39,6 +41,24 @@ func reservationsCmd() *cobra.Command {
 	cmd.AddCommand(reservationsShowCmd())
 
 	return cmd
+}
+
+// parseApprovalStatus accepts either the short operator-facing name
+// ("pending") or the full proto enum name, case-insensitively. The runbooks
+// use the short form, so rejecting it makes the documented command fail.
+func parseApprovalStatus(raw string) (limitsv1.ApprovalStatus, error) {
+	normalised := strings.ToUpper(strings.TrimSpace(raw))
+	if !strings.HasPrefix(normalised, "APPROVAL_STATUS_") {
+		normalised = "APPROVAL_STATUS_" + normalised
+	}
+	v, ok := limitsv1.ApprovalStatus_value[normalised]
+	if !ok {
+		return limitsv1.ApprovalStatus_APPROVAL_STATUS_UNSPECIFIED, fmt.Errorf(
+			"unknown status %q; valid values: pending, approved, rejected, expired, auto_rejected_on_recheck",
+			raw,
+		)
+	}
+	return limitsv1.ApprovalStatus(v), nil
 }
 
 // watchInterval is how often --watch re-renders the reservation list.
@@ -56,14 +76,11 @@ func reservationsListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			status := limitsv1.ApprovalStatus_APPROVAL_STATUS_PENDING
 			if flagStatus != "" {
-				v, ok := limitsv1.ApprovalStatus_value[flagStatus]
-				if !ok {
-					return fmt.Errorf(
-						"unknown status %q; valid values: APPROVAL_STATUS_PENDING, APPROVAL_STATUS_APPROVED, APPROVAL_STATUS_REJECTED, APPROVAL_STATUS_EXPIRED",
-						flagStatus,
-					)
+				v, err := parseApprovalStatus(flagStatus)
+				if err != nil {
+					return err
 				}
-				status = limitsv1.ApprovalStatus(v)
+				status = v
 			}
 
 			if flagWatch {
@@ -73,7 +90,8 @@ func reservationsListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&flagStatus, "status", "APPROVAL_STATUS_PENDING", "Filter by approval status")
+	cmd.Flags().StringVar(&flagStatus, "status", "pending",
+		"Filter by approval status: pending|approved|rejected|expired|auto_rejected_on_recheck")
 	cmd.Flags().BoolVar(&flagWatch, "watch", false, "Re-render every 5s; exit with Ctrl-C")
 
 	return cmd
@@ -88,17 +106,21 @@ func listReservationsOnce(ctx context.Context, status limitsv1.ApprovalStatus) e
 		Status: status,
 	}
 
-	stream, err := client.ApprovalRequestList(ctx, connect.NewRequest(req))
+	stream, err := client.ApprovalRequestList(ctx, req)
 	if err != nil {
 		return fmt.Errorf("ApprovalRequestList: %w", err)
 	}
 
 	var items []*limitsv1.ApprovalRequestObject
-	for stream.Receive() {
-		items = append(items, stream.Msg().GetData()...)
-	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return fmt.Errorf("stream error: %w", streamErr)
+	for {
+		msg, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return fmt.Errorf("stream error: %w", streamErr)
+		}
+		items = append(items, msg.GetData()...)
 	}
 
 	return renderReservations(items)
@@ -178,15 +200,15 @@ func reservationsShowCmd() *cobra.Command {
 			}
 			resp, err := client.ApprovalRequestGet(
 				cmd.Context(),
-				connect.NewRequest(&limitsv1.ApprovalRequestGetRequest{
+				&limitsv1.ApprovalRequestGetRequest{
 					Id: args[0],
-				}),
+				},
 			)
 			if err != nil {
 				return fmt.Errorf("ApprovalRequestGet: %w", err)
 			}
 
-			item := resp.Msg.GetData()
+			item := resp.GetData()
 			if flagJSON {
 				out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(item)
 				if marshalErr != nil {

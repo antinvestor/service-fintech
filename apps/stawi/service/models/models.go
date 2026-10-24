@@ -17,7 +17,7 @@ package models
 import (
 	"time"
 
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // LoanOfferResponse defines a member's response to a loan offer.
@@ -51,11 +51,13 @@ type LoanWindow struct {
 	GracePeriod    int32
 	LoanTenure     int32
 	Position       int32
-	PeriodicAmount int64  // minor units
-	Leverage       int64  // basis points (e.g. 190 = 1.90x)
-	Currency       string `gorm:"type:varchar(3)"`
-	State          int32
-	Properties     data.JSONMap
+	PeriodicAmount int64 // minor units
+	// LeverageHundredths is the leverage factor scaled by 100: 190 means 1.90x.
+	// The column keeps its original name so no rename migration is needed.
+	LeverageHundredths int64  `gorm:"column:leverage"`
+	Currency           string `gorm:"type:varchar(3)"`
+	State              int32
+	Properties         data.JSONMap
 }
 
 func (m *LoanWindow) TableName() string { return "loan_windows" }
@@ -124,13 +126,16 @@ func (m *Tenure) SetVersion(v uint) { m.Version = v }
 // Period represents a single time period within a tenure (e.g. 1 week).
 type Period struct {
 	data.BaseModel
-	GroupID        string `gorm:"type:varchar(50);index:idx_per_group;not null"`
-	TenureID       string `gorm:"type:varchar(50);index:idx_per_tenure;not null"`
-	StartDate      *time.Time
-	EndDate        *time.Time
-	PeriodType     int32 `gorm:"column:period_type"`
-	Position       int32
-	ParentPeriodID string `gorm:"type:varchar(50);uniqueIndex:uq_per_parent"`
+	GroupID    string `gorm:"type:varchar(50);index:idx_per_group;not null"`
+	TenureID   string `gorm:"type:varchar(50);index:idx_per_tenure;not null"`
+	StartDate  *time.Time
+	EndDate    *time.Time
+	PeriodType int32 `gorm:"column:period_type"`
+	Position   int32
+	// ParentPeriodID is empty for the first period of a tenure. Uniqueness is
+	// enforced by a partial index created in postMigrate (parent_period_id <> '')
+	// so every tenure can have exactly one first period.
+	ParentPeriodID string `gorm:"type:varchar(50);index:idx_per_parent"`
 	State          int32
 	Properties     data.JSONMap
 }

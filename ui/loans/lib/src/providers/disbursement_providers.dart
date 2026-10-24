@@ -5,19 +5,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'loans_transport_provider.dart';
 
 final disbursementListProvider =
-    FutureProvider.family<List<DisbursementObject>, String>(
-  (ref, loanAccountId) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final request = DisbursementSearchRequest(
-      loanAccountId: loanAccountId,
-      cursor: PageCursor(limit: 50),
-    );
-    return collectStream(
-      client.disbursementSearch(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+    FutureProvider.family<List<DisbursementObject>, String>((
+      ref,
+      loanAccountId,
+    ) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      final request = DisbursementSearchRequest(
+        loanAccountId: loanAccountId,
+        cursor: PageCursor(limit: 50),
+      );
+      return collectStream(
+        client.disbursementSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 /// Notifier for disbursement mutations.
 class DisbursementNotifier extends Notifier<AsyncValue<void>> {
@@ -53,5 +54,5 @@ class DisbursementNotifier extends Notifier<AsyncValue<void>> {
 
 final disbursementNotifierProvider =
     NotifierProvider<DisbursementNotifier, AsyncValue<void>>(
-  DisbursementNotifier.new,
-);
+      DisbursementNotifier.new,
+    );

@@ -19,12 +19,11 @@ import (
 	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/workerpool"
 	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/business"
@@ -33,7 +32,14 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
-const moneyDecimalPlaces = 2
+const (
+	// defaultSearchLimit is used when a caller supplies a cursor without a
+	// limit, or no cursor at all.
+	defaultSearchLimit = 50
+	// maxSearchLimit bounds how many transfer orders one search page may
+	// return, so an unbounded caller limit cannot scan the whole table.
+	maxSearchLimit = 200
+)
 
 // OperationsServer implements the OperationsService RPC handler.
 // Tenant-level permission checks are handled by the FunctionAccessInterceptor.
@@ -59,9 +65,17 @@ func NewOperationsServer(
 
 func (s *OperationsServer) TransferOrderExecute(
 	ctx context.Context,
-	req *connect.Request[operationsv1.TransferOrderExecuteRequest],
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
-	obj := req.Msg.GetData()
+	req *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
+	obj := req.GetData()
+	if obj == nil {
+		return nil, apperrors.CleanErr(apperrors.NewError(apperrors.BadRequest, "transfer order data is required"))
+	}
+	if obj.GetId() == "" {
+		if validationErr := validateTransferOrderInput(obj); validationErr != nil {
+			return nil, apperrors.CleanErr(validationErr)
+		}
+	}
 
 	// Resolve the order to execute. If the caller provides an ID, use it.
 	// If the caller provides a non-empty Reference, that reference is treated
@@ -89,41 +103,42 @@ func (s *OperationsServer) TransferOrderExecute(
 	audit.WithResource(ctx, audit.ResourceTransferOrder, orderID)
 	audit.WithAction(ctx, "execute")
 	audit.WithDetail(ctx, "reference", result.Reference)
-	return connect.NewResponse(&operationsv1.TransferOrderExecuteResponse{
+	return &operationsv1.TransferOrderExecuteResponse{
 		Data: transferOrderToAPI(result),
-	}), nil
+	}, nil
 }
 
 func (s *OperationsServer) TransferOrderSearch(
 	ctx context.Context,
-	req *connect.Request[operationsv1.TransferOrderSearchRequest],
-	stream *connect.ServerStream[operationsv1.TransferOrderSearchResponse],
+	req *operationsv1.TransferOrderSearchRequest,
+	stream operationsv1connect.OperationsServiceTransferOrderSearchServerStream,
 ) error {
 	var searchOpts []data.SearchOption
 
-	cursor := req.Msg.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
+	offset := 0
+	limit := defaultSearchLimit
+	if cursor := req.GetCursor(); cursor != nil {
+		if parsed, offsetErr := strconv.Atoi(cursor.GetPage()); offsetErr == nil && parsed > 0 {
+			offset = parsed
 		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		limit = clampSearchLimit(int(cursor.GetLimit()))
 	}
+	searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(limit))
 
 	andQueryVal := map[string]any{}
-	if req.Msg.GetOrderType() != 0 {
-		andQueryVal["order_type = ?"] = req.Msg.GetOrderType()
+	if req.GetOrderType() != 0 {
+		andQueryVal["order_type = ?"] = req.GetOrderType()
 	}
 	if len(andQueryVal) > 0 {
 		searchOpts = append(searchOpts, data.WithSearchFiltersAndByValue(andQueryVal))
 	}
 
-	if req.Msg.GetQuery() != "" {
+	if req.GetQuery() != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
 				map[string]any{
-					"reference ILIKE ?":   "%" + req.Msg.GetQuery() + "%",
-					"description ILIKE ?": "%" + req.Msg.GetQuery() + "%",
+					"reference ILIKE ?":   "%" + req.GetQuery() + "%",
+					"description ILIKE ?": "%" + req.GetQuery() + "%",
 				},
 			),
 		)
@@ -144,9 +159,43 @@ func (s *OperationsServer) TransferOrderSearch(
 	})
 }
 
+// clampSearchLimit keeps a caller-supplied page size within a sane band. Zero
+// (the value a cursor carries when only a page was set) falls back to the
+// default rather than to "no limit".
+func clampSearchLimit(limit int) int {
+	switch {
+	case limit <= 0:
+		return defaultSearchLimit
+	case limit > maxSearchLimit:
+		return maxSearchLimit
+	default:
+		return limit
+	}
+}
+
+// validateTransferOrderInput rejects a new order that cannot post a balanced
+// ledger transaction before any row is written.
+func validateTransferOrderInput(obj *operationsv1.TransferOrderObject) error {
+	switch {
+	case obj.GetDebitAccountRef() == "":
+		return apperrors.NewError(apperrors.BadRequest, "debit account ref is required")
+	case obj.GetCreditAccountRef() == "":
+		return apperrors.NewError(apperrors.BadRequest, "credit account ref is required")
+	case obj.GetDebitAccountRef() == obj.GetCreditAccountRef():
+		return apperrors.NewError(apperrors.BadRequest, "debit and credit account refs must differ")
+	case obj.GetAmount().GetCurrencyCode() == "":
+		return apperrors.NewError(apperrors.BadRequest, "amount currency code is required")
+	case moneyx.ToSmallestUnit(obj.GetAmount(), moneyx.Decimals(obj.GetAmount().GetCurrencyCode())) <= 0:
+		return apperrors.NewError(apperrors.BadRequest, "amount must be positive")
+	case obj.GetOrderType() == 0:
+		return apperrors.NewError(apperrors.BadRequest, "order type is required")
+	}
+	return nil
+}
+
 // transferOrderFromAPI converts a proto TransferOrderObject to a TransferOrder model.
 func transferOrderFromAPI(ctx context.Context, obj *operationsv1.TransferOrderObject) *models.TransferOrder {
-	amount := moneyx.ToSmallestUnit(obj.GetAmount(), moneyDecimalPlaces)
+	amount := moneyx.ToSmallestUnit(obj.GetAmount(), moneyx.Decimals(obj.GetAmount().GetCurrencyCode()))
 	currency := obj.GetAmount().GetCurrencyCode()
 	m := &models.TransferOrder{
 		DebitAccountRef:  obj.GetDebitAccountRef(),
@@ -160,6 +209,9 @@ func transferOrderFromAPI(ctx context.Context, obj *operationsv1.TransferOrderOb
 	}
 	if obj.GetExtraData() != nil {
 		m.ExtraData = (&data.JSONMap{}).FromProtoStruct(obj.GetExtraData())
+		// The allocation path marks the orders it raises itself; a caller
+		// cannot claim that provenance through the API.
+		delete(m.ExtraData, "source")
 	}
 	m.GenID(ctx)
 	if obj.GetId() != "" {
@@ -174,7 +226,7 @@ func transferOrderToAPI(m *models.TransferOrder) *operationsv1.TransferOrderObje
 		Id:               m.GetID(),
 		DebitAccountRef:  m.DebitAccountRef,
 		CreditAccountRef: m.CreditAccountRef,
-		Amount:           moneyx.FromSmallestUnit(m.Currency, m.Amount, moneyDecimalPlaces),
+		Amount:           moneyx.FromMinorUnitsByCurrency(m.Currency, m.Amount),
 		OrderType:        m.OrderType,
 		Reference:        m.Reference,
 		Description:      m.Description,
@@ -187,20 +239,20 @@ func transferOrderToAPI(m *models.TransferOrder) *operationsv1.TransferOrderObje
 
 func (s *OperationsServer) IncomingPaymentNotify(
 	ctx context.Context,
-	req *connect.Request[operationsv1.IncomingPaymentNotifyRequest],
-) (*connect.Response[operationsv1.IncomingPaymentNotifyResponse], error) {
-	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyDecimalPlaces)
-	currency := req.Msg.GetAmount().GetCurrencyCode()
+	req *operationsv1.IncomingPaymentNotifyRequest,
+) (*operationsv1.IncomingPaymentNotifyResponse, error) {
+	currency := req.GetAmount().GetCurrencyCode()
+	amount := moneyx.ToSmallestUnit(req.GetAmount(), moneyx.Decimals(currency))
 
 	paymentData := map[string]interface{}{
-		"transaction_id":  req.Msg.GetTransactionId(),
+		"transaction_id":  req.GetTransactionId(),
 		"amount":          amount,
 		"currency":        currency,
-		"payer_reference": req.Msg.GetPayerReference(),
-		"payer_name":      req.Msg.GetPayerName(),
-		"product_id":      req.Msg.GetProductId(),
-		"group_id":        req.Msg.GetGroupId(),
-		"properties":      (&data.JSONMap{}).FromProtoStruct(req.Msg.GetProperties()),
+		"payer_reference": req.GetPayerReference(),
+		"payer_name":      req.GetPayerName(),
+		"product_id":      req.GetProductId(),
+		"group_id":        req.GetGroupId(),
+		"properties":      (&data.JSONMap{}).FromProtoStruct(req.GetProperties()),
 	}
 
 	result, err := s.prBusiness.IdentifyPayment(ctx, paymentData)
@@ -221,21 +273,21 @@ func (s *OperationsServer) IncomingPaymentNotify(
 
 	audit.WithResource(ctx, audit.ResourcePayment, paymentID)
 	audit.WithAction(ctx, "notify")
-	audit.WithDetail(ctx, "transaction_id", req.Msg.GetTransactionId())
+	audit.WithDetail(ctx, "transaction_id", req.GetTransactionId())
 	audit.WithDetail(ctx, "status", status)
 
-	return connect.NewResponse(&operationsv1.IncomingPaymentNotifyResponse{
+	return &operationsv1.IncomingPaymentNotifyResponse{
 		PaymentId: paymentID,
 		Status:    status,
 		Result:    resultStruct.ToProtoStruct(),
-	}), nil
+	}, nil
 }
 
 func (s *OperationsServer) PaymentAllocate(
 	ctx context.Context,
-	req *connect.Request[operationsv1.PaymentAllocateRequest],
-) (*connect.Response[operationsv1.PaymentAllocateResponse], error) {
-	result, err := s.prBusiness.AllocatePayment(ctx, req.Msg.GetPaymentId())
+	req *operationsv1.PaymentAllocateRequest,
+) (*operationsv1.PaymentAllocateResponse, error) {
+	result, err := s.prBusiness.AllocatePayment(ctx, req.GetPaymentId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
@@ -245,10 +297,10 @@ func (s *OperationsServer) PaymentAllocate(
 		resultMap[k] = v
 	}
 
-	audit.WithResource(ctx, audit.ResourcePayment, req.Msg.GetPaymentId())
+	audit.WithResource(ctx, audit.ResourcePayment, req.GetPaymentId())
 	audit.WithAction(ctx, "allocate")
 
-	return connect.NewResponse(&operationsv1.PaymentAllocateResponse{
+	return &operationsv1.PaymentAllocateResponse{
 		Result: resultMap.ToProtoStruct(),
-	}), nil
+	}, nil
 }

@@ -79,7 +79,8 @@
                   "amount": "{{ payload.amount }}",
                   "sender_identifier": "{{ payload.sender_identifier }}",
                   "transaction_id": "{{ payload.transaction_id }}"
-                }
+                },
+                "dedupe_key": "unidentified_payment:{{ payload.transaction_id }}:{{ payload.group_id }}"
               }
             }
           },
@@ -111,7 +112,8 @@
                       "data": {
                         "group_id": "{{ payload.group_id }}",
                         "transaction_id": "{{ payload.transaction_id }}"
-                      }
+                      },
+                      "dedupe_key": "payment_allocation_timeout:{{ payload.transaction_id }}:{{ payload.group_id }}"
                     }
                   }
                 },
@@ -166,8 +168,9 @@
                   "from_account": "{{ vars.order.from_account }}",
                   "to_account": "{{ vars.order.to_account }}",
                   "amount": "{{ vars.order.amount }}",
+                  "currency": "{{ vars.order.currency }}",
                   "type": "{{ vars.order.type }}",
-                  "reference": "{{ payload.transaction_id }}"
+                  "reference": "{{ vars.order.reference }}"
                 }
               },
               "output_var": "transfer_result",
@@ -189,7 +192,7 @@
                       "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/ledger/transfer-failure",
                       "method": "POST",
                       "body": {
-                        "order": "{{ vars.order }}",
+                        "reference": "{{ vars.order.reference }}",
                         "transaction_id": "{{ payload.transaction_id }}",
                         "error": "{{ vars.transfer_result.body }}"
                       }
@@ -227,7 +230,8 @@
             "amount": "{{ payload.amount }}",
             "transaction_id": "{{ payload.transaction_id }}",
             "allocations": "{{ vars.allocation.body.transfer_orders }}"
-          }
+          },
+          "dedupe_key": "payment_received:{{ vars.sender.body.member_id }}:{{ payload.transaction_id }}:{{ payload.group_id }}"
         }
       }
     },
@@ -260,7 +264,8 @@
                 "data": {
                   "member_id": "{{ vars.sender.body.member_id }}",
                   "group_id": "{{ payload.group_id }}"
-                }
+                },
+                "dedupe_key": "obligations_fulfilled:{{ vars.sender.body.member_id }}:{{ payload.group_id }}"
               }
             }
           }

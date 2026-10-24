@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package repository //nolint:dupl // similar repository patterns for different entity types
+package repository
 
 import (
 	"context"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 )
@@ -27,6 +29,17 @@ import (
 type DepositRepository interface {
 	datastore.BaseRepository[*models.Deposit]
 	GetByIdempotencyKey(ctx context.Context, key string) (*models.Deposit, error)
+
+	// Claim writes the pending deposit row synchronously so it is the
+	// authoritative idempotency record: a concurrent or retried call carrying
+	// the same idempotency key loses the insert and receives the stored row
+	// with created=false, without moving any money a second time.
+	Claim(ctx context.Context, dep *models.Deposit) (row *models.Deposit, created bool, err error)
+
+	// Settle marks a claimed deposit completed against its ledger transaction
+	// and credits the running balance in one database transaction, so the
+	// deposit row and the balance can never disagree.
+	Settle(ctx context.Context, dep *models.Deposit, amount int64) error
 }
 
 type depositRepository struct {
@@ -52,4 +65,40 @@ func (repo *depositRepository) GetByIdempotencyKey(
 		return nil, err
 	}
 	return &deposit, nil
+}
+
+func (repo *depositRepository) Claim(
+	ctx context.Context,
+	dep *models.Deposit,
+) (*models.Deposit, bool, error) {
+	return claimRow(ctx, repo.Pool().DB(ctx, false), dep, func(innerCtx context.Context) (*models.Deposit, error) {
+		return repo.GetByIdempotencyKey(innerCtx, dep.IdempotencyKey)
+	})
+}
+
+func (repo *depositRepository) Settle(ctx context.Context, dep *models.Deposit, amount int64) error {
+	return repo.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		res := tx.Table("deposits").
+			Where("id = ? AND deleted_at IS NULL AND status = ?", dep.GetID(),
+				int32(savingsv1.DepositStatus_DEPOSIT_STATUS_PENDING)).
+			Updates(map[string]any{
+				"status":       int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED),
+				colLedgerTxnID: dep.LedgerTransactionID,
+				colModifiedAt:  gorm.Expr("now()"),
+				colVersion:     gorm.Expr("version + 1"),
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			// Another settlement already completed this deposit; the balance
+			// credit went with it, so this call must not credit again.
+			return nil
+		}
+
+		return balanceUpdate(tx, dep.SavingsAccountID, "", nil, map[string]any{
+			colBalance:       gorm.Expr("balance + ?", amount),
+			"total_deposits": gorm.Expr("total_deposits + ?", amount),
+		})
+	})
 }

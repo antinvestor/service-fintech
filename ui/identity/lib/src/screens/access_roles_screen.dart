@@ -1,4 +1,5 @@
-import 'package:antinvestor_api_identity/antinvestor_api_identity.dart' as common;
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    as common;
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/access_role_providers.dart';
 import '../widgets/org_unit_helpers.dart';
 import '../widgets/state_helpers.dart';
+import '../widgets/async_state_views.dart';
 
 const _selectableStates = [
   common.STATE.CREATED,
@@ -19,27 +21,20 @@ const _selectableStates = [
 ];
 
 class AccessRolesScreen extends ConsumerStatefulWidget {
-  const AccessRolesScreen({
-    super.key,
-    this.canManage = true,
-  });
+  const AccessRolesScreen({super.key, this.canManage = true});
 
   final bool canManage;
 
   @override
-  ConsumerState<AccessRolesScreen> createState() =>
-      _AccessRolesScreenState();
+  ConsumerState<AccessRolesScreen> createState() => _AccessRolesScreenState();
 }
 
 class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
   String _searchQuery = '';
   String _roleKeyFilter = '';
 
-  AccessRoleAssignmentListParams get _params => (
-        query: _searchQuery,
-        roleKey: _roleKeyFilter,
-        scopeId: '',
-      );
+  AccessRoleAssignmentListParams get _params =>
+      (query: _searchQuery, roleKey: _roleKeyFilter, scopeId: '');
 
   void _onSearch(String value) {
     setState(() => _searchQuery = value.trim());
@@ -47,10 +42,25 @@ class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final assignmentsAsync =
-        ref.watch(accessRoleAssignmentListProvider(_params));
-    final assignments =
-        assignmentsAsync.whenOrNull(data: (d) => d) ?? [];
+    final assignmentsAsync = ref.watch(
+      accessRoleAssignmentListProvider(_params),
+    );
+    if (assignmentsAsync.hasError) {
+      return ListErrorView(
+        title: 'Access Roles',
+        breadcrumbs: const ['Identity', 'Access Roles'],
+        error: assignmentsAsync.error!,
+        onRetry: () =>
+            ref.invalidate(accessRoleAssignmentListProvider(_params)),
+      );
+    }
+    if (assignmentsAsync.isLoading && !assignmentsAsync.hasValue) {
+      return const ListLoadingView(
+        title: 'Access Roles',
+        breadcrumbs: ['Identity', 'Access Roles'],
+      );
+    }
+    final assignments = assignmentsAsync.requireValue;
 
     return AdminEntityListPage<AccessRoleAssignmentObject>(
       title: 'Access Roles',
@@ -64,9 +74,7 @@ class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
       items: assignments,
       onSearch: _onSearch,
       addLabel: widget.canManage ? 'Add Role Assignment' : null,
-      onAdd: widget.canManage
-          ? () => _showAssignmentDialog(context)
-          : null,
+      onAdd: widget.canManage ? () => _showAssignmentDialog(context) : null,
       actions: [_buildFilters()],
       rowBuilder: (assignment, selected, onSelect) {
         return DataRow(
@@ -79,24 +87,29 @@ class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
                 children: [
                   CircleAvatar(
                     radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.security_outlined,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.primary),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.security_outlined,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(accessRoleLabel(assignment.roleKey)),
                 ],
               ),
             ),
-            DataCell(Text(assignment.memberId.isNotEmpty
-                ? assignment.memberId
-                : '-')),
-            DataCell(Text(
-              '${scopeLabel(assignment.scopeType)}'
-              '${assignment.scopeId.isNotEmpty ? ': ${assignment.scopeId}' : ''}',
-            )),
+            DataCell(
+              Text(assignment.memberId.isNotEmpty ? assignment.memberId : '-'),
+            ),
+            DataCell(
+              Text(
+                '${scopeLabel(assignment.scopeType)}'
+                '${assignment.scopeId.isNotEmpty ? ': ${assignment.scopeId}' : ''}',
+              ),
+            ),
             DataCell(Text(assignment.state.name)),
           ],
         );
@@ -104,8 +117,7 @@ class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
       detailBuilder: (assignment) => _AssignmentDetail(
         assignment: assignment,
         canManage: widget.canManage,
-        onEdit: () =>
-            _showAssignmentDialog(context, assignment: assignment),
+        onEdit: () => _showAssignmentDialog(context, assignment: assignment),
       ),
       exportRow: (assignment) => [
         accessRoleLabel(assignment.roleKey),
@@ -125,8 +137,7 @@ class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
       items: [
         const DropdownMenuItem(value: '', child: Text('All Roles')),
         for (final key in selectableRoleKeys)
-          DropdownMenuItem(
-              value: key, child: Text(accessRoleLabel(key))),
+          DropdownMenuItem(value: key, child: Text(accessRoleLabel(key))),
       ],
       onChanged: (value) {
         if (value != null) {
@@ -142,8 +153,7 @@ class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
   }) async {
     final result = await showDialog<AccessRoleAssignmentObject>(
       context: context,
-      builder: (context) =>
-          _AssignmentDialog(assignment: assignment),
+      builder: (context) => _AssignmentDialog(assignment: assignment),
     );
 
     if (result == null || !mounted) return;
@@ -164,9 +174,9 @@ class _AccessRolesScreenState extends ConsumerState<AccessRolesScreen> {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     }
   }
 }
@@ -192,21 +202,29 @@ class _AssignmentDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(Icons.security_outlined,
-                  color: theme.colorScheme.primary),
+              child: Icon(
+                Icons.security_outlined,
+                color: theme.colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(accessRoleLabel(assignment.roleKey),
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(assignment.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    accessRoleLabel(assignment.roleKey),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    assignment.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -221,15 +239,15 @@ class _AssignmentDetail extends StatelessWidget {
         const SizedBox(height: 20),
         _DetailRow(label: 'Role Key', value: assignment.roleKey),
         _DetailRow(
-            label: 'Member',
-            value: assignment.memberId.isNotEmpty
-                ? assignment.memberId
-                : '-'),
+          label: 'Member',
+          value: assignment.memberId.isNotEmpty ? assignment.memberId : '-',
+        ),
         _DetailRow(
-            label: 'Scope',
-            value:
-                '${scopeLabel(assignment.scopeType)}'
-                '${assignment.scopeId.isNotEmpty ? ': ${assignment.scopeId}' : ''}'),
+          label: 'Scope',
+          value:
+              '${scopeLabel(assignment.scopeType)}'
+              '${assignment.scopeId.isNotEmpty ? ': ${assignment.scopeId}' : ''}',
+        ),
         _DetailRow(label: 'State', value: assignment.state.name),
       ],
     );
@@ -250,14 +268,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -271,12 +295,10 @@ class _AssignmentDialog extends ConsumerStatefulWidget {
   final AccessRoleAssignmentObject? assignment;
 
   @override
-  ConsumerState<_AssignmentDialog> createState() =>
-      _AssignmentDialogState();
+  ConsumerState<_AssignmentDialog> createState() => _AssignmentDialogState();
 }
 
-class _AssignmentDialogState
-    extends ConsumerState<_AssignmentDialog> {
+class _AssignmentDialogState extends ConsumerState<_AssignmentDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _memberIdController;
   late final TextEditingController _scopeIdController;
@@ -295,12 +317,12 @@ class _AssignmentDialogState
     _scopeIdController = TextEditingController(
       text: widget.assignment?.scopeId ?? '',
     );
-    _selectedRoleKey = widget.assignment?.roleKey ??
-        AccessRoleKeys.approvalVerifier;
-    _selectedScopeType = widget.assignment?.scopeType ??
+    _selectedRoleKey =
+        widget.assignment?.roleKey ?? AccessRoleKeys.approvalVerifier;
+    _selectedScopeType =
+        widget.assignment?.scopeType ??
         AccessScopeType.ACCESS_SCOPE_TYPE_ORGANIZATION;
-    _selectedState =
-        widget.assignment?.state ?? common.STATE.CREATED;
+    _selectedState = widget.assignment?.state ?? common.STATE.CREATED;
   }
 
   @override
@@ -313,11 +335,7 @@ class _AssignmentDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(
-        _isEditing
-            ? 'Edit Role Assignment'
-            : 'Add Role Assignment',
-      ),
+      title: Text(_isEditing ? 'Edit Role Assignment' : 'Add Role Assignment'),
       content: SizedBox(
         width: 480,
         child: Form(
@@ -337,8 +355,7 @@ class _AssignmentDialogState
                       hintText: 'Enter member ID',
                     ),
                     validator: (value) {
-                      if (value == null ||
-                          value.trim().isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return 'Member ID is required';
                       }
                       return null;
@@ -347,11 +364,10 @@ class _AssignmentDialogState
                 ),
                 FormFieldCard(
                   label: 'Role',
-                  description:
-                      'The access role to assign to this member.',
+                  description: 'The access role to assign to this member.',
                   isRequired: true,
                   child: DropdownButtonFormField<String>(
-                    value: _selectedRoleKey,
+                    initialValue: _selectedRoleKey,
                     items: [
                       for (final key in selectableRoleKeys)
                         DropdownMenuItem(
@@ -361,46 +377,38 @@ class _AssignmentDialogState
                     ],
                     onChanged: (value) {
                       if (value != null) {
-                        setState(
-                            () => _selectedRoleKey = value);
+                        setState(() => _selectedRoleKey = value);
                       }
                     },
                   ),
                 ),
                 FormFieldCard(
                   label: 'Scope Type',
-                  description:
-                      'The scope at which this role applies.',
+                  description: 'The scope at which this role applies.',
                   isRequired: true,
-                  child:
-                      DropdownButtonFormField<AccessScopeType>(
-                    value: _selectedScopeType,
+                  child: DropdownButtonFormField<AccessScopeType>(
+                    initialValue: _selectedScopeType,
                     items: const [
                       DropdownMenuItem(
-                        value: AccessScopeType
-                            .ACCESS_SCOPE_TYPE_GLOBAL,
+                        value: AccessScopeType.ACCESS_SCOPE_TYPE_GLOBAL,
                         child: Text('Global'),
                       ),
                       DropdownMenuItem(
-                        value: AccessScopeType
-                            .ACCESS_SCOPE_TYPE_ORGANIZATION,
+                        value: AccessScopeType.ACCESS_SCOPE_TYPE_ORGANIZATION,
                         child: Text('Organization'),
                       ),
                       DropdownMenuItem(
-                        value: AccessScopeType
-                            .ACCESS_SCOPE_TYPE_ORG_UNIT,
+                        value: AccessScopeType.ACCESS_SCOPE_TYPE_ORG_UNIT,
                         child: Text('Org Unit'),
                       ),
                       DropdownMenuItem(
-                        value: AccessScopeType
-                            .ACCESS_SCOPE_TYPE_TEAM,
+                        value: AccessScopeType.ACCESS_SCOPE_TYPE_TEAM,
                         child: Text('Team'),
                       ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
-                        setState(() =>
-                            _selectedScopeType = value);
+                        setState(() => _selectedScopeType = value);
                       }
                     },
                   ),
@@ -413,18 +421,16 @@ class _AssignmentDialogState
                   child: TextFormField(
                     controller: _scopeIdController,
                     decoration: const InputDecoration(
-                      hintText:
-                          'Enter scope ID (optional for global)',
+                      hintText: 'Enter scope ID (optional for global)',
                     ),
                   ),
                 ),
                 FormFieldCard(
                   label: 'State',
-                  description:
-                      'The current lifecycle state.',
+                  description: 'The current lifecycle state.',
                   isRequired: true,
                   child: DropdownButtonFormField<common.STATE>(
-                    value: _selectedState,
+                    initialValue: _selectedState,
                     items: [
                       for (final state in _selectableStates)
                         DropdownMenuItem(
@@ -434,8 +440,7 @@ class _AssignmentDialogState
                     ],
                     onChanged: (value) {
                       if (value != null) {
-                        setState(
-                            () => _selectedState = value);
+                        setState(() => _selectedState = value);
                       }
                     },
                   ),

@@ -18,10 +18,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,57 +50,57 @@ type stubLimitsClient struct {
 
 func (s *stubLimitsClient) Check(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CheckRequest],
-) (*connect.Response[limitsv1.CheckResponse], error) {
+	_ *limitsv1.CheckRequest,
+) (*limitsv1.CheckResponse, error) {
 	s.checkCalls++
 	if s.checkErr != nil {
 		return nil, s.checkErr
 	}
-	return connect.NewResponse(s.checkResp), nil
+	return s.checkResp, nil
 }
 
 func (s *stubLimitsClient) Reserve(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
+	_ *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
 	s.reserveCalls++
 	if s.reserveErr != nil {
 		return nil, s.reserveErr
 	}
-	return connect.NewResponse(s.reserveResp), nil
+	return s.reserveResp, nil
 }
 
 func (s *stubLimitsClient) Commit(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
+	_ *limitsv1.CommitRequest,
+) (*limitsv1.CommitResponse, error) {
 	s.commitCalls++
 	if s.commitErr != nil {
 		return nil, s.commitErr
 	}
-	return connect.NewResponse(s.commitResp), nil
+	return s.commitResp, nil
 }
 
 func (s *stubLimitsClient) Release(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReleaseRequest],
-) (*connect.Response[limitsv1.ReleaseResponse], error) {
+	_ *limitsv1.ReleaseRequest,
+) (*limitsv1.ReleaseResponse, error) {
 	s.releaseCalls++
 	if s.releaseErr != nil {
 		return nil, s.releaseErr
 	}
-	return connect.NewResponse(s.releaseResp), nil
+	return s.releaseResp, nil
 }
 
 func (s *stubLimitsClient) Reverse(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReverseRequest],
-) (*connect.Response[limitsv1.ReverseResponse], error) {
+	_ *limitsv1.ReverseRequest,
+) (*limitsv1.ReverseResponse, error) {
 	s.reverseCalls++
 	if s.reverseErr != nil {
 		return nil, s.reverseErr
 	}
-	return connect.NewResponse(s.reverseResp), nil
+	return s.reverseResp, nil
 }
 
 // SetReleaseError configures the stub to return err on the next Release call.
@@ -343,4 +343,149 @@ func TestGate_HandlerError_ClientCancel_StillReleases(t *testing.T) {
 	assert.Equal(t, 1, stub.reserveCalls)
 	assert.Equal(t, 0, stub.commitCalls)
 	assert.Equal(t, 1, stub.releaseCalls, "Release must be called even when the request context is cancelled")
+}
+
+// TestGate_CommittedReplay_IsSuccess asserts that replaying an idempotency key
+// whose reservation already committed is reported as success and does not
+// re-run the handler. Reserve returns the existing COMMITTED reservation on a
+// replay, so any other treatment either moves the money twice (shadow) or
+// reports failure for an operation that in fact succeeded (enforce).
+func TestGate_CommittedReplay_IsSuccess(t *testing.T) {
+	for _, mode := range []limits.Mode{limits.ModeEnforce, limits.ModeShadow} {
+		stub := &stubLimitsClient{
+			reserveResp: &limitsv1.ReserveResponse{
+				Reservation: &limitsv1.ReservationObject{
+					Id:     "res-committed",
+					Status: limitsv1.ReservationStatus_RESERVATION_STATUS_COMMITTED,
+				},
+			},
+		}
+		called := false
+		err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-replay", mode,
+			func(_ context.Context, _ string) error {
+				called = true
+				return nil
+			})
+		require.NoError(t, err)
+		assert.False(t, called, "the handler must not run again for an already-committed reservation")
+		assert.Equal(t, 0, stub.commitCalls)
+		assert.Equal(t, 0, stub.releaseCalls)
+	}
+}
+
+// TestGate_TerminalReplay_IsError asserts a released/expired/reversed
+// reservation is a terminal replay: in enforce mode the caller is told to use a
+// fresh key rather than silently proceeding.
+func TestGate_TerminalReplay_IsError(t *testing.T) {
+	for _, status := range []limitsv1.ReservationStatus{
+		limitsv1.ReservationStatus_RESERVATION_STATUS_RELEASED,
+		limitsv1.ReservationStatus_RESERVATION_STATUS_EXPIRED,
+		limitsv1.ReservationStatus_RESERVATION_STATUS_REVERSED,
+	} {
+		stub := &stubLimitsClient{
+			reserveResp: &limitsv1.ReserveResponse{
+				Reservation: &limitsv1.ReservationObject{Id: "res-terminal", Status: status},
+			},
+		}
+		called := false
+		err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-terminal", limits.ModeEnforce,
+			func(_ context.Context, _ string) error {
+				called = true
+				return nil
+			})
+		require.Error(t, err, "status %s must not be treated as success", status)
+		assert.False(t, called, "the handler must not run for a terminal reservation")
+	}
+}
+
+// TestGate_Denied_ReturnsTypedBreachError asserts callers can tell a cap breach
+// apart from an infrastructure failure.
+func TestGate_Denied_ReturnsTypedBreachError(t *testing.T) {
+	stub := &stubLimitsClient{
+		reserveResp: &limitsv1.ReserveResponse{
+			Reservation: &limitsv1.ReservationObject{
+				Id:     "res-denied",
+				Status: limitsv1.ReservationStatus_RESERVATION_STATUS_UNSPECIFIED,
+			},
+			Check: &limitsv1.CheckResponse{
+				Verdicts: []*limitsv1.PolicyVerdict{{PolicyId: "pol-1", Breached: true}},
+			},
+		},
+	}
+	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-denied", limits.ModeEnforce,
+		func(_ context.Context, _ string) error { return nil })
+
+	var breached *limits.LimitBreachedError
+	require.ErrorAs(t, err, &breached)
+	assert.Len(t, breached.Verdicts, 1)
+}
+
+// TestGate_ModeOff_SkipsLimitsService asserts the documented emergency rollback
+// actually bypasses the service rather than enforcing it.
+func TestGate_ModeOff_SkipsLimitsService(t *testing.T) {
+	stub := &stubLimitsClient{}
+	called := false
+	err := limits.Gate(context.Background(), stub, &limitsv1.LimitIntent{}, "idem-off", limits.ParseMode("off"),
+		func(_ context.Context, _ string) error {
+			called = true
+			return nil
+		})
+	require.NoError(t, err)
+	assert.True(t, called, "the handler must run with the gate off")
+	assert.Equal(t, 0, stub.reserveCalls, "no Reserve may be issued with the gate off")
+}
+
+func TestParseMode(t *testing.T) {
+	cases := map[string]limits.Mode{
+		"shadow":   limits.ModeShadow,
+		"SHADOW":   limits.ModeShadow,
+		"Shadow\t": limits.ModeShadow,
+		"off":      limits.ModeOff,
+		"OFF":      limits.ModeOff,
+		"disabled": limits.ModeOff,
+		"enforce":  limits.ModeEnforce,
+		"":         limits.ModeEnforce,
+		"typo":     limits.ModeEnforce,
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, limits.ParseMode(in), "ParseMode(%q)", in)
+	}
+}
+
+// TestGate_ReserveTTLFollowsDeadline asserts the reservation TTL is derived
+// from the handler's own deadline. A handler slower than the service default
+// would otherwise have its reservation reaped mid-flight and fail Commit after
+// the money had moved.
+func TestGate_ReserveTTLFollowsDeadline(t *testing.T) {
+	stub := &ttlCapturingClient{stubLimitsClient: stubLimitsClient{
+		reserveResp: &limitsv1.ReserveResponse{
+			Reservation: &limitsv1.ReservationObject{
+				Id:     "res-ttl",
+				Status: limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE,
+			},
+		},
+		commitResp: &limitsv1.CommitResponse{Reservation: &limitsv1.ReservationObject{}},
+	}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()
+	err := limits.Gate(ctx, stub, &limitsv1.LimitIntent{}, "idem-ttl", limits.ModeEnforce,
+		func(_ context.Context, _ string) error { return nil })
+	require.NoError(t, err)
+	assert.Greater(t, stub.ttl, 20*time.Minute, "the TTL must outlast the handler deadline")
+	assert.LessOrEqual(t, stub.ttl, time.Hour)
+}
+
+// ttlCapturingClient records the TTL Gate asked for.
+type ttlCapturingClient struct {
+	stubLimitsClient
+	ttl time.Duration
+}
+
+func (s *ttlCapturingClient) Reserve(
+	ctx context.Context,
+	req *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
+	s.ttl = req.GetTtl().AsDuration()
+	return s.stubLimitsClient.Reserve(ctx, req)
 }

@@ -25,16 +25,14 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
-	"github.com/antinvestor/service-fintech/apps/savings/service/events"
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
@@ -47,6 +45,8 @@ const (
 	// daysPerYear is the day count basis for interest accrual. Using 365 for
 	// simplicity; switch to 360 if/when a product-level convention is added.
 	daysPerYear = 365
+	// dayDuration is the accrual day-count unit.
+	dayDuration = 24 * time.Hour
 )
 
 // InterestAccrualBusiness exposes both the read surface (Get/Search) and the
@@ -137,7 +137,7 @@ func (b *interestAccrualBusiness) Get(ctx context.Context, id string) (*savingsv
 //
 // Skips accounts with a zero or negative balance on the accrual base, since
 // there is nothing to compute interest on.
-func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual pipeline
+func (b *interestAccrualBusiness) Accrue(
 	ctx context.Context,
 	savingsAccountID string,
 	periodStart, periodEnd time.Time,
@@ -149,60 +149,23 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 		return nil, errors.New("period end must be after period start")
 	}
 
+	// A settled accrual is the final answer for this period. One without a
+	// ledger transaction died between the claim and the posting, so the rerun
+	// falls through and finishes it rather than leaving the member short.
 	existing, lookupErr := b.iaRepo.GetByAccountAndPeriod(ctx, savingsAccountID, periodEnd)
 	if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("lookup accrual: %w", lookupErr)
 	}
-	if existing != nil {
+	if existing != nil && existing.LedgerTransactionID != "" {
 		return existing.ToAPI(), nil
 	}
 
-	sa, err := b.saRepo.GetByID(ctx, savingsAccountID)
+	sa, product, balance, err := b.accrualBasis(ctx, logger, savingsAccountID)
 	if err != nil {
-		return nil, fmt.Errorf("load savings account: %w", err)
-	}
-	if savingsv1.SavingsAccountStatus(sa.Status) != savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE {
-		logger.Info("skipping accrual on non-active savings account")
-		return nil, ErrAccountNotActive
-	}
-	if sa.LedgerAccountID == "" || sa.ProductID == "" {
-		return nil, fmt.Errorf("savings account %s is missing product or ledger account", savingsAccountID)
+		return nil, err
 	}
 
-	product, err := b.spRepo.GetByID(ctx, sa.ProductID)
-	if err != nil {
-		return nil, fmt.Errorf("load savings product: %w", err)
-	}
-	if product.InterestRate <= 0 {
-		logger.WithField("product_id", sa.ProductID).
-			Info("skipping accrual: product interest rate is zero")
-		return nil, ErrProductRateZero
-	}
-
-	balance, err := b.sbRepo.GetBySavingsAccountID(ctx, savingsAccountID)
-	if err != nil {
-		return nil, fmt.Errorf("load running balance: %w", err)
-	}
-	if balance.Balance <= 0 {
-		logger.Info("skipping accrual: zero balance")
-		return nil, ErrBalanceZero
-	}
-
-	const hoursPerDay = 24
-	days := int64(periodEnd.Sub(periodStart).Hours() / hoursPerDay)
-	if days <= 0 {
-		days = 1
-	}
-	// Multiply first to maximize precision before integer division.
-	// balance * rate * days overflows at ~2.5 trillion minor units (~25B currency)
-	// which is well above any single savings account, so overflow is safe.
-	numerator := balance.Balance * product.InterestRate * days
-	denominator := int64(basisPointsDenominator) * int64(daysPerYear)
-	accrued := numerator / denominator
-	// Round up: if the remainder is >= half the denominator, add 1.
-	if remainder := numerator % denominator; remainder*2 >= denominator {
-		accrued++
-	}
+	accrued := computeAccrual(balance.Balance, product.InterestRate, periodStart, periodEnd)
 	if accrued <= 0 {
 		logger.Info("skipping accrual: computed amount is zero")
 		return nil, ErrAccrualAmountZero
@@ -220,10 +183,19 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 	ia.GenID(ctx)
 	ia.CopyPartitionInfo(&sa.BaseModel)
 
-	if emitErr := b.eventsMan.Emit(ctx, events.InterestAccrualSaveEvent, ia); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit interest accrual save event")
-		return nil, emitErr
+	// The accrual row is the idempotency lock: it is unique on
+	// (savings_account_id, period_end), so a concurrent run of the same
+	// closing period loses the insert and returns the stored row instead of
+	// posting to the ledger a second time.
+	claimed, created, claimErr := b.iaRepo.Claim(ctx, ia)
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not claim interest accrual row")
+		return nil, claimErr
 	}
+	if !created && claimed.LedgerTransactionID != "" {
+		return claimed.ToAPI(), nil
+	}
+	ia = claimed
 
 	toID, toErr := b.postInterestAccrualTransferOrder(ctx, logger, sa, ia)
 	if toErr != nil {
@@ -231,14 +203,9 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 	}
 	ia.LedgerTransactionID = toID
 
-	if _, balErr := b.sbRepo.CreditInterest(ctx, savingsAccountID, accrued); balErr != nil {
-		logger.WithError(balErr).Error("could not credit interest onto running balance")
-		return nil, balErr
-	}
-
-	// Best-effort update of the stored accrual with the ledger txn id.
-	if emitErr := b.eventsMan.Emit(ctx, events.InterestAccrualSaveEvent, ia); emitErr != nil {
-		logger.WithError(emitErr).Warn("could not persist ledger txn id onto interest accrual")
+	if settleErr := b.iaRepo.Settle(ctx, ia); settleErr != nil {
+		logger.WithError(settleErr).Error("could not credit interest onto running balance")
+		return nil, settleErr
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
@@ -256,7 +223,6 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 			"period_end":          periodEnd.UTC().Format(time.RFC3339),
 			"rate_bps":            product.InterestRate,
 			"balance_used":        balance.Balance,
-			"days":                days,
 			fieldCurrency:         sa.CurrencyCode,
 		},
 		Parent: &ia.BaseModel,
@@ -267,11 +233,73 @@ func (b *interestAccrualBusiness) Accrue( //nolint:funlen // sequential accrual 
 	SavingsInterestAccruedAmount.Add(ctx, float64(accrued)/minorUnitsPerMajor,
 		attribute.String("currency", sa.CurrencyCode))
 
-	logger.WithFields(map[string]any{
-		fieldAmount: accrued,
-		"days":      days,
-	}).Info("interest accrual posted")
+	logger.WithField(fieldAmount, accrued).Info("interest accrual posted")
 	return ia.ToAPI(), nil
+}
+
+// accrualBasis loads the account, its product and its running balance, and
+// rejects the cases where there is nothing to accrue.
+func (b *interestAccrualBusiness) accrualBasis(
+	ctx context.Context,
+	logger *util.LogEntry,
+	savingsAccountID string,
+) (*models.SavingsAccount, *models.SavingsProduct, *models.SavingsBalance, error) {
+	sa, err := b.saRepo.GetByID(ctx, savingsAccountID)
+	if err != nil {
+		return nil, nil, nil, ErrSavingsAccountNotFound
+	}
+	if savingsv1.SavingsAccountStatus(sa.Status) != savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE {
+		logger.Info("skipping accrual on non-active savings account")
+		return nil, nil, nil, ErrAccountNotActive
+	}
+	if sa.ProductID == "" {
+		return nil, nil, nil, ErrSavingsAccountLedgerRefsMissing
+	}
+
+	product, err := b.spRepo.GetByID(ctx, sa.ProductID)
+	if err != nil {
+		return nil, nil, nil, ErrSavingsProductNotFound
+	}
+	if product.InterestRate <= 0 {
+		logger.WithField("product_id", sa.ProductID).
+			Info("skipping accrual: product interest rate is zero")
+		return nil, nil, nil, ErrProductRateZero
+	}
+
+	balance, err := b.sbRepo.GetBySavingsAccountID(ctx, savingsAccountID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("load running balance: %w", err)
+	}
+	if balance.Balance <= 0 {
+		logger.Info("skipping accrual: zero balance")
+		return nil, nil, nil, ErrBalanceZero
+	}
+
+	return sa, product, balance, nil
+}
+
+// computeAccrual returns the interest due on balance over the period, in
+// minor units, rounded half-up.
+//
+// Whole calendar days are counted so a period spanning a DST change is not
+// truncated by an hour-based division. The multiplication happens before the
+// division to keep precision; balance * rate * days overflows only above
+// ~2.5 trillion minor units, far beyond any single savings account.
+func computeAccrual(balance, rateBps int64, periodStart, periodEnd time.Time) int64 {
+	days := int64(
+		periodEnd.UTC().Truncate(dayDuration).Sub(periodStart.UTC().Truncate(dayDuration)) / dayDuration,
+	)
+	if days <= 0 {
+		days = 1
+	}
+
+	numerator := balance * rateBps * days
+	denominator := int64(basisPointsDenominator) * int64(daysPerYear)
+	accrued := numerator / denominator
+	if remainder := numerator % denominator; remainder*2 >= denominator {
+		accrued++
+	}
+	return accrued
 }
 
 // postInterestAccrualTransferOrder emits the double-entry posting for an
@@ -298,11 +326,11 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 		"balance_used":        ia.BalanceUsed,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.ProductSavingsInterestExpenseAccount(sa.ProductID),
 			CreditAccountRef: sa.LedgerAccountID,
-			Amount:           moneyx.FromSmallestUnit(sa.CurrencyCode, ia.Amount, moneyDecimalPlaces),
+			Amount:           moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, ia.Amount),
 			OrderType: constants.SafeInt32FromInt(
 				constants.TransferTypePeriodicSavingsInterestIncomeDistribution,
 			),
@@ -310,7 +338,7 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 			Description: "Savings interest accrual",
 			ExtraData:   extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
 	if execErr != nil {
@@ -319,10 +347,16 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 			Error("could not execute interest accrual transfer order")
 		return "", fmt.Errorf("interest accrual transfer order %s failed: %w", reference, execErr)
 	}
-	if td := resp.Msg.GetData(); td != nil {
-		return td.GetId(), nil
+	// The transaction id is the settlement guard: an accrual stored with an
+	// empty id still satisfies the "not yet settled" predicate, so a rerun
+	// would credit the interest a second time. No id means no settlement.
+	txnID := resp.GetData().GetId()
+	if txnID == "" {
+		logger.WithField("reference", reference).
+			Error("interest accrual transfer order returned no transaction id")
+		return "", fmt.Errorf("interest accrual transfer order %s returned no transaction id", reference)
 	}
-	return "", nil
+	return txnID, nil
 }
 
 // AccrueAllActive iterates every active savings account and calls Accrue.
@@ -350,7 +384,9 @@ func (b *interestAccrualBusiness) AccrueAllActive(
 	if streamErr := workerpoolConsumeStream(ctx, results, func(batch []*models.SavingsAccount) error {
 		for _, sa := range batch {
 			if _, accrualErr := b.Accrue(ctx, sa.GetID(), periodStart, periodEnd); accrualErr != nil {
-				errs = append(errs, fmt.Errorf("account %s: %w", sa.GetID(), accrualErr))
+				if !isAccrualSkip(accrualErr) {
+					errs = append(errs, fmt.Errorf("account %s: %w", sa.GetID(), accrualErr))
+				}
 				continue
 			}
 			processed++
@@ -363,6 +399,15 @@ func (b *interestAccrualBusiness) AccrueAllActive(
 		WithField("errors", len(errs)).
 		Info("interest accrual batch complete")
 	return processed, errs
+}
+
+// isAccrualSkip reports whether an account was passed over for an ordinary
+// reason - nothing to accrue - rather than a failure worth alerting on.
+func isAccrualSkip(err error) bool {
+	return errors.Is(err, ErrAccountNotActive) ||
+		errors.Is(err, ErrProductRateZero) ||
+		errors.Is(err, ErrBalanceZero) ||
+		errors.Is(err, ErrAccrualAmountZero)
 }
 
 func (b *interestAccrualBusiness) Search(

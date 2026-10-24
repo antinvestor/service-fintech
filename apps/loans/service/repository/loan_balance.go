@@ -19,9 +19,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
@@ -60,7 +60,19 @@ type LoanBalanceRepository interface {
 		loanAccountID string,
 		delta LoanBalanceDelta,
 	) (*models.LoanBalance, error)
+	// ApplyPenaltyDelta moves penalties_outstanding and total_outstanding by
+	// the same signed amount in one statement, so a charged penalty enters
+	// the borrower's balance and a waived one leaves it without any window in
+	// which the two columns disagree. Pass a negative amount to reverse.
+	ApplyPenaltyDelta(ctx context.Context, loanAccountID string, amount int64) (*models.LoanBalance, error)
 }
+
+// Balance columns touched by conditional deltas.
+const (
+	colPenaltiesOutstanding = "penalties_outstanding"
+	colTotalOutstanding     = "total_outstanding"
+	colLastCalculatedAt     = "last_calculated_at"
+)
 
 type loanBalanceRepository struct {
 	entityRepository[*models.LoanBalance]
@@ -97,18 +109,51 @@ func (repo *loanBalanceRepository) ApplyRepaymentDelta(
 	totalOutstandingDelta := totalPaidDelta
 
 	db := repo.dbPool.DB(ctx, false)
-	result := db.Model(&models.LoanBalance{}).
-		Where("loan_account_id = ?", loanAccountID).
+	result := db.Table("loan_balances").
+		Where("loan_account_id = ? AND deleted_at IS NULL", loanAccountID).
 		Updates(map[string]any{
 			"principal_outstanding": gorm.Expr("GREATEST(principal_outstanding - ?, 0)", delta.PrincipalApplied),
 			"interest_accrued":      gorm.Expr("GREATEST(interest_accrued - ?, 0)", delta.InterestApplied),
 			"fees_outstanding":      gorm.Expr("GREATEST(fees_outstanding - ?, 0)", delta.FeesApplied),
-			"penalties_outstanding": gorm.Expr("GREATEST(penalties_outstanding - ?, 0)", delta.PenaltiesApplied),
+			colPenaltiesOutstanding: gorm.Expr("GREATEST(penalties_outstanding - ?, 0)", delta.PenaltiesApplied),
 			"total_paid":            gorm.Expr("total_paid + ?", totalPaidDelta),
-			"total_outstanding":     gorm.Expr("GREATEST(total_outstanding - ?, 0)", totalOutstandingDelta),
-			"last_calculated_at":    &now,
-			"modified_at":           now,
-			"version":               gorm.Expr("version + 1"),
+			colTotalOutstanding:     gorm.Expr("GREATEST(total_outstanding - ?, 0)", totalOutstandingDelta),
+			colLastCalculatedAt:     &now,
+			colModifiedAt:           now,
+			colVersion:              gorm.Expr(colVersion + " + 1"),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrLoanBalanceNotFound
+	}
+
+	return repo.GetByLoanAccountID(ctx, loanAccountID)
+}
+
+func (repo *loanBalanceRepository) ApplyPenaltyDelta(
+	ctx context.Context,
+	loanAccountID string,
+	amount int64,
+) (*models.LoanBalance, error) {
+	if loanAccountID == "" {
+		return nil, errors.New("loan account id is required")
+	}
+	if amount == 0 {
+		return repo.GetByLoanAccountID(ctx, loanAccountID)
+	}
+
+	now := time.Now().UTC()
+	db := repo.dbPool.DB(ctx, false)
+	result := db.Table("loan_balances").
+		Where("loan_account_id = ? AND deleted_at IS NULL", loanAccountID).
+		Updates(map[string]any{
+			colPenaltiesOutstanding: gorm.Expr("GREATEST(penalties_outstanding + ?, 0)", amount),
+			colTotalOutstanding:     gorm.Expr("GREATEST(total_outstanding + ?, 0)", amount),
+			colLastCalculatedAt:     &now,
+			colModifiedAt:           now,
+			colVersion:              gorm.Expr(colVersion + " + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error

@@ -26,7 +26,8 @@ import (
 	"strconv"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"gorm.io/gorm"
@@ -57,11 +58,62 @@ const (
 const (
 	auditEntityPolicy = "policy"
 	auditActorUser    = "user"
+	auditActorSystem  = "system"
+	// SystemActorReaper is the actor stamped on audit rows the background
+	// reapers write. Those rows have no caller, and an empty actor with type
+	// "user" is indistinguishable from a broken claims pipeline.
+	SystemActorReaper = "system:limits-reaper"
 	mdKeyActionKind   = "action_kind"
 	mdKeyMode         = "mode"
 	mdKeyAmountMinor  = "amount_minor"
 	mdKeyCurrency     = "currency"
 )
+
+// actorFromContext returns the authenticated caller's profile id. The actor on
+// an audit row must never come from the request body — a maker_id a client can
+// choose is not evidence of who acted.
+func actorFromContext(ctx context.Context) string {
+	claims := security.ClaimsFromContext(ctx)
+	if claims == nil {
+		return ""
+	}
+	return claims.GetProfileID()
+}
+
+// actorOr resolves the audit actor: the authenticated caller when there is
+// one, otherwise the supplied fallback (background jobs have no claims).
+func actorOr(ctx context.Context, fallback string) string {
+	if actor := actorFromContext(ctx); actor != "" {
+		return actor
+	}
+	return fallback
+}
+
+// auditActor is the resolved (id, type) pair stamped on a record.
+type auditActor struct {
+	id   string
+	kind string
+}
+
+// userActor attributes a record to the authenticated caller, falling back to
+// the supplied id when the call has no claims.
+func userActor(ctx context.Context, fallback string) auditActor {
+	return auditActor{id: actorOr(ctx, fallback), kind: auditActorUser}
+}
+
+// makerOf is the nil-safe maker id of a reservation.
+func makerOf(r *models.Reservation) string {
+	if r == nil {
+		return ""
+	}
+	return r.MakerID
+}
+
+// reaperActor attributes a record to the background reaper. It never reads
+// claims: a reaper pass carries none, and must not inherit a stray caller.
+func reaperActor() auditActor {
+	return auditActor{id: SystemActorReaper, kind: auditActorSystem}
+}
 
 // Auditing wraps audit.Writer with the limits-specific verbs and metadata
 // shape. Injected into business methods that emit gating events.
@@ -92,7 +144,7 @@ func (a *Auditing) RecordBreachHard(
 		EntityType: auditEntityPolicy,
 		EntityID:   primaryPolicyID,
 		Action:     VerbBreachHard,
-		ActorID:    intent.GetMakerId(),
+		ActorID:    actorOr(ctx, intent.GetMakerId()),
 		ActorType:  auditActorUser,
 		Reason:     reason,
 		Metadata:   intentMetadata(intent, verdicts),
@@ -108,37 +160,86 @@ func (a *Auditing) RecordBreachShadow(ctx context.Context, intent *limitsv1.Limi
 		EntityType: auditEntityPolicy,
 		EntityID:   v.GetPolicyId(),
 		Action:     VerbBreachShadow,
-		ActorID:    intent.GetMakerId(),
+		ActorID:    actorOr(ctx, intent.GetMakerId()),
 		ActorType:  auditActorUser,
 		Reason:     v.GetReason(),
 		Metadata:   intentMetadata(intent, []*limitsv1.PolicyVerdict{v}),
 	}, logFailure(ctx))
 }
 
+// RecordBreachHardTx writes the hard-breach audit row inside tx so the denial
+// record commits with the caller's transaction rather than riding the bus.
+func (a *Auditing) RecordBreachHardTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	intent *limitsv1.LimitIntent,
+	verdicts []*limitsv1.PolicyVerdict,
+	reason string,
+) error {
+	if a == nil || a.writer == nil {
+		return nil
+	}
+	primaryPolicyID := ""
+	if len(verdicts) > 0 {
+		primaryPolicyID = verdicts[0].GetPolicyId()
+	}
+	return a.writer.RecordTx(ctx, tx, audit.Record{
+		EntityType: auditEntityPolicy,
+		EntityID:   primaryPolicyID,
+		Action:     VerbBreachHard,
+		ActorID:    actorOr(ctx, intent.GetMakerId()),
+		ActorType:  auditActorUser,
+		Reason:     reason,
+		Metadata:   intentMetadata(intent, verdicts),
+	})
+}
+
+// RecordBreachShadowTx writes the shadow-breach audit row inside tx.
+func (a *Auditing) RecordBreachShadowTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	intent *limitsv1.LimitIntent,
+	v *limitsv1.PolicyVerdict,
+) error {
+	if a == nil || a.writer == nil {
+		return nil
+	}
+	return a.writer.RecordTx(ctx, tx, audit.Record{
+		EntityType: auditEntityPolicy,
+		EntityID:   v.GetPolicyId(),
+		Action:     VerbBreachShadow,
+		ActorID:    actorOr(ctx, intent.GetMakerId()),
+		ActorType:  auditActorUser,
+		Reason:     v.GetReason(),
+		Metadata:   intentMetadata(intent, []*limitsv1.PolicyVerdict{v}),
+	})
+}
+
 // RecordReservationCommitted records that a reservation was committed.
 func (a *Auditing) RecordReservationCommitted(ctx context.Context, r *models.Reservation) {
-	a.recordReservation(ctx, r, VerbReservationCommitted, "committed", "")
+	a.recordReservation(ctx, r, VerbReservationCommitted, "committed", "", userActor(ctx, makerOf(r)))
 }
 
 // RecordReservationReleased records that a reservation was released.
 func (a *Auditing) RecordReservationReleased(ctx context.Context, r *models.Reservation, reason string) {
-	a.recordReservation(ctx, r, VerbReservationReleased, "released", reason)
+	a.recordReservation(ctx, r, VerbReservationReleased, "released", reason, userActor(ctx, makerOf(r)))
 }
 
 // RecordReservationReversed records that a reservation was reversed.
 func (a *Auditing) RecordReservationReversed(ctx context.Context, r *models.Reservation, reason string) {
-	a.recordReservation(ctx, r, VerbReservationReversed, "reversed", reason)
+	a.recordReservation(ctx, r, VerbReservationReversed, "reversed", reason, userActor(ctx, makerOf(r)))
 }
 
 // RecordReservationExpiredTTL records that a reservation was expired by the TTL reaper.
 func (a *Auditing) RecordReservationExpiredTTL(ctx context.Context, r *models.Reservation) {
-	a.recordReservation(ctx, r, VerbReservationExpiredTTL, "expired by TTL reaper", "")
+	a.recordReservation(ctx, r, VerbReservationExpiredTTL, "expired by TTL reaper", "", reaperActor())
 }
 
 func (a *Auditing) recordReservation(
 	ctx context.Context,
 	r *models.Reservation,
 	verb, defaultReason, callerReason string,
+	actor auditActor,
 ) {
 	if a == nil || a.writer == nil || r == nil {
 		return
@@ -151,39 +252,47 @@ func (a *Auditing) recordReservation(
 		EntityType: "reservation",
 		EntityID:   r.ID,
 		Action:     verb,
-		ActorID:    r.MakerID,
-		ActorType:  auditActorUser,
+		ActorID:    actor.id,
+		ActorType:  actor.kind,
 		Reason:     reason,
 		Metadata:   reservationMetadata(r),
+		Parent:     &r.BaseModel,
 	}, logFailure(ctx))
 }
 
 // RecordApprovalRequired records that an approval request was created.
 func (a *Auditing) RecordApprovalRequired(ctx context.Context, ar *models.ApprovalRequest) {
-	a.recordApproval(ctx, ar, VerbApprovalRequired, "approval required", "")
+	a.recordApproval(ctx, ar, VerbApprovalRequired, "approval required", "", userActor(ctx, ""))
 }
 
 // RecordApprovalApproved records that an approval request was approved.
 func (a *Auditing) RecordApprovalApproved(ctx context.Context, ar *models.ApprovalRequest, approverID string) {
-	a.recordApproval(ctx, ar, VerbApprovalApproved, "approved", approverID)
+	a.recordApproval(ctx, ar, VerbApprovalApproved, "approved", approverID, userActor(ctx, approverID))
 }
 
 // RecordApprovalRejected records that an approval request was rejected.
 func (a *Auditing) RecordApprovalRejected(ctx context.Context, ar *models.ApprovalRequest, approverID, note string) {
-	a.recordApproval(ctx, ar, VerbApprovalRejected, "rejected: "+note, approverID)
+	a.recordApproval(ctx, ar, VerbApprovalRejected, "rejected: "+note, approverID, userActor(ctx, approverID))
 }
 
 // RecordApprovalAutoRejected records that an approval request was auto-rejected on recheck.
 func (a *Auditing) RecordApprovalAutoRejected(ctx context.Context, ar *models.ApprovalRequest, reason string) {
-	a.recordApproval(ctx, ar, VerbApprovalAutoRejected, "auto-rejected on recheck: "+reason, "")
+	a.recordApproval(ctx, ar, VerbApprovalAutoRejected, "auto-rejected on recheck: "+reason, "", userActor(ctx, ""))
 }
 
 // RecordApprovalExpired records that an approval request expired pending decision.
 func (a *Auditing) RecordApprovalExpired(ctx context.Context, ar *models.ApprovalRequest) {
-	a.recordApproval(ctx, ar, VerbApprovalExpired, "expired pending decision", "")
+	a.recordApproval(ctx, ar, VerbApprovalExpired, reasonExpiredPendingDecision, "", reaperActor())
 }
 
-func (a *Auditing) recordApproval(ctx context.Context, ar *models.ApprovalRequest, verb, reason, approverID string) {
+const reasonExpiredPendingDecision = "expired pending decision"
+
+func (a *Auditing) recordApproval(
+	ctx context.Context,
+	ar *models.ApprovalRequest,
+	verb, reason, approverID string,
+	actor auditActor,
+) {
 	if a == nil || a.writer == nil || ar == nil {
 		return
 	}
@@ -195,10 +304,11 @@ func (a *Auditing) recordApproval(ctx context.Context, ar *models.ApprovalReques
 		EntityType: "approval_request",
 		EntityID:   ar.ID,
 		Action:     verb,
-		ActorID:    approverID,
-		ActorType:  auditActorUser,
+		ActorID:    actor.id,
+		ActorType:  actor.kind,
 		Reason:     reason,
 		Metadata:   md,
+		Parent:     &ar.BaseModel,
 	}, logFailure(ctx))
 }
 
@@ -206,7 +316,7 @@ func (a *Auditing) recordApproval(ctx context.Context, ar *models.ApprovalReques
 
 // RecordReservationCommittedTx writes the committed audit row inside tx.
 func (a *Auditing) RecordReservationCommittedTx(ctx context.Context, tx *gorm.DB, r *models.Reservation) error {
-	return a.recordReservationTx(ctx, tx, r, VerbReservationCommitted, "committed", "")
+	return a.recordReservationTx(ctx, tx, r, VerbReservationCommitted, "committed", "", userActor(ctx, makerOf(r)))
 }
 
 // RecordReservationReleasedTx writes the released audit row inside tx.
@@ -216,7 +326,7 @@ func (a *Auditing) RecordReservationReleasedTx(
 	r *models.Reservation,
 	reason string,
 ) error {
-	return a.recordReservationTx(ctx, tx, r, VerbReservationReleased, "released", reason)
+	return a.recordReservationTx(ctx, tx, r, VerbReservationReleased, "released", reason, userActor(ctx, makerOf(r)))
 }
 
 // RecordReservationReversedTx writes the reversed audit row inside tx.
@@ -226,12 +336,13 @@ func (a *Auditing) RecordReservationReversedTx(
 	r *models.Reservation,
 	reason string,
 ) error {
-	return a.recordReservationTx(ctx, tx, r, VerbReservationReversed, "reversed", reason)
+	return a.recordReservationTx(ctx, tx, r, VerbReservationReversed, "reversed", reason, userActor(ctx, makerOf(r)))
 }
 
-// RecordReservationExpiredTTLTx writes the expired-TTL audit row inside tx.
+// RecordReservationExpiredTTLTx writes the expired-TTL audit row inside tx,
+// attributed to the reaper and scoped to the reservation's tenant.
 func (a *Auditing) RecordReservationExpiredTTLTx(ctx context.Context, tx *gorm.DB, r *models.Reservation) error {
-	return a.recordReservationTx(ctx, tx, r, VerbReservationExpiredTTL, "expired by TTL reaper", "")
+	return a.recordReservationTx(ctx, tx, r, VerbReservationExpiredTTL, "expired by TTL reaper", "", reaperActor())
 }
 
 func (a *Auditing) recordReservationTx(
@@ -239,6 +350,7 @@ func (a *Auditing) recordReservationTx(
 	tx *gorm.DB,
 	r *models.Reservation,
 	verb, defaultReason, callerReason string,
+	actor auditActor,
 ) error {
 	if a == nil || a.writer == nil || r == nil {
 		return nil
@@ -251,17 +363,18 @@ func (a *Auditing) recordReservationTx(
 		EntityType: "reservation",
 		EntityID:   r.ID,
 		Action:     verb,
-		ActorID:    r.MakerID,
-		ActorType:  auditActorUser,
+		ActorID:    actor.id,
+		ActorType:  actor.kind,
 		Reason:     reason,
 		Metadata:   reservationMetadata(r),
+		Parent:     &r.BaseModel,
 	})
 }
 
 // RecordApprovalRequiredTx writes the approval-required audit row inside tx,
 // atomically with the approval request row creation.
 func (a *Auditing) RecordApprovalRequiredTx(ctx context.Context, tx *gorm.DB, ar *models.ApprovalRequest) error {
-	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalRequired, "approval required", "")
+	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalRequired, "approval required", "", userActor(ctx, ""))
 }
 
 // RecordApprovalApprovedTx writes the approved audit row inside tx.
@@ -271,7 +384,7 @@ func (a *Auditing) RecordApprovalApprovedTx(
 	ar *models.ApprovalRequest,
 	approverID string,
 ) error {
-	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalApproved, "approved", approverID)
+	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalApproved, "approved", approverID, userActor(ctx, approverID))
 }
 
 // RecordApprovalRejectedTx writes the rejected audit row inside tx.
@@ -281,7 +394,9 @@ func (a *Auditing) RecordApprovalRejectedTx(
 	ar *models.ApprovalRequest,
 	approverID, note string,
 ) error {
-	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalRejected, "rejected: "+note, approverID)
+	return a.recordApprovalTx(
+		ctx, tx, ar, VerbApprovalRejected, "rejected: "+note, approverID, userActor(ctx, approverID),
+	)
 }
 
 // RecordApprovalAutoRejectedTx writes the auto-rejected audit row inside tx.
@@ -291,7 +406,9 @@ func (a *Auditing) RecordApprovalAutoRejectedTx(
 	ar *models.ApprovalRequest,
 	reason string,
 ) error {
-	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalAutoRejected, "auto-rejected on recheck: "+reason, "")
+	return a.recordApprovalTx(
+		ctx, tx, ar, VerbApprovalAutoRejected, "auto-rejected on recheck: "+reason, "", userActor(ctx, ""),
+	)
 }
 
 // RecordApprovalRejectedCascadeTx writes a cascade-rejected approval audit row
@@ -302,7 +419,16 @@ func (a *Auditing) RecordApprovalRejectedCascadeTx(
 	ar *models.ApprovalRequest,
 	reason string,
 ) error {
-	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalRejectedCascade, "cascade-rejected: "+reason, "")
+	return a.recordApprovalTx(
+		ctx, tx, ar, VerbApprovalRejectedCascade, "cascade-rejected: "+reason, "", userActor(ctx, ""),
+	)
+}
+
+// RecordApprovalExpiredTx writes the approval-expired audit row inside tx,
+// attributed to the reaper and scoped to the approval's tenant so the row is
+// visible to that tenant's LimitsAuditSearch under RLS.
+func (a *Auditing) RecordApprovalExpiredTx(ctx context.Context, tx *gorm.DB, ar *models.ApprovalRequest) error {
+	return a.recordApprovalTx(ctx, tx, ar, VerbApprovalExpired, reasonExpiredPendingDecision, "", reaperActor())
 }
 
 func (a *Auditing) recordApprovalTx(
@@ -310,6 +436,7 @@ func (a *Auditing) recordApprovalTx(
 	tx *gorm.DB,
 	ar *models.ApprovalRequest,
 	verb, reason, approverID string,
+	actor auditActor,
 ) error {
 	if a == nil || a.writer == nil || ar == nil {
 		return nil
@@ -322,10 +449,11 @@ func (a *Auditing) recordApprovalTx(
 		EntityType: "approval_request",
 		EntityID:   ar.ID,
 		Action:     verb,
-		ActorID:    approverID,
-		ActorType:  auditActorUser,
+		ActorID:    actor.id,
+		ActorType:  actor.kind,
 		Reason:     reason,
 		Metadata:   md,
+		Parent:     &ar.BaseModel,
 	})
 }
 
@@ -338,6 +466,8 @@ func (a *Auditing) RecordPolicySavedTx(ctx context.Context, tx *gorm.DB, pol *mo
 		EntityType: auditEntityPolicy,
 		EntityID:   pol.ID,
 		Action:     VerbPolicySaved,
+		ActorID:    actorFromContext(ctx),
+		ActorType:  auditActorUser,
 		Reason:     "policy saved",
 		Metadata: data.JSONMap{
 			mdKeyActionKind: string(pol.Action),
@@ -357,6 +487,8 @@ func (a *Auditing) RecordPolicyDeletedTx(ctx context.Context, tx *gorm.DB, pol *
 		EntityType: auditEntityPolicy,
 		EntityID:   pol.ID,
 		Action:     VerbPolicyDeleted,
+		ActorID:    actorFromContext(ctx),
+		ActorType:  auditActorUser,
 		Reason:     "policy deleted",
 		Metadata: data.JSONMap{
 			mdKeyActionKind: string(pol.Action),

@@ -264,7 +264,12 @@ message LoanRequestObject {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  LoanRequestStatus status = 7;
+  // status is owned by the server. It is set by the approval workflow
+  // (Save accepts only DRAFT/SUBMITTED for new requests; Approve, Reject and
+  // Cancel move it from there) and any client-supplied value on Save is
+  // rejected by the business layer. Validation is skipped so the field can
+  // be echoed back in responses without being constrained on input.
+  LoanRequestStatus status = 7 [(buf.validate.field).ignore = IGNORE_ALWAYS];
   common.v1.Money requested_amount = 8;
   common.v1.Money approved_amount = 9;
   int32 requested_term_days = 10;
@@ -278,6 +283,12 @@ message LoanRequestObject {
   string decided_at = 18;
   string loan_account_id = 19; // Set when loan account is created
   // Source tracking: which product service created this request.
+  //
+  // The pair (source_service, source_request_id) identifies one request in
+  // the originating service and is unique within a partition: a product
+  // service that retries LoanRequestSave with the same pair gets the same
+  // loan request back rather than a duplicate. Either may be empty for
+  // requests captured manually, in which case no uniqueness is implied.
   string source_service = 20; // e.g. "seed", "stawi", "manual"
   string source_request_id = 21; // ID in the source service (e.g. seed_loan_request.id)
   string idempotency_key = 22;
@@ -836,9 +847,14 @@ message InitiateCollectionRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40
   ];
-  string amount = 2;
+  // Deprecated: a bare decimal string carries no currency. Use
+  // collection_amount; when both are set collection_amount wins.
+  string amount = 2 [deprecated = true];
   string phone_number = 3;
   string idempotency_key = 4;
+  // collection_amount is the amount to collect, in the loan's currency.
+  // When unset the outstanding balance is collected.
+  common.v1.Money collection_amount = 5;
 }
 
 message InitiateCollectionResponse {
@@ -1045,6 +1061,10 @@ message PortfolioSummary {
   string collection_rate = 15;
   // par_30 is portfolio-at-risk > 30 days as a percentage string (e.g. "12.30").
   string par_30 = 16;
+  // pending_disbursement_loans counts loans created but not yet disbursed
+  // (LOAN_STATUS_PENDING_DISBURSEMENT). They are part of total_loans but of
+  // none of the other status counts.
+  int32 pending_disbursement_loans = 17;
 }
 
 message PortfolioSummaryRequest {
@@ -1108,7 +1128,8 @@ service LoanManagementService {
       "reconciliation_manage",
       "collection_manage",
       "portfolio_view",
-      "portfolio_export"
+      "portfolio_export",
+      "loan_view_own"
     ]
     role_bindings: [
       {
@@ -1196,11 +1217,20 @@ service LoanManagementService {
         ]
       },
       {
+        // ROLE_MEMBER is the borrowing client. It reads through loan_view_own:
+        // the caller's profile is resolved to its client and every loan,
+        // request, balance, statement, repayment and disbursement it reads
+        // must belong to that client. Staff roles (owner, admin, operator,
+        // viewer) read partition-wide under loan_view. loan_view is still
+        // bound here only because the RPC annotations name it as the gate;
+        // the server enforces ownership regardless, and the binding will be
+        // withdrawn once the read RPCs accept loan_view_own.
         role: ROLE_MEMBER
         permissions: [
           "loan_product_view",
           "loan_request_view",
           "loan_view",
+          "loan_view_own",
           "disbursement_view",
           "repayment_view",
           "penalty_view",

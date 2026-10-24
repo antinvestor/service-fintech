@@ -17,11 +17,33 @@ package business
 import "github.com/antinvestor/service-fintech/pkg/apperrors"
 
 var (
-	ErrOrganizationNotFound         = apperrors.NewError(apperrors.NotFound, "organization not found")
-	ErrOrgUnitNotFound              = apperrors.NewError(apperrors.NotFound, "org unit not found")
-	ErrBranchNotFound               = apperrors.NewError(apperrors.NotFound, "branch not found")
-	ErrAgentNotFound                = apperrors.NewError(apperrors.NotFound, "agent not found")
-	ErrClientNotFound               = apperrors.NewError(apperrors.NotFound, "client not found")
+	ErrOrganizationNotFound = apperrors.NewError(apperrors.NotFound, "organization not found")
+	ErrOrgUnitNotFound      = apperrors.NewError(apperrors.NotFound, "org unit not found")
+	ErrBranchNotFound       = apperrors.NewError(apperrors.NotFound, "branch not found")
+	ErrAgentNotFound        = apperrors.NewError(apperrors.NotFound, "agent not found")
+	ErrClientNotFound       = apperrors.NewError(apperrors.NotFound, "client not found")
+	ErrClientPhoneIsStaff   = apperrors.NewError(
+		apperrors.BadRequest, "the phone number belongs to a member of staff and cannot be registered as a client")
+	ErrCallerNotWorkforceMember = apperrors.NewError(
+		apperrors.Forbidden,
+		"the caller is not a registered workforce member",
+	)
+	ErrClientOutsideCallerScope = apperrors.NewError(
+		apperrors.Forbidden,
+		"the client is not in the caller's teams or relationships",
+	)
+	ErrClientPhoneInvalid = apperrors.NewError(
+		apperrors.BadRequest,
+		"phone number must be a valid international number",
+	)
+	ErrClientProfileUnavailable = apperrors.NewError(
+		apperrors.ServiceUnavailable,
+		"the borrower's profile could not be created or found; retry later",
+	)
+	ErrTeamOutsideOrganization = apperrors.NewError(
+		apperrors.BadRequest,
+		"the new owning team belongs to a different organization",
+	)
 	ErrGroupNotFound                = apperrors.NewError(apperrors.NotFound, "group not found")
 	ErrMembershipNotFound           = apperrors.NewError(apperrors.NotFound, "membership not found")
 	ErrInvestorNotFound             = apperrors.NewError(apperrors.NotFound, "investor not found")
@@ -86,7 +108,22 @@ var (
 		"member already has an active primary team membership",
 	)
 	ErrInvalidAccessScope = apperrors.NewError(apperrors.BadRequest, "invalid access scope")
-	ErrInvalidRoleKey     = apperrors.NewError(apperrors.BadRequest, "role key is required")
+	ErrInvalidRoleKey     = apperrors.NewError(
+		apperrors.BadRequest,
+		"role key is not one of the roles this service defines",
+	)
+	ErrGlobalScopeForbidden = apperrors.NewError(
+		apperrors.Forbidden,
+		"only a global identity administrator may grant a global scoped role",
+	)
+	ErrSelfRoleGrant = apperrors.NewError(
+		apperrors.Forbidden,
+		"a caller cannot grant an access role to itself",
+	)
+	ErrInvalidPlatformRole = apperrors.NewError(
+		apperrors.BadRequest,
+		"platform role is not one of the roles this service defines",
+	)
 
 	ErrCreditLimitNegative     = apperrors.NewError(apperrors.BadRequest, "credit limit cannot be negative")
 	ErrAgentLimitExceedsSystem = apperrors.NewError(
@@ -128,6 +165,10 @@ var (
 		apperrors.Unprocessable,
 		"approval case is not pending approval",
 	)
+	ErrApprovalCaseSelfReview = apperrors.NewError(
+		apperrors.Forbidden,
+		"an approval case cannot be reviewed by someone who already acted on it",
+	)
 	ErrClientPhoneChangePending = apperrors.NewError(
 		apperrors.Conflict,
 		"a phone number change case is already pending for this client",
@@ -143,7 +184,11 @@ var (
 		"failed to create login client for partition",
 	)
 
-	ErrClientDataEntryNotFound  = apperrors.NewError(apperrors.NotFound, "client data entry not found")
+	ErrClientDataEntryNotFound = apperrors.NewError(apperrors.NotFound, "client data entry not found")
+	ErrClientDataEntryConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"client data entry was submitted concurrently; retry against the new revision",
+	)
 	ErrFormTemplateNotFound     = apperrors.NewError(apperrors.NotFound, "form template not found")
 	ErrFormTemplateNotDraft     = apperrors.NewError(apperrors.Unprocessable, "form template is not in draft status")
 	ErrFormTemplateNotPublished = apperrors.NewError(
@@ -159,5 +204,40 @@ var (
 		apperrors.BadRequest,
 		"file fields must contain content URIs from the files service, not inline base64 or data URI data; upload files directly to the files service first",
 	)
+	ErrFormSubmissionInvalidFileURI = apperrors.NewError(
+		apperrors.BadRequest,
+		"file fields must reference an https content URI with a host and no credentials",
+	)
 	ErrClientRelationshipNotFound = apperrors.NewError(apperrors.NotFound, "client relationship not found")
+
+	ErrReviewerUnidentified = apperrors.NewError(
+		apperrors.Unauthorised,
+		"the caller identity could not be resolved from the request credentials",
+	)
+	ErrClientDataEntryNotReviewable = apperrors.NewError(
+		apperrors.Unprocessable,
+		"client data entry has already reached a final verification status",
+	)
+	ErrClientDataEntryReviewConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"another decision was recorded on this client data entry first",
+	)
+	ErrReviewerIsSubmitter = apperrors.NewError(
+		apperrors.Forbidden,
+		"the submitter of a client data entry cannot review it",
+	)
+
+	ErrGroupOwnerRequired = apperrors.NewError(
+		apperrors.BadRequest,
+		"client group requires an owning workforce member",
+	)
+	ErrWorkforceMemberInactive = apperrors.NewError(
+		apperrors.Unprocessable,
+		"workforce member is not active",
+	)
+
+	ErrInvalidPageToken = apperrors.NewError(
+		apperrors.BadRequest,
+		"cursor page must be a non-negative integer",
+	)
 )

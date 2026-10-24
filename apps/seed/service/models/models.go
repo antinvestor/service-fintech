@@ -38,7 +38,7 @@ package models
 import (
 	"time"
 
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // CreditProfileStatus is the lifecycle of a client credit profile.
@@ -85,6 +85,11 @@ const (
 	LoanRequestStatusFailed LoanRequestStatus = 5
 	// LoanRequestStatusCancelled is an operator-initiated cancel path.
 	LoanRequestStatusCancelled LoanRequestStatus = 6
+	// LoanRequestStatusDisbursementUnconfirmed means the disbursement call
+	// failed without telling us whether money moved. The outstanding-loan
+	// slot stays reserved until reconciliation against the loans service
+	// establishes whether the disbursement exists.
+	LoanRequestStatusDisbursementUnconfirmed LoanRequestStatus = 7
 )
 
 // CreditProfile is the authoritative per-client credit state for seed.
@@ -213,7 +218,10 @@ type LoanRequest struct {
 	LoanAccountID  string `gorm:"type:varchar(50);index:idx_lr_loan"`
 	DisbursementID string `gorm:"type:varchar(50)"`
 
-	IdempotencyKey string `gorm:"type:varchar(255);uniqueIndex:uq_lr_idempotency"`
+	// IdempotencyKey is required on every request. Uniqueness is enforced by a
+	// partial index created in postMigrate (idempotency_key <> '') so legacy
+	// rows without one do not collide.
+	IdempotencyKey string `gorm:"type:varchar(255);index:idx_lr_idempotency"`
 
 	RequestedAt *time.Time
 	ApprovedAt  *time.Time

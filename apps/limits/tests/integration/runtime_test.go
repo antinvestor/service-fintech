@@ -27,15 +27,16 @@ import (
 	"time"
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -129,16 +130,18 @@ func (s *RuntimeIntegrationSuite) SetupTest() {
 		partitionID: "partition-rt",
 		profileID:   "wf-maker",
 	}
-	interceptorOpt := connect.WithInterceptors(claimsInterceptor)
-	runtimePath, runtimeHandler := limitsv1connect.NewLimitsServiceHandler(runtimeH, interceptorOpt)
+	server := connect.NewServer(claimsInterceptor.server())
+	limitsv1connect.RegisterLimitsServiceHandler(server, runtimeH)
 
 	mux := http.NewServeMux()
-	mux.Handle(runtimePath, runtimeHandler)
+	connecthttp.Mount(mux, server)
 
 	srv := httptest.NewServer(mux)
 	s.T().Cleanup(srv.Close)
 
-	s.runtimeClient = limitsv1connect.NewLimitsServiceClient(srv.Client(), srv.URL)
+	s.runtimeClient = limitsv1connect.NewLimitsServiceClient(
+		connect.NewClient(connecthttp.NewTransport(srv.Client(), srv.URL)),
+	)
 }
 
 func (s *RuntimeIntegrationSuite) databaseResource(ctx context.Context) definition.DependancyConn {
@@ -226,24 +229,24 @@ func (s *RuntimeIntegrationSuite) TestRuntimeIntegration_ReserveCommitFlow() {
 	s.seedRTPolicy(perTxnMaxRT(100_000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE))
 
 	intent := loanIntent("tenant-rt", 50_000)
-	reserveResp, err := s.runtimeClient.Reserve(s.ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := s.runtimeClient.Reserve(s.ctx, &limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: "rt-commit-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(reserveResp.Msg.GetReservation())
-	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE, reserveResp.Msg.GetReservation().GetStatus())
+	s.Require().NotNil(reserveResp.GetReservation())
+	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE, reserveResp.GetReservation().GetStatus())
 
-	reservationID := reserveResp.Msg.GetReservation().GetId()
+	reservationID := reserveResp.GetReservation().GetId()
 	s.NotEmpty(reservationID)
 
-	commitResp, err := s.runtimeClient.Commit(s.ctx, connect.NewRequest(&limitsv1.CommitRequest{
+	commitResp, err := s.runtimeClient.Commit(s.ctx, &limitsv1.CommitRequest{
 		ReservationId: reservationID,
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(commitResp.Msg.GetReservation())
-	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_COMMITTED, commitResp.Msg.GetReservation().GetStatus())
+	s.Require().NotNil(commitResp.GetReservation())
+	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_COMMITTED, commitResp.GetReservation().GetStatus())
 
 	// Verify a ledger entry was created via direct DB query.
 	var count int64
@@ -261,11 +264,11 @@ func (s *RuntimeIntegrationSuite) TestRuntimeIntegration_ReserveDenied() {
 	s.seedRTPolicy(perTxnMaxRT(100_000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE))
 
 	intent := loanIntent("tenant-rt", 200_000)
-	_, err := s.runtimeClient.Reserve(s.ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	_, err := s.runtimeClient.Reserve(s.ctx, &limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: "rt-denied-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().Error(err)
 	s.Equal(connect.CodeFailedPrecondition, connect.CodeOf(err))
 }
@@ -275,23 +278,23 @@ func (s *RuntimeIntegrationSuite) TestRuntimeIntegration_ReserveRelease() {
 	s.seedRTPolicy(perTxnMaxRT(100_000, limitsv1.PolicyMode_POLICY_MODE_ENFORCE))
 
 	intent := loanIntent("tenant-rt", 50_000)
-	reserveResp, err := s.runtimeClient.Reserve(s.ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := s.runtimeClient.Reserve(s.ctx, &limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: "rt-release-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE, reserveResp.Msg.GetReservation().GetStatus())
+	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE, reserveResp.GetReservation().GetStatus())
 
-	reservationID := reserveResp.Msg.GetReservation().GetId()
+	reservationID := reserveResp.GetReservation().GetId()
 
-	releaseResp, err := s.runtimeClient.Release(s.ctx, connect.NewRequest(&limitsv1.ReleaseRequest{
+	releaseResp, err := s.runtimeClient.Release(s.ctx, &limitsv1.ReleaseRequest{
 		ReservationId: reservationID,
 		Reason:        "test release",
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(releaseResp.Msg.GetReservation())
-	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_RELEASED, releaseResp.Msg.GetReservation().GetStatus())
+	s.Require().NotNil(releaseResp.GetReservation())
+	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_RELEASED, releaseResp.GetReservation().GetStatus())
 }
 
 // TestRuntimeIntegration_Idempotency: same key + same intent → same reservation.
@@ -314,23 +317,23 @@ func (s *RuntimeIntegrationSuite) TestRuntimeIntegration_Idempotency() {
 	intent1 := loanIntent("tenant-rt", 50_000)
 
 	// First reserve with key "k1".
-	resp1, err := s.runtimeClient.Reserve(s.ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	resp1, err := s.runtimeClient.Reserve(s.ctx, &limitsv1.ReserveRequest{
 		Intent:         intent1,
 		IdempotencyKey: "idem-rt-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	reservationID := resp1.Msg.GetReservation().GetId()
+	reservationID := resp1.GetReservation().GetId()
 	s.NotEmpty(reservationID)
 
 	// Second reserve with same key + same intent → returns same reservation_id.
-	resp2, err := s.runtimeClient.Reserve(s.ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	resp2, err := s.runtimeClient.Reserve(s.ctx, &limitsv1.ReserveRequest{
 		Intent:         intent1,
 		IdempotencyKey: "idem-rt-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	s.Equal(reservationID, resp2.Msg.GetReservation().GetId(), "replayed idempotency key must return same reservation")
+	s.Equal(reservationID, resp2.GetReservation().GetId(), "replayed idempotency key must return same reservation")
 
 	// Third reserve with same key + different action → AlreadyExists.
 	intent2 := &limitsv1.LimitIntent{
@@ -343,11 +346,11 @@ func (s *RuntimeIntegrationSuite) TestRuntimeIntegration_Idempotency() {
 		},
 		MakerId: "wf-maker",
 	}
-	_, err = s.runtimeClient.Reserve(s.ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	_, err = s.runtimeClient.Reserve(s.ctx, &limitsv1.ReserveRequest{
 		Intent:         intent2,
 		IdempotencyKey: "idem-rt-k1", // same key, different intent
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().Error(err)
 	s.Equal(connect.CodeAlreadyExists, connect.CodeOf(err),
 		"idempotency-key collision with different intent must return AlreadyExists")

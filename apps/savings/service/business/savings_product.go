@@ -20,8 +20,8 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/savings/service/events"
@@ -55,6 +55,11 @@ func NewSavingsProductBusiness(
 	}
 }
 
+// Save creates a savings product or updates an existing one.
+//
+// An update is refused unless the stored product belongs to the organization
+// the request names, so a caller cannot repoint another organization's
+// product at their own terms by guessing its id.
 func (b *savingsProductBusiness) Save(
 	ctx context.Context,
 	obj *savingsv1.SavingsProductObject,
@@ -64,8 +69,18 @@ func (b *savingsProductBusiness) Save(
 	isNew := obj.GetId() == ""
 	sp := models.SavingsProductFromAPI(ctx, obj)
 
-	if isNew && sp.State == 0 {
-		sp.State = int32(commonv1.STATE_CREATED.Number())
+	if isNew {
+		if sp.State == 0 {
+			sp.State = int32(commonv1.STATE_CREATED.Number())
+		}
+	} else {
+		stored, err := b.spRepo.GetByID(ctx, obj.GetId())
+		if err != nil {
+			return nil, ErrSavingsProductNotFound
+		}
+		if stored.BankID != sp.BankID {
+			return nil, ErrSavingsProductNotFound
+		}
 	}
 
 	err := b.eventsMan.Emit(ctx, events.SavingsProductSaveEvent, sp)
@@ -114,9 +129,7 @@ func (b *savingsProductBusiness) Search(
 
 	if req.GetQuery() != "" {
 		searchOpts = append(searchOpts,
-			data.WithSearchFiltersOrByValue(
-				map[string]any{"searchable @@ websearch_to_tsquery( 'english', ?) ": req.GetQuery()},
-			),
+			data.WithSearchFiltersOrByValue(map[string]any{searchableTSQuery: req.GetQuery()}),
 		)
 	}
 

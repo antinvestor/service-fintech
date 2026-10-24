@@ -18,7 +18,7 @@ import (
 	"context"
 
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
@@ -51,7 +51,6 @@ type agentBusiness struct {
 	branchRepo       repository.BranchRepository
 	agentRepo        repository.AgentRepository
 	agentBranchRepo  repository.AgentBranchRepository
-	notifier         *AgentNotifier
 }
 
 func NewAgentBusiness(
@@ -62,7 +61,6 @@ func NewAgentBusiness(
 	branchRepo repository.BranchRepository,
 	agentRepo repository.AgentRepository,
 	agentBranchRepo repository.AgentBranchRepository,
-	notifier *AgentNotifier,
 ) AgentBusiness {
 	return &agentBusiness{
 		eventsMan:        eventsMan,
@@ -71,7 +69,6 @@ func NewAgentBusiness(
 		branchRepo:       branchRepo,
 		agentRepo:        agentRepo,
 		agentBranchRepo:  agentBranchRepo,
-		notifier:         notifier,
 	}
 }
 

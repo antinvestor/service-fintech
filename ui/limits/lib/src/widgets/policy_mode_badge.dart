@@ -46,7 +46,11 @@ class PolicyModeBadge extends StatelessWidget {
       ),
       child: Text(
         policyModeLabel(mode).toUpperCase(),
-        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 11),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
       ),
     );
   }

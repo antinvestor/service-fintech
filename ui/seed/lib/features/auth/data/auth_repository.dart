@@ -48,10 +48,17 @@ class StoredLoginContext {
 }
 
 class AuthRepository {
-  AuthRepository(this._authService);
+  AuthRepository(this._authService, this._ready);
+
   final AuthService _authService;
 
+  /// Completes once the stored client selection has been restored. Every
+  /// entry point awaits it so the service is never initialised against the
+  /// default client while the stored one is still loading.
+  final Future<void> _ready;
+
   Future<void> login({String? clientId}) async {
+    await _ready;
     if (clientId != null) {
       await _authService.switchClient(clientId);
     }
@@ -65,16 +72,24 @@ class AuthRepository {
   Future<bool> isLoggedIn() async {
     final cached = _authService.isAuthenticatedSync;
     if (cached != null) return cached;
+    await _ready;
     return _authService.isAuthenticated();
   }
 
-  Future<String?> getAccessToken() async => _authService.getAccessToken();
+  Future<String?> getAccessToken() async {
+    await _ready;
+    return _authService.getAccessToken();
+  }
 
-  Future<String?> ensureValidAccessToken() async =>
-      _authService.ensureValidAccessToken();
+  Future<String?> ensureValidAccessToken() async {
+    await _ready;
+    return _authService.ensureValidAccessToken();
+  }
 
-  Future<String?> forceRefreshAccessToken() async =>
-      _authService.forceRefreshAccessToken();
+  Future<String?> forceRefreshAccessToken() async {
+    await _ready;
+    return _authService.forceRefreshAccessToken();
+  }
 
   Future<Map<String, dynamic>?> getUserInfo() async =>
       _authService.getUserInfo();
@@ -129,21 +144,33 @@ class AuthRepository {
   }
 }
 
+/// Web storage settings for the token store.
+///
+/// `flutter_secure_storage` on web wraps values in localStorage with a key
+/// that also lives in localStorage, so it is obfuscation rather than
+/// protection. Session storage at least scopes the refresh token to a single
+/// browser tab and drops it when that tab closes; the access token is never
+/// written at all (see AuthService._saveTokens).
+const _secureStorage = FlutterSecureStorage(
+  webOptions: WebOptions(
+    dbName: 'seed_ui_secure_storage',
+    publicKey: 'seed_ui',
+    useSessionStorage: true,
+  ),
+);
+
 @Riverpod(keepAlive: true)
 AuthRepository authRepository(Ref ref) {
-  const issuerUrl = AppConfig.oauthIssuerUrl;
-  const clientId = AppConfig.oauthClientId;
+  final issuerUrl = AppConfig.oauthIssuerUrl;
+  final clientId = AppConfig.oauthClientId;
 
-  const storage = FlutterSecureStorage();
   final authService = AuthService(
-    storage,
+    _secureStorage,
     issuerUrl: issuerUrl,
     clientId: clientId,
   );
 
-  authService.restoreSelectedClient().ignore();
-
-  return AuthRepository(authService);
+  return AuthRepository(authService, authService.restoreSelectedClient());
 }
 
 @Riverpod(keepAlive: true)

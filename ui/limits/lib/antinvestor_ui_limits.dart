@@ -21,6 +21,7 @@ export 'src/providers/ledger_providers.dart';
 export 'src/providers/audit_providers.dart';
 
 // Routing
+export 'src/capabilities.dart';
 export 'src/routing/limits_routes.dart';
 
 // Screens
@@ -48,7 +49,6 @@ export 'src/widgets/attribute_filter_display.dart';
 export 'src/widgets/attribute_filter_editor.dart';
 export 'src/widgets/policy_list_tile.dart';
 export 'src/widgets/policy_detail_card.dart';
-export 'src/widgets/policy_version_history.dart';
 export 'src/widgets/approval_request_tile.dart';
 export 'src/widgets/approval_decision_form.dart';
 export 'src/widgets/approval_decision_timeline.dart';
@@ -64,3 +64,4 @@ export 'src/widgets/currency_amount_text.dart';
 export 'src/utils/money_bridge.dart';
 export 'src/utils/enum_labels.dart';
 export 'src/utils/duration_format.dart';
+export 'src/utils/formatting.dart';

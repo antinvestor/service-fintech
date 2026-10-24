@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const ScheduleEntrySaveEvent = "schedule_entry.save"
@@ -58,17 +58,8 @@ func (e *ScheduleEntrySave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "schedule_entry_id": se.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.scheduleEntryRepo.GetByID(ctx, se.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.scheduleEntryRepo.Update(ctx, se); err != nil {
-			logger.WithError(err).Error("could not update schedule entry in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.scheduleEntryRepo.Create(ctx, se); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create schedule entry in db")
+	if err := upsert.ByID(ctx, e.scheduleEntryRepo, se); err != nil {
+		logger.WithError(err).Error("could not persist schedule entry")
 		return err
 	}
 

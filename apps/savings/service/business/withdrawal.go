@@ -22,18 +22,15 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
-	"github.com/antinvestor/service-fintech/apps/savings/service/events"
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
@@ -42,10 +39,7 @@ import (
 )
 
 type WithdrawalBusiness interface {
-	Request(
-		ctx context.Context,
-		accountID, amount, channel, recipientRef, reason, idempotencyKey string,
-	) (*savingsv1.WithdrawalObject, error)
+	Request(ctx context.Context, req *savingsv1.WithdrawalRequestRequest) (*savingsv1.WithdrawalObject, error)
 	Approve(ctx context.Context, id string) (*savingsv1.WithdrawalObject, error)
 	Cancel(ctx context.Context, id, reason string) (*savingsv1.WithdrawalObject, error)
 	Get(ctx context.Context, id string) (*savingsv1.WithdrawalObject, error)
@@ -57,11 +51,8 @@ type WithdrawalBusiness interface {
 }
 
 type withdrawalBusiness struct {
-	eventsMan         fevents.Manager
 	wdrRepo           repository.WithdrawalRepository
 	saRepo            repository.SavingsAccountRepository
-	sbRepo            repository.SavingsBalanceRepository
-	saBusiness        SavingsAccountBusiness
 	operationsCli     operationsv1connect.OperationsServiceClient
 	auditWriter       *audit.Writer
 	limitsCli         limitsv1connect.LimitsServiceClient
@@ -71,11 +62,8 @@ type withdrawalBusiness struct {
 
 func NewWithdrawalBusiness(
 	_ context.Context,
-	eventsMan fevents.Manager,
 	wdrRepo repository.WithdrawalRepository,
 	saRepo repository.SavingsAccountRepository,
-	sbRepo repository.SavingsBalanceRepository,
-	saBusiness SavingsAccountBusiness,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
 	limitsCli limitsv1connect.LimitsServiceClient,
@@ -83,11 +71,8 @@ func NewWithdrawalBusiness(
 	limitsGateMode string,
 ) WithdrawalBusiness {
 	return &withdrawalBusiness{
-		eventsMan:         eventsMan,
 		wdrRepo:           wdrRepo,
 		saRepo:            saRepo,
-		sbRepo:            sbRepo,
-		saBusiness:        saBusiness,
 		operationsCli:     operationsCli,
 		auditWriter:       auditWriter,
 		limitsCli:         limitsCli,
@@ -96,118 +81,90 @@ func NewWithdrawalBusiness(
 	}
 }
 
-// Request places an authoritative hold on the requested amount via an atomic
-// reservation on the running savings balance. If the balance guard fails the
-// request is rejected immediately without persisting a withdrawal row, so
-// two concurrent Requests against overlapping funds cannot both succeed.
-//
-// On success a PENDING withdrawal row is persisted. The reservation remains
-// in place until Approve settles it (DebitReserved) or a future cancel path
-// releases it.
+// Request persists a PENDING withdrawal and places the balance hold in one
+// database transaction, keyed on the caller's idempotency key. A retry with
+// the same key loses the insert and returns the stored withdrawal, so a
+// duplicated request can never place a second hold; an insufficient balance
+// rolls the row back with it.
 func (b *withdrawalBusiness) Request(
 	ctx context.Context,
-	accountID, amount, channel, recipientRef, reason, idempotencyKey string,
+	req *savingsv1.WithdrawalRequestRequest,
 ) (*savingsv1.WithdrawalObject, error) {
 	logger := util.Log(ctx).WithField("method", "WithdrawalBusiness.Request")
 
-	sa, err := b.saRepo.GetByID(ctx, accountID)
+	if req.GetIdempotencyKey() == "" {
+		return nil, ErrIdempotencyKeyRequired
+	}
+
+	sa, err := b.saRepo.GetByID(ctx, req.GetSavingsAccountId())
 	if err != nil {
 		return nil, ErrSavingsAccountNotFound
 	}
-
-	currentStatus := savingsv1.SavingsAccountStatus(sa.Status)
-	if currentStatus == savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_FROZEN {
-		return nil, ErrAccountFrozen
-	}
-	if currentStatus == savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_CLOSED {
-		return nil, ErrAccountClosed
-	}
-	if sa.LedgerAccountID == "" || sa.PaymentAccountRef == "" {
-		return nil, ErrSavingsAccountLedgerRefsMissing
+	if err = assertAccountOperable(sa); err != nil {
+		return nil, err
 	}
 
-	if idempotencyKey != "" {
-		existing, idempErr := b.wdrRepo.GetByIdempotencyKey(ctx, idempotencyKey)
-		if idempErr == nil && existing != nil {
-			return existing.ToAPI(), nil
-		}
-	}
-
-	amountMinor := models.StringToMinorUnits(amount)
-	if amountMinor <= 0 {
-		return nil, fmt.Errorf("withdrawal amount must be positive, got %d", amountMinor)
-	}
-
-	// Atomic balance guard. Reserve will return ErrInsufficientFunds if
-	// (balance - reserved_balance) < amountMinor, so this is the single
-	// authoritative check: no read-then-write race is possible.
-	if _, resErr := b.sbRepo.Reserve(ctx, accountID, amountMinor); resErr != nil {
-		if errors.Is(resErr, repository.ErrInsufficientFunds) {
-			return nil, ErrInsufficientBalance
-		}
-		logger.WithError(resErr).Error("could not reserve funds for withdrawal")
-		return nil, resErr
+	amountMinor, err := amountInAccountCurrency(req.GetAmount(), sa.CurrencyCode)
+	if err != nil {
+		return nil, err
 	}
 
 	wdr := models.WithdrawalFromAPI(ctx, &savingsv1.WithdrawalObject{
-		SavingsAccountId:   accountID,
+		SavingsAccountId:   sa.GetID(),
 		Amount:             models.MinorUnitsToMoney(amountMinor, sa.CurrencyCode),
-		Channel:            channel,
-		RecipientReference: recipientRef,
-		Reason:             reason,
-		IdempotencyKey:     idempotencyKey,
+		Channel:            req.GetChannel(),
+		RecipientReference: req.GetRecipientReference(),
+		Reason:             req.GetReason(),
+		IdempotencyKey:     req.GetIdempotencyKey(),
 	})
 	wdr.Status = int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_PENDING)
+	wdr.CopyPartitionInfo(&sa.BaseModel)
 
-	if emitErr := b.eventsMan.Emit(ctx, events.WithdrawalSaveEvent, wdr); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit withdrawal save event")
-		// Best-effort compensation: release the hold so retries have the same
-		// funds available. This only runs in-process on error before return.
-		if _, releaseErr := b.sbRepo.ReleaseReserved(ctx, accountID, amountMinor); releaseErr != nil {
-			logger.WithError(releaseErr).Error("could not release reservation after save failure")
+	stored, created, claimErr := b.wdrRepo.ClaimWithHold(ctx, wdr)
+	if claimErr != nil {
+		if errors.Is(claimErr, repository.ErrInsufficientFunds) {
+			return nil, ErrInsufficientBalance
 		}
-		return nil, emitErr
+		if errors.Is(claimErr, repository.ErrSavingsBalanceNotFound) {
+			return nil, ErrBalanceNotProvisioned
+		}
+		logger.WithError(claimErr).Error("could not claim withdrawal with balance hold")
+		return nil, claimErr
+	}
+	if !created {
+		return stored.ToAPI(), nil
 	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "savings_withdrawal",
-		EntityID:   wdr.GetID(),
+		EntityType: entityWithdrawal,
+		EntityID:   stored.GetID(),
 		Action:     "savings.withdrawal.requested",
-		Reason:     reason,
+		Reason:     req.GetReason(),
 		After: data.JSONMap{
-			fieldStatus:        wdr.Status,
-			"reserved_amount":  amountMinor,
-			"balance_reserved": true,
+			fieldStatus:       stored.Status,
+			"reserved_amount": amountMinor,
 		},
 		Metadata: data.JSONMap{
-			fieldSavingsAccountID:   sa.GetID(),
-			fieldOwnerID:            sa.OwnerID,
-			fieldAmount:             amountMinor,
-			fieldCurrency:           sa.CurrencyCode,
-			fieldChannel:            channel,
-			fieldRecipientReference: recipientRef,
-			"idempotency_key":       idempotencyKey,
+			fieldSavingsAccountID: sa.GetID(),
+			fieldOwnerID:          sa.OwnerID,
+			fieldAmount:           amountMinor,
+			fieldCurrency:         sa.CurrencyCode,
+			fieldChannel:          stored.Channel,
+			"idempotency_key":     stored.IdempotencyKey,
 		},
-		Parent: &wdr.BaseModel,
+		Parent: &stored.BaseModel,
 	}, func(auErr error) {
 		logger.WithError(auErr).Warn("audit emission failed for savings withdrawal request")
 	})
 
-	return wdr.ToAPI(), nil
+	return stored.ToAPI(), nil
 }
 
-// Approve settles a pending withdrawal: it moves money off the reserved hold
-// via DebitReserved, emits a transfer order through operations (which in
-// turn posts to the external ledger and triggers the payment), and marks
-// the withdrawal as completed.
-//
-// When the limits gate is enabled, a reservation is obtained from the limits
-// service before the settlement executes. DENY returns LimitBreachedError;
-// PENDING_APPROVAL returns PendingApprovalError.
-//
-// The transfer order reference is keyed on the withdrawal id so retries of
-// Approve (for example after a transient operations outage) converge on a
-// single ledger posting rather than double-paying the recipient.
+// Approve settles a pending withdrawal. The transfer order is posted first —
+// it is idempotent on the withdrawal id, so a retry converges on one ledger
+// posting — and only once it has landed does the hold turn into a debit. A
+// failure anywhere before that leaves the reservation intact and the
+// withdrawal still PENDING, so the money remains recoverable.
 func (b *withdrawalBusiness) Approve(ctx context.Context, id string) (*savingsv1.WithdrawalObject, error) {
 	wdr, err := b.wdrRepo.GetByID(ctx, id)
 	if err != nil {
@@ -231,7 +188,12 @@ func (b *withdrawalBusiness) Approve(ctx context.Context, id string) (*savingsv1
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_SAVINGS_WITHDRAWAL,
 		TenantId: sa.BankID,
 		Amount:   moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, wdr.Amount),
+		// The limits service requires the client for savings actions: the
+		// account owner. A group owner is not a field client, so an enforce
+		// policy that filters on client attributes fails closed for it; keep
+		// client-tier filters off savings actions that group accounts use.
 		Subjects: []*limitsv1.SubjectRef{
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: sa.OwnerID},
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: wdr.SavingsAccountID},
 		},
 	}
@@ -247,7 +209,9 @@ func (b *withdrawalBusiness) Approve(ctx context.Context, id string) (*savingsv1
 			}
 			result = inner
 			return nil
-		})
+		},
+		limits.InPartition(sa.TenantID, sa.PartitionID),
+	)
 	return result, gateErr
 }
 
@@ -264,16 +228,6 @@ func (b *withdrawalBusiness) approveInner(
 	if saErr != nil {
 		return nil, ErrSavingsAccountNotFound
 	}
-	if sa.LedgerAccountID == "" || sa.PaymentAccountRef == "" {
-		return nil, ErrSavingsAccountLedgerRefsMissing
-	}
-
-	// Settle the reservation. DebitReserved is guarded on both reserved_balance
-	// and balance being >= amount, so a double-approve cannot over-draw.
-	if _, debErr := b.sbRepo.DebitReserved(ctx, wdr.SavingsAccountID, wdr.Amount); debErr != nil {
-		logger.WithError(debErr).Error("could not debit reserved funds on approve")
-		return nil, debErr
-	}
 
 	toID, toErr := b.postWithdrawalTransferOrder(ctx, logger, sa, wdr)
 	if toErr != nil {
@@ -281,14 +235,14 @@ func (b *withdrawalBusiness) approveInner(
 	}
 	wdr.LedgerTransactionID = toID
 
-	wdr.Status = int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED)
-	if emitErr := b.eventsMan.Emit(ctx, events.WithdrawalSaveEvent, wdr); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit withdrawal completed event")
-		return nil, emitErr
+	if settleErr := b.wdrRepo.Settle(ctx, wdr); settleErr != nil {
+		logger.WithError(settleErr).Error("could not settle withdrawal against the running balance")
+		return nil, settleErr
 	}
+	wdr.Status = int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED)
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
-		EntityType: "savings_withdrawal",
+		EntityType: entityWithdrawal,
 		EntityID:   wdr.GetID(),
 		Action:     "savings.withdrawal.approved",
 		Reason:     "withdrawal approved, ledger posted, reservation settled",
@@ -298,13 +252,12 @@ func (b *withdrawalBusiness) approveInner(
 			fieldLedgerTransactionID: wdr.LedgerTransactionID,
 		},
 		Metadata: data.JSONMap{
-			fieldSavingsAccountID:   sa.GetID(),
-			fieldOwnerID:            sa.OwnerID,
-			fieldAmount:             wdr.Amount,
-			fieldCurrency:           sa.CurrencyCode,
-			fieldChannel:            wdr.Channel,
-			fieldRecipientReference: wdr.RecipientReference,
-			"withdrawal_id":         id,
+			fieldSavingsAccountID: sa.GetID(),
+			fieldOwnerID:          sa.OwnerID,
+			fieldAmount:           wdr.Amount,
+			fieldCurrency:         sa.CurrencyCode,
+			fieldChannel:          wdr.Channel,
+			"withdrawal_id":       id,
 		},
 		Parent: &wdr.BaseModel,
 	}, func(auErr error) {
@@ -334,24 +287,23 @@ func (b *withdrawalBusiness) postWithdrawalTransferOrder(
 
 	reference := fmt.Sprintf("withdrawal:%s", wdr.GetID())
 	extraData := data.JSONMap{
-		fieldSavingsAccountID:   sa.GetID(),
-		"withdrawal_id":         wdr.GetID(),
-		fieldOwnerID:            sa.OwnerID,
-		fieldChannel:            wdr.Channel,
-		fieldRecipientReference: wdr.RecipientReference,
+		fieldSavingsAccountID: sa.GetID(),
+		"withdrawal_id":       wdr.GetID(),
+		fieldOwnerID:          sa.OwnerID,
+		fieldChannel:          wdr.Channel,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
-			DebitAccountRef:  sa.LedgerAccountID,
-			CreditAccountRef: sa.PaymentAccountRef,
-			Amount:           moneyx.FromSmallestUnit(sa.CurrencyCode, wdr.Amount, moneyDecimalPlaces),
+			DebitAccountRef:  LedgerAccountRef(sa),
+			CreditAccountRef: PaymentAccountRef(sa),
+			Amount:           moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, wdr.Amount),
 			OrderType:        constants.SafeInt32FromInt(constants.TransferTypePeriodicSavingRecovery),
 			Reference:        reference,
 			Description:      "Savings withdrawal",
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
 	if execErr != nil {
@@ -360,10 +312,12 @@ func (b *withdrawalBusiness) postWithdrawalTransferOrder(
 			Error("could not execute transfer order for withdrawal")
 		return "", fmt.Errorf("withdrawal transfer order %s failed: %w", reference, execErr)
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
-// Cancel rejects a pending withdrawal and releases the reserved balance.
+// Cancel rejects a pending withdrawal and releases the hold. The status
+// change and the release share one transaction and are guarded on the row
+// still being PENDING, so a cancel racing an approve releases nothing.
 func (b *withdrawalBusiness) Cancel(ctx context.Context, id, reason string) (*savingsv1.WithdrawalObject, error) {
 	logger := util.Log(ctx).WithField("method", "WithdrawalBusiness.Cancel")
 
@@ -373,25 +327,43 @@ func (b *withdrawalBusiness) Cancel(ctx context.Context, id, reason string) (*sa
 	}
 
 	if wdr.Status != int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_PENDING) {
-		return nil, errors.New("only pending withdrawals can be cancelled")
+		return nil, ErrInvalidStatusTransition
 	}
 
-	// Release the reserved balance back to available.
-	if _, relErr := b.sbRepo.ReleaseReserved(ctx, wdr.SavingsAccountID, wdr.Amount); relErr != nil {
-		logger.WithError(relErr).Error("could not release reserved balance for cancelled withdrawal")
-		return nil, fmt.Errorf("release reserved balance: %w", relErr)
+	released, relErr := b.wdrRepo.ReleaseHold(ctx, wdr, reason)
+	if relErr != nil {
+		logger.WithError(relErr).Error("could not release the hold for a cancelled withdrawal")
+		return nil, relErr
+	}
+	if !released {
+		// The row left PENDING between the read and the release, so this
+		// call cancelled nothing and must not audit a cancellation.
+		return nil, ErrInvalidStatusTransition
 	}
 
-	wdr.Status = int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_REJECTED)
-	wdr.Reason = reason
-
-	if emitErr := b.eventsMan.Emit(ctx, events.WithdrawalSaveEvent, wdr); emitErr != nil {
-		logger.WithError(emitErr).Error("could not save cancelled withdrawal")
-		return nil, emitErr
+	fresh, err := b.wdrRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, ErrWithdrawalNotFound
 	}
 
-	logger.WithField("withdrawal_id", id).Info("withdrawal cancelled and balance released")
-	return wdr.ToAPI(), nil
+	b.auditWriter.RecordOrLog(ctx, audit.Record{
+		EntityType: entityWithdrawal,
+		EntityID:   id,
+		Action:     "savings.withdrawal.cancelled",
+		Reason:     reason,
+		Before:     data.JSONMap{fieldStatus: int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_PENDING)},
+		After:      data.JSONMap{fieldStatus: fresh.Status},
+		Metadata: data.JSONMap{
+			fieldSavingsAccountID: fresh.SavingsAccountID,
+			fieldAmount:           fresh.Amount,
+			fieldCurrency:         fresh.CurrencyCode,
+		},
+		Parent: &fresh.BaseModel,
+	}, func(auErr error) {
+		logger.WithError(auErr).Warn("audit emission failed for savings withdrawal cancellation")
+	})
+
+	return fresh.ToAPI(), nil
 }
 
 func (b *withdrawalBusiness) Get(ctx context.Context, id string) (*savingsv1.WithdrawalObject, error) {
@@ -423,10 +395,10 @@ func (b *withdrawalBusiness) Search(
 
 	andQueryVal := map[string]any{}
 	if req.GetSavingsAccountId() != "" {
-		andQueryVal["savings_account_id = ?"] = req.GetSavingsAccountId()
+		andQueryVal[whereSavingsAccountIDEq] = req.GetSavingsAccountId()
 	}
 	if req.GetStatus() != savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_UNSPECIFIED {
-		andQueryVal["status = ?"] = int32(req.GetStatus())
+		andQueryVal[whereStatusEq] = int32(req.GetStatus())
 	}
 
 	if len(andQueryVal) > 0 {

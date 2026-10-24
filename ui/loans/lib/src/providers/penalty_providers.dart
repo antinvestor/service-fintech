@@ -4,20 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'loans_transport_provider.dart';
 
-final penaltyListProvider =
-    FutureProvider.family<List<PenaltyObject>, String>(
-  (ref, loanAccountId) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final request = PenaltySearchRequest(
-      loanAccountId: loanAccountId,
-      cursor: PageCursor(limit: 50),
-    );
-    return collectStream(
-      client.penaltySearch(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+final penaltyListProvider = FutureProvider.family<List<PenaltyObject>, String>((
+  ref,
+  loanAccountId,
+) async {
+  final client = ref.watch(loanManagementServiceClientProvider);
+  final request = PenaltySearchRequest(
+    loanAccountId: loanAccountId,
+    cursor: PageCursor(limit: 50),
+  );
+  return collectStream(
+    client.penaltySearch(request),
+    extract: (response) => response.data,
+  );
+});
 
 /// Notifier for penalty mutations.
 class PenaltyNotifier extends Notifier<AsyncValue<void>> {
@@ -67,6 +67,4 @@ class PenaltyNotifier extends Notifier<AsyncValue<void>> {
 }
 
 final penaltyNotifierProvider =
-    NotifierProvider<PenaltyNotifier, AsyncValue<void>>(
-  PenaltyNotifier.new,
-);
+    NotifierProvider<PenaltyNotifier, AsyncValue<void>>(PenaltyNotifier.new);

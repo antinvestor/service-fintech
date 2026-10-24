@@ -1,12 +1,12 @@
 {
-    "name": "seed_ui",
-    "short_name": "seed_ui",
+    "name": "Seed — Ant Investor",
+    "short_name": "Seed",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#031632",
+    "theme_color": "#031632",
+    "description": "Lending operations console: organizations, workforce, limits and portfolio analytics.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

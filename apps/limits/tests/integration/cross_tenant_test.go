@@ -22,22 +22,25 @@ package integration
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
-	"github.com/pitabwire/frame/v2/frametests/rlstest"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/frametests/rlstest"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -148,7 +151,7 @@ func (s *CrossTenantSuite) SetupTest() {
 	)
 	approvalBiz := business.NewApprovalBusiness(
 		approvalReqRepo, approvalDecRepo, resvRepo, s.policyRepoA,
-		evaluator, auditing, nil, s.dbPool,
+		evaluator, auditing, nil, s.dbPool, nil,
 	)
 
 	_ = policyVerRepo
@@ -161,48 +164,45 @@ func (s *CrossTenantSuite) SetupTest() {
 	// Tenant B interceptor (different approver so they can approve B's approvals).
 	claimsB := &fixedClaimsInterceptor{tenantID: "tenant-b", partitionID: "partition-b", profileID: "wf-approver-b"}
 
-	runtimePathA, runtimeHandlerA := limitsv1connect.NewLimitsServiceHandler(
-		runtimeH,
-		connect.WithInterceptors(claimsA, handlers.TenantAssertionInterceptor()),
-	)
-	adminPathA, adminHandlerA := limitsv1connect.NewLimitsAdminServiceHandler(
-		adminH,
-		connect.WithInterceptors(claimsA),
-	)
-	runtimePathB, runtimeHandlerB := limitsv1connect.NewLimitsServiceHandler(
-		runtimeH,
-		connect.WithInterceptors(claimsB, handlers.TenantAssertionInterceptor()),
-	)
-	adminPathB, adminHandlerB := limitsv1connect.NewLimitsAdminServiceHandler(
-		adminH,
-		connect.WithInterceptors(claimsB),
-	)
+	// Each tenant gets its own HTTP server; the runtime and admin services keep
+	// their own interceptor chains, so each is its own connect server.
+	runtimeA := connect.NewServer(claimsA.server(), handlers.TenantAssertionInterceptor())
+	limitsv1connect.RegisterLimitsServiceHandler(runtimeA, runtimeH)
+	adminA := connect.NewServer(claimsA.server())
+	limitsv1connect.RegisterLimitsAdminServiceHandler(adminA, adminH)
+	runtimeB := connect.NewServer(claimsB.server(), handlers.TenantAssertionInterceptor())
+	limitsv1connect.RegisterLimitsServiceHandler(runtimeB, runtimeH)
+	adminB := connect.NewServer(claimsB.server())
+	limitsv1connect.RegisterLimitsAdminServiceHandler(adminB, adminH)
 
 	mux := http.NewServeMux()
-	mux.Handle(runtimePathA, runtimeHandlerA)
-	mux.Handle(adminPathA, adminHandlerA)
-	// B handlers are mounted on a separate path prefix would conflict — use separate servers.
-	_ = runtimePathB
-	_ = runtimeHandlerB
-	_ = adminPathB
-	_ = adminHandlerB
+	connecthttp.Mount(mux, runtimeA)
+	connecthttp.Mount(mux, adminA)
 
 	srvA := httptest.NewServer(mux)
 	s.T().Cleanup(srvA.Close)
 
 	muxB := http.NewServeMux()
-	muxB.Handle(runtimePathB, runtimeHandlerB)
-	muxB.Handle(adminPathB, adminHandlerB)
+	connecthttp.Mount(muxB, runtimeB)
+	connecthttp.Mount(muxB, adminB)
 	srvB := httptest.NewServer(muxB)
 	s.T().Cleanup(srvB.Close)
 
 	s.tenantACtx = s.WithAuthClaims(ctx, "tenant-a", "partition-a", "wf-maker-a")
 	s.tenantBCtx = s.WithAuthClaims(ctx, "tenant-b", "partition-b", "wf-approver-b")
 
-	s.tenantAClient = limitsv1connect.NewLimitsServiceClient(srvA.Client(), srvA.URL)
-	s.tenantAAdmin = limitsv1connect.NewLimitsAdminServiceClient(srvA.Client(), srvA.URL)
-	s.tenantBClient = limitsv1connect.NewLimitsServiceClient(srvB.Client(), srvB.URL)
-	s.tenantBAdmin = limitsv1connect.NewLimitsAdminServiceClient(srvB.Client(), srvB.URL)
+	s.tenantAClient = limitsv1connect.NewLimitsServiceClient(
+		connect.NewClient(connecthttp.NewTransport(srvA.Client(), srvA.URL)),
+	)
+	s.tenantAAdmin = limitsv1connect.NewLimitsAdminServiceClient(
+		connect.NewClient(connecthttp.NewTransport(srvA.Client(), srvA.URL)),
+	)
+	s.tenantBClient = limitsv1connect.NewLimitsServiceClient(
+		connect.NewClient(connecthttp.NewTransport(srvB.Client(), srvB.URL)),
+	)
+	s.tenantBAdmin = limitsv1connect.NewLimitsAdminServiceClient(
+		connect.NewClient(connecthttp.NewTransport(srvB.Client(), srvB.URL)),
+	)
 }
 
 // seedCrossTenantPolicy seeds a simple enforce-mode per-txn-max policy for the given tenant ctx.
@@ -256,7 +256,7 @@ func (s *CrossTenantSuite) TestReserve_CrossTenantPayload_Rejected() {
 	s.seedCrossTenantPolicy(s.tenantACtx, s.policyRepoA)
 
 	// Tenant-A client sends an intent with tenant_id="tenant-b" (cross-tenant).
-	_, err := s.tenantAClient.Reserve(s.tenantACtx, connect.NewRequest(&limitsv1.ReserveRequest{
+	_, err := s.tenantAClient.Reserve(s.tenantACtx, &limitsv1.ReserveRequest{
 		Intent: &limitsv1.LimitIntent{
 			TenantId: "tenant-b", // mismatch: auth context has tenant-a
 			Action:   limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
@@ -269,7 +269,7 @@ func (s *CrossTenantSuite) TestReserve_CrossTenantPayload_Rejected() {
 		},
 		IdempotencyKey: "xt-reserve-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().Error(err)
 	s.Equal(connect.CodePermissionDenied, connect.CodeOf(err),
 		"Reserve with mismatched tenant_id must return PermissionDenied")
@@ -282,7 +282,7 @@ func (s *CrossTenantSuite) TestApprove_CrossTenantApproval_Rejected() {
 	s.seedApprovalTriggerPolicy(s.tenantBCtx, s.policyRepoB)
 
 	// Tenant-B maker creates a reservation that triggers approval.
-	reserveResp, err := s.tenantBClient.Reserve(s.tenantBCtx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := s.tenantBClient.Reserve(s.tenantBCtx, &limitsv1.ReserveRequest{
 		Intent: &limitsv1.LimitIntent{
 			TenantId: "tenant-b",
 			Action:   limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
@@ -295,36 +295,45 @@ func (s *CrossTenantSuite) TestApprove_CrossTenantApproval_Rejected() {
 		},
 		IdempotencyKey: "xt-appr-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
 	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_PENDING_APPROVAL,
-		reserveResp.Msg.GetReservation().GetStatus())
+		reserveResp.GetReservation().GetStatus())
 
 	// Fetch the approval request ID via tenant-B admin.
 	var approvalID string
 	listStream, err := s.tenantBAdmin.ApprovalRequestList(
 		s.tenantBCtx,
-		connect.NewRequest(&limitsv1.ApprovalRequestListRequest{
+		&limitsv1.ApprovalRequestListRequest{
 			Status: limitsv1.ApprovalStatus_APPROVAL_STATUS_PENDING,
-		}),
+		},
 	)
 	s.Require().NoError(err)
-	for listStream.Receive() {
-		for _, item := range listStream.Msg().GetData() {
+	var streamErr error
+	for {
+		msg, err := listStream.Receive()
+		if err != nil {
+			streamErr = err
+			break
+		}
+		for _, item := range msg.GetData() {
 			approvalID = item.GetId()
 		}
 	}
-	s.Require().NoError(listStream.Err())
+	if errors.Is(streamErr, io.EOF) {
+		streamErr = nil
+	}
+	s.Require().NoError(streamErr)
 	s.Require().NotEmpty(approvalID, "tenant-B should have a pending approval")
 
 	// Tenant-A operator tries to decide on tenant-B's approval → must be rejected.
 	_, err = s.tenantAAdmin.ApprovalRequestDecide(
 		s.tenantACtx,
-		connect.NewRequest(&limitsv1.ApprovalRequestDecideRequest{
+		&limitsv1.ApprovalRequestDecideRequest{
 			Id:       approvalID,
 			Decision: "approve",
 			Note:     "cross-tenant attack",
-		}),
+		},
 	)
 	s.Require().Error(err)
 	code := connect.CodeOf(err)
@@ -340,7 +349,7 @@ func (s *CrossTenantSuite) TestCommit_ReservationFromOtherTenant_NotFound() {
 	s.seedCrossTenantPolicy(s.tenantBCtx, s.policyRepoB)
 
 	// Tenant-B creates a reservation.
-	reserveResp, err := s.tenantBClient.Reserve(s.tenantBCtx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := s.tenantBClient.Reserve(s.tenantBCtx, &limitsv1.ReserveRequest{
 		Intent: &limitsv1.LimitIntent{
 			TenantId: "tenant-b",
 			Action:   limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
@@ -353,17 +362,17 @@ func (s *CrossTenantSuite) TestCommit_ReservationFromOtherTenant_NotFound() {
 		},
 		IdempotencyKey: "xt-commit-b-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	reservationID := reserveResp.Msg.GetReservation().GetId()
+	reservationID := reserveResp.GetReservation().GetId()
 	s.Require().NotEmpty(reservationID)
 	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE,
-		reserveResp.Msg.GetReservation().GetStatus())
+		reserveResp.GetReservation().GetStatus())
 
 	// Tenant-A tries to Commit tenant-B's reservation — must not succeed.
-	_, err = s.tenantAClient.Commit(s.tenantACtx, connect.NewRequest(&limitsv1.CommitRequest{
+	_, err = s.tenantAClient.Commit(s.tenantACtx, &limitsv1.CommitRequest{
 		ReservationId: reservationID,
-	}))
+	})
 	s.Require().Error(err,
 		"committing another tenant's reservation must return an error")
 	code := connect.CodeOf(err)
@@ -379,7 +388,7 @@ func (s *CrossTenantSuite) TestReverse_ReservationFromOtherTenant_NotFound() {
 	s.seedCrossTenantPolicy(s.tenantBCtx, s.policyRepoB)
 
 	// Tenant-B creates and commits a reservation.
-	reserveResp, err := s.tenantBClient.Reserve(s.tenantBCtx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := s.tenantBClient.Reserve(s.tenantBCtx, &limitsv1.ReserveRequest{
 		Intent: &limitsv1.LimitIntent{
 			TenantId: "tenant-b",
 			Action:   limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
@@ -392,23 +401,23 @@ func (s *CrossTenantSuite) TestReverse_ReservationFromOtherTenant_NotFound() {
 		},
 		IdempotencyKey: "xt-reverse-b-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	reservationID := reserveResp.Msg.GetReservation().GetId()
+	reservationID := reserveResp.GetReservation().GetId()
 	s.Require().NotEmpty(reservationID)
 
 	// Commit it so it is eligible for reversal.
-	_, err = s.tenantBClient.Commit(s.tenantBCtx, connect.NewRequest(&limitsv1.CommitRequest{
+	_, err = s.tenantBClient.Commit(s.tenantBCtx, &limitsv1.CommitRequest{
 		ReservationId: reservationID,
-	}))
+	})
 	s.Require().NoError(err)
 
 	// Tenant-A tries to Reverse tenant-B's reservation — must get NotFound.
-	_, err = s.tenantAClient.Reverse(s.tenantACtx, connect.NewRequest(&limitsv1.ReverseRequest{
+	_, err = s.tenantAClient.Reverse(s.tenantACtx, &limitsv1.ReverseRequest{
 		ReservationId:  reservationID,
 		IdempotencyKey: "xt-reverse-attack-k1",
 		Reason:         "cross-tenant reverse attempt",
-	}))
+	})
 	s.Require().Error(err, "reversing another tenant's reservation must return an error")
 	s.Equal(connect.CodeNotFound, connect.CodeOf(err),
 		"expected NotFound to avoid leaking existence to a probing actor")

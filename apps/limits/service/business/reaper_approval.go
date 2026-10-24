@@ -16,10 +16,13 @@ package business
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/events"
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
@@ -29,22 +32,29 @@ import (
 // ApprovalReaper transitions pending approval requests past their
 // expiration to terminal 'expired', releases the underlying reservation,
 // and emits the corresponding audit verb.
+//
+// It is a safety net: Decide already settles the linked reservation in the
+// decision's own transaction. The reaper only picks up requests nobody
+// decided before expires_at.
 type ApprovalReaper struct {
 	approvalRepo repository.ApprovalRequestRepository
 	resvRepo     repository.ReservationRepository
 	auditing     *Auditing
 	eventsMan    fevents.Manager
 	batchSize    int
+	cfg          reaperConfig
 }
 
 // NewApprovalReaper constructs a reaper. Default batchSize=1000.
-// eventsMan may be nil, in which case event emission is a no-op.
+// eventsMan may be nil, in which case event emission is a no-op. Pass
+// WithReaperPool so each expiry commits atomically with its cascade.
 func NewApprovalReaper(
 	approvalRepo repository.ApprovalRequestRepository,
 	resvRepo repository.ReservationRepository,
 	auditing *Auditing,
 	batchSize int,
 	eventsMan fevents.Manager,
+	opts ...ReaperOption,
 ) *ApprovalReaper {
 	if batchSize <= 0 {
 		batchSize = 1000
@@ -52,6 +62,7 @@ func NewApprovalReaper(
 	return &ApprovalReaper{
 		approvalRepo: approvalRepo, resvRepo: resvRepo,
 		auditing: auditing, eventsMan: eventsMan, batchSize: batchSize,
+		cfg: applyReaperOptions(opts),
 	}
 }
 
@@ -65,21 +76,21 @@ func (r *ApprovalReaper) Run(ctx context.Context) error {
 		return err
 	}
 	log := util.Log(ctx).With("reaper", "approval_expiry")
+	expired := 0
 	for _, ar := range rows {
-		if setErr := r.approvalRepo.SetStatus(ctx, ar.ID, models.ApprovalStatusExpired, &now); setErr != nil {
-			log.WithError(setErr).With("approval_id", ar.ID).
-				Error("failed to expire approval request")
+		txErr := r.cfg.runInTx(ctx, func(tx *gorm.DB) error {
+			return r.expireOne(ctx, tx, ar, now)
+		})
+		if txErr != nil {
+			if !errors.Is(txErr, repository.ErrApprovalNotPending) {
+				log.WithError(txErr).With("approval_id", ar.ID).
+					Error("failed to expire approval request")
+			}
+			// Either another replica won the race or the request was decided
+			// between the SELECT and the UPDATE; no audit row, no event.
 			continue
 		}
-		// Release the reservation. Best-effort: if the reservation has
-		// already moved to a terminal state, SetReleased returns an error
-		// which we log but don't propagate (the approval was already expired).
-		if relErr := r.resvRepo.SetReleased(ctx, ar.ReservationID, "approval expired", now); relErr != nil {
-			log.WithError(relErr).With("reservation_id", ar.ReservationID).
-				Warn("could not release reservation after approval expiry")
-		}
-		ar.Status = models.ApprovalStatusExpired
-		r.auditing.RecordApprovalExpired(ctx, ar)
+		expired++
 		emitEvent(ctx, r.eventsMan, events.EventApprovalExpired, events.ApprovalEventPayload{
 			ReservationID:     ar.ReservationID,
 			ApprovalRequestID: ar.ID,
@@ -88,8 +99,55 @@ func (r *ApprovalReaper) Run(ctx context.Context) error {
 			MakerID:           ar.MakerID,
 		})
 	}
-	if len(rows) > 0 {
-		log.With("count", len(rows)).Info("reaped expired approval requests")
+	if expired > 0 {
+		log.With("count", expired).Info("reaped expired approval requests")
 	}
 	return nil
 }
+
+// expireOne moves a single approval request to expired, releases its
+// reservation, and writes the audit row — all on tx when one is supplied.
+// The status update is guarded on status='pending' with a rows-affected
+// check, so a concurrent Decide and this reaper converge on exactly one
+// outcome: whichever commits first wins and the other sees not-pending.
+func (r *ApprovalReaper) expireOne(
+	ctx context.Context,
+	tx *gorm.DB,
+	ar *models.ApprovalRequest,
+	now time.Time,
+) error {
+	var err error
+	if tx == nil {
+		err = r.approvalRepo.SetStatus(ctx, ar.ID, models.ApprovalStatusExpired, &now)
+	} else {
+		err = r.approvalRepo.SetStatusTx(ctx, tx, ar.ID, models.ApprovalStatusExpired, &now)
+	}
+	if err != nil {
+		return err
+	}
+	ar.Status = models.ApprovalStatusExpired
+	ar.DecidedAt = &now
+
+	if tx == nil {
+		err = r.resvRepo.SetReleased(ctx, ar.ReservationID, reasonApprovalExpired, now)
+	} else {
+		err = r.resvRepo.SetReleasedTx(ctx, tx, ar.ReservationID, reasonApprovalExpired, now)
+	}
+	switch {
+	case err == nil:
+	case errors.Is(err, repository.ErrReservationNotReleasable):
+		// The caller released the hold itself; the approval still expires.
+		util.Log(ctx).With("reservation_id", ar.ReservationID).
+			Warn("limits: reservation already terminal at approval expiry; nothing to release")
+	default:
+		return fmt.Errorf("release reservation %s: %w", ar.ReservationID, err)
+	}
+
+	if tx == nil {
+		r.auditing.RecordApprovalExpired(ctx, ar)
+		return nil
+	}
+	return r.auditing.RecordApprovalExpiredTx(ctx, tx, ar)
+}
+
+const reasonApprovalExpired = "approval expired"

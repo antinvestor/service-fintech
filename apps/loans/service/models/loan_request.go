@@ -21,7 +21,7 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // ---------------------------------------------------------------------------
@@ -50,8 +50,13 @@ type LoanRequest struct {
 	LoanAccountID     string `gorm:"type:varchar(50);index:idx_lr_loan"`
 	SourceService     string `gorm:"type:varchar(50);index:idx_lr_source"`
 	SourceRequestID   string `gorm:"type:varchar(50)"`
-	IdempotencyKey    string `gorm:"type:varchar(255);uniqueIndex:uq_lr_idempotency"`
+	IdempotencyKey    string `gorm:"type:varchar(255);index:idx_lr_idempotency"`
 	Properties        data.JSONMap
+	// SubmittedBy and DecidedBy are the profiles that moved the request to
+	// SUBMITTED and to its decision. They come from the caller's claims only,
+	// never from the payload, and are what separation of duties is checked on.
+	SubmittedBy string `gorm:"type:varchar(50)"`
+	DecidedBy   string `gorm:"type:varchar(50)"`
 }
 
 func (m *LoanRequest) TableName() string { return "loan_requests" }
@@ -134,8 +139,8 @@ func LoanRequestFromAPI(ctx context.Context, obj *loansv1.LoanRequestObject) *Lo
 
 type ClientProductAccess struct {
 	data.BaseModel
-	ClientID  string `gorm:"type:varchar(50);index:idx_cpa_client;uniqueIndex:uq_cpa_client_product"`
-	ProductID string `gorm:"type:varchar(50);index:idx_cpa_product;uniqueIndex:uq_cpa_client_product"`
+	ClientID  string `gorm:"type:varchar(50);index:idx_cpa_client"`
+	ProductID string `gorm:"type:varchar(50);index:idx_cpa_product"`
 	GrantedBy string `gorm:"type:varchar(50)"`
 	State     int32
 }

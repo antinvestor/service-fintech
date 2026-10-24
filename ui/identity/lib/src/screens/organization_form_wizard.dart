@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart';
-import 'package:antinvestor_api_profile/antinvestor_api_profile.dart' as profile;
+import 'package:antinvestor_api_profile/antinvestor_api_profile.dart'
+    as profile;
+import 'package:antinvestor_ui_core/api/stream_helpers.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:antinvestor_ui_core/widgets/profile_badge.dart';
 import 'package:antinvestor_ui_geolocation/antinvestor_ui_geolocation.dart'
@@ -12,8 +14,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../providers/organization_providers.dart';
-import 'organizations_screen.dart' show orgTypeLabel;
+import '../providers/identity_transport_provider.dart';
+import 'organizations_screen.dart' show orgTypeLabel, organizationTypeOptions;
 
 // ---------------------------------------------------------------------------
 // Result passed back to the caller on completion
@@ -59,7 +61,13 @@ class OrganizationFormWizard extends ConsumerStatefulWidget {
 class _OrganizationFormWizardState
     extends ConsumerState<OrganizationFormWizard> {
   static const _stepCount = 5;
-  static const _stepLabels = ['Contact', 'Details', 'Contacts', 'Address', 'Area'];
+  static const _stepLabels = [
+    'Contact',
+    'Details',
+    'Contacts',
+    'Address',
+    'Area',
+  ];
 
   final _formKeys = List.generate(_stepCount, (_) => GlobalKey<FormState>());
   int _currentStep = 0;
@@ -81,11 +89,7 @@ class _OrganizationFormWizardState
   // -- Step 2: Organization details
   final _codeCtrl = TextEditingController();
   final _domainCtrl = TextEditingController();
-  String _orgType = '';
-
-  // -- Step 3: Additional contacts
-  final _newContactCtrl = TextEditingController();
-  bool _newContactIsPhone = false;
+  OrganizationType _orgType = OrganizationType.ORGANIZATION_TYPE_UNSPECIFIED;
 
   // -- Step 4: Location
   String _geoId = '';
@@ -108,7 +112,7 @@ class _OrganizationFormWizardState
     final org = widget.organization!;
     _codeCtrl.text = org.code;
     _domainCtrl.text = org.domain;
-    _orgType = orgTypeLabel(org.organizationType);
+    _orgType = org.organizationType;
     _geoId = org.geoId;
 
     // If editing, skip to step 2 (details) since profile already exists
@@ -123,13 +127,17 @@ class _OrganizationFormWizardState
 
   Future<void> _loadExistingProfile(String profileId) async {
     try {
-      final profile = await ref.read(profileByIdProvider(profileId).future);
+      final client = ref.read(profileServiceClientProvider);
+      final response = await client.getById(
+        profile.GetByIdRequest(id: profileId),
+      );
+      final existing = response.data;
       if (mounted) {
         setState(() {
-          _foundProfile = profile;
+          _foundProfile = existing;
           _profileSearched = true;
-          _nameCtrl.text = _extractName(profile);
-          _descriptionCtrl.text = _extractProp(profile, 'description');
+          _nameCtrl.text = _extractName(existing);
+          _descriptionCtrl.text = _extractProp(existing, 'description');
         });
       }
     } catch (_) {}
@@ -142,7 +150,6 @@ class _OrganizationFormWizardState
     _descriptionCtrl.dispose();
     _codeCtrl.dispose();
     _domainCtrl.dispose();
-    _newContactCtrl.dispose();
     _streetCtrl.dispose();
     _cityCtrl.dispose();
     _countryCtrl.dispose();
@@ -183,22 +190,22 @@ class _OrganizationFormWizardState
       // Use direct client call to avoid FutureProvider caching stale errors.
       final client = ref.read(profileServiceClientProvider);
       final request = profile.GetByContactRequest()..contact = contact;
-      final response = await client.getByContact(request)
+      final response = await client
+          .getByContact(request)
           .timeout(const Duration(seconds: 10));
       final result = response.data;
       if (!mounted) return;
 
       // Profile found — check if an organization already uses this profile
       try {
-        final orgs = await ref.read(
-          filteredOrganizationListProvider((
-            query: '',
-            parentId: '', // no parent filter
-          )).future,
+        final identityClient = ref.read(identityServiceClientProvider);
+        final orgs = await collectStream(
+          identityClient.organizationSearch(
+            SearchRequest(cursor: PageCursor(limit: 200)),
+          ),
+          extract: (response) => response.data,
         );
-        final linkedOrg = orgs
-            .where((o) => o.profileId == result.id)
-            .toList();
+        final linkedOrg = orgs.where((o) => o.profileId == result.id).toList();
 
         if (linkedOrg.isNotEmpty && mounted) {
           Navigator.pop(context);
@@ -244,15 +251,18 @@ class _OrganizationFormWizardState
     try {
       // Upload avatar if provided
       String? avatarUri;
-      if (_avatarBytes != null && _avatarFileName != null && widget.onPickLogo != null) {
+      if (_avatarBytes != null &&
+          _avatarFileName != null &&
+          widget.onPickLogo != null) {
         avatarUri = await widget.onPickLogo!(_avatarBytes!, _avatarFileName!);
       }
 
       final props = <String, profile.Value>{};
       props['name'] = profile.Value(stringValue: _nameCtrl.text.trim());
       if (_descriptionCtrl.text.trim().isNotEmpty) {
-        props['description'] =
-            profile.Value(stringValue: _descriptionCtrl.text.trim());
+        props['description'] = profile.Value(
+          stringValue: _descriptionCtrl.text.trim(),
+        );
       }
       if (avatarUri != null) {
         props['avatar'] = profile.Value(stringValue: avatarUri);
@@ -260,7 +270,9 @@ class _OrganizationFormWizardState
 
       final propsStruct = profile.Struct(fields: props);
 
-      final created = await ref.read(profileNotifierProvider.notifier).create(
+      final created = await ref
+          .read(profileNotifierProvider.notifier)
+          .create(
             profile.CreateRequest(
               type: profile.ProfileType.INSTITUTION,
               contact: _contactCtrl.text.trim(),
@@ -277,9 +289,9 @@ class _OrganizationFormWizardState
     } catch (e) {
       if (mounted) {
         setState(() => _creatingProfile = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to create profile: $e')));
       }
     }
   }
@@ -298,36 +310,6 @@ class _OrganizationFormWizardState
       _avatarBytes = bytes;
       _avatarFileName = picked.name;
     });
-  }
-
-  // -- Step 3: Add contact to profile
-  Future<void> _addContactToProfile() async {
-    final value = _newContactCtrl.text.trim();
-    if (value.isEmpty || _foundProfile == null) return;
-
-    try {
-      final updated = await ref.read(contactNotifierProvider.notifier).addContact(
-            profile.AddContactRequest(
-              id: _foundProfile!.id,
-              contact: value,
-            ),
-          );
-      if (mounted) {
-        setState(() {
-          _foundProfile = updated;
-          _newContactCtrl.clear();
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Contact added')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
-      }
-    }
   }
 
   // -- Navigation
@@ -382,10 +364,10 @@ class _OrganizationFormWizardState
       final country = _countryCtrl.text.trim();
       final postalCode = _postalCodeCtrl.text.trim();
       if (_foundProfile != null &&
-          (street.isNotEmpty ||
-              city.isNotEmpty ||
-              country.isNotEmpty)) {
-        await ref.read(addressNotifierProvider.notifier).addAddress(
+          (street.isNotEmpty || city.isNotEmpty || country.isNotEmpty)) {
+        await ref
+            .read(addressNotifierProvider.notifier)
+            .addAddress(
               profile.AddAddressRequest(
                 id: _foundProfile!.id,
                 address: profile.AddressObject(
@@ -402,17 +384,24 @@ class _OrganizationFormWizardState
       // Update profile properties (name, description)
       if (_foundProfile != null) {
         final profileProps = <String, profile.Value>{};
-        profileProps['name'] = profile.Value(stringValue: _nameCtrl.text.trim());
+        profileProps['name'] = profile.Value(
+          stringValue: _nameCtrl.text.trim(),
+        );
         if (_descriptionCtrl.text.trim().isNotEmpty) {
-          profileProps['description'] =
-              profile.Value(stringValue: _descriptionCtrl.text.trim());
+          profileProps['description'] = profile.Value(
+            stringValue: _descriptionCtrl.text.trim(),
+          );
         }
 
         final client = ref.read(profileServiceClientProvider);
-        await client.update(profile.UpdateRequest(
-          id: _foundProfile!.id,
-          properties: profile.Struct(fields: profileProps),
-        )).timeout(const Duration(seconds: 10));
+        await client
+            .update(
+              profile.UpdateRequest(
+                id: _foundProfile!.id,
+                properties: profile.Struct(fields: profileProps),
+              ),
+            )
+            .timeout(const Duration(seconds: 10));
       }
 
       // Build the organization object
@@ -422,26 +411,21 @@ class _OrganizationFormWizardState
       org.domain = _domainCtrl.text.trim();
       org.geoId = _geoId;
 
-      // Set org type from text input
-      final typeText = _orgType.toLowerCase().replaceAll(' ', '_');
-      for (final t in OrganizationType.values) {
-        if (t.name.toLowerCase().contains(typeText)) {
-          org.organizationType = t;
-          break;
-        }
-      }
+      org.organizationType = _orgType;
 
-      await widget.onSave(OrganizationWizardResult(
-        profileId: _foundProfile!.id,
-        organization: org,
-      ));
+      await widget.onSave(
+        OrganizationWizardResult(
+          profileId: _foundProfile!.id,
+          organization: org,
+        ),
+      );
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
   }
@@ -490,7 +474,8 @@ class _OrganizationFormWizardState
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-              color: theme.colorScheme.outlineVariant.withAlpha(60)),
+            color: theme.colorScheme.outlineVariant.withAlpha(60),
+          ),
         ),
       ),
       child: Column(
@@ -505,15 +490,19 @@ class _OrganizationFormWizardState
                   color: theme.colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.account_balance,
-                    color: theme.colorScheme.primary, size: 22),
+                child: Icon(
+                  Icons.account_balance,
+                  color: theme.colorScheme.primary,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   _isEditing ? 'Edit Organization' : 'New Organization',
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               IconButton(
@@ -530,8 +519,7 @@ class _OrganizationFormWizardState
               final isDone = i < _currentStep;
               return Expanded(
                 child: Padding(
-                  padding:
-                      EdgeInsets.only(right: i < _stepCount - 1 ? 8 : 0),
+                  padding: EdgeInsets.only(right: i < _stepCount - 1 ? 8 : 0),
                   child: Column(
                     children: [
                       Row(
@@ -543,27 +531,29 @@ class _OrganizationFormWizardState
                               color: isDone
                                   ? theme.colorScheme.primary
                                   : isActive
-                                      ? theme.colorScheme.primaryContainer
-                                      : theme
-                                          .colorScheme.surfaceContainerHighest,
+                                  ? theme.colorScheme.primaryContainer
+                                  : theme.colorScheme.surfaceContainerHighest,
                               shape: BoxShape.circle,
                             ),
                             child: Center(
                               child: isDone
-                                  ? Icon(Icons.check,
+                                  ? Icon(
+                                      Icons.check,
                                       size: 13,
-                                      color: theme.colorScheme.onPrimary)
+                                      color: theme.colorScheme.onPrimary,
+                                    )
                                   : Text(
                                       '${i + 1}',
                                       style: theme.textTheme.labelSmall
                                           ?.copyWith(
-                                        color: isActive
-                                            ? theme.colorScheme.primary
-                                            : theme.colorScheme
-                                                .onSurfaceVariant,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 10,
-                                      ),
+                                            color: isActive
+                                                ? theme.colorScheme.primary
+                                                : theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 10,
+                                          ),
                                     ),
                             ),
                           ),
@@ -610,7 +600,8 @@ class _OrganizationFormWizardState
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-              color: theme.colorScheme.outlineVariant.withAlpha(60)),
+            color: theme.colorScheme.outlineVariant.withAlpha(60),
+          ),
         ),
       ),
       child: Row(
@@ -634,7 +625,9 @@ class _OrganizationFormWizardState
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : Icon(
                     _currentStep < _stepCount - 1
@@ -667,14 +660,16 @@ class _OrganizationFormWizardState
           children: [
             Text(
               'Enter the primary contact for this organization',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'We will search for an existing profile. If not found, fill in the details and click Next to create one.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -688,7 +683,8 @@ class _OrganizationFormWizardState
                       hintText: 'Organization email or phone',
                       prefixIcon: const Icon(Icons.contact_mail_outlined),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     onSubmitted: (_) => _searchProfile(),
                   ),
@@ -701,7 +697,9 @@ class _OrganizationFormWizardState
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Icon(Icons.search, size: 18),
                   label: const Text('Search'),
@@ -719,23 +717,30 @@ class _OrganizationFormWizardState
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                   side: BorderSide(
-                      color: theme.colorScheme.primary.withAlpha(60)),
+                    color: theme.colorScheme.primary.withAlpha(60),
+                  ),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      Icon(Icons.check_circle,
-                          color: theme.colorScheme.primary, size: 24),
+                      Icon(
+                        Icons.check_circle,
+                        color: theme.colorScheme.primary,
+                        size: 24,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Profile found',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: theme.colorScheme.primary)),
+                            Text(
+                              'Profile found',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
                             ProfileBadge(
                               profileId: _foundProfile!.id,
                               name: _extractName(_foundProfile!),
@@ -756,7 +761,8 @@ class _OrganizationFormWizardState
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                   side: BorderSide(
-                      color: theme.colorScheme.outlineVariant.withAlpha(60)),
+                    color: theme.colorScheme.outlineVariant.withAlpha(60),
+                  ),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -765,14 +771,18 @@ class _OrganizationFormWizardState
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.info_outline,
-                              color: theme.colorScheme.secondary, size: 20),
+                          Icon(
+                            Icons.info_outline,
+                            color: theme.colorScheme.secondary,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'No profile found. Fill in details below and click Next to create.',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.secondary),
+                                color: theme.colorScheme.secondary,
+                              ),
                             ),
                           ),
                         ],
@@ -783,15 +793,16 @@ class _OrganizationFormWizardState
                           onTap: _pickAvatar,
                           child: CircleAvatar(
                             radius: 40,
-                            backgroundColor:
-                                theme.colorScheme.primaryContainer,
+                            backgroundColor: theme.colorScheme.primaryContainer,
                             backgroundImage: _avatarBytes != null
                                 ? MemoryImage(_avatarBytes!)
                                 : null,
                             child: _avatarBytes == null
-                                ? Icon(Icons.add_a_photo,
+                                ? Icon(
+                                    Icons.add_a_photo,
                                     color: theme.colorScheme.primary,
-                                    size: 24)
+                                    size: 24,
+                                  )
                                 : null,
                           ),
                         ),
@@ -804,9 +815,11 @@ class _OrganizationFormWizardState
                           hintText: 'e.g. Stawi Capital Limited',
                           prefixIcon: const Icon(Icons.business),
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                        validator: (v) => (_profileSearched &&
+                        validator: (v) =>
+                            (_profileSearched &&
                                 _foundProfile == null &&
                                 (v == null || v.trim().isEmpty))
                             ? 'Name is required to create a profile'
@@ -820,7 +833,8 @@ class _OrganizationFormWizardState
                           hintText: 'Brief description',
                           prefixIcon: const Icon(Icons.description_outlined),
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         maxLines: 2,
                       ),
@@ -836,31 +850,6 @@ class _OrganizationFormWizardState
         ),
       ),
     );
-  }
-
-  Future<void> _checkExistingOrg(String profileId) async {
-    try {
-      final orgs = await ref.read(
-        filteredOrganizationListProvider((
-          query: '',
-          parentId: '',
-        )).future,
-      );
-      final linked = orgs.where((o) => o.profileId == profileId).toList();
-      if (linked.isNotEmpty && mounted) {
-        Navigator.pop(context);
-        context.go('/organizations/${linked.first.id}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Organization "${linked.first.name}" already exists for this profile',
-            ),
-          ),
-        );
-      }
-    } catch (_) {
-      // If search fails, proceed normally
-    }
   }
 
   // =========================================================================
@@ -895,9 +884,8 @@ class _OrganizationFormWizardState
                   hintText: 'e.g. Stawi Capital Limited',
                   prefixIcon: Icon(Icons.business),
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Name is required'
-                    : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Name is required' : null,
               ),
             ),
             FormFieldCard(
@@ -911,46 +899,29 @@ class _OrganizationFormWizardState
                   prefixIcon: Icon(Icons.tag),
                 ),
                 textCapitalization: TextCapitalization.characters,
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Code is required'
-                    : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Code is required' : null,
               ),
             ),
             FormFieldCard(
               label: 'Organization Type',
-              description: 'e.g. bank, microfinance, sacco, fintech, cooperative',
-              child: Autocomplete<String>(
-                initialValue: TextEditingValue(text: _orgType),
-                optionsBuilder: (textEditingValue) {
-                  final query = textEditingValue.text.toLowerCase();
-                  const options = [
-                    'Bank',
-                    'Microfinance',
-                    'SACCO',
-                    'Fintech',
-                    'Cooperative',
-                    'NGO',
-                    'Government',
-                    'Other',
-                  ];
-                  if (query.isEmpty) return options;
-                  return options.where(
-                    (o) => o.toLowerCase().contains(query),
-                  );
-                },
-                onSelected: (value) => _orgType = value,
-                fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-                  return TextFormField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. microfinance',
-                      prefixIcon: Icon(Icons.category_outlined),
+              description: 'What kind of institution this organization is.',
+              child: DropdownButtonFormField<OrganizationType>(
+                initialValue: _orgType,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: [
+                  for (final type in organizationTypeOptions)
+                    DropdownMenuItem(
+                      value: type,
+                      child: Text(orgTypeLabel(type)),
                     ),
-                    onChanged: (v) => _orgType = v.trim(),
-                    onFieldSubmitted: (_) => onSubmitted(),
-                  );
-                },
+                ],
+                onChanged: (value) => setState(
+                  () => _orgType =
+                      value ?? OrganizationType.ORGANIZATION_TYPE_UNSPECIFIED,
+                ),
               ),
             ),
             FormFieldCard(
@@ -984,14 +955,16 @@ class _OrganizationFormWizardState
           children: [
             Text(
               'Manage contacts for this organization',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'These contacts are stored on the organization\'s profile.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             if (_foundProfile != null)
@@ -999,8 +972,9 @@ class _OrganizationFormWizardState
             else
               Text(
                 'Profile not yet created. Contacts will be added after profile creation.',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
           ],
         ),
@@ -1022,14 +996,16 @@ class _OrganizationFormWizardState
           children: [
             Text(
               'Physical address',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Enter the main office or registered address for this organization.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             FormFieldCard(
@@ -1061,9 +1037,7 @@ class _OrganizationFormWizardState
                     label: 'Country',
                     child: TextFormField(
                       controller: _countryCtrl,
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. Kenya',
-                      ),
+                      decoration: const InputDecoration(hintText: 'e.g. Kenya'),
                     ),
                   ),
                 ),
@@ -1073,9 +1047,7 @@ class _OrganizationFormWizardState
               label: 'Postal Code',
               child: TextFormField(
                 controller: _postalCodeCtrl,
-                decoration: const InputDecoration(
-                  hintText: 'e.g. 00100',
-                ),
+                decoration: const InputDecoration(hintText: 'e.g. 00100'),
               ),
             ),
           ],
@@ -1098,20 +1070,23 @@ class _OrganizationFormWizardState
           children: [
             Text(
               'Coverage area',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Select the geographic area this organization operates in.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             AreaPickerField(
               selectedAreaId: _geoId,
               label: 'Coverage Area',
-              description: 'The geographic region where this organization provides services.',
+              description:
+                  'The geographic region where this organization provides services.',
               isRequired: true,
               onSelected: (area) => setState(() {
                 _geoId = area?.id ?? '';

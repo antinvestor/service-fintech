@@ -21,4 +21,5 @@ const (
 	colModifiedAt      = "modified_at"
 	colReservedBalance = "reserved_balance"
 	colVersion         = "version"
+	colLedgerTxnID     = "ledger_transaction_id"
 )

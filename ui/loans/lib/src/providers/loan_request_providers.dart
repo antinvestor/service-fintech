@@ -4,37 +4,43 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'loans_transport_provider.dart';
 
-final loanRequestListProvider = FutureProvider.family<List<LoanRequestObject>,
-    ({String query, int? statusFilter, String? sourceService})>(
-  (ref, params) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final request = LoanRequestSearchRequest(
-      query: params.query,
-      cursor: PageCursor(limit: 50),
-    );
-    if (params.statusFilter != null && params.statusFilter! > 0) {
-      request.status = LoanRequestStatus.valueOf(params.statusFilter!)!;
-    }
-    if (params.sourceService != null && params.sourceService!.isNotEmpty) {
-      request.sourceService = params.sourceService!;
-    }
-    return collectStream(
-      client.loanRequestSearch(request),
-      extract: (response) => response.data,
-    );
-  },
-);
+typedef LoanRequestListParams = ({
+  String query,
+  int? statusFilter,
+  String? sourceService,
+  int limit,
+});
+
+final loanRequestListProvider =
+    FutureProvider.family<
+      PagedResult<LoanRequestObject>,
+      LoanRequestListParams
+    >((ref, params) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      final request = LoanRequestSearchRequest(
+        query: params.query,
+        cursor: PageCursor(limit: params.limit),
+      );
+      if (params.statusFilter != null && params.statusFilter! > 0) {
+        request.status = LoanRequestStatus.valueOf(params.statusFilter!)!;
+      }
+      if (params.sourceService != null && params.sourceService!.isNotEmpty) {
+        request.sourceService = params.sourceService!;
+      }
+      return collectStreamPaged(
+        client.loanRequestSearch(request),
+        extract: (response) => response.data,
+      );
+    });
 
 final loanRequestDetailProvider =
-    FutureProvider.family<LoanRequestObject, String>(
-  (ref, requestId) async {
-    final client = ref.watch(loanManagementServiceClientProvider);
-    final response = await client.loanRequestGet(
-      LoanRequestGetRequest(id: requestId),
-    );
-    return response.data;
-  },
-);
+    FutureProvider.family<LoanRequestObject, String>((ref, requestId) async {
+      final client = ref.watch(loanManagementServiceClientProvider);
+      final response = await client.loanRequestGet(
+        LoanRequestGetRequest(id: requestId),
+      );
+      return response.data;
+    });
 
 /// Notifier for loan request mutations.
 class LoanRequestNotifier extends Notifier<AsyncValue<void>> {
@@ -108,5 +114,5 @@ class LoanRequestNotifier extends Notifier<AsyncValue<void>> {
 
 final loanRequestNotifierProvider =
     NotifierProvider<LoanRequestNotifier, AsyncValue<void>>(
-  LoanRequestNotifier.new,
-);
+      LoanRequestNotifier.new,
+    );

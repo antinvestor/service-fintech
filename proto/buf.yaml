@@ -14,6 +14,10 @@ modules:
     name: buf.build/antinvestor/operations
   - path: limits
     name: buf.build/antinvestor/limits
+  - path: stawi
+    name: buf.build/antinvestor/stawi
+  - path: seed
+    name: buf.build/antinvestor/seed
 deps:
   - buf.build/antinvestor/common
   - buf.build/bufbuild/protovalidate
@@ -27,6 +31,13 @@ lint:
     - PACKAGE_NO_IMPORT_CYCLE
     - RPC_REQUEST_STANDARD_NAME
     - RPC_RESPONSE_STANDARD_NAME
+  ignore_only:
+    # stawi and seed are permission manifests over an HTTP mux, not served
+    # Connect APIs: many routes legitimately share the same loosely typed
+    # request/response shapes.
+    RPC_REQUEST_RESPONSE_UNIQUE:
+      - stawi/stawi/v1/stawi.proto
+      - seed/seed/v1/seed.proto
 breaking:
   use:
     - FILE

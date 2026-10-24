@@ -12,481 +12,574 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package handlers exposes stawi's workflow callback endpoints.
+//
+// Route shapes are the contract with products/stawi/workflows/*.json: every
+// http.request URL template in those definitions must resolve here. The
+// contract is asserted by TestWorkflowURLsResolveAgainstMux.
 package handlers
 
 import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/pitabwire/util"
 
+	opsmodels "github.com/antinvestor/service-fintech/apps/operations/service/models"
 	groupbusiness "github.com/antinvestor/service-fintech/apps/stawi/service/business"
-	"github.com/antinvestor/service-fintech/pkg/clients"
+	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
-// RegisterWorkflowCallbacks registers all workflow callback HTTP endpoints.
-func RegisterWorkflowCallbacks(
-	mux *http.ServeMux,
-	grpBusiness groupbusiness.ClientGroupBusiness,
-	memBusiness groupbusiness.MembershipBusiness,
-	tenBusiness groupbusiness.TenureBusiness,
-	perBusiness groupbusiness.PeriodBusiness,
-	lwBusiness LoanWindowBusiness,
-	loBusiness LoanOfferBusiness,
-	lfBusiness FundingAllocationBusiness,
-	prBusiness PaymentRoutingBusiness,
-	toBusiness TransferOrderBusiness,
-	obBusiness ObligationBusiness,
-	platformClients *clients.PlatformClients,
-) {
-	// Group lifecycle callbacks
-	mux.HandleFunc("POST /api/v1/groups/{id}/check-formation", handleCheckFormation(grpBusiness, memBusiness))
+// Businesses collects the domain dependencies the workflow callbacks need.
+type Businesses struct {
+	Group         groupbusiness.ClientGroupBusiness
+	Membership    groupbusiness.MembershipBusiness
+	Tenure        groupbusiness.TenureBusiness
+	Period        groupbusiness.PeriodBusiness
+	LoanWindow    LoanWindowBusiness
+	LoanOffer     LoanOfferBusiness
+	Funding       FundingAllocationBusiness
+	Payment       PaymentRoutingBusiness
+	TransferOrder TransferOrderBusiness
+	Obligation    ObligationBusiness
+}
+
+// RegisterWorkflowCallbacks registers every workflow callback HTTP endpoint.
+func RegisterWorkflowCallbacks(mux *http.ServeMux, biz Businesses) {
+	// Group lifecycle.
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/check-formation", handleCheckFormation(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/setup-ledger", handleSetupLedger(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/register-lender", handleRegisterLender(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/welcome", handleWelcomeGroup(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/create-tenure", handleCreateTenure(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/open-period", handleOpenPeriod(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/transition", handleGroupTransition(biz))
+
+	// Membership reads.
+	mux.HandleFunc("GET /api/v1/groups/{groupId}/members", handleListMembers(biz))
+
+	// Period lifecycle.
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/periods/{periodId}/close", handleClosePeriod(biz))
 	mux.HandleFunc(
-		"POST /api/v1/groups/{id}/welcome",
-		handleWelcomeGroup(grpBusiness, memBusiness, tenBusiness, perBusiness, platformClients),
+		"POST /api/v1/groups/{groupId}/periods/{periodId}/calculate-obligations",
+		handleCalculateObligations(biz),
+	)
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/evaluate-loan-window", handleEvaluateLoanWindow(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/loan-window/open", handleOpenLoanWindow(biz))
+
+	// Loan origination.
+	mux.HandleFunc(
+		"POST /api/v1/groups/{groupId}/members/{memberId}/generate-loan-offers",
+		handleGenerateOffers(biz),
 	)
 	mux.HandleFunc(
-		"POST /api/v1/groups/{id}/setup-ledger",
-		handleSetupLedger(grpBusiness, memBusiness, platformClients),
+		"POST /api/v1/groups/{groupId}/members/{memberId}/expire-loan-offers",
+		handleExpireOffers(biz),
 	)
-	mux.HandleFunc("POST /api/v1/groups/{id}/create-tenure", handleCreateTenure(tenBusiness))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans/source-funding", handleSourceFunding(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans", handleCreateLoanAccount(biz))
+
+	// Payment routing.
+	mux.HandleFunc("POST /api/v1/payments/identify-sender", handleIdentifySender(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/payments/allocate", handleAllocatePayment(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/ledger/transfer", handleLedgerTransfer(biz))
+
+	// Obligation status.
+	mux.HandleFunc("GET /api/v1/obligations/{obligationId}/status", handleObligationStatus(biz))
+
+	registerPeriodRoutes(mux, biz)
+	registerSuspenseRoutes(mux, biz)
+	registerLoanLifecycleRoutes(mux, biz)
+}
+
+// registerPeriodRoutes wires the period close and reconciliation callbacks.
+func registerPeriodRoutes(mux *http.ServeMux, biz Businesses) {
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/periods/{periodId}/freeze", handleFreezePeriod(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/periods/{periodId}/extend", handleExtendPeriod(biz))
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/periods/{periodId}/reconcile", handleReconcilePeriod(biz))
 	mux.HandleFunc(
-		"POST /api/v1/groups/{id}/register-lender",
-		handleRegisterLender(grpBusiness, memBusiness, platformClients),
+		"POST /api/v1/groups/{groupId}/periods/{periodId}/calculate-penalties",
+		handleCalculatePenalties(biz),
 	)
-	mux.HandleFunc("POST /api/v1/groups/{id}/open-period", handleOpenPeriod(perBusiness))
-	mux.HandleFunc("POST /api/v1/groups/{id}/evaluate-loan-window", handleEvaluateLoanWindow(lwBusiness, perBusiness))
 	mux.HandleFunc(
-		"POST /api/v1/groups/{id}/calculate-obligations",
-		handleCalculateObligations(obBusiness, memBusiness),
+		"GET /api/v1/groups/{groupId}/periods/{periodId}/outstanding-obligations",
+		handleOutstandingObligations(biz),
 	)
-	mux.HandleFunc("POST /api/v1/groups/{id}/transition", handleGroupTransition(grpBusiness))
-
-	// Period lifecycle callbacks
-	mux.HandleFunc("POST /api/v1/periods/{id}/close", handleClosePeriod(perBusiness, memBusiness, obBusiness))
-
-	// Membership callbacks
 	mux.HandleFunc(
-		"POST /api/v1/memberships/{id}/check-periodic-payment",
-		handleCheckPeriodicPayment(memBusiness, obBusiness),
+		"GET /api/v1/groups/{groupId}/members/{memberId}/check-obligations",
+		handleCheckMemberObligations(biz),
 	)
+}
 
-	// Funding callbacks
-	mux.HandleFunc("POST /api/v1/loan-windows/{id}/generate-offers", handleGenerateOffers(lwBusiness, loBusiness))
-	mux.HandleFunc("POST /api/v1/loan-offers/{id}/source-funding", handleSourceFunding(loBusiness, lfBusiness))
+// registerSuspenseRoutes wires the callbacks that move money in and out of the
+// member and group suspense holding areas.
+func registerSuspenseRoutes(mux *http.ServeMux, biz Businesses) {
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/suspense/deposit", handleSuspenseDeposit(biz))
 	mux.HandleFunc(
-		"POST /api/v1/loan-offers/{id}/create-loan-account",
-		handleCreateLoanAccount(loBusiness, platformClients),
+		"GET /api/v1/groups/{groupId}/members/{memberId}/suspense-balance",
+		handleSuspenseBalance(biz),
 	)
-	mux.HandleFunc("POST /api/v1/loan-accounts/{id}/generate-schedule", handleGenerateSchedule(platformClients))
-	mux.HandleFunc("POST /api/v1/loan-accounts/{id}/disburse", handleDisburse(platformClients))
-
-	// Payment routing callbacks
-	mux.HandleFunc("POST /api/v1/payments/identify", handleIdentifyPayment(prBusiness))
-	mux.HandleFunc("POST /api/v1/payments/{id}/allocate", handleAllocatePayment(prBusiness, toBusiness, obBusiness))
-	mux.HandleFunc("POST /api/v1/transfer-orders/{id}/execute", handleExecuteTransferOrder(toBusiness))
-
-	// Status check callbacks
-	mux.HandleFunc("GET /api/v1/obligations/{id}/status", handleObligationStatus(obBusiness))
+	mux.HandleFunc(
+		"POST /api/v1/groups/{groupId}/members/{memberId}/apply-suspense",
+		handleApplySuspense(biz),
+	)
+	mux.HandleFunc(
+		"POST /api/v1/groups/{groupId}/payments/{transactionId}/confirm",
+		handleConfirmPayment(biz),
+	)
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/ledger/transfer-failure", handleTransferFailure(biz))
 }
 
-// --- Callback handler factories ---
+// registerLoanLifecycleRoutes wires the per-member origination callbacks that
+// sit either side of loan account creation.
+func registerLoanLifecycleRoutes(mux *http.ServeMux, biz Businesses) {
+	mux.HandleFunc(
+		"GET /api/v1/groups/{groupId}/members/{memberId}/loan-eligibility",
+		handleLoanEligibility(biz),
+	)
+	mux.HandleFunc(
+		"POST /api/v1/groups/{groupId}/loans/{loanId}/generate-schedule",
+		handleGenerateSchedule(biz),
+	)
+	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans/{loanId}/disburse", handleDisburseLoan(biz))
+}
 
-// Each returns an http.HandlerFunc that:
-// 1. Extracts path parameter {id} from request
-// 2. Decodes optional JSON body
-// 3. Calls business logic
-// 4. Returns JSON response or error
+// --- Group lifecycle ---
 
-func handleCheckFormation(
-	grpBusiness groupbusiness.ClientGroupBusiness,
-	_ groupbusiness.MembershipBusiness,
-) http.HandlerFunc {
+func handleCheckFormation(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "check-formation", fieldGroupID: groupID})
-
-		result, err := grpBusiness.CheckFormation(ctx, groupID)
-		if err != nil {
-			log.WithError(err).Error("check formation failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, result)
+		groupID := r.PathValue(paramGroupID)
+		result, err := biz.Group.CheckFormation(r.Context(), groupID)
+		respond(w, r, "check-formation", result, err)
 	}
 }
 
-func handleWelcomeGroup(
-	grpBusiness groupbusiness.ClientGroupBusiness,
-	_ groupbusiness.MembershipBusiness,
-	_ groupbusiness.TenureBusiness,
-	_ groupbusiness.PeriodBusiness,
-	_ *clients.PlatformClients,
-) http.HandlerFunc {
+func handleSetupLedger(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "welcome-group", fieldGroupID: groupID})
-
-		err := grpBusiness.WelcomeGroup(ctx, groupID)
-		if err != nil {
-			log.WithError(err).Error("welcome group failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, map[string]string{fieldStatus: "ok"})
+		err := biz.Group.SetupLedgerAccounts(r.Context(), r.PathValue(paramGroupID))
+		respond(w, r, "setup-ledger", statusOK(), err)
 	}
 }
 
-func handleSetupLedger(
-	grpBusiness groupbusiness.ClientGroupBusiness,
-	_ groupbusiness.MembershipBusiness,
-	_ *clients.PlatformClients,
-) http.HandlerFunc {
+func handleRegisterLender(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "setup-ledger", fieldGroupID: groupID})
-
-		err := grpBusiness.SetupLedgerAccounts(ctx, groupID)
-		if err != nil {
-			log.WithError(err).Error("setup ledger failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, map[string]string{fieldStatus: "ok"})
+		err := biz.Group.RegisterWithLender(r.Context(), r.PathValue(paramGroupID))
+		respond(w, r, "register-lender", statusOK(), err)
 	}
 }
 
-func handleCreateTenure(tenBusiness groupbusiness.TenureBusiness) http.HandlerFunc {
+func handleWelcomeGroup(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "create-tenure", fieldGroupID: groupID})
-
-		tenure, err := tenBusiness.Open(ctx, groupID)
-		if err != nil {
-			log.WithError(err).Error("create tenure failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, tenure)
+		err := biz.Group.WelcomeGroup(r.Context(), r.PathValue(paramGroupID))
+		respond(w, r, "welcome-group", statusOK(), err)
 	}
 }
 
-func handleRegisterLender(
-	grpBusiness groupbusiness.ClientGroupBusiness,
-	_ groupbusiness.MembershipBusiness,
-	_ *clients.PlatformClients,
-) http.HandlerFunc {
+func handleCreateTenure(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "register-lender", fieldGroupID: groupID})
-
-		err := grpBusiness.RegisterWithLender(ctx, groupID)
+		tenure, err := biz.Tenure.Open(r.Context(), r.PathValue(paramGroupID))
 		if err != nil {
-			log.WithError(err).Error("register lender failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			respond(w, r, "create-tenure", nil, err)
 			return
 		}
-
-		writeJSON(w, map[string]string{fieldStatus: "ok"})
+		respond(w, r, "create-tenure", tenureResponse(tenure), nil)
 	}
 }
 
-func handleOpenPeriod(perBusiness groupbusiness.PeriodBusiness) http.HandlerFunc {
+func handleOpenPeriod(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "open-period", fieldGroupID: groupID})
-
-		period, err := perBusiness.Open(ctx, groupID)
+		period, err := biz.Period.Open(r.Context(), r.PathValue(paramGroupID))
 		if err != nil {
-			log.WithError(err).Error("open period failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			respond(w, r, "open-period", nil, err)
 			return
 		}
-
-		writeJSON(w, period)
+		respond(w, r, "open-period", periodResponse(period), nil)
 	}
 }
 
-func handleEvaluateLoanWindow(
-	lwBusiness LoanWindowBusiness,
-	_ groupbusiness.PeriodBusiness,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "evaluate-loan-window", fieldGroupID: groupID})
-
-		result, err := lwBusiness.Evaluate(ctx, groupID)
-		if err != nil {
-			log.WithError(err).Error("evaluate loan window failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, result)
-	}
-}
-
-func handleCalculateObligations(
-	obBusiness ObligationBusiness,
-	_ groupbusiness.MembershipBusiness,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "calculate-obligations", fieldGroupID: groupID})
-
-		err := obBusiness.CalculateForGroup(ctx, groupID)
-		if err != nil {
-			log.WithError(err).Error("calculate obligations failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, map[string]string{fieldStatus: "ok"})
-	}
-}
-
-func handleGroupTransition(grpBusiness groupbusiness.ClientGroupBusiness) http.HandlerFunc {
+func handleGroupTransition(biz Businesses) http.HandlerFunc {
 	type transitionReq struct {
 		State  int32  `json:"state"`
 		Reason string `json:"reason"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		groupID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "group-transition", fieldGroupID: groupID})
-
 		var req transitionReq
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeBody(r, &req); err != nil {
+			respond(w, r, "group-transition", nil, err)
 			return
 		}
-
-		err := grpBusiness.Transition(ctx, groupID, req.State, req.Reason)
-		if err != nil {
-			log.WithError(err).Error("group transition failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, map[string]string{fieldStatus: "ok"})
+		err := biz.Group.Transition(r.Context(), r.PathValue(paramGroupID), req.State, req.Reason)
+		respond(w, r, "group-transition", statusOK(), err)
 	}
 }
 
-func handleClosePeriod(
-	perBusiness groupbusiness.PeriodBusiness,
-	_ groupbusiness.MembershipBusiness,
-	_ ObligationBusiness,
-) http.HandlerFunc {
+func handleListMembers(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		periodID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "close-period", "period_id": periodID})
-
-		err := perBusiness.Close(ctx, periodID)
+		members, err := biz.Membership.GetByGroupID(ctx, r.PathValue(paramGroupID))
 		if err != nil {
-			log.WithError(err).Error("close period failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			respond(w, r, "list-members", nil, err)
 			return
 		}
 
-		writeJSON(w, map[string]string{fieldStatus: "ok"})
+		onlyActive := strings.EqualFold(r.URL.Query().Get("status"), "active")
+		result := make([]map[string]any, 0, len(members))
+		for _, m := range members {
+			if onlyActive && int32(m.GetState()) != int32(constants.StateActive) {
+				continue
+			}
+			result = append(result, map[string]any{
+				"id":              m.GetId(),
+				fieldGroupID:      m.GetGroupId(),
+				"profile_id":      m.GetProfileId(),
+				"membership_type": m.GetMembershipType(),
+				fieldState:        int32(m.GetState()),
+			})
+		}
+		respond(w, r, "list-members", membersResponse(result), nil)
 	}
 }
 
-func handleCheckPeriodicPayment(
-	memBusiness groupbusiness.MembershipBusiness,
-	_ ObligationBusiness,
-) http.HandlerFunc {
+// --- Period lifecycle ---
+
+func handleClosePeriod(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := biz.Period.Close(r.Context(), r.PathValue(paramPeriodID))
+		respond(w, r, "close-period", statusOK(), err)
+	}
+}
+
+func handleCalculateObligations(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := biz.Obligation.CalculateForGroup(r.Context(), r.PathValue(paramGroupID))
+		respond(w, r, "calculate-obligations", result, err)
+	}
+}
+
+func handleEvaluateLoanWindow(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := biz.LoanWindow.Evaluate(r.Context(), r.PathValue(paramGroupID))
+		respond(w, r, "evaluate-loan-window", result, err)
+	}
+}
+
+func handleOpenLoanWindow(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		window, err := biz.LoanWindow.Open(r.Context(), r.PathValue(paramGroupID))
+		if err != nil {
+			respond(w, r, "open-loan-window", nil, err)
+			return
+		}
+		respond(w, r, "open-loan-window", loanWindowResponse(window), nil)
+	}
+}
+
+// --- Loan origination ---
+
+func handleGenerateOffers(biz Businesses) http.HandlerFunc {
+	type generateReq struct {
+		LoanWindowID string `json:"loan_window_id"`
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		membershipID := r.PathValue("id")
-		log := util.Log(ctx).
-			WithFields(map[string]any{logKeyHandler: "check-periodic-payment", "membership_id": membershipID})
 
-		result, err := memBusiness.CheckPeriodicPayment(ctx, membershipID)
-		if err != nil {
-			log.WithError(err).Error("check periodic payment failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		var req generateReq
+		if err := decodeBody(r, &req); err != nil {
+			respond(w, r, "generate-offers", nil, err)
 			return
 		}
 
-		writeJSON(w, result)
+		windowID := strings.TrimSpace(req.LoanWindowID)
+		if windowID == "" {
+			// The workflow may not know the window yet; Open is idempotent and
+			// returns the group's active window for the current period.
+			window, openErr := biz.LoanWindow.Open(ctx, r.PathValue(paramGroupID))
+			if openErr != nil {
+				respond(w, r, "generate-offers", nil, openErr)
+				return
+			}
+			windowID = window.GetID()
+		}
+
+		offers, err := biz.LoanOffer.GenerateForWindow(ctx, windowID)
+		respond(w, r, "generate-offers", offers, err)
 	}
 }
 
-func handleGenerateOffers(
-	_ LoanWindowBusiness,
-	loBusiness LoanOfferBusiness,
-) http.HandlerFunc {
+func handleExpireOffers(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		expired, err := biz.LoanOffer.ExpireStale(r.Context(), r.PathValue(paramMemberID))
+		respond(w, r, "expire-loan-offers", map[string]any{"expired": expired}, err)
+	}
+}
+
+func handleSourceFunding(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			OfferID string `json:"offer_id"`
+		}
+		if err := decodeBody(r, &req); err != nil {
+			respond(w, r, "source-funding", nil, err)
+			return
+		}
+		if strings.TrimSpace(req.OfferID) == "" {
+			respond(w, r, "source-funding", nil,
+				apperrors.NewError(apperrors.BadRequest, "offer_id is required"))
+			return
+		}
+		result, err := biz.Funding.SourceForRequest(r.Context(), req.OfferID)
+		if err != nil {
+			respond(w, r, "source-funding", nil, err)
+			return
+		}
+		respond(w, r, "source-funding", fundingResponse(result), nil)
+	}
+}
+
+func handleCreateLoanAccount(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			OfferID string `json:"offer_id"`
+		}
+		if err := decodeBody(r, &req); err != nil {
+			respond(w, r, "create-loan-account", nil, err)
+			return
+		}
+		if strings.TrimSpace(req.OfferID) == "" {
+			respond(w, r, "create-loan-account", nil,
+				apperrors.NewError(apperrors.BadRequest, "offer_id is required"))
+			return
+		}
+		result, err := biz.LoanOffer.CreateLoanAccount(r.Context(), req.OfferID)
+		if result != nil {
+			// The workflow interpolates {{ vars.loan.body.loan_id }}.
+			result["loan_id"] = result["loan_account_id"]
+		}
+		respond(w, r, "create-loan-account", result, err)
+	}
+}
+
+// --- Payment routing ---
+
+func handleIdentifySender(biz Businesses) http.HandlerFunc {
+	type identifyReq struct {
+		SenderIdentifier string `json:"sender_identifier"`
+		GroupID          string `json:"group_id"`
+		Reference        string `json:"reference"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req identifyReq
+		if err := decodeBody(r, &req); err != nil {
+			respond(w, r, "identify-sender", nil, err)
+			return
+		}
+		result, err := biz.Payment.IdentifySender(r.Context(), req.SenderIdentifier, req.GroupID, req.Reference)
+		respond(w, r, "identify-sender", result, err)
+	}
+}
+
+func handleAllocatePayment(biz Businesses) http.HandlerFunc {
+	type allocateReq struct {
+		TransactionID string `json:"transaction_id"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req allocateReq
+		if err := decodeBody(r, &req); err != nil {
+			respond(w, r, "allocate-payment", nil, err)
+			return
+		}
+		if strings.TrimSpace(req.TransactionID) == "" {
+			respond(w, r, "allocate-payment", nil,
+				apperrors.NewError(apperrors.BadRequest, "transaction_id is required"))
+			return
+		}
+		result, err := biz.Payment.AllocatePaymentByTransactionID(r.Context(), req.TransactionID)
+		respond(w, r, "allocate-payment", result, err)
+	}
+}
+
+func handleLedgerTransfer(biz Businesses) http.HandlerFunc {
+	type transferReq struct {
+		FromAccount string `json:"from_account"`
+		ToAccount   string `json:"to_account"`
+		Amount      int64  `json:"amount"`
+		Currency    string `json:"currency"`
+		Type        int32  `json:"type"`
+		Reference   string `json:"reference"`
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		windowID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "generate-offers", "window_id": windowID})
 
-		offers, err := loBusiness.GenerateForWindow(ctx, windowID)
-		if err != nil {
-			log.WithError(err).Error("generate offers failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		var req transferReq
+		if err := decodeBody(r, &req); err != nil {
+			respond(w, r, "ledger-transfer", nil, err)
+			return
+		}
+		if err := validateTransfer(req.FromAccount, req.ToAccount, req.Amount, req.Reference); err != nil {
+			respond(w, r, "ledger-transfer", nil, err)
 			return
 		}
 
-		writeJSON(w, offers)
+		order := &opsmodels.TransferOrder{
+			DebitAccountRef:  req.FromAccount,
+			CreditAccountRef: req.ToAccount,
+			Amount:           req.Amount,
+			Currency:         req.Currency,
+			OrderType:        req.Type,
+			Reference:        req.Reference,
+			Description:      "workflow ledger transfer",
+			State:            int32(constants.StateJustCreated),
+		}
+		if saveErr := biz.TransferOrder.Save(ctx, order); saveErr != nil {
+			respond(w, r, "ledger-transfer", nil, saveErr)
+			return
+		}
+		if execErr := biz.TransferOrder.Execute(ctx, order.GetID()); execErr != nil {
+			respond(w, r, "ledger-transfer", nil, execErr)
+			return
+		}
+		respond(w, r, "ledger-transfer", map[string]any{
+			"transfer_order_id": order.GetID(),
+			fieldStatus:         "ok",
+		}, nil)
 	}
 }
 
-func handleSourceFunding(
-	_ LoanOfferBusiness,
-	lfBusiness FundingAllocationBusiness,
-) http.HandlerFunc {
+func validateTransfer(from, to string, amount int64, reference string) error {
+	switch {
+	case strings.TrimSpace(from) == "" || strings.TrimSpace(to) == "":
+		return apperrors.NewError(apperrors.BadRequest, "from_account and to_account are required")
+	case from == to:
+		return apperrors.NewError(apperrors.BadRequest, "from_account and to_account must differ")
+	case amount <= 0:
+		return apperrors.NewError(apperrors.BadRequest, "amount must be positive")
+	case strings.TrimSpace(reference) == "":
+		return apperrors.NewError(apperrors.BadRequest, "reference is required as the idempotency key")
+	}
+	return nil
+}
+
+func handleObligationStatus(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		loanRequestID := r.PathValue("id")
-		log := util.Log(ctx).
-			WithFields(map[string]any{logKeyHandler: "source-funding", "loan_request_id": loanRequestID})
+		status, err := biz.Obligation.GetStatus(r.Context(), r.PathValue("obligationId"))
+		respond(w, r, "obligation-status", status, err)
+	}
+}
 
-		result, err := lfBusiness.SourceForRequest(ctx, loanRequestID)
-		if err != nil {
-			log.WithError(err).Error("source funding failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+// --- Response plumbing ---
+
+func statusOK() map[string]any { return map[string]any{fieldStatus: "ok"} }
+
+// loanWindowResponse names the fields the period workflow interpolates from an
+// opened loan window.
+func loanWindowResponse(w *models.LoanWindow) map[string]any {
+	return map[string]any{
+		"loan_window_id":  w.GetID(),
+		fieldGroupID:      w.GroupID,
+		"period_id":       w.PeriodID,
+		fieldPosition:     w.Position,
+		"periodic_amount": w.PeriodicAmount,
+		"leverage":        w.LeverageHundredths,
+		fieldCurrency:     w.Currency,
+	}
+}
+
+// membersResponse wraps a member listing in the envelope the savings workflow
+// iterates over.
+func membersResponse(members []map[string]any) map[string]any {
+	return map[string]any{"members": members, "count": len(members)}
+}
+
+// periodResponse names the fields the period workflow interpolates. The model
+// itself has no json tags, so encoding it directly would emit Go field names.
+func periodResponse(p *models.Period) map[string]any {
+	return map[string]any{
+		"period_id":   p.GetID(),
+		fieldGroupID:  p.GroupID,
+		"tenure_id":   p.TenureID,
+		"start_date":  p.StartDate,
+		"end_date":    p.EndDate,
+		fieldPosition: p.Position,
+		fieldState:    p.State,
+	}
+}
+
+func tenureResponse(t *models.Tenure) map[string]any {
+	return map[string]any{
+		"tenure_id":   t.GetID(),
+		fieldGroupID:  t.GroupID,
+		"start_date":  t.StartDate,
+		"end_date":    t.EndDate,
+		"duration":    t.Duration,
+		fieldPosition: t.Position,
+		fieldState:    t.State,
+	}
+}
+
+// decodeBody reads an optional JSON body. Workflow steps often post nothing at
+// all, so an empty body is not an error.
+func decodeBody(r *http.Request, target any) error {
+	if r.Body == nil {
+		return nil
+	}
+	err := json.NewDecoder(r.Body).Decode(target)
+	if err != nil {
+		if strings.Contains(err.Error(), "EOF") {
+			return nil
 		}
-
-		writeJSON(w, result)
+		return apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON")
 	}
+	return nil
 }
 
-func handleCreateLoanAccount(
-	loBusiness LoanOfferBusiness,
-	_ *clients.PlatformClients,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		offerID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "create-loan-account", "offer_id": offerID})
-
-		result, err := loBusiness.CreateLoanAccount(ctx, offerID)
-		if err != nil {
-			log.WithError(err).Error("create loan account failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, result)
+// respond writes a JSON body, or maps the error onto an HTTP status through
+// classifyError so permanent failures are not retried as if they were
+// transient.
+func respond(w http.ResponseWriter, r *http.Request, handler string, payload any, err error) {
+	ctx := r.Context()
+	if err != nil {
+		writeError(ctx, w, handler, err)
+		return
 	}
+	writeJSON(ctx, w, http.StatusOK, payload)
 }
 
-func handleGenerateSchedule(_ *clients.PlatformClients) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "schedule generation must be triggered via loans service", http.StatusNotImplemented)
+// writeError maps an error onto an HTTP status, a stable machine-readable
+// code and a caller-safe message. The full error, which can carry internal
+// ids or a payer's name, is logged here and never reaches the workflow
+// engine. Permanent failures (4xx) stop the engine's retry policy; only 5xx
+// responses are retried.
+func writeError(ctx context.Context, w http.ResponseWriter, handler string, err error) {
+	status, message := classifyError(err)
+	code := errorCodeForStatus(status)
+
+	log := util.Log(ctx).WithField(logKeyHandler, handler).WithField("status", status).WithError(err)
+	if status >= http.StatusInternalServerError {
+		log.Error("workflow callback failed")
+	} else {
+		log.Info("workflow callback rejected")
 	}
+
+	writeJSON(ctx, w, status, errorBody{Error: message, Code: code})
 }
 
-func handleDisburse(_ *clients.PlatformClients) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(
-			w,
-			"disbursement requires operations service - create a DISBURSEMENT transfer order",
-			http.StatusNotImplemented,
-		)
-	}
+// errorBody is the JSON shape every stawi error response uses.
+type errorBody struct {
+	Error string `json:"error"`
+	Code  string `json:"code,omitempty"`
 }
 
-func handleIdentifyPayment(prBusiness PaymentRoutingBusiness) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		log := util.Log(ctx).WithField("handler", "identify-payment")
-
-		var req map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		result, err := prBusiness.IdentifyPayment(ctx, req)
-		if err != nil {
-			log.WithError(err).Error("identify payment failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, result)
-	}
-}
-
-func handleAllocatePayment(
-	prBusiness PaymentRoutingBusiness,
-	_ TransferOrderBusiness,
-	_ ObligationBusiness,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		paymentID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "allocate-payment", "payment_id": paymentID})
-
-		result, err := prBusiness.AllocatePayment(ctx, paymentID)
-		if err != nil {
-			log.WithError(err).Error("allocate payment failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, result)
-	}
-}
-
-func handleExecuteTransferOrder(toBusiness TransferOrderBusiness) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		orderID := r.PathValue("id")
-		log := util.Log(ctx).WithFields(map[string]any{logKeyHandler: "execute-transfer-order", "order_id": orderID})
-
-		err := toBusiness.Execute(ctx, orderID)
-		if err != nil {
-			log.WithError(err).Error("execute transfer order failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, map[string]string{fieldStatus: "ok"})
-	}
-}
-
-func handleObligationStatus(obBusiness ObligationBusiness) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		obligationID := r.PathValue("id")
-		log := util.Log(ctx).
-			WithFields(map[string]any{logKeyHandler: "obligation-status", "obligation_id": obligationID})
-
-		status, err := obBusiness.GetStatus(ctx, obligationID)
-		if err != nil {
-			log.WithError(err).Error("get obligation status failed")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, status)
-	}
-}
-
-// writeJSON writes a JSON response with HTTP 200 OK status.
-func writeJSON(w http.ResponseWriter, data interface{}) {
+func writeJSON(ctx context.Context, w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		util.Log(context.Background()).WithError(err).Warn("failed to encode JSON response")
+	w.WriteHeader(status)
+	if payload == nil {
+		return
+	}
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		util.Log(ctx).WithError(err).Warn("failed to encode JSON response")
 	}
 }

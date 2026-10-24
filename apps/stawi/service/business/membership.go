@@ -17,11 +17,13 @@ package business
 import (
 	"context"
 	"errors"
+	"io"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"connectrpc.com/connect"
+
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
 type membershipBusiness struct {
@@ -39,50 +41,51 @@ func (b *membershipBusiness) Create(
 	ctx context.Context,
 	membership *identityv1.MembershipObject,
 ) (*identityv1.MembershipObject, error) {
-	resp, err := b.identityCli.MembershipSave(ctx, connect.NewRequest(
-		&identityv1.MembershipSaveRequest{Data: membership},
-	))
+	resp, err := b.identityCli.MembershipSave(ctx, &identityv1.MembershipSaveRequest{Data: membership})
 	if err != nil {
 		return nil, err
 	}
-	return resp.Msg.GetData(), nil
+	return resp.GetData(), nil
 }
 
 func (b *membershipBusiness) Get(ctx context.Context, id string) (*identityv1.MembershipObject, error) {
-	resp, err := b.identityCli.MembershipGet(ctx, connect.NewRequest(
-		&identityv1.MembershipGetRequest{Id: id},
-	))
+	resp, err := b.identityCli.MembershipGet(ctx, &identityv1.MembershipGetRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
-	return resp.Msg.GetData(), nil
+	return resp.GetData(), nil
 }
 
 func (b *membershipBusiness) GetByGroupID(ctx context.Context, groupID string) ([]*identityv1.MembershipObject, error) {
-	stream, err := b.identityCli.MembershipSearch(ctx, connect.NewRequest(
-		&identityv1.MembershipSearchRequest{
-			GroupId: groupID,
-			Cursor:  &commonv1.PageCursor{Limit: membershipSearchLimit},
-		},
-	))
+	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{
+		GroupId: groupID,
+		Cursor:  &commonv1.PageCursor{Limit: membershipSearchLimit},
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	var result []*identityv1.MembershipObject
-	for stream.Receive() {
-		result = append(result, stream.Msg().GetData()...)
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return nil, recvErr
+		}
+		result = append(result, msg.GetData()...)
 	}
-	if stream.Err() != nil {
-		return nil, stream.Err()
-	}
+
 	return result, nil
 }
 
 func (b *membershipBusiness) UpdateRole(_ context.Context, _ string, _ int32) error {
-	return errors.New("group membership operations are not yet available for this product")
+	return apperrors.NewError(apperrors.Unprocessable,
+		"membership role changes are not available for this product")
 }
 
 func (b *membershipBusiness) CheckPeriodicPayment(_ context.Context, _ string) (map[string]interface{}, error) {
-	return nil, errors.New("group membership operations are not yet available for this product")
+	return nil, apperrors.NewError(apperrors.Unprocessable,
+		"periodic payment checks are not available for this product")
 }

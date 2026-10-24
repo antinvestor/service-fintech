@@ -27,22 +27,72 @@ import (
 // long-term disk and index growth. Intended to be called periodically (e.g.
 // hourly) via POST /admin/archive.
 type Archival struct {
-	resvRepo   repository.ReservationRepository
-	ledgerRepo repository.LedgerRepository
+	resvRepo          repository.ReservationRepository
+	ledgerRepo        repository.LedgerRepository
+	policyRepo        repository.PolicyRepository
+	reservationRetain time.Duration
+	ledgerRetain      time.Duration
 }
 
-// NewArchival constructs an Archival job.
-func NewArchival(resvRepo repository.ReservationRepository, ledgerRepo repository.LedgerRepository) *Archival {
-	return &Archival{resvRepo: resvRepo, ledgerRepo: ledgerRepo}
+// Default retention windows, used when the configured values are non-positive.
+const (
+	defaultReservationRetention = 7 * 24 * time.Hour
+	defaultLedgerRetention      = 90 * 24 * time.Hour
+	// ledgerWindowSlack is the extra margin kept behind the widest live rolling
+	// window so a cap never reads a truncated ledger at its own boundary.
+	ledgerWindowSlack = 24 * time.Hour
+)
+
+// NewArchival constructs an Archival job. Non-positive retentions fall back to
+// the defaults. policyRepo may be nil, in which case the live-window guard is
+// skipped (test wiring only).
+func NewArchival(
+	resvRepo repository.ReservationRepository,
+	ledgerRepo repository.LedgerRepository,
+	policyRepo repository.PolicyRepository,
+	reservationRetain, ledgerRetain time.Duration,
+) *Archival {
+	if reservationRetain <= 0 {
+		reservationRetain = defaultReservationRetention
+	}
+	if ledgerRetain <= 0 {
+		ledgerRetain = defaultLedgerRetention
+	}
+	return &Archival{
+		resvRepo:          resvRepo,
+		ledgerRepo:        ledgerRepo,
+		policyRepo:        policyRepo,
+		reservationRetain: reservationRetain,
+		ledgerRetain:      ledgerRetain,
+	}
 }
 
-// Run hard-deletes terminal reservations older than 7 days and ledger entries
-// older than 90 days. Cross-tenant. Returns counts per category.
+// Run hard-deletes terminal reservations and ledger entries older than their
+// configured retention. The ledger cutoff is pushed back so it never falls
+// inside the widest live rolling window: deleting there would silently
+// under-count usage for that cap for the rest of its life. Cross-tenant.
+// Returns counts per category.
 func (a *Archival) Run(ctx context.Context) (int, int, error) {
 	log := util.Log(ctx).With("job", "archival")
 
-	cutoffResv := time.Now().UTC().Add(-7 * 24 * time.Hour)
-	cutoffLedger := time.Now().UTC().Add(-90 * 24 * time.Hour)
+	now := time.Now().UTC()
+	ledgerRetain := a.ledgerRetain
+	if a.policyRepo != nil {
+		maxWindow, err := a.policyRepo.MaxLiveWindowSeconds(ctx)
+		if err != nil {
+			log.WithError(err).Error("archival: could not read live policy windows")
+			return 0, 0, err
+		}
+		// Keep a full window plus a day of slack behind the widest live cap.
+		if guard := time.Duration(maxWindow)*time.Second + ledgerWindowSlack; guard > ledgerRetain {
+			log.With("ledger_retention_seconds", int64(guard/time.Second)).
+				Info("archival: ledger retention widened to cover the longest live rolling window")
+			ledgerRetain = guard
+		}
+	}
+
+	cutoffResv := now.Add(-a.reservationRetain)
+	cutoffLedger := now.Add(-ledgerRetain)
 
 	resvDeleted, err := a.resvRepo.HardDeleteTerminalBefore(ctx, cutoffResv)
 	if err != nil {

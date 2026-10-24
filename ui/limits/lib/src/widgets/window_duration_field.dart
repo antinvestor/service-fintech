@@ -19,7 +19,13 @@ import '../utils/duration_format.dart';
 class WindowDurationField extends StatefulWidget {
   final int initialSeconds;
   final ValueChanged<int> onChanged;
-  const WindowDurationField({super.key, this.initialSeconds = 0, required this.onChanged});
+  final String? errorText;
+  const WindowDurationField({
+    super.key,
+    this.initialSeconds = 0,
+    required this.onChanged,
+    this.errorText,
+  });
 
   @override
   State<WindowDurationField> createState() => _WindowDurationFieldState();
@@ -27,18 +33,35 @@ class WindowDurationField extends StatefulWidget {
 
 class _WindowDurationFieldState extends State<WindowDurationField> {
   late TextEditingController _ctrl;
+  String? _parseError;
 
   @override
   void initState() {
     super.initState();
     _ctrl = TextEditingController(
-      text: widget.initialSeconds == 0 ? '' : formatDuration(widget.initialSeconds),
+      text: widget.initialSeconds == 0
+          ? ''
+          : formatDuration(widget.initialSeconds),
     );
   }
 
+  /// Emits on every edit, including a clear. Swallowing unparsable or empty
+  /// input would leave a stale window on the draft that the operator can see
+  /// they deleted.
   void _emit() {
-    final s = parseDuration(_ctrl.text);
-    if (s != null) widget.onChanged(s);
+    final raw = _ctrl.text.trim();
+    if (raw.isEmpty) {
+      setState(() => _parseError = null);
+      widget.onChanged(0);
+      return;
+    }
+    final seconds = parseDuration(raw);
+    setState(
+      () => _parseError = seconds == null
+          ? 'Use a duration such as 24h or 7d'
+          : null,
+    );
+    widget.onChanged(seconds ?? 0);
   }
 
   void _setPreset(String preset) {
@@ -52,10 +75,12 @@ class _WindowDurationFieldState extends State<WindowDurationField> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
+          key: const Key('windowDurationField'),
           controller: _ctrl,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Window',
             hintText: 'e.g. 24h, 7d, 30d',
+            errorText: _parseError ?? widget.errorText,
           ),
           onChanged: (_) => _emit(),
         ),

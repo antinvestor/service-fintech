@@ -6,6 +6,7 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/data/auth_state_provider.dart';
 import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/widgets/profile_badge.dart';
+import '../theme/app_theme.dart';
 import '../theme/design_tokens.dart';
 import 'nav_items.dart';
 import 'nav_state.dart';
@@ -58,8 +59,10 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
     final userInfoAsync = ref.watch(currentProfileIdProvider);
     final displayNameAsync = ref.watch(currentDisplayNameProvider);
 
-    // Show all nav items immediately; filter once permissions resolve.
-    final items = navItemsAsync.whenOrNull(data: (d) => d) ?? buildNavItems();
+    // Until permissions resolve, show only the items that need none. Showing
+    // the full menu first would leak the admin surface on every page load.
+    final items =
+        navItemsAsync.whenOrNull(data: (d) => d) ?? navItemsFor(const {});
 
     // Auto-expand current route's section on first build
     if (!_initialExpansionDone) {
@@ -71,7 +74,7 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
 
     return Container(
       width: 260,
-      color: theme.colorScheme.primary,
+      color: AppTheme.sidebarBackground(theme.colorScheme),
       child: Column(
         children: [
           const _BrandHeader(),
@@ -105,8 +108,7 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
     SidebarExpansionState expansion, {
     required int depth,
   }) {
-    final isActive =
-        item.route != null && widget.currentRoute.startsWith(item.route!);
+    final isActive = routeMatches(item.route, widget.currentRoute);
     final isExpanded = expansion.isExpanded(item.id);
 
     if (item.hasChildren) {

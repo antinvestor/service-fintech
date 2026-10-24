@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const InvestorSaveEvent = "investor.save"
@@ -58,17 +58,8 @@ func (e *InvestorSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "investor_id": investor.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.investorRepo.GetByID(ctx, investor.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.investorRepo.Update(ctx, investor); err != nil {
-			logger.WithError(err).Error("could not update investor in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.investorRepo.Create(ctx, investor); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create investor in db")
+	if err := upsert.ByID(ctx, e.investorRepo, investor); err != nil {
+		logger.WithError(err).Error("could not save investor in db")
 		return err
 	}
 

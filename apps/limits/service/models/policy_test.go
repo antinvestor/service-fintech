@@ -78,3 +78,33 @@ func TestPolicyTableName(t *testing.T) {
 	assert.Equal(t, "limits_policies", Policy{}.TableName())
 	assert.Equal(t, "limits_policy_versions", PolicyVersion{}.TableName())
 }
+
+// TestEffectiveApprovalTTL pins the clamp that keeps the approval request and
+// the reservation it gates on one deadline: an unset TTL falls back to the
+// default, a too-short one is raised to the minimum, a sane one is honoured.
+func TestEffectiveApprovalTTL(t *testing.T) {
+	cases := []struct {
+		name string
+		sec  int64
+		want time.Duration
+	}{
+		{name: "zero falls back to default", sec: 0, want: DefaultApprovalTTL},
+		{name: "negative falls back to default", sec: -5, want: DefaultApprovalTTL},
+		{name: "below minimum is clamped up", sec: 60, want: MinApprovalTTL},
+		{name: "exactly minimum is kept", sec: int64(MinApprovalTTL / time.Second), want: MinApprovalTTL},
+		{name: "normal value is kept", sec: 3600, want: time.Hour},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Policy{ApprovalTTLSec: tc.sec}
+			assert.Equal(t, tc.want, p.EffectiveApprovalTTL())
+
+			p.NormaliseApprovalTTL()
+			assert.Equal(t, int64(tc.want/time.Second), p.ApprovalTTLSec,
+				"NormaliseApprovalTTL must persist exactly what EffectiveApprovalTTL grants")
+		})
+	}
+
+	var nilPolicy *Policy
+	assert.Equal(t, DefaultApprovalTTL, nilPolicy.EffectiveApprovalTTL())
+}

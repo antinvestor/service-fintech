@@ -18,10 +18,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 )
 
@@ -81,6 +81,9 @@ func (e *EventSave) Validate(_ context.Context, payload any) error {
 	}
 	if ev.EntityType == "" || ev.Action == "" {
 		return errors.New("audit event requires entity_type and action")
+	}
+	if ev.PartitionID == "" {
+		return ErrAuditNoPartition
 	}
 	return nil
 }

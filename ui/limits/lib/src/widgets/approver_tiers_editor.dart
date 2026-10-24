@@ -12,15 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:flutter/material.dart';
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/material.dart';
 import 'package:protobuf/protobuf.dart';
+
+/// The approver-count bound the service enforces on every tier.
+const int maxApproverCount = 11;
+
+/// Validates an approver ladder against the rules the service applies, so the
+/// operator sees the problem here rather than as a raw invalid_argument.
+/// Returns null when the ladder is acceptable (including when it is empty).
+String? validateApproverTiers(List<ApproverTier> tiers) {
+  if (tiers.isEmpty) return null;
+  final bounds = <Int64>{};
+  var catchAll = 0;
+  for (final tier in tiers) {
+    if (tier.role.trim().isEmpty) {
+      return 'Every tier needs a role';
+    }
+    if (tier.approvers < 1 || tier.approvers > maxApproverCount) {
+      return 'Approver count must be between 1 and $maxApproverCount';
+    }
+    if (tier.upTo < Int64.ZERO) {
+      return 'Up-to cannot be negative';
+    }
+    if (tier.upTo == Int64.ZERO) {
+      catchAll++;
+      if (catchAll > 1) return 'Only one catch-all tier is allowed';
+      continue;
+    }
+    if (!bounds.add(tier.upTo)) {
+      return 'Two tiers share the same up-to bound';
+    }
+  }
+  return null;
+}
 
 class ApproverTiersEditor extends StatefulWidget {
   final List<ApproverTier> initial;
   final ValueChanged<List<ApproverTier>> onChanged;
-  const ApproverTiersEditor({super.key, required this.initial, required this.onChanged});
+  final String? errorText;
+
+  const ApproverTiersEditor({
+    super.key,
+    required this.initial,
+    required this.onChanged,
+    this.errorText,
+  });
 
   @override
   State<ApproverTiersEditor> createState() => _ApproverTiersEditorState();
@@ -32,26 +71,28 @@ class _ApproverTiersEditorState extends State<ApproverTiersEditor> {
   @override
   void initState() {
     super.initState();
-    _tiers = [...widget.initial];
+    _tiers = [for (final tier in widget.initial) tier.deepCopy()];
   }
 
   void _addTier() {
     setState(() {
-      _tiers.add(ApproverTier()
-        ..upTo = Int64.ZERO
-        ..role = ''
-        ..approvers = 1);
+      _tiers.add(
+        ApproverTier()
+          ..upTo = Int64.ZERO
+          ..role = ''
+          ..approvers = 1,
+      );
     });
     widget.onChanged(_tiers);
   }
 
-  void _removeTier(int i) {
-    setState(() => _tiers.removeAt(i));
+  void _removeTier(int index) {
+    setState(() => _tiers.removeAt(index));
     widget.onChanged(_tiers);
   }
 
-  void _updateTier(int i, ApproverTier updated) {
-    setState(() => _tiers[i] = updated);
+  void _updateTier(int index, ApproverTier updated) {
+    setState(() => _tiers[index] = updated);
     widget.onChanged(_tiers);
   }
 
@@ -60,43 +101,80 @@ class _ApproverTiersEditorState extends State<ApproverTiersEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Approver tiers', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text(
+          'Approver tiers',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 4),
         for (var i = 0; i < _tiers.length; i++) ...[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: TextFormField(
-                  initialValue: _tiers[i].upTo == Int64.ZERO ? '' : _tiers[i].upTo.toString(),
+                  key: Key('tierUpTo$i'),
+                  initialValue: _tiers[i].upTo == Int64.ZERO
+                      ? ''
+                      : _tiers[i].upTo.toString(),
                   decoration: const InputDecoration(
                     labelText: 'Up to (minor units, blank = catch-all)',
                   ),
                   keyboardType: TextInputType.number,
+                  // tryParseInt, never parseInt: a stray "-" or a pasted
+                  // "1,000" must not throw out of onChanged.
+                  validator: (v) {
+                    final raw = (v ?? '').trim();
+                    if (raw.isEmpty) return null;
+                    final parsed = Int64.tryParseInt(raw);
+                    if (parsed == null) return 'Whole number of minor units';
+                    if (parsed < Int64.ZERO) return 'Cannot be negative';
+                    return null;
+                  },
                   onChanged: (v) {
-                    final n = v.isEmpty ? Int64.ZERO : Int64.parseInt(v);
-                    _updateTier(i, _tiers[i].deepCopy()..upTo = n);
+                    final raw = v.trim();
+                    final parsed = raw.isEmpty
+                        ? Int64.ZERO
+                        : Int64.tryParseInt(raw);
+                    if (parsed == null) return;
+                    _updateTier(i, _tiers[i].deepCopy()..upTo = parsed);
                   },
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: TextFormField(
+                  key: Key('tierRole$i'),
                   initialValue: _tiers[i].role,
                   decoration: const InputDecoration(labelText: 'Role'),
-                  onChanged: (v) => _updateTier(i, _tiers[i].deepCopy()..role = v),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Role is required'
+                      : null,
+                  onChanged: (v) =>
+                      _updateTier(i, _tiers[i].deepCopy()..role = v.trim()),
                 ),
               ),
               const SizedBox(width: 8),
               SizedBox(
-                width: 80,
+                width: 96,
                 child: TextFormField(
+                  key: Key('tierCount$i'),
                   initialValue: '${_tiers[i].approvers}',
                   decoration: const InputDecoration(labelText: 'Count'),
                   keyboardType: TextInputType.number,
-                  onChanged: (v) => _updateTier(
-                    i,
-                    _tiers[i].deepCopy()..approvers = int.tryParse(v) ?? 1,
-                  ),
+                  validator: (v) {
+                    final parsed = int.tryParse((v ?? '').trim());
+                    if (parsed == null ||
+                        parsed < 1 ||
+                        parsed > maxApproverCount) {
+                      return '1–$maxApproverCount';
+                    }
+                    return null;
+                  },
+                  onChanged: (v) {
+                    final parsed = int.tryParse(v.trim());
+                    if (parsed == null) return;
+                    _updateTier(i, _tiers[i].deepCopy()..approvers = parsed);
+                  },
                 ),
               ),
               IconButton(
@@ -107,6 +185,17 @@ class _ApproverTiersEditorState extends State<ApproverTiersEditor> {
           ),
           const SizedBox(height: 8),
         ],
+        if (widget.errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              widget.errorText!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ),
         TextButton.icon(
           icon: const Icon(Icons.add),
           label: const Text('Add tier'),

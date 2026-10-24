@@ -17,8 +17,8 @@ package repository
 import (
 	"context"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
@@ -51,9 +51,11 @@ func migratePool(ctx context.Context, dbPool pool.Pool, migrationsDirPath string
 
 	return dbPool.Migrate(ctx, migrationsDirPath,
 		&models.LoanFunding{},
-		&models.FundingAllocation{},
 		&models.InvestorAccount{},
 		&models.FundingTranche{},
+		&models.InvestorCapitalMovement{},
+		&models.LoanFundingClaim{},
+		&models.LossAbsorption{},
 		&audit.Event{},
 	)
 }

@@ -52,7 +52,8 @@
                 "data": {
                   "member_id": "{{ payload.member_id }}",
                   "reason": "{{ vars.eligibility.body.reason }}"
-                }
+                },
+                "dedupe_key": "loan_ineligible:{{ payload.member_id }}:{{ payload.loan_window_id }}"
               }
             }
           },
@@ -95,7 +96,8 @@
             "group_id": "{{ payload.group_id }}",
             "offer_count": "{{ vars.offers.body.offer_count }}",
             "max_amount": "{{ vars.offers.body.max_amount }}"
-          }
+          },
+          "dedupe_key": "loan_offers_available:{{ payload.member_id }}:{{ vars.offers.body.window_id }}:{{ payload.group_id }}"
         }
       }
     },
@@ -134,7 +136,8 @@
                       "data": {
                         "member_id": "{{ payload.member_id }}",
                         "group_id": "{{ payload.group_id }}"
-                      }
+                      },
+                      "dedupe_key": "loan_offer_expired:{{ payload.member_id }}:{{ payload.loan_window_id }}:{{ payload.group_id }}"
                     }
                   }
                 }
@@ -150,7 +153,8 @@
                       "data": {
                         "member_id": "{{ payload.member_id }}",
                         "group_id": "{{ payload.group_id }}"
-                      }
+                      },
+                      "dedupe_key": "loan_offer_declined:{{ vars.offer_response.offer_id }}:{{ payload.group_id }}"
                     }
                   }
                 }
@@ -219,7 +223,8 @@
                   "member_id": "{{ payload.member_id }}",
                   "group_id": "{{ payload.group_id }}",
                   "shortfall": "{{ vars.funding_result.body.shortfall }}"
-                }
+                },
+                "dedupe_key": "loan_funding_unavailable:{{ vars.offer_response.offer_id }}:{{ payload.group_id }}"
               }
             }
           },
@@ -292,7 +297,8 @@
             "loan_id": "{{ vars.loan.body.loan_id }}",
             "amount": "{{ vars.offer_response.amount }}",
             "transaction_ref": "{{ vars.disbursement.body.transaction_ref }}"
-          }
+          },
+          "dedupe_key": "loan_disbursed:{{ payload.member_id }}:{{ vars.loan.body.loan_id }}:{{ payload.group_id }}"
         }
       }
     },
@@ -308,7 +314,8 @@
             "member_id": "{{ payload.member_id }}",
             "loan_id": "{{ vars.loan.body.loan_id }}",
             "amount": "{{ vars.offer_response.amount }}"
-          }
+          },
+          "dedupe_key": "loan_disbursed_leader:{{ payload.member_id }}:{{ vars.loan.body.loan_id }}:{{ payload.group_id }}"
         }
       }
     }

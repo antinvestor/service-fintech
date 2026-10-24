@@ -34,16 +34,17 @@ import (
 	"time"
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
-	"github.com/pitabwire/frame/v2/security"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -62,21 +63,17 @@ type fixedClaimsInterceptor struct {
 	tenantID    string
 	partitionID string
 	profileID   string
+	// roles carries the approver tier roles the Decide path enforces.
+	roles []string
 }
 
-func (f *fixedClaimsInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
-	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		return next(f.injectClaims(ctx), req)
-	}
-}
-
-func (f *fixedClaimsInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
-	return next
-}
-
-func (f *fixedClaimsInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
-	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		return next(f.injectClaims(ctx), conn)
+// server returns the claims injection as a connect server interceptor; it
+// covers unary and streaming RPCs alike.
+func (f *fixedClaimsInterceptor) server() connect.ServerInterceptor {
+	return func(next connect.ServerFunc) connect.ServerFunc {
+		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {
+			return next(f.injectClaims(ctx), spec, stream)
+		}
 	}
 }
 
@@ -88,6 +85,7 @@ func (f *fixedClaimsInterceptor) injectClaims(ctx context.Context) context.Conte
 		ContactID:   f.profileID,
 		SessionID:   util.IDString(),
 		DeviceID:    "test-device",
+		Roles:       f.roles,
 	}
 	claims.Subject = f.profileID
 	return claims.ClaimsToContext(ctx)
@@ -151,20 +149,20 @@ func (s *AdminIntegrationSuite) SetupTest() {
 		partitionID: "partition-int",
 		profileID:   "test-user",
 	}
-	interceptorOpt := connect.WithInterceptors(claimsInterceptor)
-	limitsPath, limitsHandler := limitsv1connect.NewLimitsAdminServiceHandler(adminH, interceptorOpt)
+	server := connect.NewServer(claimsInterceptor.server())
+	limitsv1connect.RegisterLimitsAdminServiceHandler(server, adminH)
 
 	mux := http.NewServeMux()
-	mux.Handle(limitsPath, limitsHandler)
+	connecthttp.Mount(mux, server)
 
 	srv := httptest.NewServer(mux)
 	s.serverCleanup = srv.Close
 	s.T().Cleanup(s.serverCleanup)
 
-	s.client = limitsv1connect.NewLimitsAdminServiceClient(
+	s.client = limitsv1connect.NewLimitsAdminServiceClient(connect.NewClient(connecthttp.NewTransport(
 		srv.Client(),
 		srv.URL,
-	)
+	)))
 }
 
 func (s *AdminIntegrationSuite) databaseResource(ctx context.Context) definition.DependancyConn {
@@ -197,44 +195,53 @@ func (s *AdminIntegrationSuite) TestFullLifecycle() {
 		ApprovalTtl:   durationpb.New(72 * time.Hour),
 	}
 
-	saveResp, err := s.client.PolicySave(ctx, connect.NewRequest(&limitsv1.PolicySaveRequest{Data: in}))
+	saveResp, err := s.client.PolicySave(ctx, &limitsv1.PolicySaveRequest{Data: in})
 	s.Require().NoError(err)
-	policyID := saveResp.Msg.GetData().GetId()
+	policyID := saveResp.GetData().GetId()
 	s.NotEmpty(policyID, "created policy must have an ID")
-	s.Equal(limitsv1.PolicyMode_POLICY_MODE_SHADOW, saveResp.Msg.GetData().GetMode())
+	s.Equal(limitsv1.PolicyMode_POLICY_MODE_SHADOW, saveResp.GetData().GetMode())
 
 	// ── Step 2: update policy to ENFORCE mode ────────────────────────────────
-	updated := saveResp.Msg.GetData()
+	updated := saveResp.GetData()
 	updated.Mode = limitsv1.PolicyMode_POLICY_MODE_ENFORCE
 
-	updateResp, err := s.client.PolicySave(ctx, connect.NewRequest(&limitsv1.PolicySaveRequest{Data: updated}))
+	updateResp, err := s.client.PolicySave(ctx, &limitsv1.PolicySaveRequest{Data: updated})
 	s.Require().NoError(err)
-	s.Equal(policyID, updateResp.Msg.GetData().GetId(), "update must preserve policy ID")
-	s.Equal(limitsv1.PolicyMode_POLICY_MODE_ENFORCE, updateResp.Msg.GetData().GetMode())
+	s.Equal(policyID, updateResp.GetData().GetId(), "update must preserve policy ID")
+	s.Equal(limitsv1.PolicyMode_POLICY_MODE_ENFORCE, updateResp.GetData().GetMode())
 
 	// ── Step 3: search returns the policy (server-streaming via Connect) ──────
-	searchStream, err := s.client.PolicySearch(ctx, connect.NewRequest(&limitsv1.PolicySearchRequest{}))
+	searchStream, err := s.client.PolicySearch(ctx, &limitsv1.PolicySearchRequest{})
 	s.Require().NoError(err)
 
 	var found bool
-	for searchStream.Receive() {
-		for _, p := range searchStream.Msg().GetData() {
+	var streamErr error
+	for {
+		msg, err := searchStream.Receive()
+		if err != nil {
+			streamErr = err
+			break
+		}
+		for _, p := range msg.GetData() {
 			if p.GetId() == policyID {
 				found = true
 			}
 		}
 	}
-	if searchErr := searchStream.Err(); searchErr != nil && !errors.Is(searchErr, io.EOF) {
+	if errors.Is(streamErr, io.EOF) {
+		streamErr = nil
+	}
+	if searchErr := streamErr; searchErr != nil && !errors.Is(searchErr, io.EOF) {
 		s.Require().NoError(searchErr, "search stream closed with error")
 	}
 	s.True(found, "search must return the saved policy")
 
 	// ── Step 4: delete the policy ────────────────────────────────────────────
-	_, err = s.client.PolicyDelete(ctx, connect.NewRequest(&limitsv1.PolicyDeleteRequest{Id: policyID}))
+	_, err = s.client.PolicyDelete(ctx, &limitsv1.PolicyDeleteRequest{Id: policyID})
 	s.Require().NoError(err)
 
 	// ── Step 5: get after delete must return NotFound ────────────────────────
-	_, err = s.client.PolicyGet(ctx, connect.NewRequest(&limitsv1.PolicyGetRequest{Id: policyID}))
+	_, err = s.client.PolicyGet(ctx, &limitsv1.PolicyGetRequest{Id: policyID})
 	s.Require().Error(err)
 	s.Equal(connect.CodeNotFound, connect.CodeOf(err), "deleted policy must return NotFound")
 }

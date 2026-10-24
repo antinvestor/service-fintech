@@ -19,8 +19,9 @@
 2. **Advisory locks on subject_id**: Reserve serialises per-subject. At
    1k rps with 1k unique subjects, no contention. With <100 unique
    subjects (e.g. concentrated traffic on a single account), Reserve
-   degrades to sequential per-subject. Mitigation: observability metric
-   `limits_reserve_subject_contention` to detect.
+   degrades to sequential per-subject. There is no dedicated contention
+   metric yet; detect it from Reserve p99 latency against a flat request
+   rate, or from `pg_locks` on the advisory-lock class.
 3. No outbox; cap reconciliation via TTL + audit pipeline.
 
 ## Headroom plan
@@ -32,10 +33,46 @@
   acting fast enough (process issue).
 ## Reaper SLAs
 
-- Reserved-but-not-committed reservations: TTL 5 minutes. Reaper
-  releases on the next pass after TTL expiry.
-- Pending-approval reservations: TTL 24 hours. Operator action required
-  before that.
+Both reapers run every 30s and take a Postgres advisory lock, so exactly one
+replica reaps per pass however many are running.
+
+- Reserved-but-not-committed reservations: TTL defaults to 5 minutes when the
+  caller does not ask for one, and is clamped server-side to a maximum of
+  1 hour. The reaper transitions them to `expired` (not `released`) on the
+  next pass after `ttl_at`.
+- Pending-approval reservations: the reservation's `ttl_at` and the approval
+  request's `expires_at` are the same instant, derived from one value — the
+  shortest *effective* `approval_ttl` across the policies that demanded
+  approval. The effective TTL is clamped at save time and again at read time
+  (`Policy.EffectiveApprovalTTL`): unset/zero → **72 hours**, anything under
+  **15 minutes** → 15 minutes. A policy can therefore never produce an
+  approval that is born expired, even from a hand-edited row.
+- Settling a pending-approval reservation is the decision's job, not the
+  reaper's: `ApprovalRequestDecide` releases (reject / auto-reject) or
+  activates (final approve) the linked reservation **in the same transaction**
+  as the approval status change, with a rows-affected guard on both rows. A
+  reservation the caller already released is tolerated and logged; any other
+  release failure aborts the decision so the two rows never disagree.
+- The approval reaper is only the safety net for requests nobody decided
+  before `expires_at`. Each expiry is one transaction: `status='pending'`
+  guard → release reservation → audit row. A `Decide` racing a reaper pass
+  converges on exactly one outcome (whichever commits first; the other sees
+  "not pending" / `FailedPrecondition`), which
+  `TestDecide_RacesReaper_ConvergesToOneOutcome` exercises.
+- The reservation reaper likewise commits the bulk expiry and its audit rows
+  together.
+- Reaper-written audit rows (`limits.reservation.expired_ttl`,
+  `limits.approval.expired`) carry the affected row's `tenant_id`/`partition_id`
+  and the actor `system:limits-reaper` (type `system`), so they appear in that
+  tenant's `LimitsAuditSearch` feed under RLS.
+
+## Archival retention
+
+`ARCHIVAL_RESERVATION_RETENTION_HOURS` (default 168) and
+`ARCHIVAL_LEDGER_RETENTION_HOURS` (default 2160) set the hard-delete cutoffs.
+The job widens the ledger cutoff automatically so it never deletes inside the
+widest live rolling window plus a day of slack — deleting there would make that
+cap under-count usage for the rest of its life.
 
 ## Open issues
 

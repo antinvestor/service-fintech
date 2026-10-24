@@ -38,21 +38,31 @@ class PolicyListTile extends StatelessWidget {
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(limitActionLabel(policy.action), style: const TextStyle(fontSize: 12)),
+              Text(
+                limitActionLabel(policy.action),
+                style: const TextStyle(fontSize: 12),
+              ),
               Text(
                 '· ${subjectTypeLabel(policy.subjectType)}',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
-              if (policy.limitKind != LimitKind.LIMIT_KIND_ROLLING_WINDOW_COUNT &&
+              if (policy.limitKind !=
+                      LimitKind.LIMIT_KIND_ROLLING_WINDOW_COUNT &&
                   policy.hasCapAmount())
                 CurrencyAmountText(
                   amount: policy.capAmount,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               if (policy.limitKind == LimitKind.LIMIT_KIND_ROLLING_WINDOW_COUNT)
                 Text(
                   '${policy.capCount} txn',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               PolicyScopeBadge(scope: policy.scope),
               PolicyModeBadge(mode: policy.mode),

@@ -15,6 +15,6 @@ final loansTransportProvider = Provider<Transport>((ref) {
 
 final loanManagementServiceClientProvider =
     Provider<LoanManagementServiceClient>((ref) {
-  final transport = ref.watch(loansTransportProvider);
-  return LoanManagementServiceClient(transport);
-});
+      final transport = ref.watch(loansTransportProvider);
+      return LoanManagementServiceClient(transport);
+    });

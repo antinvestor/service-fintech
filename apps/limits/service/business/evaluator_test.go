@@ -87,7 +87,7 @@ func (s *stubResvRepo) Create(_ context.Context, _ *models.Reservation) error { 
 func (s *stubResvRepo) GetByID(_ context.Context, _ string) (*models.Reservation, error) {
 	return nil, nil //nolint:nilnil // no-op stub: Evaluator never calls this
 }
-func (s *stubResvRepo) GetByIdempotencyKey(_ context.Context, _ string) (*models.Reservation, error) {
+func (s *stubResvRepo) GetByIdempotencyKey(_ context.Context, _, _ string) (*models.Reservation, error) {
 	return nil, nil //nolint:nilnil // no-op stub: Evaluator never calls this
 }
 func (s *stubResvRepo) SetCommitted(_ context.Context, _ string, _ time.Time) error { return nil }
@@ -99,8 +99,11 @@ func (s *stubResvRepo) SetReleasedTx(_ context.Context, _ *gorm.DB, _, _ string,
 	return nil
 }
 func (s *stubResvRepo) SetExpired(_ context.Context, _ string, _ time.Time) error { return nil }
-func (s *stubResvRepo) BulkSetExpired(_ context.Context, _ []string, _ time.Time) (int, error) {
-	return 0, nil
+func (s *stubResvRepo) BulkSetExpired(_ context.Context, _ []string, _ time.Time) ([]string, error) {
+	return nil, nil
+}
+func (s *stubResvRepo) BulkSetExpiredTx(_ context.Context, _ *gorm.DB, _ []string, _ time.Time) ([]string, error) {
+	return nil, nil
 }
 func (s *stubResvRepo) HardDeleteTerminalBefore(_ context.Context, _ time.Time) (int, error) {
 	return 0, nil

@@ -313,34 +313,39 @@ class _KycSchemaTab extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...entry.value.map((f) => ListTile(
-                        leading: Icon(
-                          f.required
-                              ? Icons.assignment_turned_in
-                              : Icons.assignment_outlined,
+                  ...entry.value.map(
+                    (f) => ListTile(
+                      leading: Icon(
+                        f.required
+                            ? Icons.assignment_turned_in
+                            : Icons.assignment_outlined,
+                        color: f.required
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      title: Text(
+                        f.templateId,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      subtitle: f.description.isNotEmpty
+                          ? Text(f.description)
+                          : null,
+                      trailing: Chip(
+                        label: Text(f.required ? 'Required' : 'Optional'),
+                        backgroundColor: f.required
+                            ? Colors.green.withAlpha(30)
+                            : Colors.grey.withAlpha(30),
+                        labelStyle: TextStyle(
+                          fontSize: 11,
                           color: f.required
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant,
+                              ? Colors.green.shade700
+                              : Colors.grey.shade600,
                         ),
-                        title: Text(f.templateId,
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(fontFamily: 'monospace')),
-                        subtitle: f.description.isNotEmpty
-                            ? Text(f.description)
-                            : null,
-                        trailing: Chip(
-                          label: Text(f.required ? 'Required' : 'Optional'),
-                          backgroundColor: f.required
-                              ? Colors.green.withAlpha(30)
-                              : Colors.grey.withAlpha(30),
-                          labelStyle: TextStyle(
-                            fontSize: 11,
-                            color: f.required
-                                ? Colors.green.shade700
-                                : Colors.grey.shade600,
-                          ),
-                        ),
-                      )),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -374,7 +379,8 @@ class _DocumentsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasDocForms = product.requiredForms.any(
-        (f) => f.stage == 'verification' || f.stage == 'underwriting');
+      (f) => f.stage == 'verification' || f.stage == 'underwriting',
+    );
 
     if (!hasDocForms) {
       return Center(

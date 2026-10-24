@@ -20,12 +20,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/datatypes"
@@ -94,7 +94,7 @@ func (s *ArchivalSuite) archivalEnv(tenantID, partitionID string) (
 	workMan := svc.WorkManager()
 	resvRepo := repository.NewReservationRepository(ctx, dbPool, workMan)
 	ledgerRepo := repository.NewLedgerRepository(ctx, dbPool, workMan)
-	archival := business.NewArchival(resvRepo, ledgerRepo)
+	archival := business.NewArchival(resvRepo, ledgerRepo, nil, 0, 0)
 
 	return ctx, resvRepo, ledgerRepo, archival
 }
@@ -179,7 +179,7 @@ func (s *ArchivalSuite) TestArchival_ReturnsErrorOnRepoFailure() {
 
 	// Wire a broken reservation repo.
 	broken := &brokenResvRepo{}
-	archival := business.NewArchival(broken, ledgerRepo)
+	archival := business.NewArchival(broken, ledgerRepo, nil, 0, 0)
 
 	_, _, err := archival.Run(ctx)
 	s.Require().Error(err)
@@ -192,7 +192,7 @@ func (b *brokenResvRepo) Create(_ context.Context, _ *models.Reservation) error 
 func (b *brokenResvRepo) GetByID(_ context.Context, _ string) (*models.Reservation, error) {
 	return nil, nil //nolint:nilnil // no-op stub: archival never reads reservations
 }
-func (b *brokenResvRepo) GetByIdempotencyKey(_ context.Context, _ string) (*models.Reservation, error) {
+func (b *brokenResvRepo) GetByIdempotencyKey(_ context.Context, _, _ string) (*models.Reservation, error) {
 	return nil, nil //nolint:nilnil // no-op stub: archival never reads reservations
 }
 
@@ -244,8 +244,11 @@ func (b *brokenResvRepo) SetReleasedTx(_ context.Context, _ *gorm.DB, _, _ strin
 	return nil
 }
 func (b *brokenResvRepo) SetExpired(_ context.Context, _ string, _ time.Time) error { return nil }
-func (b *brokenResvRepo) BulkSetExpired(_ context.Context, _ []string, _ time.Time) (int, error) {
-	return 0, nil
+func (b *brokenResvRepo) BulkSetExpired(_ context.Context, _ []string, _ time.Time) ([]string, error) {
+	return nil, nil
+}
+func (b *brokenResvRepo) BulkSetExpiredTx(_ context.Context, _ *gorm.DB, _ []string, _ time.Time) ([]string, error) {
+	return nil, nil
 }
 func (b *brokenResvRepo) SetReversed(_ context.Context, _ string, _ time.Time) error { return nil }
 func (b *brokenResvRepo) SetReversedTx(_ context.Context, _ *gorm.DB, _ string, _ time.Time) error {

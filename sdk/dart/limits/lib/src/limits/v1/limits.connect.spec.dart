@@ -77,6 +77,14 @@ abstract final class LimitsAdminService {
     limitsv1limits.PolicyDeleteResponse.new,
   );
 
+  /// PolicyHistory pages through a policy's immutable version snapshots, newest first.
+  static const policyHistory = connect.Spec(
+    '/$name/PolicyHistory',
+    connect.StreamType.unary,
+    limitsv1limits.PolicyHistoryRequest.new,
+    limitsv1limits.PolicyHistoryResponse.new,
+  );
+
   static const approvalRequestList = connect.Spec(
     '/$name/ApprovalRequestList',
     connect.StreamType.server,

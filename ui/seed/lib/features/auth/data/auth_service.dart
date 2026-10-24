@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:openid_client/openid_client.dart';
 
 import '../../../core/config/auth_constants.dart';
@@ -16,13 +18,16 @@ class AuthService {
     this._storage, {
     required String issuerUrl,
     required String clientId,
+    http.Client? httpClient,
   }) : _issuerUrl = issuerUrl,
        _activeClientId = clientId,
-       _defaultClientId = clientId;
+       _defaultClientId = clientId,
+       _httpClient = httpClient ?? http.Client();
 
   final FlutterSecureStorage _storage;
   final String _issuerUrl;
   final String _defaultClientId;
+  final http.Client _httpClient;
   String _activeClientId;
   final AuthPlatform _platform = getAuthPlatform();
 
@@ -109,7 +114,12 @@ class AuthService {
     _cachedExpiresAt = expiresAt;
     _cachedIsAuthenticated = true;
 
-    await _storage.write(key: 'access_token', value: token.accessToken);
+    // On web the access token is never written to storage: it lives for one
+    // page lifetime and is re-minted from the refresh token after a reload,
+    // so an XSS read of browser storage cannot lift a usable bearer token.
+    if (!kIsWeb) {
+      await _storage.write(key: 'access_token', value: token.accessToken);
+    }
     await _storage.write(key: 'refresh_token', value: token.refreshToken);
     try {
       await _storage.write(
@@ -143,6 +153,7 @@ class AuthService {
 
   Future<String?> getAccessToken() async {
     if (_cachedAccessToken != null) return _cachedAccessToken;
+    if (kIsWeb) return null;
     final token = await _storage.read(key: 'access_token');
     _cachedAccessToken = token;
     return token;
@@ -240,37 +251,17 @@ class AuthService {
     }
   }
 
-  bool _isPermanentRefreshError(String errorStr) {
-    const transientPatterns = [
-      'timeout',
-      'connection refused',
-      'connection reset',
-      'network is unreachable',
-      'host not found',
-      'dns',
-      'socket',
-      '500',
-      '502',
-      '503',
-      '504',
-      '429',
-      'service unavailable',
-    ];
-    for (final pattern in transientPatterns) {
-      if (errorStr.contains(pattern)) return false;
-    }
+  /// Classifies a refresh failure from the structured OAuth2 `error` code
+  /// (RFC 6749 §5.2) rather than from substrings of the message. Matching on
+  /// free text mistook any error whose message happened to contain "dns" or
+  /// "500" for a transient one and kept revoked sessions alive.
+  static final _oauthErrorPattern = RegExp(
+    r'\b(invalid_grant|invalid_client|unauthorized_client|invalid_request|'
+    r'unsupported_grant_type|invalid_scope|access_denied)\b',
+  );
 
-    const permanentErrors = [
-      'invalid_grant',
-      'invalid_client',
-      'unauthorized_client',
-      'access_denied',
-    ];
-    for (final error in permanentErrors) {
-      if (errorStr.contains(error)) return true;
-    }
-    return false;
-  }
+  bool _isPermanentRefreshError(String errorStr) =>
+      _oauthErrorPattern.hasMatch(errorStr);
 
   Future<String?> ensureValidAccessToken() async {
     final accessToken = _cachedAccessToken ?? await getAccessToken();
@@ -286,32 +277,41 @@ class AuthService {
     final refreshTokenValue = await getRefreshToken();
     if (refreshTokenValue == null) return null;
 
+    // A failed refresh means there is no valid token; returning the stale
+    // one would send a request that is certain to 401.
     final result = await refreshToken();
-    return result?.accessToken ?? await getAccessToken();
+    return result?.accessToken;
   }
 
   Future<String?> forceRefreshAccessToken() async {
     _cachedAccessToken = null;
     _cachedExpiresAt = null;
     final result = await refreshToken();
-    return result?.accessToken ?? await getAccessToken();
+    return result?.accessToken;
   }
 
   // ── Auth state check (cached) ────────────────────────────────────────────
 
   bool? get isAuthenticatedSync => _cachedIsAuthenticated;
 
+  /// Whether the session is usable right now.
+  ///
+  /// A stored token string is not a session: an expired access token whose
+  /// refresh token the IdP has revoked must report unauthenticated so the
+  /// router sends the user to login, rather than rendering an app in which
+  /// every call 401s. So this resolves to true only when a non-expired
+  /// access token exists or a refresh actually produces one.
   Future<bool> isAuthenticated() async {
     if (_cachedIsAuthenticated != null) return _cachedIsAuthenticated!;
 
     if (_platform.hasRedirectResult()) {
       await _handleRedirectResult();
+      if (_cachedIsAuthenticated == true) return true;
     }
 
     final accessToken = await getAccessToken();
-    if (accessToken != null) {
+    if (accessToken != null && !await isTokenExpired()) {
       _cachedIsAuthenticated = true;
-      await isTokenExpired();
       if (_cachedExpiresAt != null) {
         _scheduleRefresh(_cachedExpiresAt!);
       }
@@ -320,14 +320,15 @@ class AuthService {
     }
 
     final refreshTokenValue = await getRefreshToken();
-    if (refreshTokenValue != null) {
-      _cachedIsAuthenticated = true;
-      _ensureInitialized().then((_) => refreshToken()).ignore();
-      return true;
+    if (refreshTokenValue == null) {
+      _cachedIsAuthenticated = false;
+      return false;
     }
 
-    _cachedIsAuthenticated = false;
-    return false;
+    await _ensureInitialized();
+    final refreshed = await refreshToken();
+    _cachedIsAuthenticated = refreshed?.accessToken?.isNotEmpty ?? false;
+    return _cachedIsAuthenticated!;
   }
 
   Future<bool> _handleRedirectResult() async {
@@ -392,9 +393,34 @@ class AuthService {
 
   // ── Logout ───────────────────────────────────────────────────────────────
 
+  /// Ends the session everywhere it exists.
+  ///
+  /// Clearing local storage alone leaves the IdP cookie standing (the next
+  /// "Sign in" silently re-authenticates the same user on a shared browser)
+  /// and leaves the refresh token valid at the IdP. So this revokes the
+  /// refresh token, then hands the browser to the `end_session_endpoint`.
   Future<void> logout() async {
+    final refreshTokenValue = await getRefreshToken();
+    final idToken = await getIdToken();
+    final clientId = _activeClientId;
+
+    Uri? endSession;
+    Uri? revocation;
+    try {
+      await _ensureInitialized();
+      final metadata = _platform.client?.issuer.metadata;
+      endSession = metadata?.endSessionEndpoint;
+      revocation = metadata?.revocationEndpoint;
+    } on Exception catch (e) {
+      AppLogger.warning('Could not read issuer metadata for logout: $e');
+    }
+
+    if (revocation != null && refreshTokenValue != null) {
+      await _revokeToken(revocation, clientId, refreshTokenValue);
+    }
+
     _refreshTimer?.cancel();
-    _cachedIsAuthenticated = null;
+    _cachedIsAuthenticated = false;
     _cachedAccessToken = null;
     _cachedExpiresAt = null;
 
@@ -406,6 +432,51 @@ class AuthService {
     await _storage.delete(key: 'login_context');
     _activeClientId = _defaultClientId;
     _platform.reset();
+
+    if (endSession != null) {
+      await _platform.navigateToEndSession(
+        _buildEndSessionUri(endSession, clientId, idToken),
+      );
+    }
+  }
+
+  Uri _buildEndSessionUri(Uri endpoint, String clientId, String? idToken) {
+    final params = <String, String>{
+      ...endpoint.queryParameters,
+      'client_id': clientId,
+    };
+    if (idToken != null && idToken.isNotEmpty) {
+      params['id_token_hint'] = idToken;
+    }
+    final postLogout = _platform.postLogoutRedirectUri;
+    if (postLogout != null) {
+      params['post_logout_redirect_uri'] = postLogout.toString();
+    }
+    return endpoint.replace(queryParameters: params);
+  }
+
+  Future<void> _revokeToken(Uri endpoint, String clientId, String token) async {
+    try {
+      final response = await _httpClient
+          .post(
+            endpoint,
+            headers: const {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: {
+              'token': token,
+              'token_type_hint': 'refresh_token',
+              'client_id': clientId,
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode >= 400) {
+        AppLogger.warning('Token revocation returned ${response.statusCode}');
+      }
+    } on Exception catch (e) {
+      // Local sign-out must still complete if the IdP is unreachable.
+      AppLogger.warning('Token revocation failed: $e');
+    }
   }
 
   Future<void> storeLoginContext(String json) async {

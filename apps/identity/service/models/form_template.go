@@ -16,10 +16,11 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // ---------------------------------------------------------------------------
@@ -31,7 +32,7 @@ type FormTemplate struct {
 	OrganizationID  string `gorm:"type:varchar(50);index:idx_ft_organization"`
 	Name            string `gorm:"type:varchar(255);not null"`
 	Description     string `gorm:"type:text"`
-	Version         int32
+	TemplateVersion int32  `gorm:"column:template_version"`
 	Status          int32  `gorm:"index:idx_ft_status"`
 	EntityType      string `gorm:"type:varchar(50);index:idx_ft_entity_type"`
 	Fields          data.JSONMap
@@ -48,7 +49,7 @@ func (m *FormTemplate) ToAPI() *identityv1.FormTemplateObject {
 		OrganizationId:  m.OrganizationID,
 		Name:            m.Name,
 		Description:     m.Description,
-		Version:         m.Version,
+		Version:         m.TemplateVersion,
 		Status:          identityv1.FormTemplateStatus(m.Status),
 		EntityType:      m.EntityType,
 		ValidationRules: m.ValidationRules.ToProtoStruct(),
@@ -67,14 +68,14 @@ func FormTemplateFromAPI(ctx context.Context, obj *identityv1.FormTemplateObject
 	}
 
 	model := &FormTemplate{
-		OrganizationID: obj.GetOrganizationId(),
-		Name:           obj.GetName(),
-		Description:    obj.GetDescription(),
-		Version:        obj.GetVersion(),
-		Status:         int32(obj.GetStatus()),
-		EntityType:     obj.GetEntityType(),
-		Fields:         fieldsFromAPI(obj.GetFields()),
-		Sections:       sectionsFromAPI(obj.GetSections()),
+		OrganizationID:  obj.GetOrganizationId(),
+		Name:            obj.GetName(),
+		Description:     obj.GetDescription(),
+		TemplateVersion: obj.GetVersion(),
+		Status:          int32(obj.GetStatus()),
+		EntityType:      obj.GetEntityType(),
+		Fields:          fieldsFromAPI(obj.GetFields()),
+		Sections:        sectionsFromAPI(obj.GetSections()),
 	}
 
 	if obj.GetValidationRules() != nil {
@@ -189,11 +190,11 @@ func FieldsToAPI(jm data.JSONMap) []*identityv1.FormFieldDefinition {
 		if v, okField := m["label"].(string); okField {
 			fd.Label = v
 		}
-		if v, okField := m["field_type"].(float64); okField {
-			fd.FieldType = identityv1.FormFieldType(int32(v))
+		if v, okField := jsonInt32(m["field_type"]); okField {
+			fd.FieldType = identityv1.FormFieldType(v)
 		}
-		if v, okField := m["group"].(float64); okField {
-			fd.Group = identityv1.FormFieldGroup(int32(v))
+		if v, okField := jsonInt32(m["group"]); okField {
+			fd.Group = identityv1.FormFieldGroup(v)
 		}
 		if v, okField := m["required"].(bool); okField {
 			fd.Required = v
@@ -204,8 +205,8 @@ func FieldsToAPI(jm data.JSONMap) []*identityv1.FormFieldDefinition {
 		if v, okField := m["section"].(string); okField {
 			fd.Section = v
 		}
-		if v, okField := m["order"].(float64); okField {
-			fd.Order = int32(v)
+		if v, okField := jsonInt32(m["order"]); okField {
+			fd.Order = v
 		}
 		if v, okField := m["encrypted"].(bool); okField {
 			fd.Encrypted = v
@@ -213,6 +214,31 @@ func FieldsToAPI(jm data.JSONMap) []*identityv1.FormFieldDefinition {
 		result = append(result, fd)
 	}
 	return result
+}
+
+// jsonInt32 reads a numeric JSON value whatever shape it arrived in. Values
+// written in-process are int32 or float64; values scanned back from Postgres
+// are json.Number because JSONMap decodes with UseNumber. Asserting float64
+// alone silently dropped field_type on every stored template.
+func jsonInt32(v any) (int32, bool) {
+	switch n := v.(type) {
+	case int32:
+		return n, true
+	case int:
+		return int32(n), true //nolint:gosec // enum-sized values only
+	case int64:
+		return int32(n), true //nolint:gosec // enum-sized values only
+	case float64:
+		return int32(n), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int32(i), true //nolint:gosec // enum-sized values only
+	default:
+		return 0, false
+	}
 }
 
 func fieldsFromAPI(fields []*identityv1.FormFieldDefinition) data.JSONMap {

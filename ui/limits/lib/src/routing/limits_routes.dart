@@ -26,50 +26,44 @@ import '../screens/policy_verdict_playground_screen.dart';
 /// Returns the go_router routes for the limits operator surface.
 /// Mount via `routes: [...limitsRoutes()]` in the host's GoRouter config.
 List<GoRoute> limitsRoutes() => [
-      GoRoute(
-        path: '/limits',
-        redirect: (context, state) => '/limits/policies',
-      ),
-      GoRoute(
-        path: '/limits/policies',
-        builder: (context, state) => const PolicyListScreen(),
-      ),
-      GoRoute(
-        path: '/limits/policies/new',
-        builder: (context, state) => const PolicyEditorScreen(),
-      ),
-      GoRoute(
-        path: '/limits/policies/:id',
-        builder: (context, state) => PolicyDetailScreen(
-          policyId: state.pathParameters['id']!,
-        ),
-      ),
-      GoRoute(
-        path: '/limits/policies/:id/edit',
-        builder: (context, state) => PolicyEditorScreen(
-          policyId: state.pathParameters['id'],
-        ),
-      ),
-      GoRoute(
-        path: '/limits/playground',
-        builder: (context, state) => const PolicyVerdictPlaygroundScreen(),
-      ),
-      GoRoute(
-        path: '/limits/approvals',
-        builder: (context, state) => const ApprovalQueueScreen(),
-      ),
-      GoRoute(
-        path: '/limits/approvals/:id',
-        builder: (context, state) => ApprovalRequestDetailScreen(
-          requestId: state.pathParameters['id']!,
-        ),
-      ),
-      GoRoute(
-        path: '/limits/ledger',
-        builder: (context, state) => const LedgerSearchScreen(),
-      ),
-      GoRoute(
-        path: '/limits/audit',
-        builder: (context, state) => const AuditFeedScreen(),
-      ),
-    ];
+  GoRoute(path: '/limits', redirect: (context, state) => '/limits/policies'),
+  GoRoute(
+    path: '/limits/policies',
+    builder: (context, state) => const PolicyListScreen(),
+  ),
+  GoRoute(
+    path: '/limits/policies/new',
+    builder: (context, state) => const PolicyEditorScreen(),
+  ),
+  GoRoute(
+    path: '/limits/policies/:id',
+    builder: (context, state) =>
+        PolicyDetailScreen(policyId: state.pathParameters['id']!),
+  ),
+  GoRoute(
+    path: '/limits/policies/:id/edit',
+    builder: (context, state) =>
+        PolicyEditorScreen(policyId: state.pathParameters['id']),
+  ),
+  GoRoute(
+    path: '/limits/playground',
+    builder: (context, state) => const PolicyVerdictPlaygroundScreen(),
+  ),
+  GoRoute(
+    path: '/limits/approvals',
+    builder: (context, state) => const ApprovalQueueScreen(),
+  ),
+  GoRoute(
+    path: '/limits/approvals/:id',
+    builder: (context, state) =>
+        ApprovalRequestDetailScreen(requestId: state.pathParameters['id']!),
+  ),
+  GoRoute(
+    path: '/limits/ledger',
+    builder: (context, state) => const LedgerSearchScreen(),
+  ),
+  GoRoute(
+    path: '/limits/audit',
+    builder: (context, state) => const AuditFeedScreen(),
+  ),
+];

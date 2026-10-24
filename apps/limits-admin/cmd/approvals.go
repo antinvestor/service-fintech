@@ -21,7 +21,6 @@ import (
 	"os"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -86,17 +85,17 @@ func decide(ctx context.Context, id, decision, note string) error {
 	}
 	resp, err := client.ApprovalRequestDecide(
 		ctx,
-		connect.NewRequest(&limitsv1.ApprovalRequestDecideRequest{
+		&limitsv1.ApprovalRequestDecideRequest{
 			Id:       id,
 			Decision: decision,
 			Note:     note,
-		}),
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("ApprovalRequestDecide: %w", err)
 	}
 
-	item := resp.Msg.GetData()
+	item := resp.GetData()
 	if flagJSON {
 		out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(item)
 		if marshalErr != nil {

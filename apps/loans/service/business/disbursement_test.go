@@ -23,23 +23,26 @@ import (
 	"errors"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/queue"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/queue"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
@@ -71,6 +74,8 @@ type stubDisbursementRepo struct {
 	stored   []*loansmodels.Disbursement
 	findResp *loansmodels.Disbursement
 	findErr  error
+	claimErr error
+	updates  []map[string]any
 }
 
 func (r *stubDisbursementRepo) Pool() pool.Pool                 { return nil }
@@ -122,6 +127,47 @@ func (r *stubDisbursementRepo) Search(
 }
 func (r *stubDisbursementRepo) GetByIdempotencyKey(_ context.Context, _ string) (*loansmodels.Disbursement, error) {
 	return r.findResp, r.findErr
+}
+
+func (r *stubDisbursementRepo) ClaimIdempotencyKey(
+	ctx context.Context,
+	disb *loansmodels.Disbursement,
+) (*loansmodels.Disbursement, bool, error) {
+	if r.claimErr != nil {
+		return r.findResp, false, r.claimErr
+	}
+	if r.findResp != nil && r.findErr == nil {
+		return r.findResp, false, nil
+	}
+	if err := r.Create(ctx, disb); err != nil {
+		return nil, false, err
+	}
+	return disb, true, nil
+}
+
+func (r *stubDisbursementRepo) UpdateColumns(_ context.Context, _ string, values map[string]any) (int64, error) {
+	r.updates = append(r.updates, values)
+	for _, d := range r.stored {
+		if st, ok := values[fieldStatus].(int32); ok {
+			d.Status = st
+		}
+	}
+	return 1, nil
+}
+
+func (r *stubDisbursementRepo) ListByLoanAccountID(
+	_ context.Context,
+	_ string,
+	_ int,
+) ([]*loansmodels.Disbursement, error) {
+	return r.stored, nil
+}
+
+func (r *stubDisbursementRepo) GetLiveByLoanAccountID(
+	_ context.Context,
+	_ string,
+) (*loansmodels.Disbursement, error) {
+	return nil, errors.New("stub: not found")
 }
 
 // Compile-time checks.
@@ -181,6 +227,30 @@ func (r *stubLoanAccountRepo) Search(
 	return nil, errors.New("stub: search not implemented")
 }
 
+func (r *stubLoanAccountRepo) GetByLoanRequestID(
+	_ context.Context,
+	_ string,
+) (*loansmodels.LoanAccount, error) {
+	return nil, errors.New("stub: not found")
+}
+
+func (r *stubLoanAccountRepo) UpdateColumns(_ context.Context, _ string, _ map[string]any) (int64, error) {
+	return 1, nil
+}
+
+func (r *stubLoanAccountRepo) ClaimStatus(_ context.Context, _ string, _, _ int32) (bool, error) {
+	return true, nil
+}
+
+func (r *stubLoanAccountRepo) PageByStatus(
+	_ context.Context,
+	_ int32,
+	_ string,
+	_ int,
+) ([]*loansmodels.LoanAccount, error) {
+	return nil, nil
+}
+
 // Compile-time checks.
 var _ repository.LoanAccountRepository = (*stubLoanAccountRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.LoanAccount] = (*stubLoanAccountRepo)(nil)
@@ -229,32 +299,32 @@ type stubOperationsClient struct {
 
 func (s *stubOperationsClient) TransferOrderExecute(
 	_ context.Context,
-	_ *connect.Request[operationsv1.TransferOrderExecuteRequest],
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
+	_ *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
 	if s.transferErr != nil {
 		return nil, s.transferErr
 	}
-	return connect.NewResponse(s.transferResp), nil
+	return s.transferResp, nil
 }
 
 func (s *stubOperationsClient) TransferOrderSearch(
 	_ context.Context,
-	_ *connect.Request[operationsv1.TransferOrderSearchRequest],
-) (*connect.ServerStreamForClient[operationsv1.TransferOrderSearchResponse], error) {
+	_ *operationsv1.TransferOrderSearchRequest,
+) (operationsv1connect.OperationsServiceTransferOrderSearchClientStream, error) {
 	panic("stub: TransferOrderSearch not expected")
 }
 
 func (s *stubOperationsClient) IncomingPaymentNotify(
 	_ context.Context,
-	_ *connect.Request[operationsv1.IncomingPaymentNotifyRequest],
-) (*connect.Response[operationsv1.IncomingPaymentNotifyResponse], error) {
+	_ *operationsv1.IncomingPaymentNotifyRequest,
+) (*operationsv1.IncomingPaymentNotifyResponse, error) {
 	panic("stub: IncomingPaymentNotify not expected")
 }
 
 func (s *stubOperationsClient) PaymentAllocate(
 	_ context.Context,
-	_ *connect.Request[operationsv1.PaymentAllocateRequest],
-) (*connect.Response[operationsv1.PaymentAllocateResponse], error) {
+	_ *operationsv1.PaymentAllocateRequest,
+) (*operationsv1.PaymentAllocateResponse, error) {
 	panic("stub: PaymentAllocate not expected")
 }
 
@@ -276,26 +346,26 @@ type stubLimitsClient struct {
 
 func (s *stubLimitsClient) Check(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CheckRequest],
-) (*connect.Response[limitsv1.CheckResponse], error) {
-	return connect.NewResponse(&limitsv1.CheckResponse{}), nil
+	_ *limitsv1.CheckRequest,
+) (*limitsv1.CheckResponse, error) {
+	return &limitsv1.CheckResponse{}, nil
 }
 
 func (s *stubLimitsClient) Reserve(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
+	_ *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
 	s.reserveCalls++
 	if s.reserveErr != nil {
 		return nil, s.reserveErr
 	}
-	return connect.NewResponse(s.reserveResp), nil
+	return s.reserveResp, nil
 }
 
 func (s *stubLimitsClient) Commit(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
+	_ *limitsv1.CommitRequest,
+) (*limitsv1.CommitResponse, error) {
 	s.commitCalls++
 	if s.commitErr != nil {
 		return nil, s.commitErr
@@ -304,13 +374,13 @@ func (s *stubLimitsClient) Commit(
 	if resp == nil {
 		resp = &limitsv1.CommitResponse{}
 	}
-	return connect.NewResponse(resp), nil
+	return resp, nil
 }
 
 func (s *stubLimitsClient) Release(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReleaseRequest],
-) (*connect.Response[limitsv1.ReleaseResponse], error) {
+	_ *limitsv1.ReleaseRequest,
+) (*limitsv1.ReleaseResponse, error) {
 	s.releaseCalls++
 	if s.releaseErr != nil {
 		return nil, s.releaseErr
@@ -319,14 +389,14 @@ func (s *stubLimitsClient) Release(
 	if resp == nil {
 		resp = &limitsv1.ReleaseResponse{}
 	}
-	return connect.NewResponse(resp), nil
+	return resp, nil
 }
 
 func (s *stubLimitsClient) Reverse(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReverseRequest],
-) (*connect.Response[limitsv1.ReverseResponse], error) {
-	return connect.NewResponse(&limitsv1.ReverseResponse{}), nil
+	_ *limitsv1.ReverseRequest,
+) (*limitsv1.ReverseResponse, error) {
+	return &limitsv1.ReverseResponse{}, nil
 }
 
 // Compile-time check.
@@ -397,9 +467,7 @@ func TestCreate_EmptyIdempotencyKey_Rejected(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	var connectErr *connect.Error
-	require.ErrorAs(t, err, &connectErr)
-	assert.Equal(t, connect.CodeInvalidArgument, connectErr.Code())
+	assert.Equal(t, connect.CodeInvalidArgument, apperrors.CleanErr(err).Code())
 	assert.Equal(t, 0, limitsCli.reserveCalls, "gate must not be reached when key is empty")
 }
 
@@ -412,7 +480,7 @@ func TestCreate_GateDisabled_BehavesAsBefore(t *testing.T) {
 	laRepo := &stubLoanAccountRepo{account: la}
 	opsCli := &stubOperationsClient{
 		transferResp: &operationsv1.TransferOrderExecuteResponse{
-			Data: &operationsv1.TransferOrderObject{Id: "txn-1"},
+			Data: &operationsv1.TransferOrderObject{Id: "txn-1", State: commonv1.STATE_INACTIVE},
 		},
 	}
 
@@ -435,7 +503,7 @@ func TestCreate_GateAllowed(t *testing.T) {
 	laRepo := &stubLoanAccountRepo{account: la}
 	opsCli := &stubOperationsClient{
 		transferResp: &operationsv1.TransferOrderExecuteResponse{
-			Data: &operationsv1.TransferOrderObject{Id: "txn-gate-allowed"},
+			Data: &operationsv1.TransferOrderObject{Id: "txn-gate-allowed", State: commonv1.STATE_INACTIVE},
 		},
 	}
 	limitsCli := &stubLimitsClient{
@@ -471,7 +539,7 @@ func TestCreate_GateDenied(t *testing.T) {
 	opsCli := &stubOperationsClient{} // Should not be called.
 
 	limitsCli := &stubLimitsClient{
-		reserveErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("limit breached")),
+		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "limit breached"),
 	}
 
 	b := buildDisbBusiness(disbRepo, laRepo, opsCli, limitsCli, true)
@@ -533,7 +601,10 @@ func TestCreate_GatePending(t *testing.T) {
 // already persisted (idempotency match), Create returns early without hitting
 // the Gate or ops client.
 func TestCreate_IdempotencyShortCircuit(t *testing.T) {
-	existingDisb := &loansmodels.Disbursement{}
+	existingDisb := &loansmodels.Disbursement{
+		LoanAccountID: "loan-1",
+		Status:        int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED),
+	}
 	existingDisb.GenID(context.Background())
 
 	disbRepo := &stubDisbursementRepo{findResp: existingDisb, findErr: nil}
@@ -550,4 +621,115 @@ func TestCreate_IdempotencyShortCircuit(t *testing.T) {
 	assert.NotNil(t, result)
 	// Gate not called because we short-circuited on idempotency.
 	assert.Equal(t, 0, limitsCli.reserveCalls)
+}
+
+// A rail error that may clear on retry leaves the row PROCESSING under its
+// own key; the retry with that key resumes the same order and completes.
+func TestCreate_TransientFailureKeepsProcessingAndSameKeyResumes(t *testing.T) {
+	la := pendingDisbursementLA()
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{
+		transferErr: connect.NewError(connect.CodeUnavailable, "ledger down"),
+	}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	req := &loansv1.DisbursementCreateRequest{LoanAccountId: la.GetID(), IdempotencyKey: "idem-resume", Channel: "BANK"}
+	_, err := b.Create(context.Background(), req)
+	require.ErrorIs(t, err, ErrDisbursementNotSettled)
+	require.Len(t, disbRepo.stored, 1)
+	stored := disbRepo.stored[0]
+	assert.Equal(t, int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING), stored.Status,
+		"a transient failure must not mark the disbursement failed")
+	assert.Equal(t, "idem-resume", stored.IdempotencyKey, "the idempotency key must never be rewritten")
+	require.NotEmpty(t, disbRepo.updates)
+	assert.Contains(t, disbRepo.updates[len(disbRepo.updates)-1]["failure_reason"], "ledger down")
+
+	// Retry with the same key: the stored row is found and resumed.
+	disbRepo.findResp, disbRepo.findErr = stored, nil
+	opsCli.transferErr = nil
+	opsCli.transferResp = &operationsv1.TransferOrderExecuteResponse{
+		Data: &operationsv1.TransferOrderObject{Id: "txn-resumed", State: commonv1.STATE_INACTIVE},
+	}
+	result, err := b.Create(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED, result.GetStatus())
+	assert.Len(t, disbRepo.stored, 1, "the resume must not create a second disbursement row")
+}
+
+// A rejection the payment path will never accept marks the row FAILED and
+// keeps its key, so the same key is answered with the failure.
+func TestCreate_PermanentRejectionMarksFailed(t *testing.T) {
+	la := pendingDisbursementLA()
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{
+		transferErr: connect.NewError(connect.CodeFailedPrecondition, "order marked failed"),
+	}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-reject", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDisbursementRejected)
+	require.Len(t, disbRepo.stored, 1)
+	assert.Equal(t, int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED), disbRepo.stored[0].Status)
+	assert.Equal(t, "idem-reject", disbRepo.stored[0].IdempotencyKey)
+}
+
+// An order the operations service returns in any state other than inactive
+// has not moved money; it must not be recorded as completed.
+func TestCreate_UnsettledOrderStateIsNotCompleted(t *testing.T) {
+	la := pendingDisbursementLA()
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{
+		transferResp: &operationsv1.TransferOrderExecuteResponse{
+			Data: &operationsv1.TransferOrderObject{Id: "txn-open", State: commonv1.STATE_CREATED},
+		},
+	}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-open", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDisbursementNotSettled)
+	assert.Equal(t, int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING), disbRepo.stored[0].Status)
+}
+
+// A second request with a different key for a loan that already has a live
+// disbursement is refused before it reaches the payment rail.
+func TestCreate_SecondKeyForLiveLoanIsRefused(t *testing.T) {
+	la := pendingDisbursementLA()
+	live := &loansmodels.Disbursement{LoanAccountID: la.GetID(), IdempotencyKey: "idem-first",
+		Status: int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING)}
+	live.GenID(context.Background())
+	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found"), findResp: live,
+		claimErr: repository.ErrLiveDisbursementExists}
+	laRepo := &stubLoanAccountRepo{account: la}
+	opsCli := &stubOperationsClient{}
+	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-second", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDisbursementInFlight)
+	assert.Empty(t, disbRepo.stored)
+}
+
+// An idempotency key already used for another loan is refused rather than
+// answered with that loan's disbursement.
+func TestCreate_KeyBoundToAnotherLoanIsRefused(t *testing.T) {
+	la := pendingDisbursementLA()
+	other := &loansmodels.Disbursement{LoanAccountID: "some-other-loan", IdempotencyKey: "idem-shared",
+		Status: int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED)}
+	other.GenID(context.Background())
+	disbRepo := &stubDisbursementRepo{findResp: other}
+	laRepo := &stubLoanAccountRepo{account: la}
+	b := buildDisbBusiness(disbRepo, laRepo, &stubOperationsClient{}, nil, false)
+
+	_, err := b.Create(context.Background(), &loansv1.DisbursementCreateRequest{
+		LoanAccountId: la.GetID(), IdempotencyKey: "idem-shared", Channel: "BANK",
+	})
+	require.ErrorIs(t, err, ErrDuplicateIdempotencyKey)
 }

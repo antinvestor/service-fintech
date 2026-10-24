@@ -18,9 +18,8 @@ import (
 	"context"
 	"time"
 
-	"buf.build/gen/go/antinvestor/savings/connectrpc/go/savings/v1/savingsv1connect"
+	"buf.build/gen/go/antinvestor/savings/connectrpc/go/v2/savings/v1/savingsv1connect"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
 
 	"github.com/antinvestor/service-fintech/apps/savings/service/business"
@@ -60,35 +59,35 @@ func NewSavingsServer(
 
 func (s *SavingsServer) SavingsProductSave(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsProductSaveRequest],
-) (*connect.Response[savingsv1.SavingsProductSaveResponse], error) {
-	result, err := s.spBusiness.Save(ctx, req.Msg.GetData())
+	req *savingsv1.SavingsProductSaveRequest,
+) (*savingsv1.SavingsProductSaveResponse, error) {
+	result, err := s.spBusiness.Save(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceSavingsProduct, result.GetId())
 	audit.WithAction(ctx, audit.ActionSave)
 	audit.WithDetail(ctx, "name", result.GetName())
-	return connect.NewResponse(&savingsv1.SavingsProductSaveResponse{Data: result}), nil
+	return &savingsv1.SavingsProductSaveResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) SavingsProductGet(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsProductGetRequest],
-) (*connect.Response[savingsv1.SavingsProductGetResponse], error) {
-	result, err := s.spBusiness.Get(ctx, req.Msg.GetId())
+	req *savingsv1.SavingsProductGetRequest,
+) (*savingsv1.SavingsProductGetResponse, error) {
+	result, err := s.spBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&savingsv1.SavingsProductGetResponse{Data: result}), nil
+	return &savingsv1.SavingsProductGetResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) SavingsProductSearch(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsProductSearchRequest],
-	stream *connect.ServerStream[savingsv1.SavingsProductSearchResponse],
+	req *savingsv1.SavingsProductSearchRequest,
+	stream savingsv1connect.SavingsServiceSavingsProductSearchServerStream,
 ) error {
-	err := s.spBusiness.Search(ctx, req.Msg,
+	err := s.spBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*savingsv1.SavingsProductObject) error {
 			return stream.Send(&savingsv1.SavingsProductSearchResponse{Data: batch})
 		})
@@ -102,34 +101,34 @@ func (s *SavingsServer) SavingsProductSearch(
 
 func (s *SavingsServer) SavingsAccountCreate(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsAccountCreateRequest],
-) (*connect.Response[savingsv1.SavingsAccountCreateResponse], error) {
-	result, err := s.saBusiness.Create(ctx, req.Msg.GetData())
+	req *savingsv1.SavingsAccountCreateRequest,
+) (*savingsv1.SavingsAccountCreateResponse, error) {
+	result, err := s.saBusiness.Create(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceSavingsAccount, result.GetId())
 	audit.WithAction(ctx, audit.ActionCreate)
-	return connect.NewResponse(&savingsv1.SavingsAccountCreateResponse{Data: result}), nil
+	return &savingsv1.SavingsAccountCreateResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) SavingsAccountGet(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsAccountGetRequest],
-) (*connect.Response[savingsv1.SavingsAccountGetResponse], error) {
-	result, err := s.saBusiness.Get(ctx, req.Msg.GetId())
+	req *savingsv1.SavingsAccountGetRequest,
+) (*savingsv1.SavingsAccountGetResponse, error) {
+	result, err := s.saBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&savingsv1.SavingsAccountGetResponse{Data: result}), nil
+	return &savingsv1.SavingsAccountGetResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) SavingsAccountSearch(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsAccountSearchRequest],
-	stream *connect.ServerStream[savingsv1.SavingsAccountSearchResponse],
+	req *savingsv1.SavingsAccountSearchRequest,
+	stream savingsv1connect.SavingsServiceSavingsAccountSearchServerStream,
 ) error {
-	err := s.saBusiness.Search(ctx, req.Msg,
+	err := s.saBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*savingsv1.SavingsAccountObject) error {
 			return stream.Send(&savingsv1.SavingsAccountSearchResponse{Data: batch})
 		})
@@ -141,75 +140,65 @@ func (s *SavingsServer) SavingsAccountSearch(
 
 func (s *SavingsServer) SavingsAccountFreeze(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsAccountFreezeRequest],
-) (*connect.Response[savingsv1.SavingsAccountFreezeResponse], error) {
-	result, err := s.saBusiness.Freeze(ctx, req.Msg.GetId(), req.Msg.GetReason())
+	req *savingsv1.SavingsAccountFreezeRequest,
+) (*savingsv1.SavingsAccountFreezeResponse, error) {
+	result, err := s.saBusiness.Freeze(ctx, req.GetId(), req.GetReason())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceSavingsAccount, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceSavingsAccount, req.GetId())
 	audit.WithAction(ctx, audit.ActionSuspend)
-	audit.WithDetail(ctx, "reason", req.Msg.GetReason())
-	return connect.NewResponse(&savingsv1.SavingsAccountFreezeResponse{Data: result}), nil
+	audit.WithDetail(ctx, "reason", req.GetReason())
+	return &savingsv1.SavingsAccountFreezeResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) SavingsAccountClose(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsAccountCloseRequest],
-) (*connect.Response[savingsv1.SavingsAccountCloseResponse], error) {
-	result, err := s.saBusiness.Close(ctx, req.Msg.GetId(), req.Msg.GetReason())
+	req *savingsv1.SavingsAccountCloseRequest,
+) (*savingsv1.SavingsAccountCloseResponse, error) {
+	result, err := s.saBusiness.Close(ctx, req.GetId(), req.GetReason())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceSavingsAccount, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceSavingsAccount, req.GetId())
 	audit.WithAction(ctx, "close")
-	audit.WithDetail(ctx, "reason", req.Msg.GetReason())
-	return connect.NewResponse(&savingsv1.SavingsAccountCloseResponse{Data: result}), nil
+	audit.WithDetail(ctx, "reason", req.GetReason())
+	return &savingsv1.SavingsAccountCloseResponse{Data: result}, nil
 }
 
 // --- Deposit RPCs ---
 
-//nolint:dupl // DepositRecord and WithdrawalRequest share handler shape but act on distinct types and business layers; extracting a helper would require generics for marginal gain.
 func (s *SavingsServer) DepositRecord(
 	ctx context.Context,
-	req *connect.Request[savingsv1.DepositRecordRequest],
-) (*connect.Response[savingsv1.DepositRecordResponse], error) {
-	depAmount, _ := models.MoneyToMinorUnits(req.Msg.GetAmount())
-	result, err := s.depBusiness.Record(
-		ctx,
-		req.Msg.GetSavingsAccountId(),
-		models.MinorUnitsToString(depAmount),
-		req.Msg.GetPaymentReference(),
-		req.Msg.GetChannel(),
-		req.Msg.GetPayerReference(),
-		req.Msg.GetIdempotencyKey(),
-	)
+	req *savingsv1.DepositRecordRequest,
+) (*savingsv1.DepositRecordResponse, error) {
+	result, err := s.depBusiness.Record(ctx, req)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceDeposit, result.GetId())
 	audit.WithAction(ctx, audit.ActionCreate)
-	audit.WithDetail(ctx, "savings_account_id", req.Msg.GetSavingsAccountId())
-	return connect.NewResponse(&savingsv1.DepositRecordResponse{Data: result}), nil
+	audit.WithDetail(ctx, "savings_account_id", req.GetSavingsAccountId())
+	return &savingsv1.DepositRecordResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) DepositGet(
 	ctx context.Context,
-	req *connect.Request[savingsv1.DepositGetRequest],
-) (*connect.Response[savingsv1.DepositGetResponse], error) {
-	result, err := s.depBusiness.Get(ctx, req.Msg.GetId())
+	req *savingsv1.DepositGetRequest,
+) (*savingsv1.DepositGetResponse, error) {
+	result, err := s.depBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&savingsv1.DepositGetResponse{Data: result}), nil
+	return &savingsv1.DepositGetResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) DepositSearch(
 	ctx context.Context,
-	req *connect.Request[savingsv1.DepositSearchRequest],
-	stream *connect.ServerStream[savingsv1.DepositSearchResponse],
+	req *savingsv1.DepositSearchRequest,
+	stream savingsv1connect.SavingsServiceDepositSearchServerStream,
 ) error {
-	err := s.depBusiness.Search(ctx, req.Msg,
+	err := s.depBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*savingsv1.DepositObject) error {
 			return stream.Send(&savingsv1.DepositSearchResponse{Data: batch})
 		})
@@ -221,60 +210,63 @@ func (s *SavingsServer) DepositSearch(
 
 // --- Withdrawal RPCs ---
 
-//nolint:dupl // See DepositRecord rationale: distinct types/business layers, not worth a generic helper.
 func (s *SavingsServer) WithdrawalRequest(
 	ctx context.Context,
-	req *connect.Request[savingsv1.WithdrawalRequestRequest],
-) (*connect.Response[savingsv1.WithdrawalRequestResponse], error) {
-	wdAmount, _ := models.MoneyToMinorUnits(req.Msg.GetAmount())
-	result, err := s.wdBusiness.Request(
-		ctx,
-		req.Msg.GetSavingsAccountId(),
-		models.MinorUnitsToString(wdAmount),
-		req.Msg.GetChannel(),
-		req.Msg.GetRecipientReference(),
-		req.Msg.GetReason(),
-		req.Msg.GetIdempotencyKey(),
-	)
+	req *savingsv1.WithdrawalRequestRequest,
+) (*savingsv1.WithdrawalRequestResponse, error) {
+	result, err := s.wdBusiness.Request(ctx, req)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceWithdrawal, result.GetId())
 	audit.WithAction(ctx, audit.ActionCreate)
-	audit.WithDetail(ctx, "savings_account_id", req.Msg.GetSavingsAccountId())
-	return connect.NewResponse(&savingsv1.WithdrawalRequestResponse{Data: result}), nil
+	audit.WithDetail(ctx, "savings_account_id", req.GetSavingsAccountId())
+	return &savingsv1.WithdrawalRequestResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) WithdrawalApprove(
 	ctx context.Context,
-	req *connect.Request[savingsv1.WithdrawalApproveRequest],
-) (*connect.Response[savingsv1.WithdrawalApproveResponse], error) {
-	result, err := s.wdBusiness.Approve(ctx, req.Msg.GetId())
+	req *savingsv1.WithdrawalApproveRequest,
+) (*savingsv1.WithdrawalApproveResponse, error) {
+	result, err := s.wdBusiness.Approve(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceWithdrawal, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceWithdrawal, req.GetId())
 	audit.WithAction(ctx, audit.ActionApprove)
-	return connect.NewResponse(&savingsv1.WithdrawalApproveResponse{Data: result}), nil
+	return &savingsv1.WithdrawalApproveResponse{Data: result}, nil
+}
+
+func (s *SavingsServer) WithdrawalCancel(
+	ctx context.Context,
+	req *savingsv1.WithdrawalCancelRequest,
+) (*savingsv1.WithdrawalCancelResponse, error) {
+	result, err := s.wdBusiness.Cancel(ctx, req.GetId(), req.GetReason())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceWithdrawal, req.GetId())
+	audit.WithAction(ctx, audit.ActionReject)
+	return &savingsv1.WithdrawalCancelResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) WithdrawalGet(
 	ctx context.Context,
-	req *connect.Request[savingsv1.WithdrawalGetRequest],
-) (*connect.Response[savingsv1.WithdrawalGetResponse], error) {
-	result, err := s.wdBusiness.Get(ctx, req.Msg.GetId())
+	req *savingsv1.WithdrawalGetRequest,
+) (*savingsv1.WithdrawalGetResponse, error) {
+	result, err := s.wdBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&savingsv1.WithdrawalGetResponse{Data: result}), nil
+	return &savingsv1.WithdrawalGetResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) WithdrawalSearch(
 	ctx context.Context,
-	req *connect.Request[savingsv1.WithdrawalSearchRequest],
-	stream *connect.ServerStream[savingsv1.WithdrawalSearchResponse],
+	req *savingsv1.WithdrawalSearchRequest,
+	stream savingsv1connect.SavingsServiceWithdrawalSearchServerStream,
 ) error {
-	err := s.wdBusiness.Search(ctx, req.Msg,
+	err := s.wdBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*savingsv1.WithdrawalObject) error {
 			return stream.Send(&savingsv1.WithdrawalSearchResponse{Data: batch})
 		})
@@ -288,21 +280,21 @@ func (s *SavingsServer) WithdrawalSearch(
 
 func (s *SavingsServer) InterestAccrualGet(
 	ctx context.Context,
-	req *connect.Request[savingsv1.InterestAccrualGetRequest],
-) (*connect.Response[savingsv1.InterestAccrualGetResponse], error) {
-	result, err := s.iaBusiness.Get(ctx, req.Msg.GetId())
+	req *savingsv1.InterestAccrualGetRequest,
+) (*savingsv1.InterestAccrualGetResponse, error) {
+	result, err := s.iaBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&savingsv1.InterestAccrualGetResponse{Data: result}), nil
+	return &savingsv1.InterestAccrualGetResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) InterestAccrualSearch(
 	ctx context.Context,
-	req *connect.Request[savingsv1.InterestAccrualSearchRequest],
-	stream *connect.ServerStream[savingsv1.InterestAccrualSearchResponse],
+	req *savingsv1.InterestAccrualSearchRequest,
+	stream savingsv1connect.SavingsServiceInterestAccrualSearchServerStream,
 ) error {
-	err := s.iaBusiness.Search(ctx, req.Msg,
+	err := s.iaBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*savingsv1.InterestAccrualObject) error {
 			return stream.Send(&savingsv1.InterestAccrualSearchResponse{Data: batch})
 		})
@@ -316,21 +308,21 @@ func (s *SavingsServer) InterestAccrualSearch(
 
 func (s *SavingsServer) SavingsBalanceGet(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsBalanceGetRequest],
-) (*connect.Response[savingsv1.SavingsBalanceGetResponse], error) {
-	result, err := s.saBusiness.GetBalance(ctx, req.Msg.GetSavingsAccountId())
+	req *savingsv1.SavingsBalanceGetRequest,
+) (*savingsv1.SavingsBalanceGetResponse, error) {
+	result, err := s.saBusiness.GetBalance(ctx, req.GetSavingsAccountId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&savingsv1.SavingsBalanceGetResponse{Data: result}), nil
+	return &savingsv1.SavingsBalanceGetResponse{Data: result}, nil
 }
 
 func (s *SavingsServer) SavingsStatement(
 	ctx context.Context,
-	req *connect.Request[savingsv1.SavingsStatementRequest],
-) (*connect.Response[savingsv1.SavingsStatementResponse], error) {
-	from := models.StringToTime(req.Msg.GetFromDate())
-	to := models.StringToTime(req.Msg.GetToDate())
+	req *savingsv1.SavingsStatementRequest,
+) (*savingsv1.SavingsStatementResponse, error) {
+	from := models.StringToTime(req.GetFromDate())
+	to := models.StringToTime(req.GetToDate())
 	var fromTime, toTime time.Time
 	if from != nil {
 		fromTime = *from
@@ -338,9 +330,9 @@ func (s *SavingsServer) SavingsStatement(
 	if to != nil {
 		toTime = *to
 	}
-	result, err := s.saBusiness.GetStatement(ctx, req.Msg.GetSavingsAccountId(), fromTime, toTime)
+	result, err := s.saBusiness.GetStatement(ctx, req.GetSavingsAccountId(), fromTime, toTime)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(result), nil
+	return result, nil
 }

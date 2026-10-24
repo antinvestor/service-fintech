@@ -7,20 +7,19 @@ import 'identity_transport_provider.dart';
 /// Search investors by query.
 final investorListProvider =
     FutureProvider.family<List<InvestorObject>, String>((ref, query) async {
-  final client = ref.watch(identityServiceClientProvider);
-  final stream = client.investorSearch(
-    InvestorSearchRequest(query: query, cursor: PageCursor(limit: 50)),
-  );
-  return collectStream(stream, extract: (response) => response.data);
-});
+      final client = ref.watch(identityServiceClientProvider);
+      final stream = client.investorSearch(
+        InvestorSearchRequest(query: query, cursor: PageCursor(limit: 50)),
+      );
+      return collectStream(stream, extract: (response) => response.data);
+    });
 
 /// Notifier for investor mutations.
 class InvestorNotifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncValue.data(null);
 
-  IdentityServiceClient get _client =>
-      ref.read(identityServiceClientProvider);
+  IdentityServiceClient get _client => ref.read(identityServiceClientProvider);
 
   Future<InvestorObject> save(InvestorObject investor) async {
     state = const AsyncValue.loading();
@@ -39,5 +38,4 @@ class InvestorNotifier extends Notifier<AsyncValue<void>> {
 }
 
 final investorNotifierProvider =
-    NotifierProvider<InvestorNotifier, AsyncValue<void>>(
-        InvestorNotifier.new);
+    NotifierProvider<InvestorNotifier, AsyncValue<void>>(InvestorNotifier.new);

@@ -17,47 +17,48 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationspb "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/setup"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/setup"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
-
-	auditmw "github.com/antinvestor/common/audit"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/operations/config"
 	"github.com/antinvestor/service-fintech/apps/operations/service/business"
 	opsevents "github.com/antinvestor/service-fintech/apps/operations/service/events"
 	"github.com/antinvestor/service-fintech/apps/operations/service/handlers"
 	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/bootcheck"
+	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
 	fundingmodels "github.com/antinvestor/service-fintech/apps/funding/service/models"
 	fundingrepo "github.com/antinvestor/service-fintech/apps/funding/service/repository"
-	stawirepo "github.com/antinvestor/service-fintech/apps/stawi/service/repository"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 )
-
-var errCurrentPeriodNotFound = errors.New("current period not found")
 
 func main() {
 	tmpCtx := context.Background()
@@ -72,14 +73,24 @@ func main() {
 		cfg.ServiceName = "service_operations"
 	}
 
+	// Refuse to serve on an environment that is unsafe outside local
+	// development (docs/runbook/required-environment.md).
+	if err = bootcheck.Validate(tmpCtx, &cfg); err != nil {
+		util.Log(tmpCtx).WithError(err).Fatal("environment is not deployment-safe")
+	}
+
 	ctx, svc := frame.NewServiceWithContext(
 		tmpCtx,
 		frame.WithConfig(&cfg),
 		frame.WithDatastore(),
 	)
 
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -95,6 +106,13 @@ func main() {
 	}
 
 	sm := svc.SecurityManager()
+
+	// RPC-level audit delivery. Required when running securely; a nil client
+	// is tolerated (and logged) only for local development.
+	auditCli, err := clients.ResolveAuditClient(ctx, &cfg, cfg.IsRunSecurely(), cfg.AuditConfig)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup audit client")
+	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
@@ -106,32 +124,10 @@ func main() {
 		return
 	}
 
-	// Identity SDK client
-	identityCli, idErr := setupIdentityClient(ctx, cfg)
-	if idErr != nil {
-		log.WithError(idErr).Warn("main -- Could not setup identity client")
-	}
-
-	// Platform clients for transfer order execution (ledger, payment, etc.).
-	// The ledger client is load-bearing: every transfer order has to post a
-	// double-entry transaction. Refuse to start if it is missing so we never
-	// silently drop postings against a partially-wired deployment.
-	platformClients, pcErr := clients.NewPlatformClients(ctx, &cfg, cfg.ServiceEndpoints())
-	if pcErr != nil {
-		log.WithError(pcErr).Error("main -- could not initialise platform clients")
+	peers, peerErr := setupPeerClients(ctx, cfg)
+	if peerErr != nil {
+		log.WithError(peerErr).Error("main -- could not initialise peer clients")
 		return
-	}
-	if platformClients == nil || platformClients.LedgerClient == nil {
-		log.Error("main -- ledger client is required but was not configured")
-		return
-	}
-
-	// Limits client. Optional — when LimitsServiceURI is empty, SetupClient
-	// returns nil and the gate is disabled at runtime regardless of the config flag.
-	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if limitsErr != nil {
-		log.WithError(limitsErr).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
 	}
 
 	serviceOptions := setupServiceOptions(
@@ -140,10 +136,11 @@ func main() {
 		evtsMan,
 		dbPool,
 		workMan,
-		identityCli,
-		platformClients,
-		limitsCli,
+		peers.identity,
+		peers.platform,
+		peers.limits,
 		cfg,
+		auditCli,
 	)
 
 	svc.Init(ctx, serviceOptions...)
@@ -164,6 +161,7 @@ func setupServiceOptions(
 	platformClients *clients.PlatformClients,
 	limitsCli limitsv1connect.LimitsServiceClient,
 	cfg aconfig.OperationsConfig,
+	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	// Operations repositories
 	toRepo := repository.NewTransferOrderRepository(ctx, dbPool, workMan)
@@ -179,11 +177,7 @@ func setupServiceOptions(
 	ftRepo := fundingrepo.NewFundingTrancheRepository(ctx, dbPool, workMan)
 	iaRepo := fundingrepo.NewInvestorAccountRepository(ctx, dbPool, workMan)
 
-	// Stawi period repository (shared database)
-	perRepo := stawirepo.NewPeriodRepository(ctx, dbPool, workMan)
-
 	// Wrap cross-domain repos in adapters for the business layer.
-	perAdapter := &periodAdapter{repo: perRepo}
 	lfAdapter := &loanFundingAdapter{repo: lfRepo}
 	ftAdapter := &fundingTrancheAdapter{repo: ftRepo, eventsMan: evtsMan}
 	iaAdapter := &investorAccountAdapter{repo: iaRepo, eventsMan: evtsMan}
@@ -214,10 +208,12 @@ func setupServiceOptions(
 		cfg.LimitsGateEnabledOperationsTransfer,
 		cfg.LimitsGateModeOperationsTransfer,
 	)
-	_ = business.NewObligationBusiness(ctx, evtsMan, obRepo, identityCli, perAdapter)
+	// Obligations are owned by stawi: it is the process that wires
+	// ObligationBusiness into its workflow callbacks and creates the rows this
+	// service allocates against. Operations only reads and consumes them.
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -231,6 +227,56 @@ func setupServiceOptions(
 			audit.NewEventSave(ctx, auditRepo),
 		),
 	}
+}
+
+var (
+	errIdentityClientRequired = errors.New("identity client is required but was not configured")
+	errLedgerClientRequired   = errors.New("ledger client is required but was not configured")
+	errPaymentClientRequired  = errors.New("payment client is required but was not configured: " +
+		"payout orders would post to the ledger with no cash leaving")
+)
+
+// peerClients are the outbound service clients the runtime process needs.
+type peerClients struct {
+	identity identityv1connect.IdentityServiceClient
+	platform *clients.PlatformClients
+	limits   limitsv1connect.LimitsServiceClient
+}
+
+// setupPeerClients builds the peer clients. Identity and ledger are
+// load-bearing: payment identification resolves every payer through identity
+// and every transfer order posts a double-entry transaction, so a missing
+// client fails startup instead of silently misrouting payments or dropping
+// postings. The limits client is optional; when LimitsServiceURI is empty the
+// gate is disabled at runtime.
+func setupPeerClients(ctx context.Context, cfg aconfig.OperationsConfig) (peerClients, error) {
+	identityCli, err := setupIdentityClient(ctx, cfg)
+	if err != nil {
+		return peerClients{}, fmt.Errorf("identity client: %w", err)
+	}
+	if identityCli == nil {
+		return peerClients{}, errIdentityClientRequired
+	}
+
+	platformClients, err := clients.NewPlatformClients(ctx, &cfg, cfg.ServiceEndpoints())
+	if err != nil {
+		return peerClients{}, fmt.Errorf("platform clients: %w", err)
+	}
+	if platformClients == nil || platformClients.LedgerClient == nil {
+		return peerClients{}, errLedgerClientRequired
+	}
+	if platformClients.PaymentClient == nil {
+		return peerClients{}, errPaymentClientRequired
+	}
+
+	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"operations_transfer": cfg.LimitsGateEnabledOperationsTransfer,
+	}); gateErr != nil {
+		return peerClients{}, gateErr
+	}
+
+	return peerClients{identity: identityCli, platform: platformClients, limits: limitsCli}, nil
 }
 
 func setupIdentityClient(
@@ -250,6 +296,7 @@ func setupConnectServer(
 	toBiz business.TransferOrderBusiness,
 	prBiz business.PaymentRoutingBusiness,
 	toRepo repository.TransferOrderRepository,
+	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	opsHandler := handlers.NewOperationsServer(toBiz, prBiz, toRepo)
 
@@ -264,21 +311,20 @@ func setupConnectServer(
 	functionChecker := authorizer.NewFunctionChecker(auth, svcPerms.Namespace)
 	functionAccessInterceptor := connectInterceptors.NewFunctionAccessInterceptor(functionChecker, procMap)
 
-	opsAuditInterceptor := auditmw.NewInterceptor("service_operations", nil)
+	opsAuditInterceptor := clients.AuditInterceptor("service_operations", auditCli)
 
 	defaultInterceptorList, err := connectInterceptors.DefaultList(
 		ctx, sm.GetAuthenticator(ctx),
-		tenancyAccessInterceptor, functionAccessInterceptor, opsAuditInterceptor)
+		tenancyAccessInterceptor, tenantassert.Interceptor(), functionAccessInterceptor, opsAuditInterceptor)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}
 
-	interceptorOption := connect.WithInterceptors(defaultInterceptorList...)
-
-	opsPath, opsServerHandler := operationsv1connect.NewOperationsServiceHandler(opsHandler, interceptorOption)
+	server := connect.NewServer(defaultInterceptorList...)
+	operationsv1connect.RegisterOperationsServiceHandler(server, opsHandler)
 
 	mux := http.NewServeMux()
-	mux.Handle(opsPath, opsServerHandler)
+	connecthttp.Mount(mux, server)
 
 	return mux
 }
@@ -297,26 +343,6 @@ func setupLimitsClient(
 // ---------------------------------------------------------------------------
 // Cross-domain adapters (stawi period, funding repos)
 // ---------------------------------------------------------------------------
-
-type periodAdapter struct {
-	repo stawirepo.PeriodRepository
-}
-
-func (a *periodAdapter) GetCurrentByGroupID(ctx context.Context, groupID string) (*business.PeriodInfo, error) {
-	p, err := a.repo.GetCurrentByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	if p == nil {
-		return nil, errCurrentPeriodNotFound
-	}
-	info := &business.PeriodInfo{
-		EndDate:  p.EndDate,
-		Position: p.Position,
-	}
-	info.BaseModel = p.BaseModel
-	return info, nil
-}
 
 type loanFundingAdapter struct {
 	repo fundingrepo.LoanFundingRepository

@@ -24,4 +24,10 @@ const (
 	exprCoalesceOrganizationID = "coalesce(%sorganization_id, '')"
 	exprCoalesceProfileID      = "coalesce(%sprofile_id, '')"
 	exprCoalesceProperties     = "coalesce(%sproperties::text, '')"
+
+	// Columns every conditional update touches alongside its own fields.
+	colModifiedAt = "modified_at"
+	colModifiedBy = "modified_by"
+	colVerifiedAt = "verified_at"
+	colVersion    = "version"
 )

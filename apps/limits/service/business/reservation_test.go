@@ -24,13 +24,13 @@ import (
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -70,7 +70,7 @@ func (s *ReservationBusinessSuite) databaseResource(ctx context.Context) definit
 // resvEnv provisions a fresh isolated DB and wires up all dependencies.
 // Returns ctx (with tenancy), biz (ReservationBusiness), dbPool, and a
 // policyRepo for test setup.
-func (s *ReservationBusinessSuite) resvEnv(tenantID, partitionID string) (
+func (s *ReservationBusinessSuite) resvEnv(tenantID, partitionID string, opts ...business.ReservationOption) (
 	context.Context,
 	business.ReservationBusiness,
 	pool.Pool,
@@ -122,7 +122,7 @@ func (s *ReservationBusinessSuite) resvEnv(tenantID, partitionID string) (
 
 	biz := business.NewReservationBusiness(
 		resvRepo, ledgerRepo, candidateRepo, approvalRepo, policyRepo,
-		evaluator, resolver, auditing, dbPool, nil,
+		evaluator, resolver, auditing, dbPool, nil, opts...,
 	)
 
 	_ = policyVerRepo // used indirectly via Save

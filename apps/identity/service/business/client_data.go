@@ -16,10 +16,12 @@ package business
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
@@ -27,14 +29,22 @@ import (
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
 )
 
+// Actions recorded on the client data entry audit trail.
+const (
+	actionSubmitted = "submitted"
+	actionVerified  = "verified"
+	actionRejected  = "rejected"
+	actionMoreInfo  = "more_info"
+)
+
 // ClientDataBusiness defines the operations for managing client KYC data entries.
 type ClientDataBusiness interface {
 	Save(ctx context.Context, entry *models.ClientDataEntry) (*models.ClientDataEntry, error)
 	Get(ctx context.Context, clientID, fieldKey string) (*models.ClientDataEntry, error)
 	List(ctx context.Context, clientID string, status int32, offset, limit int) ([]*models.ClientDataEntry, error)
-	Verify(ctx context.Context, entryID, reviewerID, comment string) (*models.ClientDataEntry, error)
-	Reject(ctx context.Context, entryID, reviewerID, reason string) (*models.ClientDataEntry, error)
-	RequestInfo(ctx context.Context, entryID, reviewerID, comment string) (*models.ClientDataEntry, error)
+	Verify(ctx context.Context, entryID, comment string) (*models.ClientDataEntry, error)
+	Reject(ctx context.Context, entryID, reason string) (*models.ClientDataEntry, error)
+	RequestInfo(ctx context.Context, entryID, comment string) (*models.ClientDataEntry, error)
 	History(ctx context.Context, entryID string) ([]*models.ClientDataEntryHistory, error)
 }
 
@@ -42,6 +52,8 @@ type clientDataBusiness struct {
 	eventsMan   fevents.Manager
 	entryRepo   repository.ClientDataEntryRepository
 	historyRepo repository.ClientDataEntryHistoryRepository
+	notifier    *ClientNotifier
+	clients     clientLookup
 }
 
 func NewClientDataBusiness(
@@ -49,56 +61,67 @@ func NewClientDataBusiness(
 	eventsMan fevents.Manager,
 	entryRepo repository.ClientDataEntryRepository,
 	historyRepo repository.ClientDataEntryHistoryRepository,
+	opts ...Option,
 ) ClientDataBusiness {
+	o := applyOptions(opts)
 	return &clientDataBusiness{
 		eventsMan:   eventsMan,
 		entryRepo:   entryRepo,
 		historyRepo: historyRepo,
+		notifier:    o.clientNotifier,
+		clients:     o.clientLookup,
 	}
 }
 
 func (b *clientDataBusiness) Save(ctx context.Context, entry *models.ClientDataEntry) (*models.ClientDataEntry, error) {
 	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.Save")
 
-	// Check if an entry already exists for this client+key pair
-	existing, err := b.entryRepo.GetByClientAndKey(ctx, entry.ClientID, entry.FieldKey)
-	if err == nil && existing != nil {
-		// Update existing entry: increment revision, update value, reset status to COLLECTED
-		existing.Value = entry.Value
-		existing.ValueType = entry.ValueType
-		existing.SourceEntityID = entry.SourceEntityID
-		existing.Revision++
-		existing.VerificationStatus = int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED)
-		existing.ReviewerID = ""
-		existing.ReviewerComment = ""
-		existing.VerifiedAt = nil
-		if entry.Properties != nil {
-			existing.Properties = entry.Properties
-		}
-		if entry.ExpiresAt != nil {
-			existing.ExpiresAt = entry.ExpiresAt
-		}
-		entry = existing
-	} else {
-		// New entry
-		if entry.GetID() == "" {
-			entry.GenID(ctx)
-		}
-		entry.Revision = 1
-		entry.VerificationStatus = int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED)
+	if entry.GetID() == "" {
+		entry.GenID(ctx)
+	}
+	entry.Revision = 1
+	entry.VerificationStatus = int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED)
+
+	// The write is synchronous and row-locked: a read-then-emit sequence let
+	// two concurrent submissions both read revision N and both land as N+1.
+	saved, err := b.entryRepo.SaveRevision(ctx, entry, func(existing, incoming *models.ClientDataEntry) {
+		applyResubmission(ctx, existing, incoming)
+	})
+	switch {
+	case err == nil:
+	case errors.Is(err, repository.ErrClientDataEntryRevisionConflict):
+		return nil, ErrClientDataEntryConflict
+	default:
+		logger.WithError(err).Error("could not save client data entry")
+		return nil, fmt.Errorf("save client data entry: %w", err)
 	}
 
-	if emitErr := b.eventsMan.Emit(ctx, events.ClientDataEntrySaveEvent, entry); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit client data entry save event")
-		return nil, emitErr
+	if historyErr := b.recordHistory(ctx, saved, actionSubmitted, saved.ModifiedBy, ""); historyErr != nil {
+		logger.WithError(historyErr).Error("could not record history for save")
+		return nil, historyErr
 	}
 
-	// Record history
-	if historyErr := b.recordHistory(ctx, entry, "submitted", "", ""); historyErr != nil {
-		logger.WithError(historyErr).Warn("could not record history for save")
-	}
+	return saved, nil
+}
 
-	return entry, nil
+// applyResubmission copies a new submission onto the stored entry. The value
+// has been re-collected, so any earlier review decision no longer applies.
+func applyResubmission(ctx context.Context, existing, incoming *models.ClientDataEntry) {
+	existing.Value = incoming.Value
+	existing.ValueType = incoming.ValueType
+	existing.SourceEntityID = incoming.SourceEntityID
+	existing.VerificationStatus = int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED)
+	existing.ReviewerID = ""
+	existing.ReviewerComment = ""
+	existing.VerifiedAt = nil
+	if incoming.Properties != nil {
+		existing.Properties = incoming.Properties
+	}
+	if incoming.ExpiresAt != nil {
+		existing.ExpiresAt = incoming.ExpiresAt
+	}
+	// Stamps ModifiedBy from the submitter's claims.
+	existing.GenID(ctx)
 }
 
 func (b *clientDataBusiness) Get(ctx context.Context, clientID, fieldKey string) (*models.ClientDataEntry, error) {
@@ -115,93 +138,171 @@ func (b *clientDataBusiness) List(
 	status int32,
 	offset, limit int,
 ) ([]*models.ClientDataEntry, error) {
-	if limit <= 0 {
-		limit = 50
+	if offset < 0 {
+		return nil, ErrInvalidPageToken
+	}
+	if limit <= 0 || limit > maxSearchLimit {
+		limit = defaultSearchLimit
 	}
 	return b.entryRepo.GetByClientID(ctx, clientID, status, offset, limit)
 }
 
+// Verify marks an entry as verified by the calling reviewer.
 func (b *clientDataBusiness) Verify(
 	ctx context.Context,
-	entryID, reviewerID, comment string,
+	entryID, comment string,
 ) (*models.ClientDataEntry, error) {
-	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.Verify")
-
-	entry, err := b.entryRepo.GetByID(ctx, entryID)
-	if err != nil {
-		return nil, ErrClientDataEntryNotFound
-	}
-
-	now := time.Now().UTC()
-	entry.VerificationStatus = int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED)
-	entry.ReviewerID = reviewerID
-	entry.ReviewerComment = comment
-	entry.VerifiedAt = &now
-
-	if emitErr := b.eventsMan.Emit(ctx, events.ClientDataEntrySaveEvent, entry); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit client data entry save event")
-		return nil, emitErr
-	}
-
-	if historyErr := b.recordHistory(ctx, entry, "verified", reviewerID, comment); historyErr != nil {
-		logger.WithError(historyErr).Warn("could not record history for verify")
-	}
-
-	return entry, nil
+	return b.review(
+		ctx,
+		entryID,
+		comment,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED,
+		actionVerified,
+	)
 }
 
+// Reject marks an entry as rejected by the calling reviewer.
 func (b *clientDataBusiness) Reject(
 	ctx context.Context,
-	entryID, reviewerID, reason string,
+	entryID, reason string,
 ) (*models.ClientDataEntry, error) {
-	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.Reject")
+	return b.review(
+		ctx,
+		entryID,
+		reason,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_REJECTED,
+		actionRejected,
+	)
+}
+
+// RequestInfo sends an entry back to the submitter for more information.
+func (b *clientDataBusiness) RequestInfo(
+	ctx context.Context,
+	entryID, comment string,
+) (*models.ClientDataEntry, error) {
+	return b.review(
+		ctx,
+		entryID,
+		comment,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED,
+		actionMoreInfo,
+	)
+}
+
+// review applies a reviewer decision to an entry. The reviewer is always the
+// caller in the request claims, never a value from the request body, and an
+// entry that already reached a terminal status cannot be reviewed again.
+func (b *clientDataBusiness) review(
+	ctx context.Context,
+	entryID, comment string,
+	target identityv1.DataVerificationStatus,
+	action string,
+) (*models.ClientDataEntry, error) {
+	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.review").WithField("action", action)
+
+	reviewerID := actorFromClaims(ctx)
+	if reviewerID == "" {
+		return nil, ErrReviewerUnidentified
+	}
 
 	entry, err := b.entryRepo.GetByID(ctx, entryID)
 	if err != nil {
 		return nil, ErrClientDataEntryNotFound
 	}
 
-	entry.VerificationStatus = int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_REJECTED)
+	if !isReviewableStatus(entry.VerificationStatus) {
+		return nil, ErrClientDataEntryNotReviewable
+	}
+
+	if reviewerID == entry.CreatedBy || reviewerID == entry.ModifiedBy {
+		return nil, ErrReviewerIsSubmitter
+	}
+
+	fromStatus := entry.VerificationStatus
+	entry.VerificationStatus = int32(target)
 	entry.ReviewerID = reviewerID
-	entry.ReviewerComment = reason
+	entry.ReviewerComment = comment
+	if target == identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED {
+		now := time.Now().UTC()
+		entry.VerifiedAt = &now
+	}
+
+	// The decision is a conditional write on the status that was read, so a
+	// concurrent verify and reject converge on exactly one outcome; the
+	// event below is emitted for projection only, never as the write.
+	err = b.entryRepo.Review(ctx, entry, fromStatus)
+	switch {
+	case err == nil:
+	case errors.Is(err, repository.ErrClientDataEntryReviewConflict):
+		return nil, ErrClientDataEntryReviewConflict
+	default:
+		logger.WithError(err).Error("could not persist client data review")
+		return nil, fmt.Errorf("review client data entry: %w", err)
+	}
 
 	if emitErr := b.eventsMan.Emit(ctx, events.ClientDataEntrySaveEvent, entry); emitErr != nil {
 		logger.WithError(emitErr).Error("could not emit client data entry save event")
 		return nil, emitErr
 	}
 
-	if historyErr := b.recordHistory(ctx, entry, "rejected", reviewerID, reason); historyErr != nil {
-		logger.WithError(historyErr).Warn("could not record history for reject")
+	if historyErr := b.recordHistory(ctx, entry, action, reviewerID, comment); historyErr != nil {
+		logger.WithError(historyErr).Error("could not record client data review history")
+		return nil, historyErr
 	}
+
+	b.notifyReviewOutcome(ctx, entry, target, comment)
 
 	return entry, nil
 }
 
-func (b *clientDataBusiness) RequestInfo(
+// notifyReviewOutcome tells the borrower what the reviewer decided. The
+// client row is looked up for its profile; a client that cannot be found is
+// logged, never a reason to fail the review that already landed.
+func (b *clientDataBusiness) notifyReviewOutcome(
 	ctx context.Context,
-	entryID, reviewerID, comment string,
-) (*models.ClientDataEntry, error) {
-	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.RequestInfo")
-
-	entry, err := b.entryRepo.GetByID(ctx, entryID)
-	if err != nil {
-		return nil, ErrClientDataEntryNotFound
+	entry *models.ClientDataEntry,
+	target identityv1.DataVerificationStatus,
+	comment string,
+) {
+	if !b.notifier.Enabled() || b.clients == nil {
+		return
 	}
-
-	entry.VerificationStatus = int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED)
-	entry.ReviewerID = reviewerID
-	entry.ReviewerComment = comment
-
-	if emitErr := b.eventsMan.Emit(ctx, events.ClientDataEntrySaveEvent, entry); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit client data entry save event")
-		return nil, emitErr
+	client, err := b.clients.GetByID(ctx, entry.ClientID)
+	if err != nil || client == nil {
+		util.Log(ctx).WithError(err).WithField("client_id", entry.ClientID).
+			Error("KYC review notification not sent: client could not be loaded")
+		return
 	}
-
-	if historyErr := b.recordHistory(ctx, entry, "more_info", reviewerID, comment); historyErr != nil {
-		logger.WithError(historyErr).Warn("could not record history for request info")
+	switch target {
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED:
+		b.notifier.NotifyKYCVerified(ctx, client, entry.FieldKey)
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_REJECTED:
+		b.notifier.NotifyKYCRejected(ctx, client, entry.FieldKey, comment)
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED:
+		b.notifier.NotifyKYCInfoRequested(ctx, client, entry.FieldKey, comment)
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNSPECIFIED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNDER_REVIEW,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_EXPIRED:
 	}
+}
 
-	return entry, nil
+// isReviewableStatus reports whether an entry in this status may still be
+// acted on by a reviewer. VERIFIED, REJECTED and EXPIRED are terminal.
+func isReviewableStatus(status int32) bool {
+	switch identityv1.DataVerificationStatus(status) {
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNDER_REVIEW,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED:
+		return true
+	case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNSPECIFIED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_REJECTED,
+		identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_EXPIRED:
+		return false
+	default:
+		return false
+	}
 }
 
 func (b *clientDataBusiness) History(

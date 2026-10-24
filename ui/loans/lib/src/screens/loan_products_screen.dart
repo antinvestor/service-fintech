@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
-import 'package:fixnum/fixnum.dart';
+import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import '../utils/money_compat.dart';
+import '../widgets/list_state_view.dart';
+import '../widgets/load_more_action.dart';
 import '../widgets/loan_state_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,19 +15,19 @@ import 'package:go_router/go_router.dart';
 import '../providers/loan_product_providers.dart';
 
 class LoanProductsScreen extends ConsumerStatefulWidget {
-  const LoanProductsScreen({super.key, this.canManage = true});
+  const LoanProductsScreen({super.key, this.canManage = false});
 
   /// Whether the current user can create/edit products.
   final bool canManage;
 
   @override
-  ConsumerState<LoanProductsScreen> createState() =>
-      _LoanProductsScreenState();
+  ConsumerState<LoanProductsScreen> createState() => _LoanProductsScreenState();
 }
 
 class _LoanProductsScreenState extends ConsumerState<LoanProductsScreen> {
   Timer? _debounce;
   String _query = '';
+  int _limit = kLoanListPageSize;
 
   @override
   void dispose() {
@@ -36,70 +38,96 @@ class _LoanProductsScreenState extends ConsumerState<LoanProductsScreen> {
   void _onSearch(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () {
-      if (mounted) setState(() => _query = value.trim());
+      if (mounted) {
+        setState(() {
+          _query = value.trim();
+          _limit = kLoanListPageSize;
+        });
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final productsAsync = ref.watch(loanProductListProvider(_query));
-    final products = productsAsync.whenOrNull(data: (d) => d) ?? [];
-
-    return AdminEntityListPage<LoanProductObject>(
+    final productsAsync = ref.watch(
+      loanProductListProvider((query: _query, limit: _limit)),
+    );
+    return ListStateView<LoanProductObject>(
       title: 'Loan Products',
-      breadcrumbs: const ['Loans', 'Products'],
-      columns: const [
-        DataColumn(label: Text('NAME')),
-        DataColumn(label: Text('CODE')),
-        DataColumn(label: Text('TYPE')),
-        DataColumn(label: Text('RATE')),
-        DataColumn(label: Text('STATE')),
-      ],
-      items: products,
-      onSearch: _onSearch,
-      addLabel: widget.canManage ? 'Add Product' : null,
-      onAdd: widget.canManage ? () => _showProductDialog(context) : null,
-      rowBuilder: (product, selected, onSelect) {
-        return DataRow(
-          selected: selected,
-          onSelectChanged: (_) => onSelect(),
-          cells: [
-            DataCell(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.inventory_2,
-                        size: 14,
-                        color: Theme.of(context).colorScheme.primary),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(product.name),
-                ],
-              ),
+      value: productsAsync,
+      onRetry: () => ref.invalidate(
+        loanProductListProvider((query: _query, limit: _limit)),
+      ),
+      builder: (page) {
+        final products = page.items;
+        return AdminEntityListPage<LoanProductObject>(
+          title: 'Loan Products',
+          breadcrumbs: const ['Loans', 'Products'],
+          columns: const [
+            DataColumn(label: Text('NAME')),
+            DataColumn(label: Text('CODE')),
+            DataColumn(label: Text('TYPE')),
+            DataColumn(label: Text('RATE')),
+            DataColumn(label: Text('STATE')),
+          ],
+          items: products,
+          onSearch: _onSearch,
+          actions: [
+            LoadMoreAction(
+              loadedCount: products.length,
+              hasMore: page.hasMore,
+              isLoading: productsAsync.isLoading,
+              onLoadMore: () => setState(() => _limit += kLoanListPageSize),
             ),
-            DataCell(Text(product.code)),
-            DataCell(Text(_productTypeLabel(product.productType))),
-            DataCell(Text('${product.annualInterestRate}%')),
-            DataCell(LoanStateBadge(state: product.state)),
+          ],
+          addLabel: widget.canManage ? 'Add Product' : null,
+          onAdd: widget.canManage ? () => _showProductDialog(context) : null,
+          rowBuilder: (product, selected, onSelect) {
+            return DataRow(
+              selected: selected,
+              onSelectChanged: (_) => onSelect(),
+              cells: [
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
+                        child: Icon(
+                          Icons.inventory_2,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(product.name),
+                    ],
+                  ),
+                ),
+                DataCell(Text(product.code)),
+                DataCell(Text(_productTypeLabel(product.productType))),
+                DataCell(Text('${product.annualInterestRate}%')),
+                DataCell(LoanStateBadge(state: product.state)),
+              ],
+            );
+          },
+          onRowNavigate: (product) {
+            context.go('/loans/products/${product.id}');
+          },
+          detailBuilder: (product) => _LoanProductDetail(product: product),
+          exportRow: (product) => [
+            product.name,
+            product.code,
+            _productTypeLabel(product.productType),
+            '${product.annualInterestRate}%',
+            loanStateLabel(product.state),
+            product.id,
           ],
         );
       },
-      onRowNavigate: (product) {
-        context.go('/loans/products/${product.id}');
-      },
-      detailBuilder: (product) => _LoanProductDetail(product: product),
-      exportRow: (product) => [
-        product.name,
-        product.code,
-        _productTypeLabel(product.productType),
-        '${product.annualInterestRate}%',
-        loanStateLabel(product.state),
-        product.id,
-      ],
     );
   }
 
@@ -163,21 +191,26 @@ class _LoanProductDetail extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child:
-                  Icon(Icons.inventory_2, color: theme.colorScheme.primary),
+              child: Icon(Icons.inventory_2, color: theme.colorScheme.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(product.name,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(product.id,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  Text(
+                    product.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    product.id,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -186,9 +219,11 @@ class _LoanProductDetail extends StatelessWidget {
         const SizedBox(height: 20),
         _DetailRow(label: 'Code', value: product.code),
         _DetailRow(
-            label: 'Type',
-            value: _LoanProductsScreenState._productTypeLabel(
-                product.productType)),
+          label: 'Type',
+          value: _LoanProductsScreenState._productTypeLabel(
+            product.productType,
+          ),
+        ),
         _DetailRow(label: 'Currency', value: product.currencyCode),
         _DetailRow(label: 'Rate', value: '${product.annualInterestRate}%'),
         _DetailRow(label: 'State', value: loanStateLabel(product.state)),
@@ -211,14 +246,20 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
@@ -333,11 +374,11 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
       currencyCode: _currencyCtrl.text.trim().toUpperCase(),
       interestMethod: _interestMethod,
       repaymentFrequency: _repaymentFrequency,
-      minAmount: _loanMoneyFromString(
+      minAmount: loanMoneyFromString(
         _minAmountCtrl.text.trim(),
         _currencyCtrl.text.trim().toUpperCase(),
       ),
-      maxAmount: _loanMoneyFromString(
+      maxAmount: loanMoneyFromString(
         _maxAmountCtrl.text.trim(),
         _currencyCtrl.text.trim().toUpperCase(),
       ),
@@ -351,13 +392,45 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
       state: _selectedState,
     );
 
-    if (widget.product != null) {
-      if (widget.product!.hasProperties()) {
-        product.properties = widget.product!.properties;
+    // The organization is the tenant the product belongs to. On create it has
+    // to come from the active tenancy context — leaving it blank fails proto
+    // validation before the request reaches the service, so no product could
+    // be created at all. On edit the product's own organization wins.
+    final existing = widget.product;
+    if (existing != null) {
+      if (existing.hasProperties()) {
+        product.properties = existing.properties;
       }
-      if (widget.product!.hasOrganizationId()) {
-        product.organizationId = widget.product!.organizationId;
+      // Fields this form does not edit are carried across verbatim. Dropping
+      // requiredForms here silently disabled the product's verification gate.
+      if (existing.requiredForms.isNotEmpty) {
+        product.requiredForms.addAll(existing.requiredForms);
       }
+      if (existing.hasEligibilityCriteria()) {
+        product.eligibilityCriteria = existing.eligibilityCriteria;
+      }
+      if (existing.hasFeeStructure()) {
+        product.feeStructure = existing.feeStructure;
+      }
+      if (existing.hasOrganizationId() && existing.organizationId.isNotEmpty) {
+        product.organizationId = existing.organizationId;
+      }
+    }
+    if (product.organizationId.isEmpty) {
+      product.organizationId = ref.read(tenancyContextProvider).organizationId;
+    }
+
+    if (product.organizationId.isEmpty) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Select an organization before creating a loan product.',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
     }
 
     try {
@@ -497,7 +570,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
                           'Determines the repayment structure of the loan',
                       isRequired: true,
                       child: DropdownButtonFormField<LoanProductType>(
-                        value: _productType,
+                        initialValue: _productType,
                         items: _productTypes
                             .map(
                               (t) => DropdownMenuItem(
@@ -523,8 +596,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
                       isRequired: true,
                       child: TextFormField(
                         controller: _currencyCtrl,
-                        decoration:
-                            const InputDecoration(hintText: 'e.g. KES'),
+                        decoration: const InputDecoration(hintText: 'e.g. KES'),
                         textInputAction: TextInputAction.next,
                         validator: (v) => (v == null || v.trim().length != 3)
                             ? 'Enter a 3-letter currency code'
@@ -537,7 +609,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
                           'How interest is computed over the loan term',
                       isRequired: true,
                       child: DropdownButtonFormField<InterestMethod>(
-                        value: _interestMethod,
+                        initialValue: _interestMethod,
                         items: _interestMethods
                             .map(
                               (m) => DropdownMenuItem(
@@ -558,7 +630,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
                       description: 'How often the borrower makes repayments',
                       isRequired: true,
                       child: DropdownButtonFormField<RepaymentFrequency>(
-                        value: _repaymentFrequency,
+                        initialValue: _repaymentFrequency,
                         items: _repaymentFrequencies
                             .map(
                               (f) => DropdownMenuItem(
@@ -670,8 +742,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
                         Expanded(
                           child: FormFieldCard(
                             label: 'Processing Fee (%)',
-                            description:
-                                'One-time fee charged at disbursement',
+                            description: 'One-time fee charged at disbursement',
                             child: TextFormField(
                               controller: _processingFeeCtrl,
                               decoration: const InputDecoration(
@@ -740,7 +811,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
                   description: 'The lifecycle state of this loan product',
                   isRequired: true,
                   child: DropdownButtonFormField<STATE>(
-                    value: _selectedState,
+                    initialValue: _selectedState,
                     items: _editableStates
                         .map(
                           (s) => DropdownMenuItem(
@@ -779,19 +850,4 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
       ],
     );
   }
-}
-
-/// Creates a Money proto from amount string and currency code.
-Money _loanMoneyFromString(String amount, String currencyCode) {
-  final money = Money();
-  money.currencyCode = currencyCode;
-  final cleaned = amount.trim();
-  if (cleaned.isEmpty) return money;
-  final parts = cleaned.split('.');
-  money.units = Int64(int.tryParse(parts[0]) ?? 0);
-  if (parts.length > 1) {
-    final fractional = parts[1].padRight(9, '0').substring(0, 9);
-    money.nanos = int.tryParse(fractional) ?? 0;
-  }
-  return money;
 }

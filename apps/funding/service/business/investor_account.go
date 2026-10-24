@@ -18,38 +18,61 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/events"
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
 	"github.com/antinvestor/service-fintech/apps/funding/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
-// moneyDecimalPlaces is the assumed decimal precision for all investor
-// currency conversions (two-decimal currencies only).
-const moneyDecimalPlaces = 2
-
 // ErrMissingInvestorContext is returned when an investor account lacks the
 // fields required to post a capital transfer (id, currency, investor id).
-var ErrMissingInvestorContext = errors.New("investor account is missing required context")
+var ErrMissingInvestorContext = apperrors.NewError(
+	apperrors.Unprocessable, "investor account is missing required context")
+
+// ErrInvestorAccountNotFound is returned when the target account does not exist.
+var ErrInvestorAccountNotFound = apperrors.NewError(apperrors.NotFound, "investor account not found")
+
+// ErrIdempotencyKeyRequired is returned when a capital movement arrives
+// without the key that makes it repeatable.
+var ErrIdempotencyKeyRequired = apperrors.NewError(apperrors.BadRequest, "idempotency_key is required")
+
+// ErrInvalidInterestRate is returned when min_interest_rate is not a decimal
+// percentage string such as "12.50".
+var ErrInvalidInterestRate = apperrors.NewError(apperrors.BadRequest, "min_interest_rate is invalid")
+
+// ErrAmountNotPositive is returned for a zero or negative money amount.
+var ErrAmountNotPositive = apperrors.NewError(apperrors.BadRequest, "amount must be positive")
+
+// ErrCurrencyMismatch is returned when a request is denominated in a currency
+// the account does not hold.
+var ErrCurrencyMismatch = apperrors.NewError(
+	apperrors.BadRequest, "amount currency does not match the account currency")
+
+// ErrCurrencyRequired is returned when an account is created without a currency.
+var ErrCurrencyRequired = apperrors.NewError(apperrors.BadRequest, "currency_code is required")
 
 type investorAccountBusiness struct {
 	eventsMan             fevents.Manager
 	iaRepo                repository.InvestorAccountRepository
+	icmRepo               repository.InvestorCapitalMovementRepository
 	operationsCli         operationsv1connect.OperationsServiceClient
 	auditWriter           *audit.Writer
 	limitsCli             limitsv1connect.LimitsServiceClient
@@ -63,6 +86,7 @@ func NewInvestorAccountBusiness(
 	_ context.Context,
 	eventsMan fevents.Manager,
 	iaRepo repository.InvestorAccountRepository,
+	icmRepo repository.InvestorCapitalMovementRepository,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
 	limitsCli limitsv1connect.LimitsServiceClient,
@@ -74,6 +98,7 @@ func NewInvestorAccountBusiness(
 	return &investorAccountBusiness{
 		eventsMan:             eventsMan,
 		iaRepo:                iaRepo,
+		icmRepo:               icmRepo,
 		operationsCli:         operationsCli,
 		auditWriter:           auditWriter,
 		limitsCli:             limitsCli,
@@ -84,21 +109,78 @@ func NewInvestorAccountBusiness(
 	}
 }
 
-func (b *investorAccountBusiness) Create(
+// Save creates or updates an investor account's profile: its name, mandate
+// (allowed products, regions, group affiliations, exposure cap, minimum
+// rate) and properties. It never writes a balance. Capital only enters or
+// leaves through Deposit and Withdraw, and reserved / deployed / returned
+// totals only move with allocations, so a caller holding the manage
+// permission cannot mint capital by echoing a balance back at this endpoint.
+// State is likewise not taken from the payload; use SetState.
+func (b *investorAccountBusiness) Save(
 	ctx context.Context,
 	account *models.InvestorAccount,
 ) (*models.InvestorAccount, error) {
-	logger := util.Log(ctx).WithField("method", "InvestorAccountBusiness.Create")
+	logger := util.Log(ctx).WithField("method", "InvestorAccountBusiness.Save")
 
-	account.State = int32(constants.StateActive)
-	account.GenID(ctx)
-
-	if err := b.eventsMan.Emit(ctx, events.InvestorAccountSaveEvent, account); err != nil {
-		logger.WithError(err).Error("could not create investor account")
-		return nil, fmt.Errorf("create investor account: %w", err)
+	if account.InvestorID == "" {
+		return nil, ErrMissingInvestorContext
+	}
+	if account.Currency == "" {
+		return nil, ErrCurrencyRequired
 	}
 
-	logger.WithField("account_id", account.GetID()).Info("investor account created")
+	stored, err := b.iaRepo.GetByID(ctx, account.GetID())
+	if err == nil && stored != nil {
+		mergeInvestorMandate(stored, account)
+		account = stored
+	} else {
+		account.GenID(ctx)
+		account.State = int32(constants.StateActive)
+		account.AvailableBalance = 0
+		account.ReservedBalance = 0
+		account.TotalDeployed = 0
+		account.TotalReturned = 0
+		account.TotalLost = 0
+		account.LastDeployedAt = nil
+	}
+
+	if emitErr := b.eventsMan.Emit(ctx, events.InvestorAccountSaveEvent, account); emitErr != nil {
+		logger.WithError(emitErr).Error("could not save investor account")
+		return nil, fmt.Errorf("save investor account: %w", emitErr)
+	}
+
+	logger.WithField("account_id", account.GetID()).Info("investor account saved")
+	return account, nil
+}
+
+// mergeInvestorMandate copies the caller-settable fields of an investor
+// account onto the stored row, leaving every balance and lifetime counter
+// exactly as the database holds it.
+func mergeInvestorMandate(stored, incoming *models.InvestorAccount) {
+	stored.AccountName = incoming.AccountName
+	stored.MaxExposure = incoming.MaxExposure
+	stored.MinInterestRate = incoming.MinInterestRate
+	stored.AllowedProducts = incoming.AllowedProducts
+	stored.AllowedRegions = incoming.AllowedRegions
+	stored.GroupAffiliations = incoming.GroupAffiliations
+	stored.Properties = incoming.Properties
+}
+
+// SetState moves an investor account between lifecycle states. It is the only
+// path that writes State, so a state change is always an explicit act.
+func (b *investorAccountBusiness) SetState(
+	ctx context.Context,
+	accountID string,
+	state int32,
+) (*models.InvestorAccount, error) {
+	account, err := b.iaRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, ErrInvestorAccountNotFound
+	}
+	account.State = state
+	if emitErr := b.eventsMan.Emit(ctx, events.InvestorAccountSaveEvent, account); emitErr != nil {
+		return nil, fmt.Errorf("set investor account state: %w", emitErr)
+	}
 	return account, nil
 }
 
@@ -109,54 +191,71 @@ func (b *investorAccountBusiness) Get(
 	return b.iaRepo.GetByID(ctx, accountID)
 }
 
-func (b *investorAccountBusiness) GetByInvestorID(
+// Search lists investor accounts. investor_id and currency_code narrow the
+// result when supplied; neither is required, and the page cursor is honoured
+// so a caller can walk the whole set rather than receiving a silently
+// truncated first page.
+func (b *investorAccountBusiness) Search(
 	ctx context.Context,
-	investorID string,
+	req *fundingv1.InvestorAccountSearchRequest,
 ) ([]*models.InvestorAccount, error) {
-	return b.iaRepo.GetByInvestorID(ctx, investorID)
+	limit, offset := pageWindow(req.GetCursor())
+	return b.iaRepo.List(ctx, repository.InvestorAccountFilter{
+		InvestorID: req.GetInvestorId(),
+		Currency:   req.GetCurrencyCode(),
+		Limit:      limit,
+		Offset:     offset,
+	})
 }
 
-// Deposit settles an inbound investor capital contribution. It posts a
-// transfer order from the product-level external cash control account into
-// the investor's capital account, then applies the balance change via an
-// atomic SQL delta. The transfer order reference is keyed on a stable
-// composite (investor-account + version + amount) so retries converge on a
-// single ledger posting.
+// pageWindow turns a page cursor into a bounded limit/offset pair. An absent
+// or oversized cursor is clamped so a caller cannot ask for the whole table.
+func pageWindow(cursor *commonv1.PageCursor) (int, int) {
+	limit := int(cursor.GetLimit())
+	if limit <= 0 || limit > maxPageLimit {
+		limit = defaultPageLimit
+	}
+	page, err := strconv.Atoi(cursor.GetPage())
+	if err != nil || page < 0 {
+		page = 0
+	}
+	return limit, page * limit
+}
+
+// Deposit settles an inbound investor capital contribution.
 //
-// Balance mutations run through AtomicDeposit on the repository so no
-// read-modify-write race is possible even with concurrent deposits.
-//
-// When the limits gate is enabled, a reservation is obtained from the limits
-// service before execution proceeds. DENY returns an error; PENDING_APPROVAL
-// returns PendingApprovalError.
+// The movement row is written before any money moves and is unique on
+// (investor_account_id, idempotency_key), so a retry after a timeout — or a
+// second concurrent call carrying the same key — loses the insert and returns
+// the original movement without posting again. The ledger reference is
+// derived from that row's id rather than from the account version, so two
+// callers can never collide on one reference or drift onto two.
 //
 //nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Deposit(
 	ctx context.Context,
 	accountID string,
-	amount int64,
+	amount *commonv1.Money,
 	idempotencyKey string,
 ) error {
-	if idempotencyKey == "" {
-		return connect.NewError(connect.CodeInvalidArgument,
-			errors.New("idempotency_key required"))
+	account, minor, err := b.prepareMovement(ctx, accountID, amount, idempotencyKey)
+	if err != nil {
+		return err
 	}
 
 	if !b.limitsDepositEnabled || b.limitsCli == nil || b.limitsDepositMode == "off" {
-		return b.depositInner(ctx, accountID, amount)
-	}
-
-	account, err := b.iaRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("investor account not found: %w", err)
+		return b.depositInner(ctx, account, minor, idempotencyKey)
 	}
 
 	intent := &limitsv1.LimitIntent{
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_FUNDING_INFLOW,
 		TenantId: account.TenantID,
-		Amount:   moneyx.FromSmallestUnit(account.Currency, amount, moneyDecimalPlaces),
+		Amount:   moneyx.FromMinorUnitsByCurrency(account.Currency, minor),
+		// The limits service requires the organization for funding actions;
+		// an investor account belongs to the lender that is its tenant.
 		Subjects: []*limitsv1.SubjectRef{
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: accountID},
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: account.TenantID},
 		},
 	}
 	idemKey := "funding_deposit:" + accountID + ":" + idempotencyKey
@@ -165,31 +264,88 @@ func (b *investorAccountBusiness) Deposit(
 		func(innerCtx context.Context, reservationID string) error {
 			util.Log(innerCtx).With("limits_reservation_id", reservationID).
 				Info("investor deposit gated by limits")
-			return b.depositInner(innerCtx, accountID, amount)
-		})
+			return b.depositInner(innerCtx, account, minor, idempotencyKey)
+		},
+		limits.InPartition(account.TenantID, account.PartitionID),
+	)
+}
+
+// prepareMovement resolves and validates the account and amount that a
+// capital movement will apply to.
+func (b *investorAccountBusiness) prepareMovement(
+	ctx context.Context,
+	accountID string,
+	amount *commonv1.Money,
+	idempotencyKey string,
+) (*models.InvestorAccount, int64, error) {
+	if idempotencyKey == "" {
+		return nil, 0, ErrIdempotencyKeyRequired
+	}
+
+	account, err := b.iaRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, 0, ErrInvestorAccountNotFound
+	}
+	if account.InvestorID == "" || account.Currency == "" {
+		return nil, 0, ErrMissingInvestorContext
+	}
+	if amount.GetCurrencyCode() != account.Currency {
+		return nil, 0, ErrCurrencyMismatch
+	}
+
+	minor := moneyx.ToSmallestUnit(amount, moneyx.Decimals(account.Currency))
+	if minor <= 0 {
+		return nil, 0, ErrAmountNotPositive
+	}
+	return account, minor, nil
+}
+
+// claimMovement takes the idempotency lock for one capital movement.
+func (b *investorAccountBusiness) claimMovement(
+	ctx context.Context,
+	account *models.InvestorAccount,
+	amount int64,
+	direction models.CapitalMovementDirection,
+	idempotencyKey string,
+) (*models.InvestorCapitalMovement, bool, error) {
+	movement := &models.InvestorCapitalMovement{
+		InvestorAccountID: account.GetID(),
+		Direction:         int32(direction),
+		Amount:            amount,
+		Currency:          account.Currency,
+		IdempotencyKey:    idempotencyKey,
+		Status:            models.CapitalMovementPending,
+	}
+	movement.GenID(ctx)
+	movement.CopyPartitionInfo(&account.BaseModel)
+	return b.icmRepo.Claim(ctx, movement)
 }
 
 // depositInner runs the core investor deposit logic after any gate check.
 func (b *investorAccountBusiness) depositInner(
 	ctx context.Context,
-	accountID string,
+	account *models.InvestorAccount,
 	amount int64,
+	idempotencyKey string,
 ) error {
 	logger := util.Log(ctx).WithField("method", "InvestorAccountBusiness.Deposit")
 
-	if amount <= 0 {
-		return fmt.Errorf("deposit amount must be positive, got %d", amount)
+	movement, created, claimErr := b.claimMovement(
+		ctx, account, amount, models.CapitalMovementDeposit, idempotencyKey)
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not claim investor capital movement")
+		return claimErr
 	}
+	if !created && movement.Status == models.CapitalMovementCompleted {
+		return nil
+	}
+	// A claimed but uncompleted movement belongs to an attempt that died
+	// part-way, so this call resumes it on the same row rather than
+	// reporting a success nothing performed. The ledger reference is derived
+	// from the movement id, which makes the re-post a no-op for operations,
+	// and the credit is guarded on the row still being pending.
+	amount = movement.Amount
 
-	account, err := b.iaRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("investor account not found: %w", err)
-	}
-	if account.InvestorID == "" || account.Currency == "" {
-		return ErrMissingInvestorContext
-	}
-
-	reference := fmt.Sprintf("investor:%s:deposit:v%d", accountID, account.GetVersion()+1)
 	if toErr := b.postInvestorCapitalTransfer(
 		ctx,
 		logger,
@@ -198,21 +354,29 @@ func (b *investorAccountBusiness) depositInner(
 		constants.PlatformExternalCashAccount(),
 		constants.InvestorCapitalAccount(account.GetID()),
 		constants.TransferTypeInvestorDeployment,
-		reference,
+		capitalTransferReference(movement),
 		"Investor capital deposit",
 	); toErr != nil {
 		return toErr
 	}
 
-	fresh, applyErr := b.iaRepo.AtomicDeposit(ctx, accountID, amount)
+	credited, applyErr := b.icmRepo.CreditDeposit(ctx, movement)
 	if applyErr != nil {
 		logger.WithError(applyErr).Error("could not apply investor deposit delta")
 		return fmt.Errorf("investor deposit delta: %w", applyErr)
 	}
+	if !credited {
+		return nil
+	}
+
+	fresh, freshErr := b.iaRepo.GetByID(ctx, account.GetID())
+	if freshErr != nil {
+		return fmt.Errorf("investor deposit delta: %w", freshErr)
+	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
 		EntityType: "investor_account",
-		EntityID:   accountID,
+		EntityID:   account.GetID(),
 		Action:     "investor.capital.deposited",
 		Reason:     "investor capital inflow settled on ledger",
 		Before:     data.JSONMap{fieldAvailableBalance: account.AvailableBalance},
@@ -221,6 +385,7 @@ func (b *investorAccountBusiness) depositInner(
 			fieldInvestorID: account.InvestorID,
 			fieldAmount:     amount,
 			fieldCurrency:   account.Currency,
+			"movement_id":   movement.GetID(),
 		},
 		Parent: &fresh.BaseModel,
 	}, func(auErr error) {
@@ -231,52 +396,49 @@ func (b *investorAccountBusiness) depositInner(
 	FundingDeposits.Add(ctx, 1, depCurrencyAttr)
 	FundingDepositsAmount.Add(ctx, float64(amount)/minorUnitsPerMajor, depCurrencyAttr)
 
-	logger.WithFields(map[string]any{"account_id": accountID, fieldAmount: amount}).
+	logger.WithFields(map[string]any{"account_id": account.GetID(), fieldAmount: amount}).
 		Info("investor deposit processed")
 	return nil
 }
 
-// Withdraw settles an investor capital withdrawal. The SQL-level balance
-// guard in AtomicWithdraw is the single authoritative sufficiency check:
-// two concurrent withdrawals against overlapping funds will serialize and
-// one of them receives ErrInvestorInsufficientFunds.
-//
-// The transfer order is posted only after the reservation has been
-// atomically decremented. If the transfer order fails we roll back via a
-// best-effort compensating AtomicDeposit; retries via caller are safe
-// because the transfer order reference is stable.
-//
-// When the limits gate is enabled, a reservation is obtained from the limits
-// service before execution proceeds. DENY returns an error; PENDING_APPROVAL
-// returns PendingApprovalError.
+// capitalTransferReference derives the operations idempotency key for a
+// capital movement from the movement row itself, so the reference is stable
+// across retries and unique across concurrent callers.
+func capitalTransferReference(movement *models.InvestorCapitalMovement) string {
+	return "investor_capital_movement:" + movement.GetID()
+}
+
+// Withdraw settles an investor capital withdrawal. As with Deposit the
+// movement row is the idempotency record. The SQL-level balance guard in
+// DebitWithdrawal is the authoritative sufficiency check: two concurrent
+// withdrawals against overlapping funds serialize and one receives
+// ErrInvestorInsufficientFunds.
 //
 //nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Withdraw(
 	ctx context.Context,
 	accountID string,
-	amount int64,
+	amount *commonv1.Money,
 	idempotencyKey string,
 ) error {
-	if idempotencyKey == "" {
-		return connect.NewError(connect.CodeInvalidArgument,
-			errors.New("idempotency_key required"))
+	account, minor, err := b.prepareMovement(ctx, accountID, amount, idempotencyKey)
+	if err != nil {
+		return err
 	}
 
 	if !b.limitsWithdrawEnabled || b.limitsCli == nil || b.limitsWithdrawMode == "off" {
-		return b.withdrawInner(ctx, accountID, amount)
-	}
-
-	account, err := b.iaRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("investor account not found: %w", err)
+		return b.withdrawInner(ctx, account, minor, idempotencyKey)
 	}
 
 	intent := &limitsv1.LimitIntent{
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_FUNDING_OUTFLOW,
 		TenantId: account.TenantID,
-		Amount:   moneyx.FromSmallestUnit(account.Currency, amount, moneyDecimalPlaces),
+		Amount:   moneyx.FromMinorUnitsByCurrency(account.Currency, minor),
+		// The limits service requires the organization for funding actions;
+		// an investor account belongs to the lender that is its tenant.
 		Subjects: []*limitsv1.SubjectRef{
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: accountID},
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: account.TenantID},
 		},
 	}
 	idemKey := "funding_withdraw:" + accountID + ":" + idempotencyKey
@@ -285,60 +447,74 @@ func (b *investorAccountBusiness) Withdraw(
 		func(innerCtx context.Context, reservationID string) error {
 			util.Log(innerCtx).With("limits_reservation_id", reservationID).
 				Info("investor withdrawal gated by limits")
-			return b.withdrawInner(innerCtx, accountID, amount)
-		})
+			return b.withdrawInner(innerCtx, account, minor, idempotencyKey)
+		},
+		limits.InPartition(account.TenantID, account.PartitionID),
+	)
 }
 
 // withdrawInner runs the core investor withdrawal logic after any gate check.
 func (b *investorAccountBusiness) withdrawInner(
 	ctx context.Context,
-	accountID string,
+	account *models.InvestorAccount,
 	amount int64,
+	idempotencyKey string,
 ) error {
 	logger := util.Log(ctx).WithField("method", "InvestorAccountBusiness.Withdraw")
 
-	if amount <= 0 {
-		return fmt.Errorf("withdrawal amount must be positive, got %d", amount)
+	movement, created, claimErr := b.claimMovement(
+		ctx, account, amount, models.CapitalMovementWithdraw, idempotencyKey)
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not claim investor capital movement")
+		return claimErr
+	}
+	if !created && movement.Status == models.CapitalMovementCompleted {
+		return nil
+	}
+	amount = movement.Amount
+
+	// The debit and the movement's move out of PENDING happen in one
+	// transaction, so a movement that is still pending is one whose funds
+	// have not left, and a resumed attempt debits exactly once.
+	if movement.Status == models.CapitalMovementPending {
+		if _, debErr := b.icmRepo.DebitWithdrawal(ctx, movement); debErr != nil {
+			return fmt.Errorf("investor withdraw: %w", debErr)
+		}
 	}
 
-	account, getErr := b.iaRepo.GetByID(ctx, accountID)
-	if getErr != nil {
-		return fmt.Errorf("investor account not found: %w", getErr)
-	}
-	if account.InvestorID == "" || account.Currency == "" {
-		return ErrMissingInvestorContext
-	}
-
-	fresh, debErr := b.iaRepo.AtomicWithdraw(ctx, accountID, amount)
-	if debErr != nil {
-		return fmt.Errorf("investor withdraw: %w", debErr)
-	}
-
-	reference := fmt.Sprintf("investor:%s:withdraw:v%d", accountID, fresh.GetVersion())
 	if toErr := b.postInvestorCapitalTransfer(
 		ctx,
 		logger,
-		fresh,
+		account,
 		amount,
-		constants.InvestorCapitalAccount(fresh.GetID()),
+		constants.InvestorCapitalAccount(account.GetID()),
 		constants.PlatformExternalCashAccount(),
 		constants.TransferTypeInvestorPrincipalReturn,
-		reference,
+		capitalTransferReference(movement),
 		"Investor capital withdrawal",
 	); toErr != nil {
-		// Compensate the atomic debit so retries see the original balance.
-		// AtomicDeposit cannot fail on a valid account; we log and surface
-		// the primary error.
-		if _, rollbackErr := b.iaRepo.AtomicDeposit(ctx, accountID, amount); rollbackErr != nil {
-			logger.WithError(rollbackErr).
+		// Hand the funds back and return the movement to pending so a retry
+		// runs the whole flow again from a balance that never moved.
+		if revertErr := b.icmRepo.RevertWithdrawalDebit(ctx, movement); revertErr != nil {
+			logger.WithError(revertErr).
 				Error("could not roll back investor withdrawal after transfer-order failure")
 		}
 		return toErr
 	}
 
+	if completeErr := b.icmRepo.MarkCompleted(ctx, movement.GetID()); completeErr != nil {
+		logger.WithError(completeErr).Error("could not mark investor capital movement completed")
+		return completeErr
+	}
+
+	fresh, freshErr := b.iaRepo.GetByID(ctx, account.GetID())
+	if freshErr != nil {
+		return fmt.Errorf("investor withdraw: %w", freshErr)
+	}
+
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
 		EntityType: "investor_account",
-		EntityID:   accountID,
+		EntityID:   account.GetID(),
 		Action:     "investor.capital.withdrawn",
 		Reason:     "investor capital outflow settled on ledger",
 		Before:     data.JSONMap{fieldAvailableBalance: account.AvailableBalance},
@@ -347,6 +523,7 @@ func (b *investorAccountBusiness) withdrawInner(
 			fieldInvestorID: fresh.InvestorID,
 			fieldAmount:     amount,
 			fieldCurrency:   fresh.Currency,
+			"movement_id":   movement.GetID(),
 		},
 		Parent: &fresh.BaseModel,
 	}, func(auErr error) {
@@ -357,7 +534,7 @@ func (b *investorAccountBusiness) withdrawInner(
 	FundingWithdrawals.Add(ctx, 1, wdrCurrencyAttr)
 	FundingWithdrawalsAmount.Add(ctx, float64(amount)/minorUnitsPerMajor, wdrCurrencyAttr)
 
-	logger.WithFields(map[string]any{"account_id": accountID, fieldAmount: amount}).
+	logger.WithFields(map[string]any{"account_id": account.GetID(), fieldAmount: amount}).
 		Info("investor withdrawal processed")
 	return nil
 }
@@ -455,17 +632,17 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 		fieldInvestorID:       account.InvestorID,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  debitAccount,
 			CreditAccountRef: creditAccount,
-			Amount:           moneyx.FromSmallestUnit(account.Currency, amount, moneyDecimalPlaces),
+			Amount:           moneyx.FromMinorUnitsByCurrency(account.Currency, amount),
 			OrderType:        constants.SafeInt32FromInt(orderType),
 			Reference:        reference,
 			Description:      description,
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
 		logger.WithError(execErr).

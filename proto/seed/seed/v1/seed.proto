@@ -1,0 +1,202 @@
+// Copyright 2023-2026 Ant Investor Ltd
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package seed.v1;
+
+// -----------------------------------------------------
+// Core notes (normative):
+// - Seed is the direct-to-client lending product. Its runtime surface is a
+//   small JSON/HTTP API served from an http.ServeMux rather than Connect.
+// - This file is the permission manifest for that surface. Every HTTP route
+//   the mux serves is modelled as an RPC whose google.api.http binding
+//   carries the exact method and path, and whose method_permissions names the
+//   functional permission the caller must hold in the service_seed namespace.
+// - The Go service registers this descriptor with frame at setup time and
+//   enforces the route → permission map on the mux at runtime, so a route
+//   that is not in this file fails closed.
+// -----------------------------------------------------
+
+import "common/v1/permissions.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/antinvestor/service-fintech/gen/go/seed/protocolbuffers/go/seed/v1;seedv1";
+option java_multiple_files = true;
+option java_package = "seedv1";
+
+// LoanRequestCreateRequest is a customer-initiated loan request. Amount is in
+// minor units. The acting principal always comes from the caller's claims;
+// client_id is honoured only for staff and internal callers.
+message LoanRequestCreateRequest {
+  string client_id = 1;
+  string product_id = 2;
+  int64 amount = 3;
+  string currency_code = 4;
+  string purpose = 5;
+  string idempotency_key = 6;
+}
+
+// CreditProfileRequest addresses a client's credit profile in one currency.
+message CreditProfileRequest {
+  string client_id = 1;
+  string currency = 2;
+}
+
+// CreditProfileStatusRequest changes a credit profile's status with a reason.
+message CreditProfileStatusRequest {
+  string client_id = 1;
+  string currency = 2;
+  string reason = 3;
+}
+
+// LoanPaidOffRequest is posted by the loans service when a loan is paid off.
+message LoanPaidOffRequest {
+  string loan_account_id = 1;
+  int64 total_repaid = 2;
+}
+
+// JSONResponse is the loosely typed JSON body every endpoint returns.
+message JSONResponse {
+  google.protobuf.Struct data = 1;
+}
+
+// SeedService is the permission manifest for seed's HTTP routes. It is
+// registered with frame for OPL generation and permission publishing; the
+// routes themselves are served by an http.ServeMux in apps/seed.
+service SeedService {
+  option (common.v1.service_permissions) = {
+    namespace: "service_seed"
+    permissions: [
+      "seed_loan_request_create",
+      "seed_credit_profile_view",
+      "seed_credit_profile_admin",
+      "seed_loan_paid_off_notify"
+    ]
+    role_bindings: [
+      {
+        role: ROLE_OWNER
+        permissions: [
+          "seed_loan_request_create",
+          "seed_credit_profile_view",
+          "seed_credit_profile_admin",
+          "seed_loan_paid_off_notify"
+        ]
+      },
+      {
+        role: ROLE_ADMIN
+        permissions: [
+          "seed_loan_request_create",
+          "seed_credit_profile_view",
+          "seed_credit_profile_admin",
+          "seed_loan_paid_off_notify"
+        ]
+      },
+      {
+        role: ROLE_OPERATOR
+        permissions: [
+          "seed_loan_request_create",
+          "seed_credit_profile_view",
+          "seed_credit_profile_admin"
+        ]
+      },
+      {
+        role: ROLE_VIEWER
+        permissions: ["seed_credit_profile_view"]
+      },
+      {
+        role: ROLE_MEMBER
+        permissions: [
+          "seed_loan_request_create",
+          "seed_credit_profile_view"
+        ]
+      },
+      {
+        role: ROLE_SERVICE
+        permissions: [
+          "seed_loan_request_create",
+          "seed_credit_profile_view",
+          "seed_credit_profile_admin",
+          "seed_loan_paid_off_notify"
+        ]
+      }
+    ]
+  };
+
+  // LoanRequestCreate submits a customer-initiated loan request.
+  rpc LoanRequestCreate(LoanRequestCreateRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_loan_request_create"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/loan-requests"
+      body: "*"
+    };
+  }
+
+  // CreditProfileGet returns a client's credit profile in one currency.
+  rpc CreditProfileGet(CreditProfileRequest) returns (JSONResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_credit_profile_view"]
+    };
+    option (google.api.http) = {get: "/api/v1/seed/credit-profiles/{client_id}/{currency}"};
+  }
+
+  // CreditProfileSuspend temporarily stops a client borrowing.
+  rpc CreditProfileSuspend(CreditProfileStatusRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_credit_profile_admin"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/credit-profiles/{client_id}/{currency}/suspend"
+      body: "*"
+    };
+  }
+
+  // CreditProfileBlock hard-stops a client borrowing.
+  rpc CreditProfileBlock(CreditProfileStatusRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_credit_profile_admin"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/credit-profiles/{client_id}/{currency}/block"
+      body: "*"
+    };
+  }
+
+  // CreditProfileReinstate returns a suspended or blocked profile to active.
+  rpc CreditProfileReinstate(CreditProfileStatusRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_credit_profile_admin"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/credit-profiles/{client_id}/{currency}/reinstate"
+      body: "*"
+    };
+  }
+
+  // LoanPaidOffNotify is the internal hook the loans service calls when a
+  // loan reaches PAID_OFF.
+  rpc LoanPaidOffNotify(LoanPaidOffRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_loan_paid_off_notify"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/internal/paid-off"
+      body: "*"
+    };
+  }
+}

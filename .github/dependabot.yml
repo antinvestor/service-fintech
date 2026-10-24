@@ -75,7 +75,12 @@ updates:
   - package-ecosystem: "pub"
     directories:
       - "/ui/seed"
-      - "/ui/old-implementation"
+      - "/ui/identity"
+      - "/ui/limits"
+      - "/ui/loans"
+      - "/ui/savings"
+      - "/ui/funding"
+      - "/ui/operations"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

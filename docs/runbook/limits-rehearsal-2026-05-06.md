@@ -36,8 +36,9 @@
 - [ ] Set `LIMITS_GATE_MODE_LOAN_DISBURSEMENT=enforce` and redeploy.
 - [ ] Confirm a known-bad operation now returns FailedPrecondition or
       ResourceExhausted.
-- [ ] Run `limits-admin reservations list --status=pending` and observe
-      any approval queue.
+- [ ] Run `limits-admin reservations list --status=pending` (the command
+      lists approval requests; `--status` also accepts the full
+      `APPROVAL_STATUS_PENDING` enum name) and observe any approval queue.
 
 **Time-to-enforce-on:** _____ minutes
 **Issues encountered:** _____

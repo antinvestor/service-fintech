@@ -34,7 +34,9 @@ final limitsServiceClientProvider = Provider<LimitsServiceClient>((ref) {
 });
 
 /// Admin client (Policy CRUD + Approvals + Ledger + Audit).
-final limitsAdminServiceClientProvider = Provider<LimitsAdminServiceClient>((ref) {
+final limitsAdminServiceClientProvider = Provider<LimitsAdminServiceClient>((
+  ref,
+) {
   final transport = ref.watch(limitsTransportProvider);
   return LimitsAdminServiceClient(transport);
 });

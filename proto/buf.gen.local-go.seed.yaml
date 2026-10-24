@@ -1,0 +1,30 @@
+# Local Go generation for the seed module. seed is not published to BSR: the
+# generated code is committed under gen/go/seed (inside the root Go module) and
+# imported as github.com/antinvestor/service-fintech/gen/go/seed/...
+#
+#   cd proto && buf generate --template buf.gen.local-go.seed.yaml seed
+#
+# Managed mode is on only to point the buf.build/antinvestor/common dependency
+# at its BSR-generated Go package; this module's own go_package is left as
+# declared in the proto.
+version: v2
+managed:
+  enabled: true
+  disable:
+    - file_option: go_package
+      module: buf.build/antinvestor/seed
+    - file_option: go_package
+      module: buf.build/googleapis/googleapis
+  override:
+    - file_option: go_package_prefix
+      module: buf.build/antinvestor/common
+      value: buf.build/gen/go/antinvestor/common/protocolbuffers/go
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.12
+    out: ../gen/go/seed/protocolbuffers/go
+    opt:
+      - paths=source_relative
+  - remote: buf.build/connectrpc/go:v2.0.0
+    out: ../gen/go/seed/connectrpc/go
+    opt:
+      - paths=source_relative

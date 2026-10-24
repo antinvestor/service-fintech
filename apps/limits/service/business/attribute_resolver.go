@@ -19,11 +19,14 @@ import (
 	"encoding/json"
 	"time"
 
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
+	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/pitabwire/util"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/datatypes"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"
@@ -41,10 +44,11 @@ import (
 // workforce_member) the resolver returns an empty attribute map for v1.
 // These subject types do not yet have queryable attributes in identity.
 //
-// On identity fetch failure the resolver returns (nil, nil). The evaluator
-// interprets nil as "no attributes", so any AttributeFilter predicate
-// evaluates to FALSE — policies don't fire when attributes are unavailable.
-// This is the safe failure mode.
+// On identity fetch failure the resolver returns (nil, nil). Callers must
+// treat a nil map as "attributes unavailable", not as "no attributes": for an
+// enforce-mode policy the reservation path fails closed on it, because a
+// KYC-tier cap that silently stops applying whenever identity is down is not
+// a cap at all.
 type AttributeResolver interface {
 	Get(ctx context.Context, subjectType models.Subject, subjectID string) (map[string]any, error)
 	Invalidate(subjectType models.Subject, subjectID string)
@@ -53,6 +57,10 @@ type AttributeResolver interface {
 type attributeResolver struct {
 	repo           repository.SubjectAttributeRepository
 	identityClient identityv1connect.IdentityServiceClient
+	// fieldClient resolves borrowers: the lending flows send field-service
+	// client ids as CLIENT subjects. Investors are looked up through
+	// identityClient when the field service does not know the id.
+	fieldClient fieldv1connect.FieldServiceClient
 	// cache is a bounded expirable LRU. Capacity of 10 000 entries bounds
 	// memory growth; the TTL (default 60 s) bounds staleness. The expirable
 	// LRU handles eviction internally — no separate janitor goroutine needed.
@@ -78,16 +86,32 @@ func NewAttributeResolver(
 	repo repository.SubjectAttributeRepository,
 	identityClient identityv1connect.IdentityServiceClient,
 	ttl time.Duration,
+	opts ...AttributeResolverOption,
 ) AttributeResolver {
 	if ttl == 0 {
 		ttl = defaultAttrTTL
 	}
-	return &attributeResolver{
+	r := &attributeResolver{
 		repo:           repo,
 		identityClient: identityClient,
 		cache:          expirable.NewLRU[string, cachedAttrs](attrCacheSize, nil, ttl),
 		ttl:            ttl,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(r)
+		}
+	}
+	return r
+}
+
+// AttributeResolverOption configures optional look-ups of the resolver.
+type AttributeResolverOption func(*attributeResolver)
+
+// WithFieldClients resolves CLIENT subjects through the field service first,
+// which owns the borrowers that loans and savings send as subjects.
+func WithFieldClients(cli fieldv1connect.FieldServiceClient) AttributeResolverOption {
+	return func(r *attributeResolver) { r.fieldClient = cli }
 }
 
 // Get returns the attribute map for the given subject.
@@ -170,30 +194,45 @@ func decodeAttrs(j datatypes.JSON) map[string]any {
 //     the identity service (InvestorGet RPC).
 //   - InvestorObject exposes: id, profile_id, name, state, properties.
 //   - kyc_tier and country_code are not first-class proto fields on
-//     InvestorObject in the current identity API version; they may be stored
-//     in the Properties structpb if populated by the identity service.
-//     TODO(plan-4): once identity exposes dedicated kyc_tier / country_code
-//     fields on InvestorObject (or a dedicated ClientGet RPC is available),
-//     update this projection to extract those fields directly.
+//     InvestorObject in the current identity API version; they are read from
+//     the Properties structpb, which is where the identity service publishes
+//     them. A dedicated field on InvestorObject is listed as a proto
+//     follow-up.
 //
 // Returns (nil, nil) when the client isn't configured (graceful degradation).
+//
+// A borrower is looked up in the field service first, then as an investor.
+// An id neither service knows is an error like any other failure: whether a
+// filtered policy matches it cannot be known, so the reservation path fails
+// closed for enforce policies rather than letting an unknown subject skip a
+// stricter tier.
 func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID string) (map[string]any, error) {
-	if r.identityClient == nil {
+	if r.identityClient == nil && r.fieldClient == nil {
 		//nolint:nilnil // documented contract: nil map when no identity client is configured
 		return nil, nil
 	}
 
+	if r.fieldClient != nil {
+		attrs, err := r.fetchFieldClient(ctx, clientID)
+		if err == nil {
+			return attrs, nil
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound || r.identityClient == nil {
+			return nil, err
+		}
+	}
+
 	resp, err := r.identityClient.InvestorGet(
 		ctx,
-		connect.NewRequest(&identityv1.InvestorGetRequest{Id: clientID}),
+		&identityv1.InvestorGetRequest{Id: clientID},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	inv := resp.Msg.GetData()
+	inv := resp.GetData()
 	if inv == nil {
-		return map[string]any{}, nil
+		return nil, connect.NewError(connect.CodeNotFound, "subject not found")
 	}
 
 	attrs := map[string]any{
@@ -205,11 +244,44 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 	// Merge any entries from the properties bag. This covers dynamic
 	// attributes such as kyc_tier / country_code that identity services
 	// may store there until first-class proto fields are added.
-	if props := inv.GetProperties(); props != nil {
-		for k, v := range props.GetFields() {
-			attrs[k] = v.AsInterface()
-		}
-	}
+	mergeProperties(attrs, inv.GetProperties())
 
 	return attrs, nil
+}
+
+// fetchFieldClient projects a field-service client into attributes: state,
+// name, profile, owning team and every key of its properties bag (where an
+// agent records, for example, the limit tier the client is held to).
+func (r *attributeResolver) fetchFieldClient(ctx context.Context, clientID string) (map[string]any, error) {
+	resp, err := r.fieldClient.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
+	if err != nil {
+		return nil, err
+	}
+	client := resp.GetData()
+	if client == nil {
+		return nil, connect.NewError(connect.CodeNotFound, "client not found")
+	}
+	attrs := map[string]any{
+		"state":          client.GetState().String(),
+		"name":           client.GetName(),
+		"profile_id":     client.GetProfileId(),
+		"owning_team_id": client.GetOwningTeamId(),
+	}
+	mergeProperties(attrs, client.GetProperties())
+	return attrs, nil
+}
+
+// mergeProperties adds the subject's free-form properties to its attributes
+// without letting them overwrite a system-derived key: a properties bag that
+// field staff can edit must not be able to claim, say, a different state.
+// Properties such as a client's limit tier are editable by the responsible
+// agent on purpose; a tier policy is evaluated on top of every partition cap,
+// so it can only tighten, never replace, the caps set above the agent.
+func mergeProperties(attrs map[string]any, props *structpb.Struct) {
+	for k, v := range props.GetFields() {
+		if _, systemKey := attrs[k]; systemKey {
+			continue
+		}
+		attrs[k] = v.AsInterface()
+	}
 }

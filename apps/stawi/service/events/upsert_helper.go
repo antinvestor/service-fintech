@@ -16,13 +16,13 @@ package events
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/util"
-	"gorm.io/gorm"
+
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 // versionedModel extends data.BaseModelI with a settable Version field.
@@ -31,56 +31,17 @@ type versionedModel interface {
 	SetVersion(v uint)
 }
 
-// upsertVersioned is a generic helper that executes the common version-based
-// upsert logic shared by all group event handlers, eliminating duplicated Execute() methods.
-func upsertVersioned[T versionedModel](
+// upsertEntity delegates to the shared versioned upsert. It copies the stored
+// version so updates land, fails when no row was affected, and never swallows
+// a duplicate-key error.
+func upsertEntity[T data.BaseModelI](
 	ctx context.Context,
 	repo datastore.BaseRepository[T],
 	entity T,
 	eventName string,
 ) error {
-	log := util.Log(ctx)
-
-	if entity.GetVersion() > 0 {
-		_, err := repo.Update(ctx, entity)
-		if err != nil {
-			log.WithError(err).Error(fmt.Sprintf("%s -- could not update", eventName))
-			return err
-		}
-		return nil
-	}
-
-	err := repo.Create(ctx, entity)
-	if err == nil {
-		return nil
-	}
-
-	if !data.ErrorIsDuplicateKey(err) {
-		log.WithError(err).Error(fmt.Sprintf("%s -- could not create", eventName))
-		return err
-	}
-
-	log.WithError(err).Warn(fmt.Sprintf("%s -- duplicate, attempting update", eventName))
-	return upsertOnDuplicate(ctx, repo, entity, eventName, log)
-}
-
-// upsertOnDuplicate handles the duplicate-key fallback path: loads the existing
-// entity's version and retries as an update.
-func upsertOnDuplicate[T versionedModel](
-	ctx context.Context,
-	repo datastore.BaseRepository[T],
-	entity T,
-	eventName string,
-	log *util.LogEntry,
-) error {
-	existing, getErr := repo.GetByID(ctx, entity.GetID())
-	if getErr != nil {
-		return getErr
-	}
-	entity.SetVersion(existing.GetVersion())
-	_, err := repo.Update(ctx, entity)
-	if err != nil {
-		log.WithError(err).Error(fmt.Sprintf("%s -- could not update existing", eventName))
+	if err := upsert.ByID(ctx, repo, entity); err != nil {
+		util.Log(ctx).WithError(err).Error(fmt.Sprintf("%s -- could not persist record", eventName))
 		return err
 	}
 	return nil
@@ -116,44 +77,11 @@ func (e *eventHandler[T]) Execute(ctx context.Context, payload any) error {
 	if !ok {
 		return fmt.Errorf("invalid payload type for %s", e.name)
 	}
-	return upsertVersioned(ctx, e.repo, entity, e.name)
+	return upsertEntity(ctx, e.repo, entity, e.name)
 }
 
-// upsertByID is a generic helper that executes an ID-based upsert for models
-// that do not implement SetVersion (e.g. LoanWindow, LoanOffer).
-func upsertByID[T data.BaseModelI](
-	ctx context.Context,
-	repo datastore.BaseRepository[T],
-	entity T,
-	eventName string,
-) error {
-	log := util.Log(ctx)
-
-	existing, err := repo.GetByID(ctx, entity.GetID())
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.WithError(err).Error(fmt.Sprintf("%s -- failed to check existing record", eventName))
-		return err
-	}
-
-	if err == nil && existing.GetID() != "" {
-		_, err = repo.Update(ctx, entity)
-		if err != nil {
-			log.WithError(err).Error(fmt.Sprintf("%s -- failed to update record", eventName))
-			return err
-		}
-		return nil
-	}
-
-	err = repo.Create(ctx, entity)
-	if err != nil {
-		log.WithError(err).Error(fmt.Sprintf("%s -- failed to create record", eventName))
-		return err
-	}
-	return nil
-}
-
-// baseEventHandler is a generic event handler for models that use data.BaseModelI
-// (without SetVersion), using upsertByID instead of upsertVersioned.
+// baseEventHandler is a generic event handler for models that use
+// data.BaseModelI without a settable Version.
 type baseEventHandler[T data.BaseModelI] struct {
 	name     string
 	factory  func() T
@@ -182,5 +110,5 @@ func (e *baseEventHandler[T]) Execute(ctx context.Context, payload any) error {
 	if !ok {
 		return fmt.Errorf("invalid payload type for %s", e.name)
 	}
-	return upsertByID(ctx, e.repo, entity, e.name)
+	return upsertEntity(ctx, e.repo, entity, e.name)
 }

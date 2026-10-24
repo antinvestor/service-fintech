@@ -22,18 +22,15 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
-	"github.com/antinvestor/service-fintech/apps/savings/service/events"
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
@@ -41,20 +38,8 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
-const moneyDecimalPlaces = 2
-
-// ErrSavingsAccountLedgerRefsMissing is returned when a deposit or withdrawal
-// cannot be routed through the double-entry system because the savings
-// account row does not carry both the internal ledger account and the
-// external payment account reference. The account must be created with
-// these refs configured.
-var ErrSavingsAccountLedgerRefsMissing = errors.New("savings account is missing ledger or payment account refs")
-
 type DepositBusiness interface {
-	Record(
-		ctx context.Context,
-		accountID, amount, paymentRef, channel, payerRef, idempotencyKey string,
-	) (*savingsv1.DepositObject, error)
+	Record(ctx context.Context, req *savingsv1.DepositRecordRequest) (*savingsv1.DepositObject, error)
 	Get(ctx context.Context, id string) (*savingsv1.DepositObject, error)
 	Search(
 		ctx context.Context,
@@ -64,10 +49,8 @@ type DepositBusiness interface {
 }
 
 type depositBusiness struct {
-	eventsMan         fevents.Manager
 	depRepo           repository.DepositRepository
 	saRepo            repository.SavingsAccountRepository
-	sbRepo            repository.SavingsBalanceRepository
 	operationsCli     operationsv1connect.OperationsServiceClient
 	auditWriter       *audit.Writer
 	limitsCli         limitsv1connect.LimitsServiceClient
@@ -77,10 +60,8 @@ type depositBusiness struct {
 
 func NewDepositBusiness(
 	_ context.Context,
-	eventsMan fevents.Manager,
 	depRepo repository.DepositRepository,
 	saRepo repository.SavingsAccountRepository,
-	sbRepo repository.SavingsBalanceRepository,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
 	limitsCli limitsv1connect.LimitsServiceClient,
@@ -88,10 +69,8 @@ func NewDepositBusiness(
 	limitsGateMode string,
 ) DepositBusiness {
 	return &depositBusiness{
-		eventsMan:         eventsMan,
 		depRepo:           depRepo,
 		saRepo:            saRepo,
-		sbRepo:            sbRepo,
 		operationsCli:     operationsCli,
 		auditWriter:       auditWriter,
 		limitsCli:         limitsCli,
@@ -100,121 +79,124 @@ func NewDepositBusiness(
 	}
 }
 
-// Record applies an inbound deposit to a savings account. The flow is:
+// Record applies an inbound deposit to a savings account.
 //
-//  1. Validate account is active and ledger-capable.
-//  2. Short-circuit on caller idempotency key (previously applied deposit).
-//  3. When the limits gate is enabled, reserve capacity via the limits
-//     service before executing the deposit. DENY returns LimitBreachedError;
-//     PENDING_APPROVAL returns PendingApprovalError.
-//  4. Persist the Deposit record in PROCESSING state so downstream systems
-//     can observe an in-flight posting.
-//  5. Emit a transfer order (external payment account → savings ledger
-//     account) via the operations service using a stable reference derived
-//     from the deposit id. Operations will dedupe on that reference so a
-//     retry from any failure below lands on exactly the same ledger posting.
-//  6. Credit the running savings balance atomically.
-//  7. Mark the deposit COMPLETED, carrying the ledger transaction id.
-//
-// Any step after (4) that fails leaves the deposit record visible in an
-// intermediate state and returns an error. Callers retry via their own
-// idempotency key; the Deposit row, the transfer order, and the balance
-// credit are all keyed on stable ids so retries converge.
+// The deposit row is written synchronously before any money moves, and its
+// idempotency key carries a unique index, so a retry or a concurrent duplicate
+// loses the insert and gets the stored deposit back instead of a second
+// posting. Everything after that claim converges on the same row: the
+// operations transfer order is keyed on the deposit id, and the completion
+// (status + ledger transaction id + balance credit) is a single guarded
+// database transaction.
 func (b *depositBusiness) Record(
 	ctx context.Context,
-	accountID, amount, paymentRef, channel, payerRef, idempotencyKey string,
+	req *savingsv1.DepositRecordRequest,
 ) (*savingsv1.DepositObject, error) {
-	// Idempotency short-circuit (local).
-	if idempotencyKey != "" {
-		existing, idempErr := b.depRepo.GetByIdempotencyKey(ctx, idempotencyKey)
-		if idempErr == nil && existing != nil {
-			return existing.ToAPI(), nil
-		}
+	idempotencyKey := req.GetIdempotencyKey()
+	if idempotencyKey == "" {
+		return nil, ErrIdempotencyKeyRequired
+	}
+
+	// A completed deposit is the final answer for this key. A deposit still
+	// PENDING means an earlier attempt died between the claim and the ledger,
+	// so the retry falls through and drives that same row to completion
+	// rather than starting a second one.
+	if existing, idempErr := b.depRepo.GetByIdempotencyKey(ctx, idempotencyKey); idempErr == nil &&
+		existing != nil &&
+		existing.Status == int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED) {
+		return existing.ToAPI(), nil
 	}
 
 	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == "off" {
-		return b.recordInner(ctx, accountID, amount, paymentRef, channel, payerRef, idempotencyKey)
+		return b.recordInner(ctx, req)
 	}
 
-	// Load account to build the intent (same validation happens in recordInner).
-	sa, err := b.saRepo.GetByID(ctx, accountID)
+	sa, err := b.saRepo.GetByID(ctx, req.GetSavingsAccountId())
 	if err != nil {
 		return nil, ErrSavingsAccountNotFound
 	}
+	amountMinor, amountErr := amountInAccountCurrency(req.GetAmount(), sa.CurrencyCode)
+	if amountErr != nil {
+		return nil, amountErr
+	}
 
-	amountMinor := models.StringToMinorUnits(amount)
 	intent := &limitsv1.LimitIntent{
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_SAVINGS_DEPOSIT,
 		TenantId: sa.BankID,
 		Amount:   moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, amountMinor),
+		// The limits service requires the client for savings actions: the
+		// account owner. A group owner is not a field client, so an enforce
+		// policy that filters on client attributes fails closed for it; keep
+		// client-tier filters off savings actions that group accounts use.
 		Subjects: []*limitsv1.SubjectRef{
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: accountID},
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: sa.OwnerID},
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: sa.GetID()},
 		},
 	}
-	if idempotencyKey == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument,
-			errors.New("idempotency_key required for savings deposit"))
-	}
-	idemKey := idempotencyKey
 
 	var result *savingsv1.DepositObject
-	gateErr := limits.Gate(ctx, b.limitsCli, intent, idemKey, limits.ParseMode(b.limitsGateMode),
+	gateErr := limits.Gate(ctx, b.limitsCli, intent, idempotencyKey, limits.ParseMode(b.limitsGateMode),
 		func(innerCtx context.Context, reservationID string) error {
 			util.Log(innerCtx).With("limits_reservation_id", reservationID).Info("deposit gated by limits")
-			inner, innerErr := b.recordInner(innerCtx, accountID, amount, paymentRef, channel, payerRef, idempotencyKey)
+			inner, innerErr := b.recordInner(innerCtx, req)
 			if innerErr != nil {
 				return innerErr
 			}
 			result = inner
 			return nil
-		})
+		},
+		limits.InPartition(sa.TenantID, sa.PartitionID),
+	)
 	return result, gateErr
 }
 
-// recordInner is the pre-Gate body of Record. It performs all validation,
-// persistence, and ledger posting. The idempotency check lives in the outer
-// Record so it is not duplicated when Gate wraps this.
+// recordInner is the pre-Gate body of Record: validation, the synchronous
+// idempotency claim, the ledger posting, and settlement.
 func (b *depositBusiness) recordInner(
 	ctx context.Context,
-	accountID, amount, paymentRef, channel, payerRef, idempotencyKey string,
+	req *savingsv1.DepositRecordRequest,
 ) (*savingsv1.DepositObject, error) {
 	logger := util.Log(ctx).WithField("method", "DepositBusiness.Record")
 
+	accountID := req.GetSavingsAccountId()
 	sa, err := b.saRepo.GetByID(ctx, accountID)
 	if err != nil {
 		return nil, ErrSavingsAccountNotFound
 	}
-
-	currentStatus := savingsv1.SavingsAccountStatus(sa.Status)
-	if currentStatus == savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_FROZEN {
-		return nil, ErrAccountFrozen
-	}
-	if currentStatus == savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_CLOSED {
-		return nil, ErrAccountClosed
-	}
-	if sa.LedgerAccountID == "" || sa.PaymentAccountRef == "" {
-		return nil, ErrSavingsAccountLedgerRefsMissing
+	if err = assertAccountOperable(sa); err != nil {
+		return nil, err
 	}
 
-	amountMinor := models.StringToMinorUnits(amount)
-	if amountMinor <= 0 {
-		return nil, fmt.Errorf("deposit amount must be positive, got %d", amountMinor)
+	amountMinor, err := amountInAccountCurrency(req.GetAmount(), sa.CurrencyCode)
+	if err != nil {
+		return nil, err
 	}
 
 	dep := models.DepositFromAPI(ctx, &savingsv1.DepositObject{
 		SavingsAccountId: accountID,
 		Amount:           models.MinorUnitsToMoney(amountMinor, sa.CurrencyCode),
-		PaymentReference: paymentRef,
-		Channel:          channel,
-		PayerReference:   payerRef,
-		IdempotencyKey:   idempotencyKey,
+		PaymentReference: req.GetPaymentReference(),
+		Channel:          req.GetChannel(),
+		PayerReference:   req.GetPayerReference(),
+		IdempotencyKey:   req.GetIdempotencyKey(),
 	})
 	dep.Status = int32(savingsv1.DepositStatus_DEPOSIT_STATUS_PENDING)
+	dep.CopyPartitionInfo(&sa.BaseModel)
 
-	if emitErr := b.eventsMan.Emit(ctx, events.DepositSaveEvent, dep); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit deposit save event")
-		return nil, emitErr
+	claimed, created, claimErr := b.depRepo.Claim(ctx, dep)
+	if claimErr != nil {
+		logger.WithError(claimErr).Error("could not claim deposit row")
+		return nil, claimErr
 	}
+	if !created &&
+		claimed.Status == int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED) {
+		return claimed.ToAPI(), nil
+	}
+	// Whether this call made the claim or inherited an unfinished one, the
+	// rest of the flow converges on the same row: the transfer order is keyed
+	// on its id and the settlement is guarded on it still being PENDING.
+	dep = claimed
+	amountMinor = dep.Amount
 
 	toID, toErr := b.postDepositTransferOrder(ctx, logger, sa, dep, amountMinor)
 	if toErr != nil {
@@ -222,16 +204,11 @@ func (b *depositBusiness) recordInner(
 	}
 	dep.LedgerTransactionID = toID
 
-	if _, balErr := b.sbRepo.Credit(ctx, accountID, amountMinor); balErr != nil {
-		logger.WithError(balErr).Error("could not credit savings balance after deposit")
-		return nil, balErr
+	if settleErr := b.depRepo.Settle(ctx, dep, amountMinor); settleErr != nil {
+		logger.WithError(settleErr).Error("could not settle deposit against the running balance")
+		return nil, settleErr
 	}
-
 	dep.Status = int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED)
-	if emitErr := b.eventsMan.Emit(ctx, events.DepositSaveEvent, dep); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit deposit completed event")
-		return nil, emitErr
-	}
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
 		EntityType: "savings_deposit",
@@ -247,10 +224,8 @@ func (b *depositBusiness) recordInner(
 			fieldOwnerID:          sa.OwnerID,
 			fieldAmount:           amountMinor,
 			fieldCurrency:         sa.CurrencyCode,
-			fieldChannel:          channel,
-			"payer_reference":     payerRef,
-			"payment_reference":   paymentRef,
-			"idempotency_key":     idempotencyKey,
+			fieldChannel:          dep.Channel,
+			"idempotency_key":     dep.IdempotencyKey,
 		},
 		Parent: &dep.BaseModel,
 	}, func(auErr error) {
@@ -285,21 +260,19 @@ func (b *depositBusiness) postDepositTransferOrder(
 		"deposit_id":          dep.GetID(),
 		fieldOwnerID:          sa.OwnerID,
 		fieldChannel:          dep.Channel,
-		"payer_reference":     dep.PayerReference,
-		"payment_reference":   dep.PaymentReference,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
-			DebitAccountRef:  sa.PaymentAccountRef,
-			CreditAccountRef: sa.LedgerAccountID,
-			Amount:           moneyx.FromSmallestUnit(sa.CurrencyCode, amountMinor, moneyDecimalPlaces),
+			DebitAccountRef:  PaymentAccountRef(sa),
+			CreditAccountRef: LedgerAccountRef(sa),
+			Amount:           moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, amountMinor),
 			OrderType:        constants.SafeInt32FromInt(constants.TransferTypePeriodicSaving),
 			Reference:        reference,
 			Description:      "Savings deposit",
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
 	if execErr != nil {
@@ -308,7 +281,7 @@ func (b *depositBusiness) postDepositTransferOrder(
 			Error("could not execute transfer order for deposit")
 		return "", fmt.Errorf("deposit transfer order %s failed: %w", reference, execErr)
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (b *depositBusiness) Get(ctx context.Context, id string) (*savingsv1.DepositObject, error) {
@@ -340,10 +313,10 @@ func (b *depositBusiness) Search(
 
 	andQueryVal := map[string]any{}
 	if req.GetSavingsAccountId() != "" {
-		andQueryVal["savings_account_id = ?"] = req.GetSavingsAccountId()
+		andQueryVal[whereSavingsAccountIDEq] = req.GetSavingsAccountId()
 	}
 	if req.GetStatus() != savingsv1.DepositStatus_DEPOSIT_STATUS_UNSPECIFIED {
-		andQueryVal["status = ?"] = int32(req.GetStatus())
+		andQueryVal[whereStatusEq] = int32(req.GetStatus())
 	}
 
 	if len(andQueryVal) > 0 {

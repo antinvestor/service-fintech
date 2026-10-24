@@ -15,13 +15,19 @@
 package config
 
 import (
-	"github.com/pitabwire/frame/v2/config"
+	"github.com/pitabwire/frame/v3/config"
 
 	"github.com/antinvestor/service-fintech/pkg/clients"
+	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 )
 
 type StawiConfig struct {
 	config.ConfigurationDefault
+	clients.AuditConfig
+
+	// Product policy: group size, tenure shape, leverage bounds, loan terms
+	// and fee rates, tunable per deployment without a release.
+	stawiproduct.ProductConfig
 
 	// Identity service
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                   env:"IDENTITY_SERVICE_URI"`
@@ -62,10 +68,13 @@ type StawiConfig struct {
 	// Limits service: gates stawi loan disbursement through the centralised
 	// caps engine. Both URI fields are optional; when LimitsServiceURI is
 	// empty consumer.SetupClient returns nil and the gate is skipped at runtime.
-	LimitsServiceURI                       string `envDefault:"http://service_limits:80" env:"LIMITS_SERVICE_URI"`
-	LimitsServiceWorkloadAPITargetPath     string `envDefault:""                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
-	LimitsGateEnabledStawiLoanDisbursement bool   `envDefault:"false"                    env:"LIMITS_GATE_ENABLED_STAWI_LOAN_DISBURSEMENT"`
-	LimitsGateModeStawiLoanDisbursement    string `envDefault:"enforce"                  env:"LIMITS_GATE_MODE_STAWI_LOAN_DISBURSEMENT"`
+	LimitsServiceURI                   string `envDefault:"http://service_limits:80" env:"LIMITS_SERVICE_URI"`
+	LimitsServiceWorkloadAPITargetPath string `envDefault:""                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
+	// Stawi runs the operations transfer-order engine in process, so its
+	// transfer orders take the same gate settings as the operations service.
+	// Stawi loans are gated by the loans service at approval and disbursement.
+	LimitsGateEnabledOperationsTransfer bool   `envDefault:"true"    env:"LIMITS_GATE_ENABLED_OPERATIONS_TRANSFER"`
+	LimitsGateModeOperationsTransfer    string `envDefault:"enforce" env:"LIMITS_GATE_MODE_OPERATIONS_TRANSFER"`
 }
 
 // ServiceEndpoints returns a clients.ServiceEndpoints populated from the config.

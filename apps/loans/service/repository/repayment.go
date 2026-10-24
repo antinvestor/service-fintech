@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package repository //nolint:dupl // similar patterns for different entity types
+package repository
 
 import (
 	"context"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 )
@@ -27,6 +28,17 @@ import (
 type RepaymentRepository interface {
 	datastore.BaseRepository[*models.Repayment]
 	GetByIdempotencyKey(ctx context.Context, key string) (*models.Repayment, error)
+	// ClaimIdempotencyKey inserts the repayment, or hands back the row that
+	// already owns the key, so a retry can never post a second set of
+	// transfer orders for the same payment.
+	ClaimIdempotencyKey(
+		ctx context.Context,
+		rep *models.Repayment,
+	) (stored *models.Repayment, created bool, err error)
+	UpdateColumns(ctx context.Context, id string, values map[string]any) (int64, error)
+	// ListByLoanAccountID returns up to limit repayments of a loan in
+	// posting order.
+	ListByLoanAccountID(ctx context.Context, loanAccountID string, limit int) ([]*models.Repayment, error)
 }
 
 type repaymentRepository struct {
@@ -52,4 +64,51 @@ func (repo *repaymentRepository) GetByIdempotencyKey(
 		return nil, err
 	}
 	return &repayment, nil
+}
+
+func (repo *repaymentRepository) ClaimIdempotencyKey(
+	ctx context.Context,
+	rep *models.Repayment,
+) (*models.Repayment, bool, error) {
+	err := repo.Create(ctx, rep)
+	if err == nil {
+		return rep, true, nil
+	}
+	if !data.ErrorIsDuplicateKey(err) {
+		return nil, false, err
+	}
+
+	existing, getErr := repo.GetByIdempotencyKey(ctx, rep.IdempotencyKey)
+	if getErr != nil {
+		return nil, false, err
+	}
+	return existing, false, nil
+}
+
+func (repo *repaymentRepository) UpdateColumns(
+	ctx context.Context,
+	id string,
+	values map[string]any,
+) (int64, error) {
+	return applyColumnUpdate(repo.Pool().DB(ctx, false), "repayments", id, values)
+}
+
+// ListByLoanAccountID returns up to limit repayments of a loan in posting
+// order. It is served from idx_rep_loan_created, so the statement path reads
+// one index range instead of scanning the table.
+func (repo *repaymentRepository) ListByLoanAccountID(
+	ctx context.Context,
+	loanAccountID string,
+	limit int,
+) ([]*models.Repayment, error) {
+	var rows []*models.Repayment
+	err := repo.Pool().DB(ctx, true).
+		Where("loan_account_id = ?", loanAccountID).
+		Order("created_at ASC, id ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }

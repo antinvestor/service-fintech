@@ -14,12 +14,17 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:antinvestor_api_limits/antinvestor_api_limits.dart' show Struct, Value, ListValue, NullValue;
+import 'package:antinvestor_api_limits/antinvestor_api_limits.dart'
+    show Struct, Value, ListValue, NullValue;
 
 class AttributeFilterEditor extends StatefulWidget {
   final Struct? initial;
   final ValueChanged<Struct?> onChanged;
-  const AttributeFilterEditor({super.key, this.initial, required this.onChanged});
+  const AttributeFilterEditor({
+    super.key,
+    this.initial,
+    required this.onChanged,
+  });
 
   @override
   State<AttributeFilterEditor> createState() => _AttributeFilterEditorState();
@@ -39,7 +44,9 @@ class _AttributeFilterEditorState extends State<AttributeFilterEditor> {
     if (s == null || s.fields.isEmpty) return '';
     // Best-effort: render the Struct as JSON for editing.
     // Each Value is a tagged union; we extract the inner type.
-    return jsonEncode({for (final e in s.fields.entries) e.key: _valueToDart(e.value)});
+    return jsonEncode({
+      for (final e in s.fields.entries) e.key: _valueToDart(e.value),
+    });
   }
 
   dynamic _valueToDart(Value v) {
@@ -48,7 +55,10 @@ class _AttributeFilterEditorState extends State<AttributeFilterEditor> {
     if (v.hasBoolValue()) return v.boolValue;
     if (v.hasListValue()) return v.listValue.values.map(_valueToDart).toList();
     if (v.hasStructValue()) {
-      return {for (final e in v.structValue.fields.entries) e.key: _valueToDart(e.value)};
+      return {
+        for (final e in v.structValue.fields.entries)
+          e.key: _valueToDart(e.value),
+      };
     }
     return null;
   }

@@ -34,24 +34,26 @@ import (
 	"errors"
 	"fmt"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
 	"github.com/antinvestor/service-fintech/apps/seed/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 )
 
 // ErrNoTierConfigured is returned when no CreditTierConfig rows exist
 // for a product/currency. Seed refuses to make credit decisions on
 // unconfigured tiers rather than guessing.
-var ErrNoTierConfigured = errors.New("seed: no credit tier configured for product/currency")
+var ErrNoTierConfigured = apperrors.NewError(apperrors.ServiceUnavailable,
+	"no credit tier is configured for this product and currency")
 
 // ErrProfileSuspended is returned when a credit profile's status is
 // not Active: a suspended or blocked profile cannot borrow.
-var ErrProfileSuspended = errors.New("seed: credit profile is not active")
+var ErrProfileSuspended = apperrors.NewError(apperrors.Forbidden, "credit profile is not active")
 
 // CreditProfileBusiness is the public seed credit surface.
 //
@@ -90,6 +92,16 @@ type CreditProfileBusiness interface {
 		repaidAmount int64,
 		reason string,
 	) (*models.CreditProfile, error)
+
+	// SetStatus is the operator surface for suspend, block and reinstate.
+	// It validates the transition, applies it atomically and records an
+	// audit row carrying the reason. See credit_profile_status.go.
+	SetStatus(
+		ctx context.Context,
+		clientID, currencyCode string,
+		status models.CreditProfileStatus,
+		reason string,
+	) (*models.CreditProfile, error)
 }
 
 type creditProfileBusiness struct {
@@ -123,7 +135,8 @@ func (b *creditProfileBusiness) EnsureProfile(
 		WithField("client_id", clientID)
 
 	if clientID == "" || currencyCode == "" || productID == "" {
-		return nil, errors.New("client id, currency code, and product id are required")
+		return nil, apperrors.NewError(apperrors.BadRequest,
+			"client id, currency code, and product id are required")
 	}
 
 	existing, err := b.cpRepo.GetByClientAndCurrency(ctx, clientID, currencyCode)
@@ -139,20 +152,22 @@ func (b *creditProfileBusiness) EnsureProfile(
 		return nil, ensureErr
 	}
 
-	// Populate the initial tier and limit from policy so the brand-new
-	// profile has an actionable MaxLoanAmount instead of zero.
+	// Populate the initial tier and limit from policy. A profile that keeps a
+	// zero MaxLoanAmount is not usable and every later eligibility check would
+	// deny it anyway, so a failure here fails the call rather than persisting
+	// an unusable profile.
 	tier, evalErr := b.EvaluateTier(ctx, profile)
-	if evalErr == nil && tier != nil {
-		promoted, promoteErr := b.cpRepo.AtomicPromoteTier(
-			ctx, profile.GetID(), tier.Tier, tier.MaxLoanAmount,
-		)
-		if promoteErr != nil {
-			logger.WithError(promoteErr).
-				Warn("could not set initial tier on new credit profile")
-		} else {
-			profile = promoted
-		}
+	if evalErr != nil {
+		return nil, evalErr
 	}
+	promoted, promoteErr := b.cpRepo.AtomicPromoteTier(
+		ctx, profile.GetID(), tier.Tier, tier.MaxLoanAmount,
+	)
+	if promoteErr != nil {
+		logger.WithError(promoteErr).Error("could not set initial tier on new credit profile")
+		return nil, fmt.Errorf("set initial tier: %w", promoteErr)
+	}
+	profile = promoted
 
 	b.auditWriter.RecordOrLog(ctx, audit.Record{
 		EntityType: entityCreditProfile,
@@ -189,10 +204,11 @@ func (b *creditProfileBusiness) EvaluateTier(
 	profile *models.CreditProfile,
 ) (*models.CreditTierConfig, error) {
 	if profile == nil {
-		return nil, errors.New("credit profile is required")
+		return nil, apperrors.NewError(apperrors.BadRequest, "credit profile is required")
 	}
 	if profile.ProductID == "" || profile.CurrencyCode == "" {
-		return nil, errors.New("credit profile is missing product or currency")
+		return nil, apperrors.NewError(apperrors.Unprocessable,
+			"credit profile is missing product or currency")
 	}
 
 	tiers, err := b.tierRepo.ListForProduct(ctx, profile.ProductID, profile.CurrencyCode)

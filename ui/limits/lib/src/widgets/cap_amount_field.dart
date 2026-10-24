@@ -14,7 +14,16 @@
 
 import 'package:flutter/material.dart';
 
-const _commonCurrencies = ['KES', 'USD', 'EUR', 'GBP', 'UGX', 'TZS', 'JPY', 'KWD'];
+const _commonCurrencies = [
+  'KES',
+  'USD',
+  'EUR',
+  'GBP',
+  'UGX',
+  'TZS',
+  'JPY',
+  'KWD',
+];
 
 /// Edits a money-cap value as a free-text amount + currency dropdown.
 ///
@@ -27,12 +36,14 @@ class CapAmountField extends StatefulWidget {
   final String? initialCurrency;
   final void Function(String? amount, String currency) onChanged;
   final String label;
+  final String? errorText;
   const CapAmountField({
     super.key,
     this.initialAmount,
     this.initialCurrency,
     required this.onChanged,
     this.label = 'Cap',
+    this.errorText,
   });
 
   @override
@@ -64,9 +75,13 @@ class _CapAmountFieldState extends State<CapAmountField> {
         Expanded(
           flex: 3,
           child: TextField(
+            key: const Key('capAmountField'),
             controller: _amountCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: widget.label),
+            decoration: InputDecoration(
+              labelText: widget.label,
+              errorText: widget.errorText,
+            ),
             onChanged: (_) => _emit(),
           ),
         ),

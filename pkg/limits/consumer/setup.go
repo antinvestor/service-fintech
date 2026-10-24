@@ -17,10 +17,11 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"sort"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
 )
 
 // SetupClient constructs a LimitsServiceClient from the provided config and target.
@@ -40,4 +41,32 @@ func SetupClient(
 		return nil, fmt.Errorf("limits client: %w", err)
 	}
 	return cli, nil
+}
+
+// RequireForGates refuses to run a service whose transaction-limit gates are
+// switched on but which has no working limits client. Without the check a
+// misconfigured endpoint silently turns every gate into a pass-through, and
+// money moves with no limit applied. Pass the gates as name → enabled.
+func RequireForGates(
+	cli limitsv1connect.LimitsServiceClient,
+	setupErr error,
+	gates map[string]bool,
+) error {
+	var enabled []string
+	for name, on := range gates {
+		if on {
+			enabled = append(enabled, name)
+		}
+	}
+	if len(enabled) == 0 {
+		return nil
+	}
+	sort.Strings(enabled)
+	if setupErr != nil {
+		return fmt.Errorf("limits gates %v enabled but the limits client failed: %w", enabled, setupErr)
+	}
+	if cli == nil {
+		return fmt.Errorf("limits gates %v enabled but LIMITS_SERVICE_URI is not set", enabled)
+	}
+	return nil
 }

@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const AgentSaveEvent = "agent.save"
@@ -58,17 +58,8 @@ func (e *AgentSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "agent_id": agent.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.agentRepo.GetByID(ctx, agent.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.agentRepo.Update(ctx, agent); err != nil {
-			logger.WithError(err).Error("could not update agent in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.agentRepo.Create(ctx, agent); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create agent in db")
+	if err := upsert.ByID(ctx, e.agentRepo, agent); err != nil {
+		logger.WithError(err).Error("could not save agent in db")
 		return err
 	}
 

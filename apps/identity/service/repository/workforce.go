@@ -19,9 +19,9 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 )
@@ -281,6 +281,8 @@ type TeamMembershipRepository interface {
 	datastore.BaseRepository[*models.TeamMembership]
 	GetActivePrimaryByMemberID(ctx context.Context, memberID string) (*models.TeamMembership, error)
 	GetActiveMembership(ctx context.Context, teamID, memberID string) (*models.TeamMembership, error)
+	// ListActiveTeamIDs returns the teams a member actively belongs to.
+	ListActiveTeamIDs(ctx context.Context, memberID string) ([]string, error)
 }
 
 type teamMembershipRepository struct {
@@ -402,4 +404,17 @@ func (repo *accessRoleAssignmentRepository) GetActiveByRoleAndScopes(
 		return nil, err
 	}
 	return assignments, nil
+}
+
+func (repo *teamMembershipRepository) ListActiveTeamIDs(ctx context.Context, memberID string) ([]string, error) {
+	var teamIDs []string
+	err := repo.Pool().DB(ctx, true).
+		Model(&models.TeamMembership{}).
+		Where("member_id = ? AND state IN ? AND deleted_at IS NULL", memberID,
+			[]int32{int32(commonv1.STATE_CREATED), int32(commonv1.STATE_ACTIVE)}).
+		Pluck("team_id", &teamIDs).Error
+	if err != nil {
+		return nil, err
+	}
+	return teamIDs, nil
 }

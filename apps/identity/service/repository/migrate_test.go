@@ -20,16 +20,16 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	"github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
-	"github.com/pitabwire/frame/v2/frametests/rlstest"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/tenancy"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	"github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/frametests/rlstest"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/tenancy"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 
@@ -218,4 +218,58 @@ func (s *migrateSuite) databaseResource(ctx context.Context) definition.Dependan
 	}
 	s.T().Fatal("postgres test resource not found")
 	return nil
+}
+
+// TestPreMigrateConvertsLegacyEnumColumns covers the case AutoMigrate cannot
+// handle on its own: a column that still holds enum ordinals has to be widened
+// to varchar with an explicit USING clause before AutoMigrate sees the model.
+func (s *migrateSuite) TestPreMigrateConvertsLegacyEnumColumns() {
+	ctx := (&security.AuthenticationClaims{
+		TenantID:    "tenant-enum",
+		PartitionID: "partition-enum",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: "profile-enum",
+		},
+	}).ClaimsToContext(s.T().Context())
+
+	db := s.databaseResource(ctx)
+	dsn, cleanup, err := db.GetRandomisedDS(ctx, util.RandomAlphaNumericString(8))
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { cleanup(ctx) })
+
+	ctx, svc := frame.NewServiceWithContext(
+		ctx,
+		frame.WithName("identity-enum-migrate-test"),
+		frame.WithDatastore(pool.WithConnection(dsn.String(), false)),
+	)
+	s.T().Cleanup(func() { svc.Stop(ctx) })
+	svc.Init(ctx)
+
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+	s.Require().NotNil(dbPool)
+	gormDB := dbPool.DB(ctx, false)
+
+	// Stand in for the legacy schema: an integer engagement_type column.
+	s.Require().NoError(gormDB.Exec(`CREATE TABLE workforce_members (
+		id varchar(50) PRIMARY KEY,
+		engagement_type integer DEFAULT 0
+	)`).Error)
+	s.Require().NoError(gormDB.Exec(
+		"INSERT INTO workforce_members (id, engagement_type) VALUES ('a', 1), ('b', 4), ('c', 0)",
+	).Error)
+
+	s.Require().NoError(convertLegacyEnumColumns(ctx, gormDB))
+
+	isInteger, err := columnIsInteger(gormDB, "workforce_members", "engagement_type")
+	s.Require().NoError(err)
+	s.False(isInteger, "the column must no longer be an integer")
+
+	var values []string
+	s.Require().NoError(gormDB.Raw(
+		"SELECT engagement_type FROM workforce_members ORDER BY id",
+	).Scan(&values).Error)
+	s.Equal([]string{"employee", "agent", ""}, values)
+
+	// Re-running the conversion is a no-op rather than an error.
+	s.Require().NoError(convertLegacyEnumColumns(ctx, gormDB))
 }

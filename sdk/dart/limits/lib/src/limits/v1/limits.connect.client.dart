@@ -162,6 +162,24 @@ extension type LimitsAdminServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// PolicyHistory pages through a policy's immutable version snapshots, newest first.
+  Future<limitsv1limits.PolicyHistoryResponse> policyHistory(
+    limitsv1limits.PolicyHistoryRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LimitsAdminService.policyHistory,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   Stream<limitsv1limits.ApprovalRequestListResponse> approvalRequestList(
     limitsv1limits.ApprovalRequestListRequest input, {
     connect.Headers? headers,

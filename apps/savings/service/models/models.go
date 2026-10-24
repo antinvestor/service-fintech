@@ -20,7 +20,7 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // SavingsProduct defines savings terms, rates, and rules for a bank.
@@ -134,22 +134,24 @@ func (m *SavingsAccount) ToAPI() *savingsv1.SavingsAccountObject {
 	}
 }
 
+// SavingsAccountFromAPI builds the model from a caller-supplied object.
+// LedgerAccountID and PaymentAccountRef are deliberately not read from the
+// request: ledger routing is derived server-side so a caller cannot point a
+// savings account at another tenant's control account.
 func SavingsAccountFromAPI(ctx context.Context, obj *savingsv1.SavingsAccountObject) *SavingsAccount {
 	if obj == nil {
 		return nil
 	}
 
 	model := &SavingsAccount{
-		ProductID:         obj.GetProductId(),
-		OwnerID:           obj.GetOwnerId(),
-		OwnerType:         int32(obj.GetOwnerType()),
-		BankID:            obj.GetOrganizationId(),
-		BranchID:          obj.GetBranchId(),
-		AgentID:           obj.GetAgentId(),
-		CurrencyCode:      obj.GetCurrencyCode(),
-		Status:            int32(obj.GetStatus()),
-		LedgerAccountID:   obj.GetLedgerAccountId(),
-		PaymentAccountRef: obj.GetPaymentAccountRef(),
+		ProductID:    obj.GetProductId(),
+		OwnerID:      obj.GetOwnerId(),
+		OwnerType:    int32(obj.GetOwnerType()),
+		BankID:       obj.GetOrganizationId(),
+		BranchID:     obj.GetBranchId(),
+		AgentID:      obj.GetAgentId(),
+		CurrencyCode: obj.GetCurrencyCode(),
+		Status:       int32(obj.GetStatus()),
 	}
 
 	if obj.GetProperties() != nil {
@@ -175,7 +177,7 @@ type Deposit struct {
 	LedgerTransactionID string `gorm:"type:varchar(50)"`
 	Channel             string `gorm:"type:varchar(50)"`
 	PayerReference      string `gorm:"type:varchar(255)"`
-	IdempotencyKey      string `gorm:"type:varchar(255);uniqueIndex:uq_dep_idempotency"`
+	IdempotencyKey      string `gorm:"type:varchar(255);index:idx_dep_idempotency"`
 	Properties          data.JSONMap
 }
 
@@ -239,7 +241,7 @@ type Withdrawal struct {
 	Channel             string `gorm:"type:varchar(50)"`
 	RecipientReference  string `gorm:"type:varchar(255)"`
 	Reason              string `gorm:"type:text"`
-	IdempotencyKey      string `gorm:"type:varchar(255);uniqueIndex:uq_wdr_idempotency"`
+	IdempotencyKey      string `gorm:"type:varchar(255);index:idx_wdr_idempotency"`
 	Properties          data.JSONMap
 }
 

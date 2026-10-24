@@ -21,11 +21,10 @@ import (
 	"io"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/ledger/connectrpc/go/v1/ledgerv1connect"
+	"buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2/v1/ledgerv1connect"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 	utilmoney "github.com/pitabwire/util/moneyx"
 
@@ -311,9 +310,9 @@ func (r *Reconciler) fetchLedgerAccountBalance(
 		return 0, "", errors.New("ledger client is not configured")
 	}
 
-	req := connect.NewRequest((&commonv1.SearchRequest_builder{
+	req := (&commonv1.SearchRequest_builder{
 		IdQuery: ledgerID,
-	}).Build())
+	}).Build()
 
 	stream, err := r.ledgerClient.SearchAccounts(ctx, req)
 	if err != nil {
@@ -326,8 +325,14 @@ func (r *Reconciler) fetchLedgerAccountBalance(
 		currency string
 		found    bool
 	)
-	for stream.Receive() {
-		resp := stream.Msg()
+	var streamErr2 error
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			streamErr2 = recvErr
+			break
+		}
+		resp := msg
 		if resp == nil {
 			continue
 		}
@@ -340,7 +345,10 @@ func (r *Reconciler) fetchLedgerAccountBalance(
 			balance = utilmoney.ToInt64(account.GetBalance(), reconciliationMoneyDecimals)
 		}
 	}
-	if streamErr := stream.Err(); streamErr != nil && !errors.Is(streamErr, io.EOF) {
+	if errors.Is(streamErr2, io.EOF) {
+		streamErr2 = nil
+	}
+	if streamErr := streamErr2; streamErr != nil && !errors.Is(streamErr, io.EOF) {
 		return 0, "", fmt.Errorf("ledger search accounts stream: %w", streamErr)
 	}
 	if !found {

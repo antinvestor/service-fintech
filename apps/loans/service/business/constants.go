@@ -17,13 +17,16 @@ package business
 // Shared string constants for repeated metadata keys, SQL fragments, and
 // label values used across this package (extracted to satisfy goconst).
 const (
-	metricTypeCounter  = "counter"
-	fieldAmount        = "amount"
-	fieldClientID      = "client_id"
-	fieldCurrency      = "currency"
-	fieldLoanAccountID = "loan_account_id"
-	fieldLoanRequestID = "loan_request_id"
-	fieldStatus        = "status"
-	gateModeOff        = "off"
-	metricUnitCount    = "count"
+	metricTypeCounter   = "counter"
+	fieldAmount         = "amount"
+	fieldClientID       = "client_id"
+	fieldCurrency       = "currency"
+	fieldLoanAccountID  = "loan_account_id"
+	fieldLoanRequestID  = "loan_request_id"
+	fieldStatus         = "status"
+	fieldLedgerTxnID    = "ledger_transaction_id"
+	fieldIdempotencyKey = "idempotency_key"
+	fieldIsWaived       = "is_waived"
+	gateModeOff         = "off"
+	metricUnitCount     = "count"
 )

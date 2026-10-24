@@ -17,6 +17,7 @@ import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 
 import '../utils/enum_labels.dart';
 import 'currency_amount_text.dart';
+import '../utils/formatting.dart';
 
 class LedgerEntryTile extends StatelessWidget {
   final LedgerEntryObject entry;
@@ -59,19 +60,22 @@ class LedgerEntryTile extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               Text(
-                'Committed: ${entry.committedAt.toDateTime().toLocal().toString().substring(0, 19)}',
+                'Committed: ${formatTimestamp(entry.hasCommittedAt() ? entry.committedAt : null)}',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               if (reversed)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: Colors.red.shade400),
                   ),
                   child: Text(
-                    'REVERSED ${entry.reversedAt.toDateTime().toLocal().toString().substring(0, 19)}',
+                    'REVERSED ${formatTimestamp(entry.hasReversedAt() ? entry.reversedAt : null)}',
                     style: TextStyle(
                       fontSize: 10,
                       color: Colors.red.shade900,

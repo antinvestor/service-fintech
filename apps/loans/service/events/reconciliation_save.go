@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 const ReconciliationSaveEvent = "reconciliation.save"
@@ -61,17 +61,8 @@ func (e *ReconciliationSave) Execute(ctx context.Context, payload any) error {
 	logger := util.Log(ctx).WithFields(map[string]any{logFieldType: e.Name(), "reconciliation_id": r.GetID()})
 	defer logger.Release()
 
-	existing, getErr := e.reconciliationRepo.GetByID(ctx, r.GetID())
-	if getErr == nil && existing != nil {
-		if _, err := e.reconciliationRepo.Update(ctx, r); err != nil {
-			logger.WithError(err).Error("could not update reconciliation in db")
-			return err
-		}
-		return nil
-	}
-
-	if err := e.reconciliationRepo.Create(ctx, r); err != nil && !data.ErrorIsDuplicateKey(err) {
-		logger.WithError(err).Error("could not create reconciliation in db")
+	if err := upsert.ByID(ctx, e.reconciliationRepo, r); err != nil {
+		logger.WithError(err).Error("could not persist reconciliation")
 		return err
 	}
 

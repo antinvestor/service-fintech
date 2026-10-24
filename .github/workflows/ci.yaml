@@ -1,26 +1,58 @@
-# Unified CI — handles both Go backend and Flutter UI (auto-detected)
-name: CI
+# Go backend CI. Flutter packages are covered by ci.yml (workflow "UI CI").
+name: Backend CI
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 jobs:
-  test:
+  go-test:
     permissions:
       contents: read
       packages: read
-    uses: antinvestor/common/.github/workflows/go-test.yml@main
-  lint:
+    uses: antinvestor/common/.github/workflows/go-test.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+  go-lint:
     permissions:
       contents: read
-    uses: antinvestor/common/.github/workflows/golangci-lint.yml@main
-  flutter:
+    uses: antinvestor/common/.github/workflows/golangci-lint.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+
+  # The shared go-test workflow runs without -race. The frame queue shutdown
+  # race that once blocked -race on the app suites no longer reproduces on the
+  # pinned frame (docs/runbook/race-detector.md), so the whole tree runs under
+  # the detector here via the same `make test` developers use.
+  go-race:
+    name: Race detector
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
-    uses: antinvestor/common/.github/workflows/flutter-ci.yml@main
-    # Pre-existing Dart/Flutter failures surfaced by the per-package
-    # flutter-ci (antinvestor/common#41); the jobs stay red, the workflow
-    # passes. Remove once they are fixed (see the PR that added this).
-    with:
-      soft_fail: true
+    env:
+      # setup-go installs the go directive's version; letting `go` switch to
+      # the toolchain line mid-build mixes compiler versions in the cache.
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: make test (-race)
+        run: make test
+
+  # apps/default/*.opl.ts is generated from proto service_permissions and is
+  # the only OPL tree that ships (see release.yaml). Fail the build if a
+  # permission change landed in proto without regenerating.
+  opl-drift:
+    name: OPL generator drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: make opl-check
+        run: make opl-check

@@ -16,12 +16,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"text/tabwriter"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -34,6 +35,7 @@ func policiesCmd() *cobra.Command {
 
 	cmd.AddCommand(policiesListCmd())
 	cmd.AddCommand(policiesShowCmd())
+	cmd.AddCommand(policiesShadowCmd())
 	cmd.AddCommand(policiesEnableCmd())
 	cmd.AddCommand(policiesDisableCmd())
 
@@ -86,17 +88,21 @@ func policiesListCmd() *cobra.Command {
 				req.Mode = limitsv1.PolicyMode(v)
 			}
 
-			stream, err := client.PolicySearch(cmd.Context(), connect.NewRequest(req))
+			stream, err := client.PolicySearch(cmd.Context(), req)
 			if err != nil {
 				return fmt.Errorf("PolicySearch: %w", err)
 			}
 
 			var policies []*limitsv1.PolicyObject
-			for stream.Receive() {
-				policies = append(policies, stream.Msg().GetData()...)
-			}
-			if streamErr := stream.Err(); streamErr != nil {
-				return fmt.Errorf("stream error: %w", streamErr)
+			for {
+				msg, streamErr := stream.Receive()
+				if streamErr != nil {
+					if errors.Is(streamErr, io.EOF) {
+						break
+					}
+					return fmt.Errorf("stream error: %w", streamErr)
+				}
+				policies = append(policies, msg.GetData()...)
 			}
 
 			if flagJSON {
@@ -144,14 +150,14 @@ func policiesShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("build client: %w", err)
 			}
-			resp, err := client.PolicyGet(cmd.Context(), connect.NewRequest(&limitsv1.PolicyGetRequest{
+			resp, err := client.PolicyGet(cmd.Context(), &limitsv1.PolicyGetRequest{
 				Id: args[0],
-			}))
+			})
 			if err != nil {
 				return fmt.Errorf("PolicyGet: %w", err)
 			}
 
-			p := resp.Msg.GetData()
+			p := resp.GetData()
 			if flagJSON {
 				out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(p)
 				if marshalErr != nil {
@@ -185,10 +191,21 @@ func policiesShowCmd() *cobra.Command {
 func policiesEnableCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable <id>",
-		Short: "Enable a policy (set mode to POLICY_MODE_ENFORCE)",
+		Short: "Enforce a policy (set mode to POLICY_MODE_ENFORCE). Soak in shadow first.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return togglePolicyMode(cmd.Context(), args[0], limitsv1.PolicyMode_POLICY_MODE_ENFORCE)
+		},
+	}
+}
+
+func policiesShadowCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "shadow <id>",
+		Short: "Put a policy in shadow mode (records verdicts, blocks nothing)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return togglePolicyMode(cmd.Context(), args[0], limitsv1.PolicyMode_POLICY_MODE_SHADOW)
 		},
 	}
 }
@@ -205,31 +222,33 @@ func policiesDisableCmd() *cobra.Command {
 }
 
 // togglePolicyMode fetches the policy, sets its mode, and saves it back.
+// The version read from PolicyGet rides along on the save, so a concurrent
+// edit by another operator is rejected rather than silently overwritten.
 func togglePolicyMode(ctx context.Context, id string, mode limitsv1.PolicyMode) error {
 	client, err := newAdminClient(ctx)
 	if err != nil {
 		return fmt.Errorf("build client: %w", err)
 	}
 
-	getResp, err := client.PolicyGet(ctx, connect.NewRequest(&limitsv1.PolicyGetRequest{Id: id}))
+	getResp, err := client.PolicyGet(ctx, &limitsv1.PolicyGetRequest{Id: id})
 	if err != nil {
 		return fmt.Errorf("PolicyGet: %w", err)
 	}
 
-	p := getResp.Msg.GetData()
+	p := getResp.GetData()
 	if p == nil {
 		return fmt.Errorf("policy %q not found", id)
 	}
 	p.Mode = mode
 
-	saveResp, err := client.PolicySave(ctx, connect.NewRequest(&limitsv1.PolicySaveRequest{
+	saveResp, err := client.PolicySave(ctx, &limitsv1.PolicySaveRequest{
 		Data: p,
-	}))
+	})
 	if err != nil {
 		return fmt.Errorf("PolicySave: %w", err)
 	}
 
-	saved := saveResp.Msg.GetData()
+	saved := saveResp.GetData()
 	fmt.Fprintf(
 		os.Stdout,
 		"policy %s mode set to %s (version %d)\n",

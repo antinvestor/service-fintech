@@ -47,7 +47,11 @@ class LimitKindBadge extends StatelessWidget {
       ),
       child: Text(
         limitKindLabel(kind).toUpperCase(),
-        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 11),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
       ),
     );
   }

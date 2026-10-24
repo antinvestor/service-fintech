@@ -17,16 +17,14 @@ package business
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
@@ -125,7 +123,6 @@ func (b *orgUnitBusiness) Save(
 			ctx,
 			logger,
 			orgUnit,
-			caseActorID(commandProps),
 			caseComment(commandProps),
 		); createErr != nil {
 			logger.WithError(createErr).Warn("org unit created without approval case metadata")
@@ -141,8 +138,7 @@ func (b *orgUnitBusiness) Save(
 		logger.WithError(err).Warn("org unit not found for update")
 		return nil, ErrOrgUnitNotFound
 	}
-	orgUnit.TenantID = existing.TenantID
-	orgUnit.PartitionID = existing.PartitionID
+	applyStoredTenancy(orgUnit, existing)
 	stripCaseCommand(orgUnit.Properties)
 
 	if err = b.eventsMan.Emit(ctx, events.BranchSaveEvent, orgUnit); err != nil {
@@ -194,9 +190,8 @@ func (b *orgUnitBusiness) submitOrgUnitCreateCase(
 	ctx context.Context,
 	logger *util.LogEntry,
 	orgUnit *models.Branch,
-	actorID, comment string,
+	comment string,
 ) error {
-	actorID = resolveCaseActorID(ctx, actorID, orgUnit.CreatedBy)
 	requestedState := orgUnit.State
 	if requestedState == 0 {
 		requestedState = int32(commonv1.STATE_CREATED.Number())
@@ -207,7 +202,6 @@ func (b *orgUnitBusiness) submitOrgUnitCreateCase(
 		SubjectID:           orgUnit.GetID(),
 		CaseType:            approvalCaseTypeBranchCreate,
 		Summary:             fmt.Sprintf("Org unit %s requires verification and approval", orgUnit.Name),
-		RequestedBy:         actorID,
 		Comment:             comment,
 		RequireVerification: true,
 		Payload: map[string]any{
@@ -255,10 +249,9 @@ func (b *orgUnitBusiness) handleApprovalAction(
 		return nil, err
 	}
 
-	actorID := caseActorID(orgUnit.Properties)
 	comment := caseComment(orgUnit.Properties)
 
-	approvalCase, err = b.transitionApprovalAction(ctx, logger, existing, approvalCase, action, actorID, comment)
+	approvalCase, err = b.transitionApprovalAction(ctx, logger, existing, approvalCase, action, comment)
 	if err != nil {
 		return nil, err
 	}
@@ -279,15 +272,15 @@ func (b *orgUnitBusiness) transitionApprovalAction(
 	logger *util.LogEntry,
 	existing *models.Branch,
 	approvalCase *models.ApprovalCase,
-	action, actorID, comment string,
+	action, comment string,
 ) (*models.ApprovalCase, error) {
 	switch action {
 	case approvalCaseActionVerify:
-		return b.approvalCases.Verify(ctx, approvalCase.GetID(), actorID, comment)
+		return b.approvalCases.Verify(ctx, approvalCase.GetID(), comment)
 	case approvalCaseActionApprove:
-		return b.approveOrgUnitCase(ctx, logger, existing, approvalCase, actorID, comment)
+		return b.approveOrgUnitCase(ctx, logger, existing, approvalCase, comment)
 	case approvalCaseActionReject:
-		return b.rejectOrgUnitCase(ctx, existing, approvalCase, actorID, comment)
+		return b.rejectOrgUnitCase(ctx, existing, approvalCase, comment)
 	default:
 		return nil, ErrApprovalCaseNotPending.Extend("unsupported case action")
 	}
@@ -298,9 +291,9 @@ func (b *orgUnitBusiness) approveOrgUnitCase(
 	logger *util.LogEntry,
 	existing *models.Branch,
 	approvalCase *models.ApprovalCase,
-	actorID, comment string,
+	comment string,
 ) (*models.ApprovalCase, error) {
-	approvedCase, err := b.approvalCases.Approve(ctx, approvalCase.GetID(), actorID, comment)
+	approvedCase, err := b.approvalCases.Approve(ctx, approvalCase.GetID(), comment)
 	if err != nil {
 		return nil, err
 	}
@@ -361,9 +354,9 @@ func (b *orgUnitBusiness) rejectOrgUnitCase(
 	ctx context.Context,
 	existing *models.Branch,
 	approvalCase *models.ApprovalCase,
-	actorID, comment string,
+	comment string,
 ) (*models.ApprovalCase, error) {
-	rejectedCase, err := b.approvalCases.Reject(ctx, approvalCase.GetID(), actorID, comment)
+	rejectedCase, err := b.approvalCases.Reject(ctx, approvalCase.GetID(), comment)
 	if err != nil {
 		return nil, err
 	}
@@ -408,19 +401,17 @@ func (b *orgUnitBusiness) createChildPartition(
 		logger.Warn("partition client is nil")
 		return "", ErrLoginClientCreationFailed.Extend("partition client is nil")
 	}
-	resp, err := b.partitionCli.CreatePartition(ctx, connect.NewRequest(
-		&tenancyv1.CreatePartitionRequest{
-			TenantId:    tenantID,
-			ParentId:    parentID,
-			Name:        name,
-			Description: "Partition for org unit: " + name,
-		},
-	))
+	resp, err := b.partitionCli.CreatePartition(ctx, &tenancyv1.CreatePartitionRequest{
+		TenantId:    tenantID,
+		ParentId:    parentID,
+		Name:        name,
+		Description: "Partition for org unit: " + name,
+	})
 	if err != nil {
 		logger.WithError(err).Warn("failed to create child partition")
 		return "", ErrLoginClientCreationFailed.Extend("failed to create child partition")
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (b *orgUnitBusiness) Get(ctx context.Context, id string) (*identityv1.OrgUnitObject, error) {
@@ -440,14 +431,11 @@ func (b *orgUnitBusiness) Search(
 
 	var searchOpts []data.SearchOption
 
-	cursor := req.GetCursor()
-	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+	cursorOpts, cursorErr := cursorSearchOptions(req.GetCursor())
+	if cursorErr != nil {
+		return cursorErr
 	}
+	searchOpts = append(searchOpts, cursorOpts...)
 
 	andQueryVal := map[string]any{}
 	if req.GetOrganizationId() != "" {

@@ -16,11 +16,22 @@ package repository
 
 import (
 	"context"
+	"time"
 
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
+	"gorm.io/gorm"
+)
+
+// Column names the repositories write directly rather than through an entity.
+const (
+	colStatus     = "status"
+	colModifiedAt = "modified_at"
+	colVersion    = "version"
+	// bookkeepingColumns is how many columns applyColumnUpdate adds of its own.
+	bookkeepingColumns = 2
 )
 
 type entityRepository[P data.BaseModelI] struct {
@@ -52,4 +63,32 @@ func (repo entityRepository[P]) findOneByField(
 	}
 
 	return entity, nil
+}
+
+// applyColumnUpdate writes only the named columns of one row, plus the
+// bookkeeping columns every table carries.
+//
+// It addresses the table by name rather than by model: GORM populates the
+// primary key of a zero model through the BaseModel hooks and then adds it to
+// the WHERE clause, so a Model-based update silently matches nothing.
+func applyColumnUpdate(
+	db *gorm.DB,
+	table, id string,
+	values map[string]any,
+) (int64, error) {
+	if len(values) == 0 {
+		return 0, nil
+	}
+
+	payload := make(map[string]any, len(values)+bookkeepingColumns)
+	for k, v := range values {
+		payload[k] = v
+	}
+	payload[colModifiedAt] = time.Now().UTC()
+	payload[colVersion] = gorm.Expr(colVersion + " + 1")
+
+	result := db.Table(table).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(payload)
+	return result.RowsAffected, result.Error
 }

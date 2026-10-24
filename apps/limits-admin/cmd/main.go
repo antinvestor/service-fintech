@@ -18,13 +18,20 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/servicecatalog"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/servicecatalog"
 	"github.com/spf13/cobra"
 )
+
+// adminClientTimeout bounds every request made with a static bearer token so
+// the break-glass tool cannot hang against a wedged endpoint.
+const adminClientTimeout = 30 * time.Second
 
 //nolint:gochecknoglobals // cobra persistent flags are bound to package-level vars by design
 var (
@@ -70,12 +77,15 @@ Authentication:
 func newAdminClient(ctx context.Context) (limitsv1connect.LimitsAdminServiceClient, error) {
 	if token := os.Getenv("LIMITS_ADMIN_TOKEN"); token != "" {
 		httpClient := &http.Client{
+			Timeout: adminClientTimeout,
 			Transport: &bearerTokenTransport{
 				token: token,
 				base:  http.DefaultTransport,
 			},
 		}
-		return limitsv1connect.NewLimitsAdminServiceClient(httpClient, flagURI), nil
+		return limitsv1connect.NewLimitsAdminServiceClient(
+			connect.NewClient(connecthttp.NewTransport(httpClient, flagURI)),
+		), nil
 	}
 
 	// Production path: workload identity via platform auth helper.

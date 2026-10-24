@@ -90,6 +90,15 @@ class AppTheme {
     scrim: Colors.black,
   );
 
+  /// Background for the persistent sidebar and drawer.
+  ///
+  /// Light mode paints the deep navy `primary`; dark mode cannot, because its
+  /// `primary` is a pale blue and the sidebar's labels and icons are white —
+  /// roughly 1.4:1. Dark mode uses the darkest surface instead, which keeps
+  /// white-on-dark legible in both themes.
+  static Color sidebarBackground(ColorScheme cs) =>
+      cs.brightness == Brightness.dark ? cs.surfaceContainerLowest : cs.primary;
+
   // ── Typography ──────────────────────────────────────────────────────────
   static TextTheme _buildTextTheme(TextTheme base) {
     // Manrope for display/headline, Inter for body/label
@@ -153,7 +162,7 @@ class AppTheme {
 
       // ── Navigation rail ───────────────────────────────────────────────
       navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: cs.primary,
+        backgroundColor: sidebarBackground(cs),
         elevation: 0,
         indicatorColor: Colors.white.withAlpha(25),
         selectedIconTheme: const IconThemeData(color: Colors.white),
@@ -162,7 +171,7 @@ class AppTheme {
 
       // ── Drawer ────────────────────────────────────────────────────────
       drawerTheme: DrawerThemeData(
-        backgroundColor: cs.primary,
+        backgroundColor: sidebarBackground(cs),
         surfaceTintColor: Colors.transparent,
         elevation: 2,
       ),
@@ -392,8 +401,15 @@ class AppTheme {
         thickness: 0,
         space: 8,
       ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: sidebarBackground(darkColorScheme),
+        elevation: 0,
+        indicatorColor: Colors.white.withAlpha(25),
+        selectedIconTheme: const IconThemeData(color: Colors.white),
+        unselectedIconTheme: IconThemeData(color: Colors.white.withAlpha(180)),
+      ),
       drawerTheme: DrawerThemeData(
-        backgroundColor: darkColorScheme.surfaceContainerLowest,
+        backgroundColor: sidebarBackground(darkColorScheme),
         surfaceTintColor: Colors.transparent,
         elevation: 2,
       ),
