@@ -443,8 +443,10 @@ func (b *withdrawalBusiness) Search(
 	})
 }
 
-// payoutPermanentlyRejected classifies an operations error: validation and
-// precondition failures will not pass on a retry of the same order.
+// payoutPermanentlyRejected classifies an operations error. Operations
+// guarantees that, for payout orders, these codes mean no money moved: the
+// ledger leg never posted, or it posted and was reversed. Any other error
+// may leave money in flight, so the hold is kept and the approval retried.
 func payoutPermanentlyRejected(err error) bool {
 	code := connect.CodeOf(err)
 	return code == connect.CodeInvalidArgument || code == connect.CodeFailedPrecondition ||

@@ -810,6 +810,16 @@ func (b *transferOrderBusiness) sendPayment(
 	}
 
 	profileID, destination, err := b.payoutRecipient(ctx, order, recipientID)
+	if errors.Is(err, ErrPayoutRecipientUnresolved) || errors.Is(err, ErrPayoutDestinationNotRecipient) {
+		// The ledger leg has posted and the payout can never be sent:
+		// record it as failed so the order is reversed, not retried.
+		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), "", err.Error()); markErr != nil {
+			util.Log(ctx).WithError(markErr).WithField("order_id", order.GetID()).
+				Error("could not record the unsendable payout on the transfer order")
+		}
+		order.PayoutStatus = models.PayoutStatusFailed
+		return fmt.Errorf("%w: %s", ErrPayoutFailed, err.Error())
+	}
 	if err != nil {
 		return err
 	}
@@ -853,7 +863,9 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 		// The claim stays: we cannot tell whether the rail accepted the
 		// request before the error. Reconciliation against the payment
 		// service by reference settles it; a blind resend could pay twice.
-		return fmt.Errorf("payment send failed: %w", err)
+		// The rail's own code is not passed on: whatever it said, money
+		// may be in flight, so the caller only ever sees a retryable error.
+		return fmt.Errorf("%w: payment send failed: %s", ErrPayoutPendingConfirmation, err.Error())
 	}
 	status := resp.GetData()
 	if status == nil {

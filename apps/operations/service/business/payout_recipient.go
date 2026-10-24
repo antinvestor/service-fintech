@@ -55,7 +55,32 @@ var (
 	// profile service could not be asked; the order may be retried.
 	ErrPayoutRecipientUnverifiable = apperrors.NewError(apperrors.ServiceUnavailable,
 		"payout recipient could not be verified; retry later")
+	// ErrPayoutNotSettled is returned when a payout order's ledger leg has
+	// posted but the payout has neither gone out nor been reversed. Money
+	// has moved; the caller must retry the same order, never treat it as
+	// refused.
+	ErrPayoutNotSettled = apperrors.NewError(apperrors.ServiceUnavailable,
+		"payout is posted but not yet settled or reversed; retry the same order")
+	// errReversalMismatch is returned when the stored order under a reversal
+	// reference is not the reversal this order needs.
+	errReversalMismatch = errors.New("order under the payout reversal reference is not this order's reversal")
 )
+
+// payoutReversalPrefix marks system-written reversal orders. API callers
+// may not use it, so nobody can pre-create an order under a reversal's
+// reference.
+const payoutReversalPrefix = "payout-reversal:"
+
+// IsReservedReference reports whether an API caller may not use reference.
+func IsReservedReference(reference string) bool {
+	return strings.HasPrefix(strings.TrimSpace(reference), payoutReversalPrefix)
+}
+
+// Error contract for payout orders, which callers such as savings rely on:
+// a precondition-class error (FailedPrecondition, InvalidArgument,
+// NotFound, PermissionDenied) means no money moved, either because the
+// ledger leg never posted or because it posted and was reversed. Anything
+// else may leave money in flight and must be retried.
 
 // isPayoutOrderType reports whether an order type's side effect sends money
 // out through the payment rail.
@@ -156,6 +181,29 @@ func profileHasContact(profile *profilev1.ProfileObject, destination string) boo
 	return false
 }
 
+// readsAsRefusal reports whether a caller would read err as "nothing
+// moved": the precondition-class codes of the payout error contract.
+func readsAsRefusal(err error) bool {
+	switch apperrors.CleanErr(err).Code() { //nolint:exhaustive // only refusal codes matter
+	case connect.CodeInvalidArgument, connect.CodeFailedPrecondition,
+		connect.CodeNotFound, connect.CodePermissionDenied:
+		return true
+	default:
+		return false
+	}
+}
+
+// isReversalOf reports whether rev mirrors order exactly.
+func isReversalOf(rev, order *models.TransferOrder) bool {
+	return rev != nil &&
+		rev.OrderType == int32(constants.TransferTypeDisbursementReversal) &&
+		rev.DebitAccountRef == order.CreditAccountRef &&
+		rev.CreditAccountRef == order.DebitAccountRef &&
+		rev.Amount == order.Amount &&
+		rev.Currency == order.Currency &&
+		extraDataString(rev, "original_order_id") == order.GetID()
+}
+
 // checkPayoutRecipient runs the recipient check for a payout order whose
 // ledger leg has not posted, releasing the order when it fails.
 func (b *transferOrderBusiness) checkPayoutRecipient(
@@ -184,10 +232,19 @@ func (b *transferOrderBusiness) failSideEffect(
 	cause error,
 ) error {
 	b.releaseExecution(ctx, logger, order.GetID(), reason)
-	if errors.Is(cause, ErrPayoutFailed) {
-		if revErr := b.reverseRejectedPayout(ctx, logger, order); revErr != nil {
-			logger.WithError(revErr).Error("could not reverse the rejected payout; reconciliation must")
+	if !isPayoutOrderType(int(order.OrderType)) || !order.LedgerPosted() {
+		return cause
+	}
+	if !errors.Is(cause, ErrPayoutFailed) {
+		// Posted, not paid, not reversed: never a refusal to the caller.
+		if readsAsRefusal(cause) {
+			return fmt.Errorf("%w: %s", ErrPayoutNotSettled, cause.Error())
 		}
+		return cause
+	}
+	if revErr := b.reverseRejectedPayout(ctx, logger, order); revErr != nil {
+		logger.WithError(revErr).Error("could not reverse the rejected payout; it is retried with the order")
+		return fmt.Errorf("%w: reversal pending: %s", ErrPayoutNotSettled, revErr.Error())
 	}
 	return cause
 }
@@ -203,7 +260,7 @@ func (b *transferOrderBusiness) loadProfile(ctx context.Context, profileID strin
 		if connect.CodeOf(err) == connect.CodeNotFound {
 			return nil, errProfileNotFound
 		}
-		return nil, fmt.Errorf("%w: %w", ErrPayoutRecipientUnverifiable, err)
+		return nil, fmt.Errorf("%w: %s", ErrPayoutRecipientUnverifiable, err.Error())
 	}
 	if resp.GetData() == nil {
 		return nil, errProfileNotFound
@@ -220,7 +277,7 @@ func (b *transferOrderBusiness) profileForClient(ctx context.Context, clientID s
 		if connect.CodeOf(err) == connect.CodeNotFound {
 			return "", ErrPayoutRecipientUnresolved
 		}
-		return "", fmt.Errorf("%w: %w", ErrPayoutRecipientUnverifiable, err)
+		return "", fmt.Errorf("%w: %s", ErrPayoutRecipientUnverifiable, err.Error())
 	}
 	profileID := strings.TrimSpace(resp.GetData().GetProfileId())
 	if profileID == "" {
@@ -251,7 +308,7 @@ func (b *transferOrderBusiness) reverseRejectedPayout(
 		Amount:           order.Amount,
 		Currency:         order.Currency,
 		OrderType:        int32(constants.TransferTypeDisbursementReversal),
-		Reference:        "payout-reversal:" + reference,
+		Reference:        payoutReversalPrefix + reference,
 		Description:      "Reversal of payout rejected by the payment rail",
 		ExtraData: map[string]any{
 			"original_order_id":  order.GetID(),
@@ -263,12 +320,21 @@ func (b *transferOrderBusiness) reverseRejectedPayout(
 	if err := b.Save(ctx, reversal); err != nil {
 		return fmt.Errorf("save payout reversal: %w", err)
 	}
+	// Save converges on any order already under the reference; execute it
+	// only if it is exactly this order's mirror.
+	stored, err := b.toRepo.GetByID(ctx, reversal.GetID())
+	if err != nil {
+		return fmt.Errorf("reload payout reversal: %w", err)
+	}
+	if !isReversalOf(stored, order) {
+		return errReversalMismatch
+	}
 	// The reversal returns money to where it came from, so it is not put
 	// through the limits gate again.
-	if err := b.executeInner(ctx, reversal.GetID()); err != nil {
+	if err = b.executeInner(ctx, reversal.GetID()); err != nil {
 		return fmt.Errorf("execute payout reversal: %w", err)
 	}
-	if _, err := b.toRepo.ClaimState(ctx, order.GetID(),
+	if _, err = b.toRepo.ClaimState(ctx, order.GetID(),
 		[]int32{int32(constants.StateJustCreated), int32(constants.StateCheckCreated)},
 		int32(constants.StateShutdown)); err != nil {
 		logger.WithError(err).Error("could not close the order after reversing its payout")
