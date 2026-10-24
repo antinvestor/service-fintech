@@ -8,6 +8,12 @@
   `package:protobuf/well_known_types/...`; the vendored copies and empty
   `.pbserver.dart` files are gone. Map fields take entries in generated
   constructors.
+- `RepaymentObject.collected_by`; `RepaymentSearchRequest.collected_by`,
+  `received_after`, `received_before`; `LoanRequestObject.submitted_by`,
+  `decided_by`.
+- `InitiateCollectionRequest.contact_id` (a profile contact id);
+  `phone_number` is deprecated and refused by the server.
+- `payment_account_ref` is the borrower's payout contact id, never a number.
 
 ## 0.4.0
 

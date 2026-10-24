@@ -502,6 +502,8 @@ class LoanRequestObject extends $pb.GeneratedMessage {
     $core.String? sourceRequestId,
     $core.String? idempotencyKey,
     $1.Struct? properties,
+    $core.String? submittedBy,
+    $core.String? decidedBy,
   }) {
     final result = LoanRequestObject._();
     if (id != null) result.id = id;
@@ -527,6 +529,8 @@ class LoanRequestObject extends $pb.GeneratedMessage {
     if (sourceRequestId != null) result.sourceRequestId = sourceRequestId;
     if (idempotencyKey != null) result.idempotencyKey = idempotencyKey;
     if (properties != null) result.properties = properties;
+    if (submittedBy != null) result.submittedBy = submittedBy;
+    if (decidedBy != null) result.decidedBy = decidedBy;
     return result;
   }
 
@@ -570,6 +574,8 @@ class LoanRequestObject extends $pb.GeneratedMessage {
     ..aOS(22, _omitFieldNames ? '' : 'idempotencyKey')
     ..aOM<$1.Struct>(23, _omitFieldNames ? '' : 'properties',
         subBuilder: $1.Struct.$_createMessage)
+    ..aOS(24, _omitFieldNames ? '' : 'submittedBy')
+    ..aOS(25, _omitFieldNames ? '' : 'decidedBy')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -818,6 +824,26 @@ class LoanRequestObject extends $pb.GeneratedMessage {
   void clearProperties() => $_clearField(23);
   @$pb.TagNumber(23)
   $1.Struct ensureProperties() => $_ensure(22);
+
+  /// submitted_by and decided_by are the profiles that submitted the request
+  /// and approved or rejected it. Set by the server.
+  @$pb.TagNumber(24)
+  $core.String get submittedBy => $_getSZ(23);
+  @$pb.TagNumber(24)
+  set submittedBy($core.String value) => $_setString(23, value);
+  @$pb.TagNumber(24)
+  $core.bool hasSubmittedBy() => $_has(23);
+  @$pb.TagNumber(24)
+  void clearSubmittedBy() => $_clearField(24);
+
+  @$pb.TagNumber(25)
+  $core.String get decidedBy => $_getSZ(24);
+  @$pb.TagNumber(25)
+  set decidedBy($core.String value) => $_setString(24, value);
+  @$pb.TagNumber(25)
+  $core.bool hasDecidedBy() => $_has(24);
+  @$pb.TagNumber(25)
+  void clearDecidedBy() => $_clearField(25);
 }
 
 /// ClientProductAccessObject controls which loan products a client can access.
@@ -1264,6 +1290,8 @@ class LoanAccountObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(23)
   void clearLedgerPenaltyIncomeAccountId() => $_clearField(23);
 
+  /// payment_account_ref is the contact id of the borrower's verified mobile
+  /// contact the loan is paid out to; never a number.
   @$pb.TagNumber(24)
   $core.String get paymentAccountRef => $_getSZ(22);
   @$pb.TagNumber(24)
@@ -2081,6 +2109,7 @@ class RepaymentObject extends $pb.GeneratedMessage {
     $0.Money? excessAmount,
     $core.String? idempotencyKey,
     $1.Struct? properties,
+    $core.String? collectedBy,
   }) {
     final result = RepaymentObject._();
     if (id != null) result.id = id;
@@ -2100,6 +2129,7 @@ class RepaymentObject extends $pb.GeneratedMessage {
     if (excessAmount != null) result.excessAmount = excessAmount;
     if (idempotencyKey != null) result.idempotencyKey = idempotencyKey;
     if (properties != null) result.properties = properties;
+    if (collectedBy != null) result.collectedBy = collectedBy;
     return result;
   }
 
@@ -2140,6 +2170,7 @@ class RepaymentObject extends $pb.GeneratedMessage {
     ..aOS(16, _omitFieldNames ? '' : 'idempotencyKey')
     ..aOM<$1.Struct>(17, _omitFieldNames ? '' : 'properties',
         subBuilder: $1.Struct.$_createMessage)
+    ..aOS(18, _omitFieldNames ? '' : 'collectedBy')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2322,6 +2353,17 @@ class RepaymentObject extends $pb.GeneratedMessage {
   void clearProperties() => $_clearField(17);
   @$pb.TagNumber(17)
   $1.Struct ensureProperties() => $_ensure(15);
+
+  /// collected_by is the profile of the staff member or field agent who
+  /// recorded the repayment. Empty when the borrower paid directly.
+  @$pb.TagNumber(18)
+  $core.String get collectedBy => $_getSZ(16);
+  @$pb.TagNumber(18)
+  set collectedBy($core.String value) => $_setString(16, value);
+  @$pb.TagNumber(18)
+  $core.bool hasCollectedBy() => $_has(16);
+  @$pb.TagNumber(18)
+  void clearCollectedBy() => $_clearField(18);
 }
 
 /// PenaltyObject represents a penalty applied to a loan.
@@ -4513,11 +4555,17 @@ class RepaymentSearchRequest extends $pb.GeneratedMessage {
     $core.String? loanAccountId,
     RepaymentStatus? status,
     $2.PageCursor? cursor,
+    $core.String? collectedBy,
+    $core.String? receivedAfter,
+    $core.String? receivedBefore,
   }) {
     final result = RepaymentSearchRequest._();
     if (loanAccountId != null) result.loanAccountId = loanAccountId;
     if (status != null) result.status = status;
     if (cursor != null) result.cursor = cursor;
+    if (collectedBy != null) result.collectedBy = collectedBy;
+    if (receivedAfter != null) result.receivedAfter = receivedAfter;
+    if (receivedBefore != null) result.receivedBefore = receivedBefore;
     return result;
   }
 
@@ -4539,6 +4587,9 @@ class RepaymentSearchRequest extends $pb.GeneratedMessage {
         enumValues: RepaymentStatus.values)
     ..aOM<$2.PageCursor>(3, _omitFieldNames ? '' : 'cursor',
         subBuilder: $2.PageCursor.$_createMessage)
+    ..aOS(4, _omitFieldNames ? '' : 'collectedBy')
+    ..aOS(5, _omitFieldNames ? '' : 'receivedAfter')
+    ..aOS(6, _omitFieldNames ? '' : 'receivedBefore')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -4593,6 +4644,36 @@ class RepaymentSearchRequest extends $pb.GeneratedMessage {
   void clearCursor() => $_clearField(3);
   @$pb.TagNumber(3)
   $2.PageCursor ensureCursor() => $_ensure(2);
+
+  /// collected_by narrows the search to repayments one collector recorded.
+  /// A field agent may search their own collections without naming a loan.
+  @$pb.TagNumber(4)
+  $core.String get collectedBy => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set collectedBy($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCollectedBy() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCollectedBy() => $_clearField(4);
+
+  /// received_after and received_before bound the receipt time (RFC3339).
+  @$pb.TagNumber(5)
+  $core.String get receivedAfter => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set receivedAfter($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasReceivedAfter() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearReceivedAfter() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get receivedBefore => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set receivedBefore($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasReceivedBefore() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearReceivedBefore() => $_clearField(6);
 }
 
 class RepaymentSearchResponse extends $pb.GeneratedMessage {
@@ -6156,9 +6237,10 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
   factory InitiateCollectionRequest({
     $core.String? loanAccountId,
     @$core.Deprecated('This field is deprecated.') $core.String? amount,
-    $core.String? phoneNumber,
+    @$core.Deprecated('This field is deprecated.') $core.String? phoneNumber,
     $core.String? idempotencyKey,
     $0.Money? collectionAmount,
+    $core.String? contactId,
   }) {
     final result = InitiateCollectionRequest._();
     if (loanAccountId != null) result.loanAccountId = loanAccountId;
@@ -6166,6 +6248,7 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
     if (phoneNumber != null) result.phoneNumber = phoneNumber;
     if (idempotencyKey != null) result.idempotencyKey = idempotencyKey;
     if (collectionAmount != null) result.collectionAmount = collectionAmount;
+    if (contactId != null) result.contactId = contactId;
     return result;
   }
 
@@ -6188,6 +6271,7 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'idempotencyKey')
     ..aOM<$0.Money>(5, _omitFieldNames ? '' : 'collectionAmount',
         subBuilder: $0.Money.$_createMessage)
+    ..aOS(6, _omitFieldNames ? '' : 'contactId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -6240,12 +6324,18 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearAmount() => $_clearField(2);
 
+  /// Deprecated and refused: fintech never takes a raw phone number. Use
+  /// contact_id.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(3)
   $core.String get phoneNumber => $_getSZ(2);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(3)
   set phoneNumber($core.String value) => $_setString(2, value);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(3)
   $core.bool hasPhoneNumber() => $_has(2);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(3)
   void clearPhoneNumber() => $_clearField(3);
 
@@ -6270,6 +6360,18 @@ class InitiateCollectionRequest extends $pb.GeneratedMessage {
   void clearCollectionAmount() => $_clearField(5);
   @$pb.TagNumber(5)
   $0.Money ensureCollectionAmount() => $_ensure(4);
+
+  /// contact_id is the id of one of the borrower profile's contacts to prompt.
+  /// When unset the borrower's profile is addressed and the notification
+  /// service picks the contact.
+  @$pb.TagNumber(6)
+  $core.String get contactId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set contactId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasContactId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearContactId() => $_clearField(6);
 }
 
 class InitiateCollectionResponse extends $pb.GeneratedMessage {

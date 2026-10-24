@@ -37,6 +37,19 @@ class _RecordingClientNotifier extends ClientNotifier {
   @override
   Future<ClientObject> save(ClientObject client) async {
     saved.add(client);
+    // A known person answers with a consent request until the code comes.
+    if (client.name == 'Known Person' &&
+        clientProperty(client, kClientConsentCodeKey).isEmpty) {
+      return ClientObject(
+        name: client.name,
+        properties: Struct(
+          fields: {
+            kClientConsentVerificationIdKey: Value(stringValue: 'challenge-1'),
+            kClientConsentStatusKey: Value(stringValue: 'pending'),
+          }.entries,
+        ),
+      );
+    }
     return client.deepCopy()..id = 'client-new';
   }
 }
@@ -78,7 +91,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Client 0'), findsOneWidget);
-    expect(find.text('+25470000'), findsOneWidget);
+    expect(
+      find.text('+25470000'),
+      findsNothing,
+      reason: 'contacts live on the profile',
+    );
     expect(find.byKey(const Key('load-more-action')), findsOneWidget);
 
     await tester.tap(find.text('Load more'));
@@ -130,7 +147,11 @@ void main() {
     expect(client.owningTeamId, isEmpty, reason: 'server assigns the team');
     expect(client.name, 'Amina Wanjiru');
     expect(client.state, STATE.ACTIVE);
-    expect(clientPhoneNumber(client), '+254700000001');
+    expect(
+      clientProperty(client, kClientPhoneNumberKey),
+      '+254 700 000 001',
+      reason: 'passed to the profile service as typed',
+    );
     expect(clientNationalId(client), '12345678');
     expect(find.text('Amina Wanjiru onboarded'), findsOneWidget);
   });
@@ -150,5 +171,40 @@ void main() {
     expect(find.text('Phone number is required'), findsOneWidget);
     expect(saved, isEmpty);
     expect(find.byType(ClientFormDialog), findsOneWidget);
+  });
+
+  testWidgets('onboarding an existing person asks for their consent code', (
+    tester,
+  ) async {
+    _wide(tester);
+    final saved = <ClientObject>[];
+    await tester.pumpWidget(_host(calls: [], saved: saved, canManage: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Onboard client'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('client-form-name')),
+      'Known Person',
+    );
+    await tester.enterText(
+      find.byKey(const Key('client-form-phone')),
+      '+254700000009',
+    );
+    await tester.tap(find.byKey(const Key('client-form-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ConsentCodeDialog), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField).last, '123456');
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(saved, hasLength(2));
+    expect(
+      clientProperty(saved.last, kClientConsentVerificationIdKey),
+      'challenge-1',
+    );
+    expect(clientProperty(saved.last, kClientConsentCodeKey), '123456');
+    expect(find.text('Known Person onboarded'), findsOneWidget);
   });
 }

@@ -1905,6 +1905,154 @@ class ClientSearchResponse extends $pb.GeneratedMessage {
   $pb.PbList<ClientObject> get data => $_getList(0);
 }
 
+/// ClientAccessScopeRequest asks which clients a profile may act for.
+class ClientAccessScopeRequest extends $pb.GeneratedMessage {
+  factory ClientAccessScopeRequest({
+    $core.String? profileId,
+  }) {
+    final result = ClientAccessScopeRequest._();
+    if (profileId != null) result.profileId = profileId;
+    return result;
+  }
+
+  ClientAccessScopeRequest._();
+
+  factory ClientAccessScopeRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientAccessScopeRequest()..mergeFromBuffer(data, registry);
+  factory ClientAccessScopeRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientAccessScopeRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientAccessScopeRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'field.v1'),
+      createEmptyInstance: ClientAccessScopeRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'profileId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientAccessScopeRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientAccessScopeRequest copyWith(
+          void Function(ClientAccessScopeRequest) updates) =>
+      super.copyWith((message) => updates(message as ClientAccessScopeRequest))
+          as ClientAccessScopeRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessScopeRequest() / ClientAccessScopeRequest.new instead')
+  static ClientAccessScopeRequest create() => ClientAccessScopeRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ClientAccessScopeRequest._();
+  @$core.override
+  ClientAccessScopeRequest createEmptyInstance() =>
+      ClientAccessScopeRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ClientAccessScopeRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessScopeRequest>(
+          ClientAccessScopeRequest.$_createMessage);
+  static ClientAccessScopeRequest? _defaultInstance;
+
+  /// profile_id is honoured only for internal service callers, which resolve
+  /// the scope of the end user they are serving. Any other caller always gets
+  /// their own scope and the field is ignored.
+  @$pb.TagNumber(1)
+  $core.String get profileId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set profileId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProfileId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProfileId() => $_clearField(1);
+}
+
+/// ClientAccessScopeResponse describes the clients a profile may act for.
+class ClientAccessScopeResponse extends $pb.GeneratedMessage {
+  factory ClientAccessScopeResponse({
+    $core.String? clientId,
+    $core.String? memberId,
+    $core.Iterable<$core.String>? servedClientIds,
+  }) {
+    final result = ClientAccessScopeResponse._();
+    if (clientId != null) result.clientId = clientId;
+    if (memberId != null) result.memberId = memberId;
+    if (servedClientIds != null) result.servedClientIds.addAll(servedClientIds);
+    return result;
+  }
+
+  ClientAccessScopeResponse._();
+
+  factory ClientAccessScopeResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientAccessScopeResponse()..mergeFromBuffer(data, registry);
+  factory ClientAccessScopeResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientAccessScopeResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientAccessScopeResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'field.v1'),
+      createEmptyInstance: ClientAccessScopeResponse.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'clientId')
+    ..aOS(2, _omitFieldNames ? '' : 'memberId')
+    ..pPS(3, _omitFieldNames ? '' : 'servedClientIds')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientAccessScopeResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientAccessScopeResponse copyWith(
+          void Function(ClientAccessScopeResponse) updates) =>
+      super.copyWith((message) => updates(message as ClientAccessScopeResponse))
+          as ClientAccessScopeResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessScopeResponse() / ClientAccessScopeResponse.new instead')
+  static ClientAccessScopeResponse create() => ClientAccessScopeResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessScopeResponse._();
+  @$core.override
+  ClientAccessScopeResponse createEmptyInstance() =>
+      ClientAccessScopeResponse._();
+  @$core.pragma('dart2js:noInline')
+  static ClientAccessScopeResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessScopeResponse>(
+          ClientAccessScopeResponse.$_createMessage);
+  static ClientAccessScopeResponse? _defaultInstance;
+
+  /// client_id is the client the profile is, when the profile is a borrower.
+  @$pb.TagNumber(1)
+  $core.String get clientId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set clientId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasClientId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearClientId() => $_clearField(1);
+
+  /// member_id is the active workforce member the profile is, when any.
+  @$pb.TagNumber(2)
+  $core.String get memberId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set memberId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMemberId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMemberId() => $_clearField(2);
+
+  /// served_client_ids are the clients the member's teams own or the member
+  /// holds an active relationship with. Empty for a borrower.
+  @$pb.TagNumber(3)
+  $pb.PbList<$core.String> get servedClientIds => $_getList(2);
+}
+
 /// ClientReassignRequest moves a client to a different agent.
 class ClientReassignRequest extends $pb.GeneratedMessage {
   factory ClientReassignRequest({
@@ -2681,6 +2829,14 @@ class FieldServiceApi {
           $pb.ClientContext? ctx, ClientSearchRequest request) =>
       _client.invoke<ClientSearchResponse>(
           ctx, 'FieldService', 'ClientSearch', request, ClientSearchResponse());
+
+  /// ClientAccessScope reports the clients a profile may act for: its own
+  /// client as a borrower and the clients it serves as a field agent. Peer
+  /// services use it to scope their own records to the end user they serve.
+  $async.Future<ClientAccessScopeResponse> clientAccessScope(
+          $pb.ClientContext? ctx, ClientAccessScopeRequest request) =>
+      _client.invoke<ClientAccessScopeResponse>(ctx, 'FieldService',
+          'ClientAccessScope', request, ClientAccessScopeResponse());
 
   /// ClientReassign moves a client from one agent to another.
   $async.Future<ClientReassignResponse> clientReassign(

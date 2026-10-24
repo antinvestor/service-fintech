@@ -98,6 +98,17 @@ abstract final class FieldService {
     idempotency: connect.Idempotency.noSideEffects,
   );
 
+  /// ClientAccessScope reports the clients a profile may act for: its own
+  /// client as a borrower and the clients it serves as a field agent. Peer
+  /// services use it to scope their own records to the end user they serve.
+  static const clientAccessScope = connect.Spec(
+    '/$name/ClientAccessScope',
+    connect.StreamType.unary,
+    fieldv1field.ClientAccessScopeRequest.new,
+    fieldv1field.ClientAccessScopeResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
   /// ClientReassign moves a client from one agent to another.
   static const clientReassign = connect.Spec(
     '/$name/ClientReassign',

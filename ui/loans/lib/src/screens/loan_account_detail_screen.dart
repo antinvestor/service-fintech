@@ -408,21 +408,18 @@ class _LoanAccountDetailScreenState
       builder: (dialogContext) => _CollectPaymentFormDialog(
         loanAccountId: loan.id,
         currencyCode: loanMoneyCurrency(loan.principalAmount),
-        onSave: (amount, phoneNumber, idempotencyKey) async {
+        onSave: (amount, idempotencyKey) async {
           try {
             final client = ref.read(loanManagementServiceClientProvider);
             await client.initiateCollection(
               InitiateCollectionRequest(
                 loanAccountId: loan.id,
-                // The string form stays until the loans service consumes the
-                // Money field from the published SDK; both carry the same value.
-                // ignore: deprecated_member_use
-                amount: amount,
+                // No contact is named: the prompt goes to the borrower's
+                // profile, whose contacts the profile service owns.
                 collectionAmount: loanMoneyFromString(
                   amount,
                   loanMoneyCurrency(loan.principalAmount),
                 ),
-                phoneNumber: phoneNumber,
                 idempotencyKey: idempotencyKey,
               ),
             );
@@ -1830,7 +1827,7 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
                 child: TextFormField(
                   controller: _recipientRefCtrl,
                   decoration: const InputDecoration(
-                    hintText: 'e.g. phone number or account',
+                    hintText: 'e.g. the rail transaction code',
                   ),
                   textInputAction: TextInputAction.done,
                   validator: (v) =>
@@ -1967,7 +1964,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  textInputAction: TextInputAction.next,
+                  textInputAction: TextInputAction.done,
                   validator: validateAmount,
                 ),
               ),
@@ -2029,7 +2026,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
                 child: TextFormField(
                   controller: _payerRefCtrl,
                   decoration: const InputDecoration(
-                    hintText: 'e.g. phone number or ID',
+                    hintText: 'e.g. the payer profile or transaction code',
                   ),
                   textInputAction: TextInputAction.done,
                   validator: (v) => validateRequired(v, 'Payer reference'),
@@ -2072,12 +2069,7 @@ class _CollectPaymentFormDialog extends StatefulWidget {
 
   final String loanAccountId;
   final String currencyCode;
-  final Future<void> Function(
-    String amount,
-    String phoneNumber,
-    String idempotencyKey,
-  )
-  onSave;
+  final Future<void> Function(String amount, String idempotencyKey) onSave;
 
   @override
   State<_CollectPaymentFormDialog> createState() =>
@@ -2087,7 +2079,6 @@ class _CollectPaymentFormDialog extends StatefulWidget {
 class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _amountCtrl;
-  late final TextEditingController _phoneCtrl;
   late final String _idempotencyKey;
   bool _saving = false;
 
@@ -2095,14 +2086,12 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
   void initState() {
     super.initState();
     _amountCtrl = TextEditingController();
-    _phoneCtrl = TextEditingController();
     _idempotencyKey = generateIdempotencyKey();
   }
 
   @override
   void dispose() {
     _amountCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -2110,11 +2099,7 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      await widget.onSave(
-        _amountCtrl.text.trim(),
-        _phoneCtrl.text.trim(),
-        _idempotencyKey,
-      );
+      await widget.onSave(_amountCtrl.text.trim(), _idempotencyKey);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _saving = false);
@@ -2146,19 +2131,11 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
                   validator: validateAmount,
                 ),
               ),
-              FormFieldCard(
-                label: 'Phone Number',
-                description:
-                    'The borrower\'s mobile money phone number for the collection prompt.',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _phoneCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. +254712345678',
-                  ),
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.done,
-                  validator: validatePhone,
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'The prompt is sent to the borrower\'s registered mobile '
+                  'number on their profile.',
                 ),
               ),
             ],

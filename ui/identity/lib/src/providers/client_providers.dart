@@ -17,8 +17,32 @@ String clientProperty(ClientObject client, String key) {
   return value.stringValue;
 }
 
-String clientPhoneNumber(ClientObject client) =>
-    clientProperty(client, kClientPhoneNumberKey);
+/// Consent handshake keys: a field agent registering someone who already
+/// has a profile gets [kClientConsentVerificationIdKey] back with status
+/// pending, and resubmits with the code the person received.
+const kClientConsentVerificationIdKey = 'consent_verification_id';
+const kClientConsentCodeKey = 'consent_code';
+const kClientConsentStatusKey = 'consent_status';
+
+/// Whether a save answered with a pending consent request.
+bool clientConsentPending(ClientObject client) =>
+    clientProperty(client, kClientConsentStatusKey) == 'pending' &&
+    clientProperty(client, kClientConsentVerificationIdKey).isNotEmpty;
+
+/// The registration [draft] resubmitted with the person's consent [code]
+/// for the challenge in [pending].
+ClientObject withConsentCode(
+  ClientObject draft,
+  ClientObject pending,
+  String code,
+) {
+  final next = draft.deepCopy();
+  next.properties.fields[kClientConsentVerificationIdKey] = Value(
+    stringValue: clientProperty(pending, kClientConsentVerificationIdKey),
+  );
+  next.properties.fields[kClientConsentCodeKey] = Value(stringValue: code);
+  return next;
+}
 
 String clientNationalId(ClientObject client) =>
     clientProperty(client, kClientNationalIdKey);

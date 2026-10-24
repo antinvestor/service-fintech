@@ -4,6 +4,8 @@ import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
 import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:antinvestor_ui_core/widgets/state_badge.dart';
+import 'package:antinvestor_ui_profile/antinvestor_ui_profile.dart'
+    show ProfileInlineManager;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -89,7 +91,6 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final phone = clientPhoneNumber(_client);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -123,7 +124,7 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
                       ),
                     ),
                     Text(
-                      phone.isNotEmpty ? phone : _client.id,
+                      _client.id,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -199,12 +200,10 @@ class _ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nationalId = clientNationalId(client);
-    final phone = clientPhoneNumber(client);
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         _InfoRow(label: 'Client ID', value: client.id),
-        _InfoRow(label: 'Phone', value: phone.isNotEmpty ? phone : '-'),
         _InfoRow(
           label: 'National ID',
           value: nationalId.isNotEmpty ? nationalId : '-',
@@ -221,6 +220,12 @@ class _ProfileTab extends StatelessWidget {
           label: 'Profile',
           value: client.profileId.isNotEmpty ? client.profileId : '-',
         ),
+        // Contacts and addresses belong to the borrower's profile and are
+        // managed there, by contact id.
+        if (client.profileId.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          ProfileInlineManager(profileId: client.profileId),
+        ],
       ],
     );
   }

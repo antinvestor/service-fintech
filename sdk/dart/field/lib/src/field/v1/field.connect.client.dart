@@ -190,6 +190,26 @@ extension type FieldServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// ClientAccessScope reports the clients a profile may act for: its own
+  /// client as a borrower and the clients it serves as a field agent. Peer
+  /// services use it to scope their own records to the end user they serve.
+  Future<fieldv1field.ClientAccessScopeResponse> clientAccessScope(
+    fieldv1field.ClientAccessScopeRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FieldService.clientAccessScope,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// ClientReassign moves a client from one agent to another.
   Future<fieldv1field.ClientReassignResponse> clientReassign(
     fieldv1field.ClientReassignRequest input, {

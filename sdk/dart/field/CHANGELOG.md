@@ -8,6 +8,8 @@
   `package:protobuf/well_known_types/...`; the vendored copies and empty
   `.pbserver.dart` files are gone. Map fields take entries in generated
   constructors.
+- `ClientAccessScope` RPC: a profile's own client, workforce member and
+  served clients.
 
 ## 0.3.0
 

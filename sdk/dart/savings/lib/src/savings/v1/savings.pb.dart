@@ -773,6 +773,8 @@ class WithdrawalObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(8)
   void clearChannel() => $_clearField(8);
 
+  /// recipient_reference is the contact id of the owner's verified mobile
+  /// contact to pay out to; never a number. Empty lets the rail choose.
   @$pb.TagNumber(9)
   $core.String get recipientReference => $_getSZ(7);
   @$pb.TagNumber(9)
@@ -2897,6 +2899,8 @@ class WithdrawalRequestRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   void clearChannel() => $_clearField(3);
 
+  /// recipient_reference is the contact id of the owner's verified mobile
+  /// contact to pay out to; never a number. Empty lets the rail choose.
   @$pb.TagNumber(4)
   $core.String get recipientReference => $_getSZ(3);
   @$pb.TagNumber(4)

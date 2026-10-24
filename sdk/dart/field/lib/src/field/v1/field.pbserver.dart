@@ -41,6 +41,8 @@ abstract class FieldServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $2.ClientGetRequest request);
   $async.Future<$2.ClientSearchResponse> clientSearch(
       $pb.ServerContext ctx, $2.ClientSearchRequest request);
+  $async.Future<$2.ClientAccessScopeResponse> clientAccessScope(
+      $pb.ServerContext ctx, $2.ClientAccessScopeRequest request);
   $async.Future<$2.ClientReassignResponse> clientReassign(
       $pb.ServerContext ctx, $2.ClientReassignRequest request);
   $async.Future<$2.ClientOwnershipTransferResponse> clientOwnershipTransfer(
@@ -74,6 +76,8 @@ abstract class FieldServiceBase extends $pb.GeneratedService {
         return $2.ClientGetRequest();
       case 'ClientSearch':
         return $2.ClientSearchRequest();
+      case 'ClientAccessScope':
+        return $2.ClientAccessScopeRequest();
       case 'ClientReassign':
         return $2.ClientReassignRequest();
       case 'ClientOwnershipTransfer':
@@ -112,6 +116,8 @@ abstract class FieldServiceBase extends $pb.GeneratedService {
         return clientGet(ctx, request as $2.ClientGetRequest);
       case 'ClientSearch':
         return clientSearch(ctx, request as $2.ClientSearchRequest);
+      case 'ClientAccessScope':
+        return clientAccessScope(ctx, request as $2.ClientAccessScopeRequest);
       case 'ClientReassign':
         return clientReassign(ctx, request as $2.ClientReassignRequest);
       case 'ClientOwnershipTransfer':

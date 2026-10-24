@@ -8,6 +8,8 @@
   `package:protobuf/well_known_types/...`; the vendored copies and empty
   `.pbserver.dart` files are gone. Map fields take entries in generated
   constructors.
+- `recipient_reference` on withdrawals is the owner's payout contact id,
+  never a number.
 
 ## 0.3.0
 
