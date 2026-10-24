@@ -209,6 +209,17 @@ func (s *FieldServer) ClientSearch(
 	return nil
 }
 
+func (s *FieldServer) ClientAccessScope(
+	ctx context.Context,
+	req *fieldv1.ClientAccessScopeRequest,
+) (*fieldv1.ClientAccessScopeResponse, error) {
+	result, err := s.clientBusiness.AccessScope(ctx, req.GetProfileId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return result, nil
+}
+
 func (s *FieldServer) ClientReassign(
 	ctx context.Context,
 	req *fieldv1.ClientReassignRequest,

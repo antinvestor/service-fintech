@@ -150,6 +150,12 @@ func (b *loanRequestBusiness) Save(
 		return nil, scopeErr
 	}
 	b.sanitizeRequestProperties(ctx, lr)
+	if !b.scope.IsStaff(ctx) {
+		// Who brought the application in is the caller, not the payload: a
+		// field agent is stamped as the agent, a borrower applying for
+		// themselves has none. Staff and services may name the agent.
+		lr.AgentID = b.scope.ServingMemberID(ctx, lr.ClientID)
+	}
 
 	existing, reconcileErr := b.reconcileWithStored(ctx, lr)
 	if reconcileErr != nil {
@@ -313,6 +319,16 @@ func (b *loanRequestBusiness) Search(
 	andQueryVal := map[string]any{}
 	if req.GetClientId() != "" {
 		andQueryVal["client_id = ?"] = req.GetClientId()
+	}
+	// Borrowers see their own records and field agents those of the clients
+	// they serve. The scope is AND-ed with every other filter, so neither a
+	// client_id nor a text query can widen it.
+	scopedIDs, unrestricted, scopeErr := b.scope.ClientFilter(ctx)
+	if scopeErr != nil {
+		return scopeErr
+	}
+	if !unrestricted {
+		andQueryVal["client_id IN ?"] = scopedIDs
 	}
 	if req.GetAgentId() != "" {
 		andQueryVal["agent_id = ?"] = req.GetAgentId()

@@ -247,3 +247,44 @@ func (s *approvalWorkflowSuite) TestRelationshipSaveValidatesMembership() {
 	})
 	s.Require().Error(err, "the (client, member) pair already exists")
 }
+
+// ClientAccessScope tells a peer service what a profile may act for: its own
+// client as a borrower, the clients it serves as a field agent. Only an
+// internal caller may name another profile.
+func (s *approvalWorkflowSuite) TestClientAccessScopeResolvesBorrowerAndAgent() {
+	env := s.newEnv()
+	org := env.createOrganization("Scope SACCO", "scope-sacco")
+	agent, _ := env.fieldAgent(org, "agent-scope", "scope-team")
+	_, _ = env.fieldAgent(org, "agent-other", "other-team")
+	asAgent := env.asRole("agent-scope", "member")
+	asOther := env.asRole("agent-other", "member")
+	asService := env.asRole("service-loans", security.ConstantSystemInternalRole)
+
+	created, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{
+		Name:       "Scoped Borrower",
+		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000222"}),
+	})
+	s.Require().NoError(err)
+
+	got, err := env.clientBusiness.AccessScope(asService, "agent-scope")
+	s.Require().NoError(err)
+	s.Require().Equal(agent.GetID(), got.GetMemberId())
+	s.Require().Equal([]string{created.GetId()}, got.GetServedClientIds())
+	s.Require().Empty(got.GetClientId())
+
+	got, err = env.clientBusiness.AccessScope(asService, created.GetProfileId())
+	s.Require().NoError(err)
+	s.Require().Equal(created.GetId(), got.GetClientId(), "the borrower resolves to their own client")
+	s.Require().Empty(got.GetMemberId())
+	s.Require().Empty(got.GetServedClientIds())
+
+	// A non-internal caller cannot read someone else's scope by naming them.
+	got, err = env.clientBusiness.AccessScope(asOther, "agent-scope")
+	s.Require().NoError(err)
+	s.Require().Empty(got.GetServedClientIds(), "the other agent gets only their own (empty) scope")
+	s.Require().NotEqual(agent.GetID(), got.GetMemberId())
+
+	// The exact profile filter finds the borrower's client for staff.
+	s.Require().Len(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: created.GetProfileId()}), 1)
+	s.Require().Empty(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: "nobody"}))
+}

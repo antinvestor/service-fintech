@@ -39,7 +39,15 @@ var (
 	ErrBalanceNotFound     = apperrors.NewError(apperrors.NotFound, "loan balance not found")
 	ErrLoanNotOwned        = apperrors.NewError(
 		apperrors.Forbidden,
-		"the caller may only read loan records belonging to its own client",
+		"the caller may only act on loan records of its own client or the clients it serves",
+	)
+	ErrInvalidTimeRange = apperrors.NewError(
+		apperrors.BadRequest,
+		"time range bounds must be RFC3339 timestamps",
+	)
+	ErrNotServingClient = apperrors.NewError(
+		apperrors.Forbidden,
+		"only staff or a field agent serving the client may perform this action",
 	)
 	ErrReadScopeUnavailable = apperrors.NewError(
 		apperrors.InternalServerError,

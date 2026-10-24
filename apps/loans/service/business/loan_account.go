@@ -545,6 +545,16 @@ func (b *loanAccountBusiness) Search(
 	if req.GetClientId() != "" {
 		andQueryVal["client_id = ?"] = req.GetClientId()
 	}
+	// Borrowers see their own records and field agents those of the clients
+	// they serve. The scope is AND-ed with every other filter, so neither a
+	// client_id nor a text query can widen it.
+	scopedIDs, unrestricted, scopeErr := b.scope.ClientFilter(ctx)
+	if scopeErr != nil {
+		return scopeErr
+	}
+	if !unrestricted {
+		andQueryVal["client_id IN ?"] = scopedIDs
+	}
 	if req.GetAgentId() != "" {
 		andQueryVal["agent_id = ?"] = req.GetAgentId()
 	}

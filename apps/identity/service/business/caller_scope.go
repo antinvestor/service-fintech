@@ -59,7 +59,17 @@ func resolveCallerScope(
 	workforceRepo repository.WorkforceMemberRepository,
 	teamMembershipRepo repository.TeamMembershipRepository,
 ) (*callerScope, error) {
-	profileID := actorFromClaims(ctx)
+	return resolveProfileScope(ctx, actorFromClaims(ctx), workforceRepo, teamMembershipRepo)
+}
+
+// resolveProfileScope loads the workforce member and teams of profileID. A
+// profile with no active workforce member has no scope.
+func resolveProfileScope(
+	ctx context.Context,
+	profileID string,
+	workforceRepo repository.WorkforceMemberRepository,
+	teamMembershipRepo repository.TeamMembershipRepository,
+) (*callerScope, error) {
 	if profileID == "" || workforceRepo == nil {
 		return nil, ErrCallerNotWorkforceMember
 	}

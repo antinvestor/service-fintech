@@ -49,6 +49,7 @@ type penaltyBusiness struct {
 	auditWriter     *audit.Writer
 	notifier        *LoanNotifier
 	scheduleEntries repository.ScheduleEntryRepository
+	scope           *ReadScope
 }
 
 func NewPenaltyBusiness(
@@ -68,6 +69,7 @@ func NewPenaltyBusiness(
 		auditWriter:     auditWriter,
 		notifier:        applyOptions(opts).notifier,
 		scheduleEntries: applyOptions(opts).scheduleEntryRepo,
+		scope:           applyOptions(opts).scope,
 	}
 }
 
@@ -416,8 +418,15 @@ func (b *penaltyBusiness) Search(
 	logger := util.Log(ctx).WithField("method", "PenaltyBusiness.Search")
 
 	andQueryVal := map[string]any{}
-	if req.GetLoanAccountId() != "" {
+	switch {
+	case req.GetLoanAccountId() != "":
+		if err := authorizeLoanAccount(ctx, b.scope, b.loanRepo, req.GetLoanAccountId()); err != nil {
+			return err
+		}
 		andQueryVal["loan_account_id = ?"] = req.GetLoanAccountId()
+	case !b.scope.IsStaff(ctx):
+		// Only staff list penalties across the partition.
+		return ErrLoanNotOwned
 	}
 	if req.GetPenaltyType() != loansv1.PenaltyType_PENALTY_TYPE_UNSPECIFIED {
 		andQueryVal["penalty_type = ?"] = int32(req.GetPenaltyType())

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -128,21 +129,26 @@ func (b *repaymentBusiness) Record(
 		return nil, ErrIdempotencyKeyRequired
 	}
 
+	la, err := b.loanAccountRepo.GetByID(ctx, req.GetLoanAccountId())
+	if err != nil {
+		return nil, ErrLoanAccountNotFound
+	}
+	// Recording a repayment credits the loan, so it is a lender-side action:
+	// staff, the payment rail (internal), or the field agent serving the
+	// client who took the cash. A borrower cannot mark their own loan paid.
+	if scopeErr := b.scope.AuthorizeAgent(ctx, la.ClientID); scopeErr != nil {
+		return nil, scopeErr
+	}
+
 	// Idempotency short-circuit before the gate, so retries do not consume a
 	// fresh reservation.
-	if existing, err := b.repaymentRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); err == nil &&
+	if existing, existErr := b.repaymentRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); existErr == nil &&
 		existing != nil {
 		return existing.ToAPI(), nil
 	}
 
 	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
 		return b.recordInner(ctx, req)
-	}
-
-	// Load loan account to build the intent before the gate.
-	la, err := b.loanAccountRepo.GetByID(ctx, req.GetLoanAccountId())
-	if err != nil {
-		return nil, ErrLoanAccountNotFound
 	}
 
 	intent := &limitsv1.LimitIntent{
@@ -794,7 +800,8 @@ func (b *repaymentBusiness) Search(
 ) error {
 	logger := util.Log(ctx).WithField("method", "RepaymentBusiness.Search")
 
-	if scopeErr := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, req.GetLoanAccountId()); scopeErr != nil {
+	andQueryVal, scopeErr := b.searchScope(ctx, req)
+	if scopeErr != nil {
 		return scopeErr
 	}
 
@@ -809,10 +816,6 @@ func (b *repaymentBusiness) Search(
 		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
 	}
 
-	andQueryVal := map[string]any{}
-	if req.GetLoanAccountId() != "" {
-		andQueryVal["loan_account_id = ?"] = req.GetLoanAccountId()
-	}
 	if req.GetStatus() != loansv1.RepaymentStatus_REPAYMENT_STATUS_UNSPECIFIED {
 		andQueryVal["status = ?"] = int32(req.GetStatus())
 	}
@@ -835,6 +838,52 @@ func (b *repaymentBusiness) Search(
 		}
 		return consumer(ctx, apiResults)
 	})
+}
+
+// searchScope builds the filters a repayment search is confined to. A search
+// names a loan the caller may read, or a collector: field agents may list
+// their own collections across loans, staff anyone's. Staff may also search
+// the whole partition.
+func (b *repaymentBusiness) searchScope(
+	ctx context.Context,
+	req *loansv1.RepaymentSearchRequest,
+) (map[string]any, error) {
+	filters := map[string]any{}
+	if after := strings.TrimSpace(req.GetReceivedAfter()); after != "" {
+		t, err := time.Parse(time.RFC3339, after)
+		if err != nil {
+			return nil, ErrInvalidTimeRange
+		}
+		filters["created_at >= ?"] = t
+	}
+	if before := strings.TrimSpace(req.GetReceivedBefore()); before != "" {
+		t, err := time.Parse(time.RFC3339, before)
+		if err != nil {
+			return nil, ErrInvalidTimeRange
+		}
+		filters["created_at < ?"] = t
+	}
+	if collector := strings.TrimSpace(req.GetCollectedBy()); collector != "" {
+		filters["collected_by = ?"] = collector
+	}
+
+	if loanID := req.GetLoanAccountId(); loanID != "" {
+		if err := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, loanID); err != nil {
+			return nil, err
+		}
+		filters["loan_account_id = ?"] = loanID
+		return filters, nil
+	}
+
+	if b.scope.IsStaff(ctx) {
+		return filters, nil
+	}
+	// Without a loan, a non-staff caller may list only what they collected.
+	subject := callerSubject(ctx)
+	if subject == "" || strings.TrimSpace(req.GetCollectedBy()) != subject {
+		return nil, ErrLoanNotOwned
+	}
+	return filters, nil
 }
 
 // Repayment channels as stored. Callers send free text; it is folded onto
@@ -875,12 +924,9 @@ func (b *repaymentBusiness) collectorFor(ctx context.Context, la *models.LoanAcc
 	if subject == "" {
 		return ""
 	}
-	if b.scope != nil && !b.scope.IsStaff(ctx) {
-		// A client caller is the borrower (AuthorizeClient has already
-		// established they own the loan); they are not collecting.
-		if err := b.scope.AuthorizeClient(ctx, la.ClientID); err == nil {
-			return ""
-		}
+	if b.scope != nil && b.scope.IsBorrowerOf(ctx, la.ClientID) {
+		// The borrower paying for themselves is not a collector.
+		return ""
 	}
 	return subject
 }

@@ -241,7 +241,8 @@ func setupServiceOptions(
 		business.WithNotifier(loanNotifier),
 		business.WithAuditWriter(auditWriter),
 	)
-	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo)
+	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo,
+		business.WithReadScope(readScope))
 	laBusiness := business.NewLoanAccountBusiness(
 		ctx, evtsMan, lpRepo, laRepo, lbRepo, lscRepo, repRepo, penRepo,
 		loanRequestRepo, fundingCli, scheduleBusiness, operationsCli, auditWriter,
@@ -272,10 +273,12 @@ func setupServiceOptions(
 		business.WithReadScope(readScope),
 	)
 	penaltyBusiness := business.NewPenaltyBusiness(ctx, penRepo, laRepo, lbRepo, operationsCli, auditWriter,
-		business.WithNotifier(loanNotifier), business.WithScheduleEntries(seRepo))
+		business.WithNotifier(loanNotifier), business.WithScheduleEntries(seRepo),
+		business.WithReadScope(readScope))
 	restructBusiness := business.NewLoanRestructureBusiness(
 		ctx, evtsMan, lrRepo, laRepo, lbRepo, rsRepo, laBusiness, scheduleBusiness,
 		business.WithNotifier(loanNotifier),
+		business.WithReadScope(readScope),
 	)
 	reconBusiness := business.NewReconciliationBusiness(ctx, evtsMan, reconRepo)
 	disbBusiness := business.NewDisbursementBusiness(
@@ -297,7 +300,9 @@ func setupServiceOptions(
 
 	portfolioBusiness := business.NewPortfolioBusiness(ctx, dbPool)
 	cpaBusiness := business.NewClientProductAccessBusiness(ctx, evtsMan, cpaRepo, lpRepo)
-	collectionBusiness := business.NewCollectionBusiness(ctx, laRepo, lbRepo, loanNotifier)
+	collectionBusiness := business.NewCollectionBusiness(
+		ctx, laRepo, lbRepo, loanNotifier, business.WithReadScope(readScope),
+	)
 
 	// Delinquency is a background obligation, not a request: without a job
 	// running it no loan ever becomes delinquent, no late penalty is charged,
@@ -444,7 +449,7 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 		funding:    fundingCli,
 		limits:     limitsCli,
 		readScope: business.NewReadScope(
-			business.NewFieldClientResolver(fieldCli), splitCSV(cfg.LoansStaffRoles)...,
+			business.NewFieldAccessResolver(fieldCli), splitCSV(cfg.LoansStaffRoles)...,
 		),
 	}
 }

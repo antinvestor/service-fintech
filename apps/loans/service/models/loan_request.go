@@ -86,6 +86,8 @@ func (m *LoanRequest) ToAPI() *loansv1.LoanRequestObject {
 		SourceRequestId:   m.SourceRequestID,
 		IdempotencyKey:    m.IdempotencyKey,
 		Properties:        m.Properties.ToProtoStruct(),
+		SubmittedBy:       m.SubmittedBy,
+		DecidedBy:         m.DecidedBy,
 	}
 }
 

@@ -51,6 +51,7 @@ type loanRestructureBusiness struct {
 	laBusiness          LoanAccountBusiness
 	scheduleBusiness    RepaymentScheduleBusiness
 	notifier            *LoanNotifier
+	scope               *ReadScope
 }
 
 func NewLoanRestructureBusiness(
@@ -66,6 +67,7 @@ func NewLoanRestructureBusiness(
 ) LoanRestructureBusiness {
 	return &loanRestructureBusiness{
 		notifier:            applyOptions(opts).notifier,
+		scope:               applyOptions(opts).scope,
 		eventsMan:           eventsMan,
 		loanRestructureRepo: loanRestructureRepo,
 		loanAccountRepo:     loanAccountRepo,
@@ -301,7 +303,14 @@ func (b *loanRestructureBusiness) Search(
 	}
 
 	andQueryVal := map[string]any{}
+	if req.GetLoanAccountId() == "" && !b.scope.IsStaff(ctx) {
+		// Only staff list restructures across the partition.
+		return ErrLoanNotOwned
+	}
 	if req.GetLoanAccountId() != "" {
+		if err := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, req.GetLoanAccountId()); err != nil {
+			return err
+		}
 		andQueryVal["loan_account_id = ?"] = req.GetLoanAccountId()
 	}
 

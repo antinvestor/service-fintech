@@ -107,8 +107,8 @@ func (r *racingRequestRepo) ClaimStatus(context.Context, string, []int32, int32,
 
 type fixedClientResolver struct{ clientID string }
 
-func (f fixedClientResolver) ResolveByProfileID(context.Context, string) (string, error) {
-	return f.clientID, nil
+func (f fixedClientResolver) ResolveAccess(context.Context, string) (*CallerAccess, error) {
+	return &CallerAccess{ClientID: f.clientID}, nil
 }
 
 // A client caller cannot steer verification or the payout destination

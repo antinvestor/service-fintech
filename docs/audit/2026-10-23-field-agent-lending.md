@@ -126,3 +126,44 @@ The limits service already evaluates every matching policy and requires all of t
 - **Defaults.** Gates default to enabled in enforce mode, and a service refuses to start when a gate is on without a limits client.
 
 Not gated, by design: allocation of an incoming payment already received, because rejecting money that has arrived would strand it. The `STAWI_CONTRIBUTION` and `STAWI_PAYOUT` actions are unused. Stawi contributions arrive as payment allocations, and its outgoing movements execute as transfer orders, which are now gated.
+
+## 12. Addendum 2026-10-24 — field-agent scope in loans
+
+Finding: the loans service treated every non-staff caller as a borrower. A
+field agent (platform role `member`) could not read or act on the loans of
+the clients they serve, and the member role lacked `loan_request_submit`,
+`repayment_manage` and `collection_manage`. Worse, loan account, loan
+request, penalty and restructure searches and the active-schedule read
+applied no caller scope at all, so any `member` could list every loan in the
+partition, and `InitiateCollection` had no ownership check, so a caller could
+send payment prompts to any phone number against any loan.
+
+Fix:
+
+- Field service `ClientAccessScope` (gated on `client_view`, which every peer
+  service account already holds): returns the profile's own client, its
+  workforce member and the clients its teams own or it has a relationship
+  with. Only internal callers may name another profile.
+- `ClientSearchRequest.profile_id` is now an exact filter in identity.
+- Loans `ReadScope` resolves the caller through `ClientAccessScope` (cached
+  30 s per tenancy and profile). Borrowers act on their own client, agents on
+  their served clients, staff partition-wide. Every search is AND-ed with the
+  caller's client set; penalty and restructure searches without a loan, and
+  repayment searches without a loan or the caller's own `collected_by`, are
+  staff-only. The schedule read is scoped through the loan.
+- `RepaymentRecord` and `InitiateCollection` require staff, the payment rail
+  or the serving agent (`AuthorizeAgent`); a borrower cannot mark their own
+  loan paid or raise prompts.
+- `LoanRequestSave` is gated on `loan_request_submit`. A non-staff caller's
+  `agent_id` is stamped from their workforce member (empty for a borrower).
+- Proto: `RepaymentObject.collected_by`, `RepaymentSearchRequest.collected_by`
+  / `received_after` / `received_before` (agent collections-today report),
+  `LoanRequestObject.submitted_by` / `decided_by`,
+  `InitiateCollectionRequest.collection_amount` wired with a currency check.
+- OPL: member gains `loan_request_submit`, `repayment_manage`,
+  `collection_manage` on `service_loans`.
+
+Deliberately not done: the deprecated Agent RPCs stay in the proto (they fail
+closed with `Gone`) because removing them breaks published Dart SDK clients;
+`WorkforceMemberSelf` is unnecessary because `ClientAccessScope` returns the
+caller's member id for `WorkforceMemberGet`.

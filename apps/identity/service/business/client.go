@@ -58,6 +58,7 @@ type ClientBusiness interface {
 	ApproveSystemCreditLimitChange(ctx context.Context, requestID string, reviewedBy, notes string) error
 	RejectSystemCreditLimitChange(ctx context.Context, requestID string, reviewedBy, notes string) error
 	GetEffectiveCreditLimit(ctx context.Context, clientID string) (int64, string, error)
+	AccessScope(ctx context.Context, profileID string) (*fieldv1.ClientAccessScopeResponse, error)
 }
 
 type clientBusiness struct {
@@ -217,6 +218,13 @@ func (b *clientBusiness) scopedClientIDs(ctx context.Context) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+	return b.servedClientIDs(ctx, scope)
+}
+
+// servedClientIDs lists the clients scope's teams own plus those its member
+// holds a relationship with. The sentinel keeps "IN ?" valid when there are
+// none.
+func (b *clientBusiness) servedClientIDs(ctx context.Context, scope *callerScope) ([]string, error) {
 	owned, err := b.clientRepo.IDsOwnedByTeams(ctx, scope.teamIDs)
 	if err != nil {
 		return nil, err
@@ -590,6 +598,9 @@ func (b *clientBusiness) Search(
 	}
 	if req.GetOwningTeamId() != "" {
 		andQueryVal["owning_team_id = ?"] = req.GetOwningTeamId()
+	}
+	if req.GetProfileId() != "" {
+		andQueryVal["profile_id = ?"] = req.GetProfileId()
 	}
 	if req.GetMemberId() != "" {
 		// Relationships live in their own table, so a member filter is
