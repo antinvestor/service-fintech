@@ -14,6 +14,8 @@ RUN go mod download
 
 COPY ./apps/loans ./apps/loans
 COPY ./pkg ./pkg
+# The seed client (paid-off hook) is generated in-repo.
+COPY ./gen ./gen
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -trimpath \
