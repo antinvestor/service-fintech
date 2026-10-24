@@ -43,6 +43,7 @@ type options struct {
 	clientLookup       clientLookup
 	profiles           profilev1connect.ProfileServiceClient
 	relationshipRepo   repository.ClientRelationshipRepository
+	consentRepo        repository.ClientConsentChallengeRepository
 	clientRepo         repository.ClientRepository
 	workforceRepo      repository.WorkforceMemberRepository
 	teamMembershipRepo repository.TeamMembershipRepository
@@ -52,6 +53,11 @@ type options struct {
 // profile from the captured phone number.
 func WithProfiles(cli profilev1connect.ProfileServiceClient) Option {
 	return func(o *options) { o.profiles = cli }
+}
+
+// WithConsentChallenges stores the consent codes field agents ask for.
+func WithConsentChallenges(repo repository.ClientConsentChallengeRepository) Option {
+	return func(o *options) { o.consentRepo = repo }
 }
 
 // WithRelationships lets client registration attach the registering agent

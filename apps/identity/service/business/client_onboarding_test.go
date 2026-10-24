@@ -343,6 +343,7 @@ func (s *approvalWorkflowSuite) TestAgentBindingAnExistingPersonNeedsTheirConsen
 	pending, err := register(map[string]any{})
 	s.Require().NoError(err)
 	s.Require().Empty(pending.GetId(), "nothing is bound before consent")
+	s.Require().Empty(pending.GetProfileId(), "the pending answer reveals nobody")
 	vid := pending.GetProperties().AsMap()[consentVerificationIDKey].(string)
 	s.Require().NotEmpty(vid)
 	s.Equal("contact-of-profile-existing", env.profiles.sentTo[vid], "the code goes to the person's own contact")
@@ -354,10 +355,38 @@ func (s *approvalWorkflowSuite) TestAgentBindingAnExistingPersonNeedsTheirConsen
 	)
 	s.Require().ErrorIs(err, ErrClientConsentFailed)
 
+	// Another agent cannot use this agent's challenge.
+	_, _ = env.fieldAgent(org, "agent-intruder", "intruder-team")
+	_, err = env.clientBusiness.Save(env.asRole("agent-intruder", "member"), &fieldv1.ClientObject{
+		Name: "Esther", Properties: propertiesStruct(map[string]any{
+			clientPhoneNumberKey: "+256701000555", consentVerificationIDKey: vid, consentCodeKey: "123456",
+		}),
+	})
+	s.Require().ErrorIs(err, ErrClientConsentFailed)
+
 	bound, err := register(map[string]any{consentVerificationIDKey: vid, consentCodeKey: "123456"})
 	s.Require().NoError(err)
 	s.Require().NotEmpty(bound.GetId())
 	s.Equal("profile-existing", bound.GetProfileId())
 	s.NotContains(bound.GetProperties().AsMap(), consentCodeKey, "the code is never stored")
 	_ = agent
+
+	// A challenge runs out of attempts.
+	env.profiles.byContact["+256701000666"] = "profile-guarded"
+	first, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
+		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000666"})})
+	s.Require().NoError(err)
+	guarded := first.GetProperties().AsMap()[consentVerificationIDKey].(string)
+	for range 5 {
+		_, err = env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
+			Properties: propertiesStruct(map[string]any{
+				clientPhoneNumberKey: "+256701000666", consentVerificationIDKey: guarded, consentCodeKey: "999999",
+			})})
+		s.Require().ErrorIs(err, ErrClientConsentFailed)
+	}
+	_, err = env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
+		Properties: propertiesStruct(map[string]any{
+			clientPhoneNumberKey: "+256701000666", consentVerificationIDKey: guarded, consentCodeKey: "123456",
+		})})
+	s.Require().ErrorIs(err, ErrClientConsentFailed, "the right code after the budget is spent binds nobody")
 }

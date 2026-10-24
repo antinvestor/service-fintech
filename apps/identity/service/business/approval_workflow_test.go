@@ -360,6 +360,7 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		&models.AgentBranch{},
 		&models.Client{},
 		&models.ClientRelationship{},
+		&models.ClientConsentChallenge{},
 		&models.ClientAssignmentHistory{},
 		&models.ClientResponsibilityHistory{},
 		&models.CreditLimitChangeRequest{},
@@ -461,6 +462,7 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		teamMembershipRepo,
 		WithRelationships(crRepo),
 		WithProfiles(profiles),
+		WithConsentChallenges(repository.NewClientConsentChallengeRepository(dbPool)),
 	)
 
 	return &approvalWorkflowEnv{

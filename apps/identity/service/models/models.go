@@ -1206,3 +1206,19 @@ func ClientDataEntryHistoryFromAPI(
 
 	return model
 }
+
+// ClientConsentChallenge is a consent code sent to a person a field agent
+// wants to register: it binds the code to that person's profile and
+// contact, the agent who asked, an expiry and an attempt budget. Its id is
+// the opaque verification id the profile service holds.
+type ClientConsentChallenge struct {
+	data.BaseModel
+	ProfileID string    `gorm:"type:varchar(50);not null"`
+	ContactID string    `gorm:"type:varchar(50);not null"`
+	MemberID  string    `gorm:"type:varchar(50);not null"`
+	ExpiresAt time.Time `gorm:"not null"`
+	Attempts  int       `gorm:"not null;default:0"`
+	UsedAt    *time.Time
+}
+
+func (ClientConsentChallenge) TableName() string { return "client_consent_challenges" }

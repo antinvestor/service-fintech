@@ -272,6 +272,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		business.WithClientNotifier(notifiers.client),
 		business.WithProfiles(profileCli),
 		business.WithRelationships(clientRelationshipRepo),
+		business.WithConsentChallenges(repository.NewClientConsentChallengeRepository(dbPool)),
 	)
 	workforceBusiness := business.NewWorkforceBusiness(
 		evtsMan,

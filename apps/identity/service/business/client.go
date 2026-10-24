@@ -72,6 +72,7 @@ type clientBusiness struct {
 	notifier           *ClientNotifier
 	profiles           profilev1connect.ProfileServiceClient
 	crRepo             repository.ClientRelationshipRepository
+	consentRepo        repository.ClientConsentChallengeRepository
 }
 
 func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -89,6 +90,7 @@ func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
 		notifier:           o.clientNotifier,
 		profiles:           o.profiles,
 		crRepo:             o.relationshipRepo,
+		consentRepo:        o.consentRepo,
 		eventsMan:          eventsMan,
 		clientRepo:         clientRepo,
 		clientHistoryRepo:  clientHistoryRepo,
@@ -174,7 +176,7 @@ func (b *clientBusiness) registerNew(
 		// that person's consent: a code is sent to their verified mobile
 		// contact, and only a correct code binds them.
 		if scope != nil && existing != nil {
-			pending, consentErr := b.requireConsent(ctx, client, existing, consentProps)
+			pending, consentErr := b.requireConsent(ctx, client, existing, scope, consentProps)
 			if consentErr != nil || pending != nil {
 				return pending, consentErr
 			}

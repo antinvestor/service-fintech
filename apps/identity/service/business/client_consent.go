@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"strings"
+	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
@@ -36,8 +37,8 @@ const (
 	consentCodeKey           = "consent_code"
 	consentStatusKey         = "consent_status"
 	consentStatusPending     = "pending"
-	consentIDPrefix          = "client-consent-"
-	consentCodeExpiry        = "15m"
+	consentCodeTTL           = 15 * time.Minute
+	consentMaxAttempts       = 5
 )
 
 type consentProperties struct {
@@ -61,70 +62,97 @@ func takeConsentProperties(props map[string]any) consentProperties {
 // requireConsent gates binding an existing person to a new client. It
 // returns a pending response when a code has just been sent, nil when the
 // person consented (or is already a client, which the caller handles), and
-// an error when the code is wrong or cannot be sent.
+// an error when the code is wrong, spent, expired or cannot be sent.
 func (b *clientBusiness) requireConsent(
 	ctx context.Context,
 	client *models.Client,
 	profile *profilev1.ProfileObject,
+	scope *callerScope,
 	consent consentProperties,
 ) (*fieldv1.ClientObject, error) {
 	if existing, err := b.clientRepo.GetByProfileID(ctx, client.ProfileID); err == nil && existing != nil {
-		return nil, nil //nolint:nilnil // nothing pending: the caller proceeds
+		return nil, nil //nolint:nilnil // already a client: the caller applies its scope rules
 	}
-
-	prefix := consentIDPrefix + client.ProfileID + "-"
+	if b.consentRepo == nil || b.profiles == nil {
+		return nil, ErrClientProfileUnavailable
+	}
+	now := time.Now().UTC()
 	if consent.verificationID == "" {
-		contactID := consentContactID(profile)
-		if contactID == "" {
-			return nil, ErrClientConsentUnreachable
-		}
-		verificationID := prefix + util.IDString()
-		if _, err := b.profiles.CreateContactVerification(ctx, &profilev1.CreateContactVerificationRequest{
-			Id:               verificationID,
-			ContactId:        contactID,
-			DurationToExpire: consentCodeExpiry,
-		}); err != nil {
-			util.Log(ctx).WithError(err).Warn("could not send the consent code")
-			return nil, ErrClientProfileUnavailable
-		}
-		pending := client.ToAPI()
-		pending.Id = ""
-		pending.Properties = (&data.JSONMap{
-			consentVerificationIDKey: verificationID,
-			consentStatusKey:         consentStatusPending,
-		}).ToProtoStruct()
-		return pending, nil
+		return b.startConsent(ctx, client, profile, scope, now)
 	}
 
-	// The verification must be one this service started for this person:
-	// a code proven on someone else's contact binds nobody.
-	if !strings.HasPrefix(consent.verificationID, prefix) || consent.code == "" {
+	challenge, err := b.consentRepo.GetByID(ctx, consent.verificationID)
+	if err != nil || challenge.ProfileID != client.ProfileID || challenge.MemberID != scope.member.GetID() ||
+		consent.code == "" {
+		return nil, ErrClientConsentFailed
+	}
+	allowed, err := b.consentRepo.TakeAttempt(ctx, challenge.GetID(), consentMaxAttempts, now)
+	if err != nil || !allowed {
 		return nil, ErrClientConsentFailed
 	}
 	checked, err := b.profiles.CheckVerification(ctx, &profilev1.CheckVerificationRequest{
-		Id: consent.verificationID, Code: consent.code,
+		Id: challenge.GetID(), Code: consent.code,
 	})
 	if err != nil || !checked.GetSuccess() {
 		return nil, ErrClientConsentFailed
 	}
-	return nil, nil //nolint:nilnil // consent given: the caller proceeds
+	used, err := b.consentRepo.MarkUsed(ctx, challenge.GetID(), now)
+	if err != nil || !used {
+		return nil, ErrClientConsentFailed
+	}
+	return nil, nil //nolint:nilnil // consent given: the caller binds the client
+}
+
+// startConsent sends a code to the person's verified mobile contact and
+// records the challenge. The pending response reveals nothing about the
+// person: no client id, no profile id, only the opaque challenge id.
+func (b *clientBusiness) startConsent(
+	ctx context.Context,
+	client *models.Client,
+	profile *profilev1.ProfileObject,
+	scope *callerScope,
+	now time.Time,
+) (*fieldv1.ClientObject, error) {
+	contactID := consentContactID(profile)
+	if contactID == "" {
+		return nil, ErrClientConsentUnreachable
+	}
+	challenge := &models.ClientConsentChallenge{
+		ProfileID: client.ProfileID,
+		ContactID: contactID,
+		MemberID:  scope.member.GetID(),
+		ExpiresAt: now.Add(consentCodeTTL),
+	}
+	challenge.GenID(ctx)
+	if err := b.consentRepo.Create(ctx, challenge); err != nil {
+		return nil, err
+	}
+	if _, err := b.profiles.CreateContactVerification(ctx, &profilev1.CreateContactVerificationRequest{
+		Id:               challenge.GetID(),
+		ContactId:        contactID,
+		DurationToExpire: consentCodeTTL.String(),
+	}); err != nil {
+		util.Log(ctx).WithError(err).Warn("could not send the consent code")
+		return nil, ErrClientProfileUnavailable
+	}
+	return &fieldv1.ClientObject{
+		Name: client.Name,
+		Properties: (&data.JSONMap{
+			consentVerificationIDKey: challenge.GetID(),
+			consentStatusKey:         consentStatusPending,
+		}).ToProtoStruct(),
+	}, nil
 }
 
 // consentContactID picks the contact the consent code goes to: the
-// person's verified mobile contact, else any active mobile contact.
+// person's verified, active mobile contact. A person with none is
+// registered by staff.
 func consentContactID(profile *profilev1.ProfileObject) string {
-	fallback := ""
 	for _, c := range profile.GetContacts() {
-		if c.GetType() != profilev1.ContactType_MSISDN || c.GetId() == "" ||
-			c.GetState() == commonv1.STATE_DELETED || c.GetState() == commonv1.STATE_INACTIVE {
-			continue
-		}
-		if c.GetVerified() {
+		if c.GetType() == profilev1.ContactType_MSISDN && c.GetVerified() && c.GetId() != "" &&
+			c.GetState() != commonv1.STATE_DELETED && c.GetState() != commonv1.STATE_INACTIVE {
 			return c.GetId()
 		}
-		if fallback == "" {
-			fallback = c.GetId()
-		}
 	}
-	return fallback
+	return ""
 }
