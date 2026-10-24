@@ -24,7 +24,7 @@ dependencies:
   antinvestor_ui_core: ^0.5.1
   antinvestor_api_limits:
     path: ../../sdk/dart/limits
-  antinvestor_api_common: ^1.52.0
+  antinvestor_api_common: ^1.53.1
   connectrpc: ^1.0.0
   flutter_riverpod: ^3.3.1
   go_router: ^17.5.0
