@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -472,11 +474,10 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 
 	return b.operationsCli.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  la.LedgerAssetAccountID,
 			CreditAccountRef: la.PaymentAccountRef,
 			Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, la.PrincipalAmount),
-			OrderType:        constants.SafeInt32FromInt(constants.TransferTypeDisbursement),
 			Reference:        "disbursement:" + disb.IdempotencyKey,
 			Description:      "Loan disbursement for " + la.GetID(),
 			State:            commonv1.STATE_ACTIVE,
@@ -491,7 +492,7 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 				"payment_channel":     req.GetChannel(),
 				"payment_account_ref": la.PaymentAccountRef,
 			}).ToProtoStruct(),
-		},
+		}, constants.TransferTypeDisbursement),
 	})
 }
 

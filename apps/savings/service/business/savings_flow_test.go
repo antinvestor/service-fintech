@@ -41,7 +41,6 @@ import (
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
-	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 // errOperationsDown stands in for the operations service being unreachable.
@@ -446,7 +445,7 @@ func (s *savingsSuite) TestWithdrawalHoldsThenSettles() {
 
 	// The money leaves through the payment rail, addressed to the owner.
 	order := e.ops.last()
-	s.Equal(int32(constants.TransferTypeDisbursement), order.GetOrderType())
+	s.Equal(operationsv1.TransferOrderType_TRANSFER_ORDER_TYPE_DISBURSEMENT, order.GetTransferType())
 	s.Equal(account.OwnerID, order.GetExtraData().GetFields()["recipient_client_id"].GetStringValue())
 
 	settled, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())

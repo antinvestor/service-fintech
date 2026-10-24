@@ -17,6 +17,8 @@ package business
 import (
 	"context"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
@@ -271,15 +273,14 @@ func (b *penaltyBusiness) postPenaltyAccrual(
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.MemberPenaltyReceivableAccount(la.ClientID),
 			CreditAccountRef: la.LedgerPenaltyIncomeAccountID,
 			Amount:           moneyx.FromMinorUnitsByCurrency(penalty.CurrencyCode, penalty.Amount),
-			OrderType:        constants.SafeInt32FromInt(constants.TransferTypePenalty),
 			Reference:        reference,
 			Description:      "Penalty accrual",
 			ExtraData:        extraData.ToProtoStruct(),
-		},
+		}, constants.TransferTypePenalty),
 	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
@@ -386,11 +387,10 @@ func (b *penaltyBusiness) reversePenaltyAccrual(
 
 	reference := "penalty_waiver:" + penalty.GetID()
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  la.LedgerPenaltyIncomeAccountID,
 			CreditAccountRef: constants.MemberPenaltyReceivableAccount(la.ClientID),
 			Amount:           moneyx.FromMinorUnitsByCurrency(penalty.CurrencyCode, penalty.Amount),
-			OrderType:        constants.SafeInt32FromInt(constants.TransferTypePenaltyCancel),
 			Reference:        reference,
 			Description:      "Penalty waiver",
 			ExtraData: (&data.JSONMap{
@@ -398,7 +398,7 @@ func (b *penaltyBusiness) reversePenaltyAccrual(
 				"penalty_id":       penalty.GetID(),
 				fieldClientID:      la.ClientID,
 			}).ToProtoStruct(),
-		},
+		}, constants.TransferTypePenaltyCancel),
 	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {

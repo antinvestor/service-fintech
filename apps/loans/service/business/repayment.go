@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
@@ -629,15 +631,14 @@ func (b *repaymentBusiness) emitTransferOrder(
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  debitAccount,
 			CreditAccountRef: creditAccount,
 			Amount:           moneyx.FromMinorUnitsByCurrency(currency, amount),
-			OrderType:        constants.SafeInt32FromInt(orderType),
 			Reference:        reference,
 			Description:      description,
 			ExtraData:        extraData.ToProtoStruct(),
-		},
+		}, orderType),
 	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {

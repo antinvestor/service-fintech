@@ -18,6 +18,8 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
@@ -126,8 +128,8 @@ func (s *OperationsServer) TransferOrderSearch(
 	searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(limit))
 
 	andQueryVal := map[string]any{}
-	if req.GetOrderType() != 0 {
-		andQueryVal["order_type = ?"] = req.GetOrderType()
+	if t := searchOrderType(req); t != 0 {
+		andQueryVal["order_type = ?"] = t
 	}
 	if len(andQueryVal) > 0 {
 		searchOpts = append(searchOpts, data.WithSearchFiltersAndByValue(andQueryVal))
@@ -187,12 +189,21 @@ func validateTransferOrderInput(obj *operationsv1.TransferOrderObject) error {
 		return apperrors.NewError(apperrors.BadRequest, "amount currency code is required")
 	case moneyx.ToSmallestUnit(obj.GetAmount(), moneyx.Decimals(obj.GetAmount().GetCurrencyCode())) <= 0:
 		return apperrors.NewError(apperrors.BadRequest, "amount must be positive")
-	case obj.GetOrderType() == 0:
+	case transferorder.TypeOf(obj) == 0:
 		return apperrors.NewError(apperrors.BadRequest, "order type is required")
 	case business.IsReservedReference(obj.GetReference()):
 		return apperrors.NewError(apperrors.BadRequest, "the reference prefix is reserved for system orders")
 	}
 	return nil
+}
+
+// searchOrderType reads the type filter: transfer_type when set, else the
+// deprecated order_type older callers send.
+func searchOrderType(req *operationsv1.TransferOrderSearchRequest) int32 {
+	if t := req.GetTransferType(); t != operationsv1.TransferOrderType_TRANSFER_ORDER_TYPE_UNSPECIFIED {
+		return int32(t)
+	}
+	return req.GetOrderType() //nolint:staticcheck // legacy callers
 }
 
 // transferOrderFromAPI converts a proto TransferOrderObject to a TransferOrder model.
@@ -204,7 +215,7 @@ func transferOrderFromAPI(ctx context.Context, obj *operationsv1.TransferOrderOb
 		CreditAccountRef: obj.GetCreditAccountRef(),
 		Amount:           amount,
 		Currency:         currency,
-		OrderType:        obj.GetOrderType(),
+		OrderType:        transferorder.TypeOf(obj),
 		Reference:        obj.GetReference(),
 		Description:      obj.GetDescription(),
 		State:            int32(obj.GetState()),
@@ -224,17 +235,16 @@ func transferOrderFromAPI(ctx context.Context, obj *operationsv1.TransferOrderOb
 
 // transferOrderToAPI converts a TransferOrder model to the proto TransferOrderObject.
 func transferOrderToAPI(m *models.TransferOrder) *operationsv1.TransferOrderObject {
-	return &operationsv1.TransferOrderObject{
+	return transferorder.Typed(&operationsv1.TransferOrderObject{
 		Id:               m.GetID(),
 		DebitAccountRef:  m.DebitAccountRef,
 		CreditAccountRef: m.CreditAccountRef,
 		Amount:           moneyx.FromMinorUnitsByCurrency(m.Currency, m.Amount),
-		OrderType:        m.OrderType,
 		Reference:        m.Reference,
 		Description:      m.Description,
 		ExtraData:        m.ExtraData.ToProtoStruct(),
 		State:            commonv1.STATE(m.State),
-	}
+	}, int(m.OrderType))
 }
 
 // --- Payment Routing RPCs ---

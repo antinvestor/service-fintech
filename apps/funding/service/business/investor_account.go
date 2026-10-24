@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -633,15 +635,14 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  debitAccount,
 			CreditAccountRef: creditAccount,
 			Amount:           moneyx.FromMinorUnitsByCurrency(account.Currency, amount),
-			OrderType:        constants.SafeInt32FromInt(orderType),
 			Reference:        reference,
 			Description:      description,
 			ExtraData:        extraData.ToProtoStruct(),
-		},
+		}, orderType),
 	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {

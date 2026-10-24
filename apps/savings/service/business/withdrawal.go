@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	"connectrpc.com/connect/v2"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -316,15 +318,14 @@ func (b *withdrawalBusiness) postWithdrawalTransferOrder(
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  LedgerAccountRef(sa),
 			CreditAccountRef: PaymentAccountRef(sa),
 			Amount:           moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, wdr.Amount),
-			OrderType:        constants.SafeInt32FromInt(constants.TransferTypeDisbursement),
 			Reference:        reference,
 			Description:      "Savings withdrawal",
 			ExtraData:        extraData.ToProtoStruct(),
-		},
+		}, constants.TransferTypeDisbursement),
 	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)

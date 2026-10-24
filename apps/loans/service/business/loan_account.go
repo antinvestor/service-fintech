@@ -21,6 +21,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
@@ -1038,15 +1040,14 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.ProductBadDebtExpenseAccount(la.ProductID),
 			CreditAccountRef: la.LedgerAssetAccountID,
 			Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, outstanding),
-			OrderType:        constants.SafeInt32FromInt(constants.TransferTypeShutdownLoanRecovery),
 			Reference:        reference,
 			Description:      "Loan write-off recovery",
 			ExtraData:        extraData.ToProtoStruct(),
-		},
+		}, constants.TransferTypeShutdownLoanRecovery),
 	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
