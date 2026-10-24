@@ -3,7 +3,6 @@ import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:protobuf/protobuf.dart';
 
 class _FakeClientPagedList extends ClientPagedList {
   _FakeClientPagedList(super.params, this.calls);
@@ -21,7 +20,9 @@ class _FakeClientPagedList extends ClientPagedList {
           name: 'Client $i',
           state: STATE.ACTIVE,
           properties: Struct(
-            fields: {kClientPhoneNumberKey: Value(stringValue: '+2547000$i')},
+            fields: {
+              kClientPhoneNumberKey: Value(stringValue: '+2547000$i'),
+            }.entries,
           ),
         ),
     ];

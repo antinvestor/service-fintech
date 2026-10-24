@@ -1,21 +1,25 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: identity/v1/identity.proto
-//
-// @dart = 2.12
+// Generated from identity/v1/identity.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+// ignore_for_file: unused_import
 
 import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-import '../../common/v1/common.pbjson.dart' as $7;
-import '../../common/v1/money.pbjson.dart' as $8;
-import '../../google/protobuf/struct.pbjson.dart' as $6;
+import 'package:protobuf/well_known_types/google/protobuf/struct.pbjson.dart'
+    as $0;
+
+import '../../common/v1/common.pbjson.dart' as $1;
+import '../../common/v1/money.pbjson.dart' as $2;
 
 @$core.Deprecated('Use organizationTypeDescriptor instead')
 const OrganizationType$json = {
@@ -208,9 +212,30 @@ const OrganizationObject$json = {
     {'1': 'name', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'code', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'code'},
     {'1': 'profile_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
-    {'1': 'state', '3': 6, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'organization_type', '3': 7, '4': 1, '5': 14, '6': '.identity.v1.OrganizationType', '10': 'organizationType'},
-    {'1': 'properties', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'organization_type',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.OrganizationType',
+      '10': 'organizationType'
+    },
+    {
+      '1': 'properties',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
     {'1': 'client_id', '3': 9, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'geo_id', '3': 10, '4': 1, '5': 9, '8': {}, '10': 'geoId'},
     {'1': 'parent_id', '3': 11, '4': 1, '5': 9, '8': {}, '10': 'parentId'},
@@ -238,15 +263,43 @@ const OrgUnitObject$json = {
   '1': 'OrgUnitObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'parent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentId'},
     {'1': 'partition_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'partitionId'},
     {'1': 'name', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'code', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'code'},
     {'1': 'geo_id', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'geoId'},
-    {'1': 'state', '3': 8, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'type', '3': 9, '4': 1, '5': 14, '6': '.identity.v1.OrgUnitType', '10': 'type'},
-    {'1': 'properties', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 8,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'type',
+      '3': 9,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.OrgUnitType',
+      '10': 'type'
+    },
+    {
+      '1': 'properties',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
     {'1': 'client_id', '3': 11, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'has_children', '3': 12, '4': 1, '5': 8, '10': 'hasChildren'},
     {'1': 'profile_id', '3': 13, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
@@ -274,8 +327,22 @@ const InvestorObject$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'profile_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
     {'1': 'name', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'name'},
-    {'1': 'state', '3': 4, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 5, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -292,13 +359,41 @@ const WorkforceMemberObject$json = {
   '1': 'WorkforceMemberObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'profile_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
     {'1': 'engagement_type', '3': 4, '4': 1, '5': 9, '10': 'engagementType'},
-    {'1': 'home_org_unit_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'homeOrgUnitId'},
+    {
+      '1': 'home_org_unit_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'homeOrgUnitId'
+    },
     {'1': 'geo_id', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'geoId'},
-    {'1': 'state', '3': 7, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -318,13 +413,41 @@ const DepartmentObject$json = {
   '1': 'DepartmentObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'parent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentId'},
-    {'1': 'kind', '3': 4, '4': 1, '5': 14, '6': '.identity.v1.DepartmentKind', '10': 'kind'},
+    {
+      '1': 'kind',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.DepartmentKind',
+      '10': 'kind'
+    },
     {'1': 'name', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'code', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'code'},
-    {'1': 'state', '3': 7, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -343,14 +466,49 @@ const PositionObject$json = {
   '1': 'PositionObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'org_unit_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'orgUnitId'},
-    {'1': 'department_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'departmentId'},
-    {'1': 'reports_to_position_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'reportsToPositionId'},
+    {
+      '1': 'department_id',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'departmentId'
+    },
+    {
+      '1': 'reports_to_position_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'reportsToPositionId'
+    },
     {'1': 'name', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'code', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'code'},
-    {'1': 'state', '3': 8, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 8,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -373,8 +531,22 @@ const PositionAssignmentObject$json = {
     {'1': 'member_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
     {'1': 'position_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'positionId'},
     {'1': 'is_primary', '3': 4, '4': 1, '5': 8, '10': 'isPrimary'},
-    {'1': 'state', '3': 5, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 6, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -392,16 +564,51 @@ const InternalTeamObject$json = {
   '1': 'InternalTeamObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'parent_team_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentTeamId'},
-    {'1': 'home_org_unit_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'homeOrgUnitId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'parent_team_id',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'parentTeamId'
+    },
+    {
+      '1': 'home_org_unit_id',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'homeOrgUnitId'
+    },
     {'1': 'name', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'code', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'code'},
     {'1': 'team_type', '3': 7, '4': 1, '5': 9, '10': 'teamType'},
     {'1': 'objective', '3': 8, '4': 1, '5': 9, '10': 'objective'},
     {'1': 'geo_id', '3': 9, '4': 1, '5': 9, '8': {}, '10': 'geoId'},
-    {'1': 'state', '3': 10, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 11, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 10,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -426,8 +633,22 @@ const TeamMembershipObject$json = {
     {'1': 'member_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
     {'1': 'membership_role', '3': 4, '4': 1, '5': 9, '10': 'membershipRole'},
     {'1': 'is_primary_team', '3': 5, '4': 1, '5': 8, '10': 'isPrimaryTeam'},
-    {'1': 'state', '3': 6, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 7, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -447,10 +668,31 @@ const AccessRoleAssignmentObject$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'member_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
     {'1': 'role_key', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'roleKey'},
-    {'1': 'scope_type', '3': 4, '4': 1, '5': 14, '6': '.identity.v1.AccessScopeType', '10': 'scopeType'},
+    {
+      '1': 'scope_type',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.AccessScopeType',
+      '10': 'scopeType'
+    },
     {'1': 'scope_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'scopeId'},
-    {'1': 'state', '3': 6, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 7, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -468,27 +710,44 @@ final $typed_data.Uint8List accessRoleAssignmentObjectDescriptor = $convert.base
 const OrganizationSaveRequest$json = {
   '1': 'OrganizationSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.OrganizationObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.OrganizationObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `OrganizationSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List organizationSaveRequestDescriptor = $convert.base64Decode(
-    'ChdPcmdhbml6YXRpb25TYXZlUmVxdWVzdBI7CgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuT3'
-    'JnYW5pemF0aW9uT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
+final $typed_data.Uint8List organizationSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChdPcmdhbml6YXRpb25TYXZlUmVxdWVzdBI7CgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuT3'
+        'JnYW5pemF0aW9uT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
 
 @$core.Deprecated('Use organizationSaveResponseDescriptor instead')
 const OrganizationSaveResponse$json = {
   '1': 'OrganizationSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.OrganizationObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.OrganizationObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `OrganizationSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List organizationSaveResponseDescriptor = $convert.base64Decode(
-    'ChhPcmdhbml6YXRpb25TYXZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5LnYxLk'
-    '9yZ2FuaXphdGlvbk9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List organizationSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChhPcmdhbml6YXRpb25TYXZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5LnYxLk'
+        '9yZ2FuaXphdGlvbk9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use organizationGetRequestDescriptor instead')
 const OrganizationGetRequest$json = {
@@ -499,41 +758,66 @@ const OrganizationGetRequest$json = {
 };
 
 /// Descriptor for `OrganizationGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List organizationGetRequestDescriptor = $convert.base64Decode(
-    'ChZPcmdhbml6YXRpb25HZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
-    'pfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List organizationGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChZPcmdhbml6YXRpb25HZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
+        'pfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use organizationGetResponseDescriptor instead')
 const OrganizationGetResponse$json = {
   '1': 'OrganizationGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.OrganizationObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.OrganizationObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `OrganizationGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List organizationGetResponseDescriptor = $convert.base64Decode(
-    'ChdPcmdhbml6YXRpb25HZXRSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuT3'
-    'JnYW5pemF0aW9uT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List organizationGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChdPcmdhbml6YXRpb25HZXRSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuT3'
+        'JnYW5pemF0aW9uT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use organizationSearchResponseDescriptor instead')
 const OrganizationSearchResponse$json = {
   '1': 'OrganizationSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.OrganizationObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.OrganizationObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `OrganizationSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List organizationSearchResponseDescriptor = $convert.base64Decode(
-    'ChpPcmdhbml6YXRpb25TZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8uaWRlbnRpdHkudj'
-    'EuT3JnYW5pemF0aW9uT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List organizationSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChpPcmdhbml6YXRpb25TZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8uaWRlbnRpdHkudj'
+        'EuT3JnYW5pemF0aW9uT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use orgUnitSaveRequestDescriptor instead')
 const OrgUnitSaveRequest$json = {
   '1': 'OrgUnitSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.OrgUnitObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.OrgUnitObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -546,7 +830,14 @@ final $typed_data.Uint8List orgUnitSaveRequestDescriptor = $convert.base64Decode
 const OrgUnitSaveResponse$json = {
   '1': 'OrgUnitSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.OrgUnitObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.OrgUnitObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -572,7 +863,14 @@ final $typed_data.Uint8List orgUnitGetRequestDescriptor = $convert.base64Decode(
 const OrgUnitGetResponse$json = {
   '1': 'OrgUnitGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.OrgUnitObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.OrgUnitObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -586,11 +884,33 @@ const OrgUnitSearchRequest$json = {
   '1': 'OrgUnitSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'parent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentId'},
     {'1': 'root_only', '3': 4, '4': 1, '5': 8, '10': 'rootOnly'},
-    {'1': 'type', '3': 5, '4': 1, '5': 14, '6': '.identity.v1.OrgUnitType', '10': 'type'},
-    {'1': 'cursor', '3': 6, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'type',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.OrgUnitType',
+      '10': 'type'
+    },
+    {
+      '1': 'cursor',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -608,7 +928,14 @@ final $typed_data.Uint8List orgUnitSearchRequestDescriptor = $convert.base64Deco
 const OrgUnitSearchResponse$json = {
   '1': 'OrgUnitSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.OrgUnitObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.OrgUnitObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -621,7 +948,15 @@ final $typed_data.Uint8List orgUnitSearchResponseDescriptor = $convert.base64Dec
 const InvestorSaveRequest$json = {
   '1': 'InvestorSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -634,7 +969,14 @@ final $typed_data.Uint8List investorSaveRequestDescriptor = $convert.base64Decod
 const InvestorSaveResponse$json = {
   '1': 'InvestorSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -660,7 +1002,14 @@ final $typed_data.Uint8List investorGetRequestDescriptor = $convert.base64Decode
 const InvestorGetResponse$json = {
   '1': 'InvestorGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -674,7 +1023,15 @@ const InvestorSearchRequest$json = {
   '1': 'InvestorSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -689,40 +1046,65 @@ final $typed_data.Uint8List investorSearchRequestDescriptor = $convert.base64Dec
 const InvestorSearchResponse$json = {
   '1': 'InvestorSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.InvestorObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.InvestorObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InvestorSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorSearchResponseDescriptor = $convert.base64Decode(
-    'ChZJbnZlc3RvclNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5pZGVudGl0eS52MS5Jbn'
-    'Zlc3Rvck9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List investorSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChZJbnZlc3RvclNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5pZGVudGl0eS52MS5Jbn'
+        'Zlc3Rvck9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use workforceMemberSaveRequestDescriptor instead')
 const WorkforceMemberSaveRequest$json = {
   '1': 'WorkforceMemberSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.WorkforceMemberObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.WorkforceMemberObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `WorkforceMemberSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List workforceMemberSaveRequestDescriptor = $convert.base64Decode(
-    'ChpXb3JrZm9yY2VNZW1iZXJTYXZlUmVxdWVzdBI+CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
-    'EuV29ya2ZvcmNlTWVtYmVyT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
+final $typed_data.Uint8List workforceMemberSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChpXb3JrZm9yY2VNZW1iZXJTYXZlUmVxdWVzdBI+CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
+        'EuV29ya2ZvcmNlTWVtYmVyT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
 
 @$core.Deprecated('Use workforceMemberSaveResponseDescriptor instead')
 const WorkforceMemberSaveResponse$json = {
   '1': 'WorkforceMemberSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.WorkforceMemberObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.WorkforceMemberObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `WorkforceMemberSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List workforceMemberSaveResponseDescriptor = $convert.base64Decode(
-    'ChtXb3JrZm9yY2VNZW1iZXJTYXZlUmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5Ln'
-    'YxLldvcmtmb3JjZU1lbWJlck9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List workforceMemberSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChtXb3JrZm9yY2VNZW1iZXJTYXZlUmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5Ln'
+        'YxLldvcmtmb3JjZU1lbWJlck9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use workforceMemberGetRequestDescriptor instead')
 const WorkforceMemberGetRequest$json = {
@@ -733,31 +1115,62 @@ const WorkforceMemberGetRequest$json = {
 };
 
 /// Descriptor for `WorkforceMemberGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List workforceMemberGetRequestDescriptor = $convert.base64Decode(
-    'ChlXb3JrZm9yY2VNZW1iZXJHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLT'
-    'lhLXpfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List workforceMemberGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChlXb3JrZm9yY2VNZW1iZXJHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLT'
+        'lhLXpfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use workforceMemberGetResponseDescriptor instead')
 const WorkforceMemberGetResponse$json = {
   '1': 'WorkforceMemberGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.WorkforceMemberObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.WorkforceMemberObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `WorkforceMemberGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List workforceMemberGetResponseDescriptor = $convert.base64Decode(
-    'ChpXb3JrZm9yY2VNZW1iZXJHZXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
-    'EuV29ya2ZvcmNlTWVtYmVyT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List workforceMemberGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChpXb3JrZm9yY2VNZW1iZXJHZXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
+        'EuV29ya2ZvcmNlTWVtYmVyT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use workforceMemberSearchRequestDescriptor instead')
 const WorkforceMemberSearchRequest$json = {
   '1': 'WorkforceMemberSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'home_org_unit_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'homeOrgUnitId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'home_org_unit_id',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'homeOrgUnitId'
+    },
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -774,20 +1187,36 @@ final $typed_data.Uint8List workforceMemberSearchRequestDescriptor = $convert.ba
 const WorkforceMemberSearchResponse$json = {
   '1': 'WorkforceMemberSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.WorkforceMemberObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.WorkforceMemberObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `WorkforceMemberSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List workforceMemberSearchResponseDescriptor = $convert.base64Decode(
-    'Ch1Xb3JrZm9yY2VNZW1iZXJTZWFyY2hSZXNwb25zZRI2CgRkYXRhGAEgAygLMiIuaWRlbnRpdH'
-    'kudjEuV29ya2ZvcmNlTWVtYmVyT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List workforceMemberSearchResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1Xb3JrZm9yY2VNZW1iZXJTZWFyY2hSZXNwb25zZRI2CgRkYXRhGAEgAygLMiIuaWRlbnRpdH'
+        'kudjEuV29ya2ZvcmNlTWVtYmVyT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use departmentSaveRequestDescriptor instead')
 const DepartmentSaveRequest$json = {
   '1': 'DepartmentSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.DepartmentObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.DepartmentObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -800,14 +1229,22 @@ final $typed_data.Uint8List departmentSaveRequestDescriptor = $convert.base64Dec
 const DepartmentSaveResponse$json = {
   '1': 'DepartmentSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.DepartmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.DepartmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `DepartmentSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List departmentSaveResponseDescriptor = $convert.base64Decode(
-    'ChZEZXBhcnRtZW50U2F2ZVJlc3BvbnNlEjEKBGRhdGEYASABKAsyHS5pZGVudGl0eS52MS5EZX'
-    'BhcnRtZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List departmentSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChZEZXBhcnRtZW50U2F2ZVJlc3BvbnNlEjEKBGRhdGEYASABKAsyHS5pZGVudGl0eS52MS5EZX'
+        'BhcnRtZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use departmentGetRequestDescriptor instead')
 const DepartmentGetRequest$json = {
@@ -826,7 +1263,14 @@ final $typed_data.Uint8List departmentGetRequestDescriptor = $convert.base64Deco
 const DepartmentGetResponse$json = {
   '1': 'DepartmentGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.DepartmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.DepartmentObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -840,10 +1284,32 @@ const DepartmentSearchRequest$json = {
   '1': 'DepartmentSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'parent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentId'},
-    {'1': 'kind', '3': 4, '4': 1, '5': 14, '6': '.identity.v1.DepartmentKind', '10': 'kind'},
-    {'1': 'cursor', '3': 5, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'kind',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.DepartmentKind',
+      '10': 'kind'
+    },
+    {
+      '1': 'cursor',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -860,20 +1326,36 @@ final $typed_data.Uint8List departmentSearchRequestDescriptor = $convert.base64D
 const DepartmentSearchResponse$json = {
   '1': 'DepartmentSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.DepartmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.DepartmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `DepartmentSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List departmentSearchResponseDescriptor = $convert.base64Decode(
-    'ChhEZXBhcnRtZW50U2VhcmNoUmVzcG9uc2USMQoEZGF0YRgBIAMoCzIdLmlkZW50aXR5LnYxLk'
-    'RlcGFydG1lbnRPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List departmentSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChhEZXBhcnRtZW50U2VhcmNoUmVzcG9uc2USMQoEZGF0YRgBIAMoCzIdLmlkZW50aXR5LnYxLk'
+        'RlcGFydG1lbnRPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use positionSaveRequestDescriptor instead')
 const PositionSaveRequest$json = {
   '1': 'PositionSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.PositionObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.PositionObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -886,7 +1368,14 @@ final $typed_data.Uint8List positionSaveRequestDescriptor = $convert.base64Decod
 const PositionSaveResponse$json = {
   '1': 'PositionSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.PositionObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.PositionObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -912,7 +1401,14 @@ final $typed_data.Uint8List positionGetRequestDescriptor = $convert.base64Decode
 const PositionGetResponse$json = {
   '1': 'PositionGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.PositionObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.PositionObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -926,11 +1422,40 @@ const PositionSearchRequest$json = {
   '1': 'PositionSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'org_unit_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'orgUnitId'},
-    {'1': 'department_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'departmentId'},
-    {'1': 'reports_to_position_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'reportsToPositionId'},
-    {'1': 'cursor', '3': 6, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'department_id',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'departmentId'
+    },
+    {
+      '1': 'reports_to_position_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'reportsToPositionId'
+    },
+    {
+      '1': 'cursor',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -948,40 +1473,65 @@ final $typed_data.Uint8List positionSearchRequestDescriptor = $convert.base64Dec
 const PositionSearchResponse$json = {
   '1': 'PositionSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.PositionObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.PositionObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `PositionSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List positionSearchResponseDescriptor = $convert.base64Decode(
-    'ChZQb3NpdGlvblNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5pZGVudGl0eS52MS5Qb3'
-    'NpdGlvbk9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List positionSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChZQb3NpdGlvblNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5pZGVudGl0eS52MS5Qb3'
+        'NpdGlvbk9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use positionAssignmentSaveRequestDescriptor instead')
 const PositionAssignmentSaveRequest$json = {
   '1': 'PositionAssignmentSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.PositionAssignmentObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.PositionAssignmentObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `PositionAssignmentSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List positionAssignmentSaveRequestDescriptor = $convert.base64Decode(
-    'Ch1Qb3NpdGlvbkFzc2lnbm1lbnRTYXZlUmVxdWVzdBJBCgRkYXRhGAEgASgLMiUuaWRlbnRpdH'
-    'kudjEuUG9zaXRpb25Bc3NpZ25tZW50T2JqZWN0Qga6SAPIAQFSBGRhdGE=');
+final $typed_data.Uint8List positionAssignmentSaveRequestDescriptor =
+    $convert.base64Decode(
+        'Ch1Qb3NpdGlvbkFzc2lnbm1lbnRTYXZlUmVxdWVzdBJBCgRkYXRhGAEgASgLMiUuaWRlbnRpdH'
+        'kudjEuUG9zaXRpb25Bc3NpZ25tZW50T2JqZWN0Qga6SAPIAQFSBGRhdGE=');
 
 @$core.Deprecated('Use positionAssignmentSaveResponseDescriptor instead')
 const PositionAssignmentSaveResponse$json = {
   '1': 'PositionAssignmentSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.PositionAssignmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.PositionAssignmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `PositionAssignmentSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List positionAssignmentSaveResponseDescriptor = $convert.base64Decode(
-    'Ch5Qb3NpdGlvbkFzc2lnbm1lbnRTYXZlUmVzcG9uc2USOQoEZGF0YRgBIAEoCzIlLmlkZW50aX'
-    'R5LnYxLlBvc2l0aW9uQXNzaWdubWVudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List positionAssignmentSaveResponseDescriptor =
+    $convert.base64Decode(
+        'Ch5Qb3NpdGlvbkFzc2lnbm1lbnRTYXZlUmVzcG9uc2USOQoEZGF0YRgBIAEoCzIlLmlkZW50aX'
+        'R5LnYxLlBvc2l0aW9uQXNzaWdubWVudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use positionAssignmentGetRequestDescriptor instead')
 const PositionAssignmentGetRequest$json = {
@@ -992,22 +1542,31 @@ const PositionAssignmentGetRequest$json = {
 };
 
 /// Descriptor for `PositionAssignmentGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List positionAssignmentGetRequestDescriptor = $convert.base64Decode(
-    'ChxQb3NpdGlvbkFzc2lnbm1lbnRHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEF'
-    'swLTlhLXpfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List positionAssignmentGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChxQb3NpdGlvbkFzc2lnbm1lbnRHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEF'
+        'swLTlhLXpfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use positionAssignmentGetResponseDescriptor instead')
 const PositionAssignmentGetResponse$json = {
   '1': 'PositionAssignmentGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.PositionAssignmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.PositionAssignmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `PositionAssignmentGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List positionAssignmentGetResponseDescriptor = $convert.base64Decode(
-    'Ch1Qb3NpdGlvbkFzc2lnbm1lbnRHZXRSZXNwb25zZRI5CgRkYXRhGAEgASgLMiUuaWRlbnRpdH'
-    'kudjEuUG9zaXRpb25Bc3NpZ25tZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List positionAssignmentGetResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1Qb3NpdGlvbkFzc2lnbm1lbnRHZXRSZXNwb25zZRI5CgRkYXRhGAEgASgLMiUuaWRlbnRpdH'
+        'kudjEuUG9zaXRpb25Bc3NpZ25tZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use positionAssignmentSearchRequestDescriptor instead')
 const PositionAssignmentSearchRequest$json = {
@@ -1016,7 +1575,15 @@ const PositionAssignmentSearchRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'member_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
     {'1': 'position_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'positionId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1032,40 +1599,65 @@ final $typed_data.Uint8List positionAssignmentSearchRequestDescriptor = $convert
 const PositionAssignmentSearchResponse$json = {
   '1': 'PositionAssignmentSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.PositionAssignmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.PositionAssignmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `PositionAssignmentSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List positionAssignmentSearchResponseDescriptor = $convert.base64Decode(
-    'CiBQb3NpdGlvbkFzc2lnbm1lbnRTZWFyY2hSZXNwb25zZRI5CgRkYXRhGAEgAygLMiUuaWRlbn'
-    'RpdHkudjEuUG9zaXRpb25Bc3NpZ25tZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List positionAssignmentSearchResponseDescriptor =
+    $convert.base64Decode(
+        'CiBQb3NpdGlvbkFzc2lnbm1lbnRTZWFyY2hSZXNwb25zZRI5CgRkYXRhGAEgAygLMiUuaWRlbn'
+        'RpdHkudjEuUG9zaXRpb25Bc3NpZ25tZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use internalTeamSaveRequestDescriptor instead')
 const InternalTeamSaveRequest$json = {
   '1': 'InternalTeamSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InternalTeamObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InternalTeamObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InternalTeamSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List internalTeamSaveRequestDescriptor = $convert.base64Decode(
-    'ChdJbnRlcm5hbFRlYW1TYXZlUmVxdWVzdBI7CgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuSW'
-    '50ZXJuYWxUZWFtT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
+final $typed_data.Uint8List internalTeamSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChdJbnRlcm5hbFRlYW1TYXZlUmVxdWVzdBI7CgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuSW'
+        '50ZXJuYWxUZWFtT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
 
 @$core.Deprecated('Use internalTeamSaveResponseDescriptor instead')
 const InternalTeamSaveResponse$json = {
   '1': 'InternalTeamSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InternalTeamObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InternalTeamObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InternalTeamSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List internalTeamSaveResponseDescriptor = $convert.base64Decode(
-    'ChhJbnRlcm5hbFRlYW1TYXZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5LnYxLk'
-    'ludGVybmFsVGVhbU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List internalTeamSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChhJbnRlcm5hbFRlYW1TYXZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5LnYxLk'
+        'ludGVybmFsVGVhbU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use internalTeamGetRequestDescriptor instead')
 const InternalTeamGetRequest$json = {
@@ -1076,32 +1668,63 @@ const InternalTeamGetRequest$json = {
 };
 
 /// Descriptor for `InternalTeamGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List internalTeamGetRequestDescriptor = $convert.base64Decode(
-    'ChZJbnRlcm5hbFRlYW1HZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
-    'pfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List internalTeamGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChZJbnRlcm5hbFRlYW1HZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
+        'pfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use internalTeamGetResponseDescriptor instead')
 const InternalTeamGetResponse$json = {
   '1': 'InternalTeamGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InternalTeamObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InternalTeamObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InternalTeamGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List internalTeamGetResponseDescriptor = $convert.base64Decode(
-    'ChdJbnRlcm5hbFRlYW1HZXRSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuSW'
-    '50ZXJuYWxUZWFtT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List internalTeamGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChdJbnRlcm5hbFRlYW1HZXRSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuSW'
+        '50ZXJuYWxUZWFtT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use internalTeamSearchRequestDescriptor instead')
 const InternalTeamSearchRequest$json = {
   '1': 'InternalTeamSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'home_org_unit_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'homeOrgUnitId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'home_org_unit_id',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'homeOrgUnitId'
+    },
     {'1': 'team_type', '3': 4, '4': 1, '5': 9, '10': 'teamType'},
-    {'1': 'cursor', '3': 5, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1118,40 +1741,65 @@ final $typed_data.Uint8List internalTeamSearchRequestDescriptor = $convert.base6
 const InternalTeamSearchResponse$json = {
   '1': 'InternalTeamSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.InternalTeamObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.InternalTeamObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InternalTeamSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List internalTeamSearchResponseDescriptor = $convert.base64Decode(
-    'ChpJbnRlcm5hbFRlYW1TZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8uaWRlbnRpdHkudj'
-    'EuSW50ZXJuYWxUZWFtT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List internalTeamSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChpJbnRlcm5hbFRlYW1TZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8uaWRlbnRpdHkudj'
+        'EuSW50ZXJuYWxUZWFtT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use teamMembershipSaveRequestDescriptor instead')
 const TeamMembershipSaveRequest$json = {
   '1': 'TeamMembershipSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.TeamMembershipObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.TeamMembershipObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `TeamMembershipSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List teamMembershipSaveRequestDescriptor = $convert.base64Decode(
-    'ChlUZWFtTWVtYmVyc2hpcFNhdmVSZXF1ZXN0Ej0KBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
-    '5UZWFtTWVtYmVyc2hpcE9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List teamMembershipSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChlUZWFtTWVtYmVyc2hpcFNhdmVSZXF1ZXN0Ej0KBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
+        '5UZWFtTWVtYmVyc2hpcE9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use teamMembershipSaveResponseDescriptor instead')
 const TeamMembershipSaveResponse$json = {
   '1': 'TeamMembershipSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.TeamMembershipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.TeamMembershipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `TeamMembershipSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List teamMembershipSaveResponseDescriptor = $convert.base64Decode(
-    'ChpUZWFtTWVtYmVyc2hpcFNhdmVSZXNwb25zZRI1CgRkYXRhGAEgASgLMiEuaWRlbnRpdHkudj'
-    'EuVGVhbU1lbWJlcnNoaXBPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List teamMembershipSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChpUZWFtTWVtYmVyc2hpcFNhdmVSZXNwb25zZRI1CgRkYXRhGAEgASgLMiEuaWRlbnRpdHkudj'
+        'EuVGVhbU1lbWJlcnNoaXBPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use teamMembershipGetRequestDescriptor instead')
 const TeamMembershipGetRequest$json = {
@@ -1162,22 +1810,31 @@ const TeamMembershipGetRequest$json = {
 };
 
 /// Descriptor for `TeamMembershipGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List teamMembershipGetRequestDescriptor = $convert.base64Decode(
-    'ChhUZWFtTWVtYmVyc2hpcEdldFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
-    'Etel8tXXszLDQwfVICaWQ=');
+final $typed_data.Uint8List teamMembershipGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChhUZWFtTWVtYmVyc2hpcEdldFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
+        'Etel8tXXszLDQwfVICaWQ=');
 
 @$core.Deprecated('Use teamMembershipGetResponseDescriptor instead')
 const TeamMembershipGetResponse$json = {
   '1': 'TeamMembershipGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.TeamMembershipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.TeamMembershipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `TeamMembershipGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List teamMembershipGetResponseDescriptor = $convert.base64Decode(
-    'ChlUZWFtTWVtYmVyc2hpcEdldFJlc3BvbnNlEjUKBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
-    '5UZWFtTWVtYmVyc2hpcE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List teamMembershipGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChlUZWFtTWVtYmVyc2hpcEdldFJlc3BvbnNlEjUKBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
+        '5UZWFtTWVtYmVyc2hpcE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use teamMembershipSearchRequestDescriptor instead')
 const TeamMembershipSearchRequest$json = {
@@ -1186,7 +1843,15 @@ const TeamMembershipSearchRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'team_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'teamId'},
     {'1': 'member_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1202,40 +1867,65 @@ final $typed_data.Uint8List teamMembershipSearchRequestDescriptor = $convert.bas
 const TeamMembershipSearchResponse$json = {
   '1': 'TeamMembershipSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.TeamMembershipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.TeamMembershipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `TeamMembershipSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List teamMembershipSearchResponseDescriptor = $convert.base64Decode(
-    'ChxUZWFtTWVtYmVyc2hpcFNlYXJjaFJlc3BvbnNlEjUKBGRhdGEYASADKAsyIS5pZGVudGl0eS'
-    '52MS5UZWFtTWVtYmVyc2hpcE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List teamMembershipSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChxUZWFtTWVtYmVyc2hpcFNlYXJjaFJlc3BvbnNlEjUKBGRhdGEYASADKAsyIS5pZGVudGl0eS'
+        '52MS5UZWFtTWVtYmVyc2hpcE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use accessRoleAssignmentSaveRequestDescriptor instead')
 const AccessRoleAssignmentSaveRequest$json = {
   '1': 'AccessRoleAssignmentSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.AccessRoleAssignmentObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.AccessRoleAssignmentObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AccessRoleAssignmentSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List accessRoleAssignmentSaveRequestDescriptor = $convert.base64Decode(
-    'Ch9BY2Nlc3NSb2xlQXNzaWdubWVudFNhdmVSZXF1ZXN0EkMKBGRhdGEYASABKAsyJy5pZGVudG'
-    'l0eS52MS5BY2Nlc3NSb2xlQXNzaWdubWVudE9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List accessRoleAssignmentSaveRequestDescriptor =
+    $convert.base64Decode(
+        'Ch9BY2Nlc3NSb2xlQXNzaWdubWVudFNhdmVSZXF1ZXN0EkMKBGRhdGEYASABKAsyJy5pZGVudG'
+        'l0eS52MS5BY2Nlc3NSb2xlQXNzaWdubWVudE9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use accessRoleAssignmentSaveResponseDescriptor instead')
 const AccessRoleAssignmentSaveResponse$json = {
   '1': 'AccessRoleAssignmentSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.AccessRoleAssignmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.AccessRoleAssignmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AccessRoleAssignmentSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List accessRoleAssignmentSaveResponseDescriptor = $convert.base64Decode(
-    'CiBBY2Nlc3NSb2xlQXNzaWdubWVudFNhdmVSZXNwb25zZRI7CgRkYXRhGAEgASgLMicuaWRlbn'
-    'RpdHkudjEuQWNjZXNzUm9sZUFzc2lnbm1lbnRPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List accessRoleAssignmentSaveResponseDescriptor =
+    $convert.base64Decode(
+        'CiBBY2Nlc3NSb2xlQXNzaWdubWVudFNhdmVSZXNwb25zZRI7CgRkYXRhGAEgASgLMicuaWRlbn'
+        'RpdHkudjEuQWNjZXNzUm9sZUFzc2lnbm1lbnRPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use accessRoleAssignmentGetRequestDescriptor instead')
 const AccessRoleAssignmentGetRequest$json = {
@@ -1246,22 +1936,31 @@ const AccessRoleAssignmentGetRequest$json = {
 };
 
 /// Descriptor for `AccessRoleAssignmentGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List accessRoleAssignmentGetRequestDescriptor = $convert.base64Decode(
-    'Ch5BY2Nlc3NSb2xlQXNzaWdubWVudEdldFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKD'
-    'IQWzAtOWEtel8tXXszLDQwfVICaWQ=');
+final $typed_data.Uint8List accessRoleAssignmentGetRequestDescriptor =
+    $convert.base64Decode(
+        'Ch5BY2Nlc3NSb2xlQXNzaWdubWVudEdldFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKD'
+        'IQWzAtOWEtel8tXXszLDQwfVICaWQ=');
 
 @$core.Deprecated('Use accessRoleAssignmentGetResponseDescriptor instead')
 const AccessRoleAssignmentGetResponse$json = {
   '1': 'AccessRoleAssignmentGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.AccessRoleAssignmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.AccessRoleAssignmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AccessRoleAssignmentGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List accessRoleAssignmentGetResponseDescriptor = $convert.base64Decode(
-    'Ch9BY2Nlc3NSb2xlQXNzaWdubWVudEdldFJlc3BvbnNlEjsKBGRhdGEYASABKAsyJy5pZGVudG'
-    'l0eS52MS5BY2Nlc3NSb2xlQXNzaWdubWVudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List accessRoleAssignmentGetResponseDescriptor =
+    $convert.base64Decode(
+        'Ch9BY2Nlc3NSb2xlQXNzaWdubWVudEdldFJlc3BvbnNlEjsKBGRhdGEYASABKAsyJy5pZGVudG'
+        'l0eS52MS5BY2Nlc3NSb2xlQXNzaWdubWVudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use accessRoleAssignmentSearchRequestDescriptor instead')
 const AccessRoleAssignmentSearchRequest$json = {
@@ -1270,9 +1969,24 @@ const AccessRoleAssignmentSearchRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'member_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
     {'1': 'role_key', '3': 3, '4': 1, '5': 9, '10': 'roleKey'},
-    {'1': 'scope_type', '3': 4, '4': 1, '5': 14, '6': '.identity.v1.AccessScopeType', '10': 'scopeType'},
+    {
+      '1': 'scope_type',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.AccessScopeType',
+      '10': 'scopeType'
+    },
     {'1': 'scope_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'scopeId'},
-    {'1': 'cursor', '3': 6, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1290,14 +2004,22 @@ final $typed_data.Uint8List accessRoleAssignmentSearchRequestDescriptor = $conve
 const AccessRoleAssignmentSearchResponse$json = {
   '1': 'AccessRoleAssignmentSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.AccessRoleAssignmentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.AccessRoleAssignmentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AccessRoleAssignmentSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List accessRoleAssignmentSearchResponseDescriptor = $convert.base64Decode(
-    'CiJBY2Nlc3NSb2xlQXNzaWdubWVudFNlYXJjaFJlc3BvbnNlEjsKBGRhdGEYASADKAsyJy5pZG'
-    'VudGl0eS52MS5BY2Nlc3NSb2xlQXNzaWdubWVudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List accessRoleAssignmentSearchResponseDescriptor =
+    $convert.base64Decode(
+        'CiJBY2Nlc3NSb2xlQXNzaWdubWVudFNlYXJjaFJlc3BvbnNlEjsKBGRhdGEYASADKAsyJy5pZG'
+        'VudGl0eS52MS5BY2Nlc3NSb2xlQXNzaWdubWVudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use clientGroupObjectDescriptor instead')
 const ClientGroupObject$json = {
@@ -1316,8 +2038,22 @@ const ClientGroupObject$json = {
     {'1': 'time_zone', '3': 11, '4': 1, '5': 9, '10': 'timeZone'},
     {'1': 'min_members', '3': 12, '4': 1, '5': 5, '10': 'minMembers'},
     {'1': 'max_members', '3': 13, '4': 1, '5': 5, '10': 'maxMembers'},
-    {'1': 'state', '3': 14, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 15, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 14,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -1339,27 +2075,44 @@ final $typed_data.Uint8List clientGroupObjectDescriptor = $convert.base64Decode(
 const ClientGroupSaveRequest$json = {
   '1': 'ClientGroupSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientGroupObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientGroupObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientGroupSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientGroupSaveRequestDescriptor = $convert.base64Decode(
-    'ChZDbGllbnRHcm91cFNhdmVSZXF1ZXN0EjoKBGRhdGEYASABKAsyHi5pZGVudGl0eS52MS5DbG'
-    'llbnRHcm91cE9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List clientGroupSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChZDbGllbnRHcm91cFNhdmVSZXF1ZXN0EjoKBGRhdGEYASABKAsyHi5pZGVudGl0eS52MS5DbG'
+        'llbnRHcm91cE9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use clientGroupSaveResponseDescriptor instead')
 const ClientGroupSaveResponse$json = {
   '1': 'ClientGroupSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientGroupObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientGroupObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientGroupSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientGroupSaveResponseDescriptor = $convert.base64Decode(
-    'ChdDbGllbnRHcm91cFNhdmVSZXNwb25zZRIyCgRkYXRhGAEgASgLMh4uaWRlbnRpdHkudjEuQ2'
-    'xpZW50R3JvdXBPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List clientGroupSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChdDbGllbnRHcm91cFNhdmVSZXNwb25zZRIyCgRkYXRhGAEgASgLMh4uaWRlbnRpdHkudjEuQ2'
+        'xpZW50R3JvdXBPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use clientGroupGetRequestDescriptor instead')
 const ClientGroupGetRequest$json = {
@@ -1378,14 +2131,22 @@ final $typed_data.Uint8List clientGroupGetRequestDescriptor = $convert.base64Dec
 const ClientGroupGetResponse$json = {
   '1': 'ClientGroupGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientGroupObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientGroupObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientGroupGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientGroupGetResponseDescriptor = $convert.base64Decode(
-    'ChZDbGllbnRHcm91cEdldFJlc3BvbnNlEjIKBGRhdGEYASABKAsyHi5pZGVudGl0eS52MS5DbG'
-    'llbnRHcm91cE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List clientGroupGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChZDbGllbnRHcm91cEdldFJlc3BvbnNlEjIKBGRhdGEYASABKAsyHi5pZGVudGl0eS52MS5DbG'
+        'llbnRHcm91cE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use clientGroupSearchRequestDescriptor instead')
 const ClientGroupSearchRequest$json = {
@@ -1394,11 +2155,26 @@ const ClientGroupSearchRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'agent_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'branch_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
     {'1': 'parent_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'parentId'},
     {'1': 'product_id', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'productId'},
     {'1': 'group_type', '3': 7, '4': 1, '5': 5, '10': 'groupType'},
-    {'1': 'state', '3': 8, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
+    {
+      '1': 'state',
+      '3': 8,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
   ],
 };
 
@@ -1417,14 +2193,22 @@ final $typed_data.Uint8List clientGroupSearchRequestDescriptor = $convert.base64
 const ClientGroupSearchResponse$json = {
   '1': 'ClientGroupSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.ClientGroupObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.ClientGroupObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientGroupSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientGroupSearchResponseDescriptor = $convert.base64Decode(
-    'ChlDbGllbnRHcm91cFNlYXJjaFJlc3BvbnNlEjIKBGRhdGEYASADKAsyHi5pZGVudGl0eS52MS'
-    '5DbGllbnRHcm91cE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List clientGroupSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChlDbGllbnRHcm91cFNlYXJjaFJlc3BvbnNlEjIKBGRhdGEYASADKAsyHi5pZGVudGl0eS52MS'
+        '5DbGllbnRHcm91cE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use membershipObjectDescriptor instead')
 const MembershipObject$json = {
@@ -1438,8 +2222,22 @@ const MembershipObject$json = {
     {'1': 'role', '3': 6, '4': 1, '5': 5, '10': 'role'},
     {'1': 'membership_type', '3': 7, '4': 1, '5': 5, '10': 'membershipType'},
     {'1': 'order_no', '3': 8, '4': 1, '5': 5, '10': 'orderNo'},
-    {'1': 'state', '3': 9, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 9,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -1458,7 +2256,15 @@ final $typed_data.Uint8List membershipObjectDescriptor = $convert.base64Decode(
 const MembershipSaveRequest$json = {
   '1': 'MembershipSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.MembershipObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.MembershipObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -1471,14 +2277,22 @@ final $typed_data.Uint8List membershipSaveRequestDescriptor = $convert.base64Dec
 const MembershipSaveResponse$json = {
   '1': 'MembershipSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.MembershipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.MembershipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `MembershipSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List membershipSaveResponseDescriptor = $convert.base64Decode(
-    'ChZNZW1iZXJzaGlwU2F2ZVJlc3BvbnNlEjEKBGRhdGEYASABKAsyHS5pZGVudGl0eS52MS5NZW'
-    '1iZXJzaGlwT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List membershipSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChZNZW1iZXJzaGlwU2F2ZVJlc3BvbnNlEjEKBGRhdGEYASABKAsyHS5pZGVudGl0eS52MS5NZW'
+        '1iZXJzaGlwT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use membershipGetRequestDescriptor instead')
 const MembershipGetRequest$json = {
@@ -1497,7 +2311,14 @@ final $typed_data.Uint8List membershipGetRequestDescriptor = $convert.base64Deco
 const MembershipGetResponse$json = {
   '1': 'MembershipGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.MembershipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.MembershipObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -1513,11 +2334,26 @@ const MembershipSearchRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'group_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'groupId'},
     {'1': 'profile_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
     {'1': 'contact_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'contactId'},
     {'1': 'role', '3': 6, '4': 1, '5': 5, '10': 'role'},
     {'1': 'membership_type', '3': 7, '4': 1, '5': 5, '10': 'membershipType'},
-    {'1': 'state', '3': 8, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
+    {
+      '1': 'state',
+      '3': 8,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
   ],
 };
 
@@ -1536,14 +2372,22 @@ final $typed_data.Uint8List membershipSearchRequestDescriptor = $convert.base64D
 const MembershipSearchResponse$json = {
   '1': 'MembershipSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.MembershipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.MembershipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `MembershipSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List membershipSearchResponseDescriptor = $convert.base64Decode(
-    'ChhNZW1iZXJzaGlwU2VhcmNoUmVzcG9uc2USMQoEZGF0YRgBIAMoCzIdLmlkZW50aXR5LnYxLk'
-    '1lbWJlcnNoaXBPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List membershipSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChhNZW1iZXJzaGlwU2VhcmNoUmVzcG9uc2USMQoEZGF0YRgBIAMoCzIdLmlkZW50aXR5LnYxLk'
+        '1lbWJlcnNoaXBPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use investorAccountObjectDescriptor instead')
 const InvestorAccountObject$json = {
@@ -1552,17 +2396,93 @@ const InvestorAccountObject$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'investor_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'investorId'},
     {'1': 'account_name', '3': 3, '4': 1, '5': 9, '10': 'accountName'},
-    {'1': 'available_balance', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'availableBalance'},
-    {'1': 'reserved_balance', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'reservedBalance'},
-    {'1': 'total_deployed', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDeployed'},
-    {'1': 'total_returned', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalReturned'},
-    {'1': 'max_exposure', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'maxExposure'},
-    {'1': 'min_interest_rate', '3': 10, '4': 1, '5': 9, '10': 'minInterestRate'},
-    {'1': 'allowed_products', '3': 11, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'allowedProducts'},
-    {'1': 'allowed_regions', '3': 12, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'allowedRegions'},
-    {'1': 'group_affiliations', '3': 13, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'groupAffiliations'},
-    {'1': 'state', '3': 14, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 15, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'available_balance',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'availableBalance'
+    },
+    {
+      '1': 'reserved_balance',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'reservedBalance'
+    },
+    {
+      '1': 'total_deployed',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalDeployed'
+    },
+    {
+      '1': 'total_returned',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalReturned'
+    },
+    {
+      '1': 'max_exposure',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'maxExposure'
+    },
+    {
+      '1': 'min_interest_rate',
+      '3': 10,
+      '4': 1,
+      '5': 9,
+      '10': 'minInterestRate'
+    },
+    {
+      '1': 'allowed_products',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'allowedProducts'
+    },
+    {
+      '1': 'allowed_regions',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'allowedRegions'
+    },
+    {
+      '1': 'group_affiliations',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'groupAffiliations'
+    },
+    {
+      '1': 'state',
+      '3': 14,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
   '9': [
     {'1': 4, '2': 5},
@@ -1591,27 +2511,44 @@ final $typed_data.Uint8List investorAccountObjectDescriptor = $convert.base64Dec
 const InvestorAccountSaveRequest$json = {
   '1': 'InvestorAccountSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorAccountObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorAccountObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InvestorAccountSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorAccountSaveRequestDescriptor = $convert.base64Decode(
-    'ChpJbnZlc3RvckFjY291bnRTYXZlUmVxdWVzdBI+CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
-    'EuSW52ZXN0b3JBY2NvdW50T2JqZWN0Qga6SAPIAQFSBGRhdGE=');
+final $typed_data.Uint8List investorAccountSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChpJbnZlc3RvckFjY291bnRTYXZlUmVxdWVzdBI+CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
+        'EuSW52ZXN0b3JBY2NvdW50T2JqZWN0Qga6SAPIAQFSBGRhdGE=');
 
 @$core.Deprecated('Use investorAccountSaveResponseDescriptor instead')
 const InvestorAccountSaveResponse$json = {
   '1': 'InvestorAccountSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InvestorAccountSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorAccountSaveResponseDescriptor = $convert.base64Decode(
-    'ChtJbnZlc3RvckFjY291bnRTYXZlUmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5Ln'
-    'YxLkludmVzdG9yQWNjb3VudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List investorAccountSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChtJbnZlc3RvckFjY291bnRTYXZlUmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5Ln'
+        'YxLkludmVzdG9yQWNjb3VudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use investorAccountGetRequestDescriptor instead')
 const InvestorAccountGetRequest$json = {
@@ -1622,22 +2559,31 @@ const InvestorAccountGetRequest$json = {
 };
 
 /// Descriptor for `InvestorAccountGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorAccountGetRequestDescriptor = $convert.base64Decode(
-    'ChlJbnZlc3RvckFjY291bnRHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLT'
-    'lhLXpfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List investorAccountGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChlJbnZlc3RvckFjY291bnRHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLT'
+        'lhLXpfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use investorAccountGetResponseDescriptor instead')
 const InvestorAccountGetResponse$json = {
   '1': 'InvestorAccountGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InvestorAccountGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorAccountGetResponseDescriptor = $convert.base64Decode(
-    'ChpJbnZlc3RvckFjY291bnRHZXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
-    'EuSW52ZXN0b3JBY2NvdW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List investorAccountGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChpJbnZlc3RvckFjY291bnRHZXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudj'
+        'EuSW52ZXN0b3JBY2NvdW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use investorAccountSearchRequestDescriptor instead')
 const InvestorAccountSearchRequest$json = {
@@ -1645,7 +2591,15 @@ const InvestorAccountSearchRequest$json = {
   '2': [
     {'1': 'investor_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'investorId'},
     {'1': 'currency_code', '3': 2, '4': 1, '5': 9, '10': 'currencyCode'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1661,21 +2615,37 @@ final $typed_data.Uint8List investorAccountSearchRequestDescriptor = $convert.ba
 const InvestorAccountSearchResponse$json = {
   '1': 'InvestorAccountSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.InvestorAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.InvestorAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InvestorAccountSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorAccountSearchResponseDescriptor = $convert.base64Decode(
-    'Ch1JbnZlc3RvckFjY291bnRTZWFyY2hSZXNwb25zZRI2CgRkYXRhGAEgAygLMiIuaWRlbnRpdH'
-    'kudjEuSW52ZXN0b3JBY2NvdW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List investorAccountSearchResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1JbnZlc3RvckFjY291bnRTZWFyY2hSZXNwb25zZRI2CgRkYXRhGAEgAygLMiIuaWRlbnRpdH'
+        'kudjEuSW52ZXN0b3JBY2NvdW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use investorDepositRequestDescriptor instead')
 const InvestorDepositRequest$json = {
   '1': 'InvestorDepositRequest',
   '2': [
     {'1': 'account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'accountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '8': {}, '10': 'amount'},
+    {
+      '1': 'amount',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '8': {},
+      '10': 'amount'
+    },
   ],
   '9': [
     {'1': 3, '2': 4},
@@ -1692,21 +2662,37 @@ final $typed_data.Uint8List investorDepositRequestDescriptor = $convert.base64De
 const InvestorDepositResponse$json = {
   '1': 'InvestorDepositResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InvestorDepositResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorDepositResponseDescriptor = $convert.base64Decode(
-    'ChdJbnZlc3RvckRlcG9zaXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudjEuSW'
-    '52ZXN0b3JBY2NvdW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List investorDepositResponseDescriptor =
+    $convert.base64Decode(
+        'ChdJbnZlc3RvckRlcG9zaXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdHkudjEuSW'
+        '52ZXN0b3JBY2NvdW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use investorWithdrawRequestDescriptor instead')
 const InvestorWithdrawRequest$json = {
   '1': 'InvestorWithdrawRequest',
   '2': [
     {'1': 'account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'accountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '8': {}, '10': 'amount'},
+    {
+      '1': 'amount',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '8': {},
+      '10': 'amount'
+    },
   ],
 };
 
@@ -1720,14 +2706,22 @@ final $typed_data.Uint8List investorWithdrawRequestDescriptor = $convert.base64D
 const InvestorWithdrawResponse$json = {
   '1': 'InvestorWithdrawResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.InvestorAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.InvestorAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `InvestorWithdrawResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List investorWithdrawResponseDescriptor = $convert.base64Decode(
-    'ChhJbnZlc3RvcldpdGhkcmF3UmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5LnYxLk'
-    'ludmVzdG9yQWNjb3VudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List investorWithdrawResponseDescriptor =
+    $convert.base64Decode(
+        'ChhJbnZlc3RvcldpdGhkcmF3UmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5LnYxLk'
+        'ludmVzdG9yQWNjb3VudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use formFieldDefinitionDescriptor instead')
 const FormFieldDefinition$json = {
@@ -1735,14 +2729,40 @@ const FormFieldDefinition$json = {
   '2': [
     {'1': 'key', '3': 1, '4': 1, '5': 9, '10': 'key'},
     {'1': 'label', '3': 2, '4': 1, '5': 9, '10': 'label'},
-    {'1': 'field_type', '3': 3, '4': 1, '5': 14, '6': '.identity.v1.FormFieldType', '10': 'fieldType'},
-    {'1': 'group', '3': 4, '4': 1, '5': 14, '6': '.identity.v1.FormFieldGroup', '10': 'group'},
+    {
+      '1': 'field_type',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.FormFieldType',
+      '10': 'fieldType'
+    },
+    {
+      '1': 'group',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.FormFieldGroup',
+      '10': 'group'
+    },
     {'1': 'required', '3': 5, '4': 1, '5': 8, '10': 'required'},
     {'1': 'description', '3': 6, '4': 1, '5': 9, '10': 'description'},
     {'1': 'placeholder', '3': 7, '4': 1, '5': 9, '10': 'placeholder'},
     {'1': 'default_value', '3': 8, '4': 1, '5': 9, '10': 'defaultValue'},
-    {'1': 'validation_pattern', '3': 9, '4': 1, '5': 9, '10': 'validationPattern'},
-    {'1': 'validation_message', '3': 10, '4': 1, '5': 9, '10': 'validationMessage'},
+    {
+      '1': 'validation_pattern',
+      '3': 9,
+      '4': 1,
+      '5': 9,
+      '10': 'validationPattern'
+    },
+    {
+      '1': 'validation_message',
+      '3': 10,
+      '4': 1,
+      '5': 9,
+      '10': 'validationMessage'
+    },
     {'1': 'options', '3': 11, '4': 3, '5': 9, '10': 'options'},
     {'1': 'min_length', '3': 12, '4': 1, '5': 5, '10': 'minLength'},
     {'1': 'max_length', '3': 13, '4': 1, '5': 5, '10': 'maxLength'},
@@ -1751,7 +2771,14 @@ const FormFieldDefinition$json = {
     {'1': 'order', '3': 16, '4': 1, '5': 5, '10': 'order'},
     {'1': 'section', '3': 17, '4': 1, '5': 9, '10': 'section'},
     {'1': 'encrypted', '3': 18, '4': 1, '5': 8, '10': 'encrypted'},
-    {'1': 'properties', '3': 19, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 19,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -1776,15 +2803,50 @@ const FormTemplateObject$json = {
   '1': 'FormTemplateObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'name', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'description', '3': 4, '4': 1, '5': 9, '10': 'description'},
     {'1': 'version', '3': 5, '4': 1, '5': 5, '10': 'version'},
-    {'1': 'status', '3': 6, '4': 1, '5': 14, '6': '.identity.v1.FormTemplateStatus', '10': 'status'},
-    {'1': 'fields', '3': 7, '4': 3, '5': 11, '6': '.identity.v1.FormFieldDefinition', '10': 'fields'},
+    {
+      '1': 'status',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.FormTemplateStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'fields',
+      '3': 7,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.FormFieldDefinition',
+      '10': 'fields'
+    },
     {'1': 'sections', '3': 8, '4': 3, '5': 9, '10': 'sections'},
-    {'1': 'validation_rules', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'validationRules'},
-    {'1': 'properties', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'validation_rules',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'validationRules'
+    },
+    {
+      '1': 'properties',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
     {'1': 'entity_type', '3': 11, '4': 1, '5': 9, '10': 'entityType'},
   ],
 };
@@ -1812,10 +2874,38 @@ const FormSubmissionObject$json = {
     {'1': 'template_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'templateId'},
     {'1': 'template_version', '3': 5, '4': 1, '5': 5, '10': 'templateVersion'},
     {'1': 'submitted_by', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'submittedBy'},
-    {'1': 'data', '3': 7, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'data'},
-    {'1': 'file_refs', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'fileRefs'},
-    {'1': 'state', '3': 9, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'data',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'data'
+    },
+    {
+      '1': 'file_refs',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'fileRefs'
+    },
+    {
+      '1': 'state',
+      '3': 9,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -1840,14 +2930,35 @@ const ClientDataEntryObject$json = {
     {'1': 'field_key', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'fieldKey'},
     {'1': 'value', '3': 4, '4': 1, '5': 9, '10': 'value'},
     {'1': 'value_type', '3': 5, '4': 1, '5': 9, '10': 'valueType'},
-    {'1': 'verification_status', '3': 6, '4': 1, '5': 14, '6': '.identity.v1.DataVerificationStatus', '10': 'verificationStatus'},
+    {
+      '1': 'verification_status',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.DataVerificationStatus',
+      '10': 'verificationStatus'
+    },
     {'1': 'reviewer_id', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'reviewerId'},
     {'1': 'reviewer_comment', '3': 8, '4': 1, '5': 9, '10': 'reviewerComment'},
-    {'1': 'source_entity_id', '3': 9, '4': 1, '5': 9, '8': {}, '10': 'sourceEntityId'},
+    {
+      '1': 'source_entity_id',
+      '3': 9,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'sourceEntityId'
+    },
     {'1': 'revision', '3': 10, '4': 1, '5': 5, '10': 'revision'},
     {'1': 'verified_at', '3': 11, '4': 1, '5': 9, '10': 'verifiedAt'},
     {'1': 'expires_at', '3': 12, '4': 1, '5': 9, '10': 'expiresAt'},
-    {'1': 'properties', '3': 13, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -1893,7 +3004,15 @@ final $typed_data.Uint8List clientDataEntryHistoryObjectDescriptor = $convert.ba
 const ClientDataSaveRequest$json = {
   '1': 'ClientDataSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientDataEntryObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -1906,14 +3025,22 @@ final $typed_data.Uint8List clientDataSaveRequestDescriptor = $convert.base64Dec
 const ClientDataSaveResponse$json = {
   '1': 'ClientDataSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientDataEntryObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientDataSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientDataSaveResponseDescriptor = $convert.base64Decode(
-    'ChZDbGllbnREYXRhU2F2ZVJlc3BvbnNlEjYKBGRhdGEYASABKAsyIi5pZGVudGl0eS52MS5DbG'
-    'llbnREYXRhRW50cnlPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List clientDataSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChZDbGllbnREYXRhU2F2ZVJlc3BvbnNlEjYKBGRhdGEYASABKAsyIi5pZGVudGl0eS52MS5DbG'
+        'llbnREYXRhRW50cnlPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use clientDataGetRequestDescriptor instead')
 const ClientDataGetRequest$json = {
@@ -1933,7 +3060,14 @@ final $typed_data.Uint8List clientDataGetRequestDescriptor = $convert.base64Deco
 const ClientDataGetResponse$json = {
   '1': 'ClientDataGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientDataEntryObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -1947,8 +3081,23 @@ const ClientDataListRequest$json = {
   '1': 'ClientDataListRequest',
   '2': [
     {'1': 'client_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
-    {'1': 'verification_status', '3': 2, '4': 1, '5': 14, '6': '.identity.v1.DataVerificationStatus', '10': 'verificationStatus'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'verification_status',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.DataVerificationStatus',
+      '10': 'verificationStatus'
+    },
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1964,8 +3113,22 @@ final $typed_data.Uint8List clientDataListRequestDescriptor = $convert.base64Dec
 const ClientDataListResponse$json = {
   '1': 'ClientDataListResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.ClientDataEntryObject', '10': 'data'},
-    {'1': 'next_cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'nextCursor'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryObject',
+      '10': 'data'
+    },
+    {
+      '1': 'next_cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'nextCursor'
+    },
   ],
 };
 
@@ -2002,14 +3165,22 @@ final $typed_data.Uint8List clientDataVerifyRequestDescriptor = $convert.base64D
 const ClientDataVerifyResponse$json = {
   '1': 'ClientDataVerifyResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientDataEntryObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientDataVerifyResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientDataVerifyResponseDescriptor = $convert.base64Decode(
-    'ChhDbGllbnREYXRhVmVyaWZ5UmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5LnYxLk'
-    'NsaWVudERhdGFFbnRyeU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List clientDataVerifyResponseDescriptor =
+    $convert.base64Decode(
+        'ChhDbGllbnREYXRhVmVyaWZ5UmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5LnYxLk'
+        'NsaWVudERhdGFFbnRyeU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use clientDataRejectRequestDescriptor instead')
 const ClientDataRejectRequest$json = {
@@ -2038,14 +3209,22 @@ final $typed_data.Uint8List clientDataRejectRequestDescriptor = $convert.base64D
 const ClientDataRejectResponse$json = {
   '1': 'ClientDataRejectResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientDataEntryObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientDataRejectResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientDataRejectResponseDescriptor = $convert.base64Decode(
-    'ChhDbGllbnREYXRhUmVqZWN0UmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5LnYxLk'
-    'NsaWVudERhdGFFbnRyeU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List clientDataRejectResponseDescriptor =
+    $convert.base64Decode(
+        'ChhDbGllbnREYXRhUmVqZWN0UmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmlkZW50aXR5LnYxLk'
+        'NsaWVudERhdGFFbnRyeU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use clientDataRequestInfoRequestDescriptor instead')
 const ClientDataRequestInfoRequest$json = {
@@ -2065,23 +3244,32 @@ const ClientDataRequestInfoRequest$json = {
 };
 
 /// Descriptor for `ClientDataRequestInfoRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientDataRequestInfoRequestDescriptor = $convert.base64Decode(
-    'ChxDbGllbnREYXRhUmVxdWVzdEluZm9SZXF1ZXN0EiQKCGVudHJ5X2lkGAEgASgJQgm6SAZyBB'
-    'ADGChSB2VudHJ5SWQSLQoLcmV2aWV3ZXJfaWQYAiABKAlCDBgBukgH2AEBcgIYKFIKcmV2aWV3'
-    'ZXJJZBIhCgdjb21tZW50GAMgASgJQge6SARyAhABUgdjb21tZW50');
+final $typed_data.Uint8List clientDataRequestInfoRequestDescriptor =
+    $convert.base64Decode(
+        'ChxDbGllbnREYXRhUmVxdWVzdEluZm9SZXF1ZXN0EiQKCGVudHJ5X2lkGAEgASgJQgm6SAZyBB'
+        'ADGChSB2VudHJ5SWQSLQoLcmV2aWV3ZXJfaWQYAiABKAlCDBgBukgH2AEBcgIYKFIKcmV2aWV3'
+        'ZXJJZBIhCgdjb21tZW50GAMgASgJQge6SARyAhABUgdjb21tZW50');
 
 @$core.Deprecated('Use clientDataRequestInfoResponseDescriptor instead')
 const ClientDataRequestInfoResponse$json = {
   '1': 'ClientDataRequestInfoResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.ClientDataEntryObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientDataRequestInfoResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientDataRequestInfoResponseDescriptor = $convert.base64Decode(
-    'Ch1DbGllbnREYXRhUmVxdWVzdEluZm9SZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdH'
-    'kudjEuQ2xpZW50RGF0YUVudHJ5T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List clientDataRequestInfoResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1DbGllbnREYXRhUmVxdWVzdEluZm9SZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuaWRlbnRpdH'
+        'kudjEuQ2xpZW50RGF0YUVudHJ5T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use clientDataHistoryRequestDescriptor instead')
 const ClientDataHistoryRequest$json = {
@@ -2092,48 +3280,74 @@ const ClientDataHistoryRequest$json = {
 };
 
 /// Descriptor for `ClientDataHistoryRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientDataHistoryRequestDescriptor = $convert.base64Decode(
-    'ChhDbGllbnREYXRhSGlzdG9yeVJlcXVlc3QSJAoIZW50cnlfaWQYASABKAlCCbpIBnIEEAMYKF'
-    'IHZW50cnlJZA==');
+final $typed_data.Uint8List clientDataHistoryRequestDescriptor =
+    $convert.base64Decode(
+        'ChhDbGllbnREYXRhSGlzdG9yeVJlcXVlc3QSJAoIZW50cnlfaWQYASABKAlCCbpIBnIEEAMYKF'
+        'IHZW50cnlJZA==');
 
 @$core.Deprecated('Use clientDataHistoryResponseDescriptor instead')
 const ClientDataHistoryResponse$json = {
   '1': 'ClientDataHistoryResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.ClientDataEntryHistoryObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.ClientDataEntryHistoryObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientDataHistoryResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientDataHistoryResponseDescriptor = $convert.base64Decode(
-    'ChlDbGllbnREYXRhSGlzdG9yeVJlc3BvbnNlEj0KBGRhdGEYASADKAsyKS5pZGVudGl0eS52MS'
-    '5DbGllbnREYXRhRW50cnlIaXN0b3J5T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List clientDataHistoryResponseDescriptor =
+    $convert.base64Decode(
+        'ChlDbGllbnREYXRhSGlzdG9yeVJlc3BvbnNlEj0KBGRhdGEYASADKAsyKS5pZGVudGl0eS52MS'
+        '5DbGllbnREYXRhRW50cnlIaXN0b3J5T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use formTemplateSaveRequestDescriptor instead')
 const FormTemplateSaveRequest$json = {
   '1': 'FormTemplateSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.FormTemplateObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.FormTemplateObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormTemplateSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formTemplateSaveRequestDescriptor = $convert.base64Decode(
-    'ChdGb3JtVGVtcGxhdGVTYXZlUmVxdWVzdBI7CgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuRm'
-    '9ybVRlbXBsYXRlT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
+final $typed_data.Uint8List formTemplateSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChdGb3JtVGVtcGxhdGVTYXZlUmVxdWVzdBI7CgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuRm'
+        '9ybVRlbXBsYXRlT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
 
 @$core.Deprecated('Use formTemplateSaveResponseDescriptor instead')
 const FormTemplateSaveResponse$json = {
   '1': 'FormTemplateSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.FormTemplateObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.FormTemplateObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormTemplateSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formTemplateSaveResponseDescriptor = $convert.base64Decode(
-    'ChhGb3JtVGVtcGxhdGVTYXZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5LnYxLk'
-    'Zvcm1UZW1wbGF0ZU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List formTemplateSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChhGb3JtVGVtcGxhdGVTYXZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5LnYxLk'
+        'Zvcm1UZW1wbGF0ZU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use formTemplateGetRequestDescriptor instead')
 const FormTemplateGetRequest$json = {
@@ -2144,31 +3358,62 @@ const FormTemplateGetRequest$json = {
 };
 
 /// Descriptor for `FormTemplateGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formTemplateGetRequestDescriptor = $convert.base64Decode(
-    'ChZGb3JtVGVtcGxhdGVHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
-    'pfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List formTemplateGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChZGb3JtVGVtcGxhdGVHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
+        'pfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use formTemplateGetResponseDescriptor instead')
 const FormTemplateGetResponse$json = {
   '1': 'FormTemplateGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.FormTemplateObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.FormTemplateObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormTemplateGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formTemplateGetResponseDescriptor = $convert.base64Decode(
-    'ChdGb3JtVGVtcGxhdGVHZXRSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuRm'
-    '9ybVRlbXBsYXRlT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List formTemplateGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChdGb3JtVGVtcGxhdGVHZXRSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8uaWRlbnRpdHkudjEuRm'
+        '9ybVRlbXBsYXRlT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use formTemplateSearchRequestDescriptor instead')
 const FormTemplateSearchRequest$json = {
   '1': 'FormTemplateSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'status', '3': 3, '4': 1, '5': 14, '6': '.identity.v1.FormTemplateStatus', '10': 'status'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'status',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.identity.v1.FormTemplateStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
     {'1': 'entity_type', '3': 5, '4': 1, '5': 9, '10': 'entityType'},
   ],
 };
@@ -2186,14 +3431,22 @@ final $typed_data.Uint8List formTemplateSearchRequestDescriptor = $convert.base6
 const FormTemplateSearchResponse$json = {
   '1': 'FormTemplateSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.FormTemplateObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.FormTemplateObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormTemplateSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formTemplateSearchResponseDescriptor = $convert.base64Decode(
-    'ChpGb3JtVGVtcGxhdGVTZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8uaWRlbnRpdHkudj'
-    'EuRm9ybVRlbXBsYXRlT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List formTemplateSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChpGb3JtVGVtcGxhdGVTZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8uaWRlbnRpdHkudj'
+        'EuRm9ybVRlbXBsYXRlT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use formTemplatePublishRequestDescriptor instead')
 const FormTemplatePublishRequest$json = {
@@ -2204,48 +3457,74 @@ const FormTemplatePublishRequest$json = {
 };
 
 /// Descriptor for `FormTemplatePublishRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formTemplatePublishRequestDescriptor = $convert.base64Decode(
-    'ChpGb3JtVGVtcGxhdGVQdWJsaXNoUmVxdWVzdBIrCgJpZBgBIAEoCUIbukgYchYQAxgoMhBbMC'
-    '05YS16Xy1dezMsNDB9UgJpZA==');
+final $typed_data.Uint8List formTemplatePublishRequestDescriptor =
+    $convert.base64Decode(
+        'ChpGb3JtVGVtcGxhdGVQdWJsaXNoUmVxdWVzdBIrCgJpZBgBIAEoCUIbukgYchYQAxgoMhBbMC'
+        '05YS16Xy1dezMsNDB9UgJpZA==');
 
 @$core.Deprecated('Use formTemplatePublishResponseDescriptor instead')
 const FormTemplatePublishResponse$json = {
   '1': 'FormTemplatePublishResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.FormTemplateObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.FormTemplateObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormTemplatePublishResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formTemplatePublishResponseDescriptor = $convert.base64Decode(
-    'ChtGb3JtVGVtcGxhdGVQdWJsaXNoUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5Ln'
-    'YxLkZvcm1UZW1wbGF0ZU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List formTemplatePublishResponseDescriptor =
+    $convert.base64Decode(
+        'ChtGb3JtVGVtcGxhdGVQdWJsaXNoUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmlkZW50aXR5Ln'
+        'YxLkZvcm1UZW1wbGF0ZU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use formSubmissionSaveRequestDescriptor instead')
 const FormSubmissionSaveRequest$json = {
   '1': 'FormSubmissionSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.FormSubmissionObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.FormSubmissionObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormSubmissionSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formSubmissionSaveRequestDescriptor = $convert.base64Decode(
-    'ChlGb3JtU3VibWlzc2lvblNhdmVSZXF1ZXN0Ej0KBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
-    '5Gb3JtU3VibWlzc2lvbk9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List formSubmissionSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChlGb3JtU3VibWlzc2lvblNhdmVSZXF1ZXN0Ej0KBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
+        '5Gb3JtU3VibWlzc2lvbk9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use formSubmissionSaveResponseDescriptor instead')
 const FormSubmissionSaveResponse$json = {
   '1': 'FormSubmissionSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.FormSubmissionObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.FormSubmissionObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormSubmissionSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formSubmissionSaveResponseDescriptor = $convert.base64Decode(
-    'ChpGb3JtU3VibWlzc2lvblNhdmVSZXNwb25zZRI1CgRkYXRhGAEgASgLMiEuaWRlbnRpdHkudj'
-    'EuRm9ybVN1Ym1pc3Npb25PYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List formSubmissionSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChpGb3JtU3VibWlzc2lvblNhdmVSZXNwb25zZRI1CgRkYXRhGAEgASgLMiEuaWRlbnRpdHkudj'
+        'EuRm9ybVN1Ym1pc3Npb25PYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use formSubmissionGetRequestDescriptor instead')
 const FormSubmissionGetRequest$json = {
@@ -2256,22 +3535,31 @@ const FormSubmissionGetRequest$json = {
 };
 
 /// Descriptor for `FormSubmissionGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formSubmissionGetRequestDescriptor = $convert.base64Decode(
-    'ChhGb3JtU3VibWlzc2lvbkdldFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
-    'Etel8tXXszLDQwfVICaWQ=');
+final $typed_data.Uint8List formSubmissionGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChhGb3JtU3VibWlzc2lvbkdldFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
+        'Etel8tXXszLDQwfVICaWQ=');
 
 @$core.Deprecated('Use formSubmissionGetResponseDescriptor instead')
 const FormSubmissionGetResponse$json = {
   '1': 'FormSubmissionGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.identity.v1.FormSubmissionObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.identity.v1.FormSubmissionObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormSubmissionGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formSubmissionGetResponseDescriptor = $convert.base64Decode(
-    'ChlGb3JtU3VibWlzc2lvbkdldFJlc3BvbnNlEjUKBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
-    '5Gb3JtU3VibWlzc2lvbk9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List formSubmissionGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChlGb3JtU3VibWlzc2lvbkdldFJlc3BvbnNlEjUKBGRhdGEYASABKAsyIS5pZGVudGl0eS52MS'
+        '5Gb3JtU3VibWlzc2lvbk9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use formSubmissionSearchRequestDescriptor instead')
 const FormSubmissionSearchRequest$json = {
@@ -2280,7 +3568,15 @@ const FormSubmissionSearchRequest$json = {
     {'1': 'entity_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'entityId'},
     {'1': 'entity_type', '3': 2, '4': 1, '5': 9, '10': 'entityType'},
     {'1': 'template_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'templateId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -2296,19 +3592,32 @@ final $typed_data.Uint8List formSubmissionSearchRequestDescriptor = $convert.bas
 const FormSubmissionSearchResponse$json = {
   '1': 'FormSubmissionSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.identity.v1.FormSubmissionObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.identity.v1.FormSubmissionObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `FormSubmissionSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List formSubmissionSearchResponseDescriptor = $convert.base64Decode(
-    'ChxGb3JtU3VibWlzc2lvblNlYXJjaFJlc3BvbnNlEjUKBGRhdGEYASADKAsyIS5pZGVudGl0eS'
-    '52MS5Gb3JtU3VibWlzc2lvbk9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List formSubmissionSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChxGb3JtU3VibWlzc2lvblNlYXJjaFJlc3BvbnNlEjUKBGRhdGEYASADKAsyIS5pZGVudGl0eS'
+        '52MS5Gb3JtU3VibWlzc2lvbk9iamVjdFIEZGF0YQ==');
 
 const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
   '1': 'IdentityService',
   '2': [
-    {'1': 'OrganizationSave', '2': '.identity.v1.OrganizationSaveRequest', '3': '.identity.v1.OrganizationSaveResponse', '4': {}},
+    {
+      '1': 'OrganizationSave',
+      '2': '.identity.v1.OrganizationSaveRequest',
+      '3': '.identity.v1.OrganizationSaveResponse',
+      '4': {}
+    },
     {
       '1': 'OrganizationGet',
       '2': '.identity.v1.OrganizationGetRequest',
@@ -2322,7 +3631,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'OrgUnitSave', '2': '.identity.v1.OrgUnitSaveRequest', '3': '.identity.v1.OrgUnitSaveResponse', '4': {}},
+    {
+      '1': 'OrgUnitSave',
+      '2': '.identity.v1.OrgUnitSaveRequest',
+      '3': '.identity.v1.OrgUnitSaveResponse',
+      '4': {}
+    },
     {
       '1': 'OrgUnitGet',
       '2': '.identity.v1.OrgUnitGetRequest',
@@ -2336,7 +3650,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'WorkforceMemberSave', '2': '.identity.v1.WorkforceMemberSaveRequest', '3': '.identity.v1.WorkforceMemberSaveResponse', '4': {}},
+    {
+      '1': 'WorkforceMemberSave',
+      '2': '.identity.v1.WorkforceMemberSaveRequest',
+      '3': '.identity.v1.WorkforceMemberSaveResponse',
+      '4': {}
+    },
     {
       '1': 'WorkforceMemberGet',
       '2': '.identity.v1.WorkforceMemberGetRequest',
@@ -2350,7 +3669,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'DepartmentSave', '2': '.identity.v1.DepartmentSaveRequest', '3': '.identity.v1.DepartmentSaveResponse', '4': {}},
+    {
+      '1': 'DepartmentSave',
+      '2': '.identity.v1.DepartmentSaveRequest',
+      '3': '.identity.v1.DepartmentSaveResponse',
+      '4': {}
+    },
     {
       '1': 'DepartmentGet',
       '2': '.identity.v1.DepartmentGetRequest',
@@ -2364,7 +3688,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'PositionSave', '2': '.identity.v1.PositionSaveRequest', '3': '.identity.v1.PositionSaveResponse', '4': {}},
+    {
+      '1': 'PositionSave',
+      '2': '.identity.v1.PositionSaveRequest',
+      '3': '.identity.v1.PositionSaveResponse',
+      '4': {}
+    },
     {
       '1': 'PositionGet',
       '2': '.identity.v1.PositionGetRequest',
@@ -2378,7 +3707,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'PositionAssignmentSave', '2': '.identity.v1.PositionAssignmentSaveRequest', '3': '.identity.v1.PositionAssignmentSaveResponse', '4': {}},
+    {
+      '1': 'PositionAssignmentSave',
+      '2': '.identity.v1.PositionAssignmentSaveRequest',
+      '3': '.identity.v1.PositionAssignmentSaveResponse',
+      '4': {}
+    },
     {
       '1': 'PositionAssignmentGet',
       '2': '.identity.v1.PositionAssignmentGetRequest',
@@ -2392,7 +3726,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'InternalTeamSave', '2': '.identity.v1.InternalTeamSaveRequest', '3': '.identity.v1.InternalTeamSaveResponse', '4': {}},
+    {
+      '1': 'InternalTeamSave',
+      '2': '.identity.v1.InternalTeamSaveRequest',
+      '3': '.identity.v1.InternalTeamSaveResponse',
+      '4': {}
+    },
     {
       '1': 'InternalTeamGet',
       '2': '.identity.v1.InternalTeamGetRequest',
@@ -2406,7 +3745,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'TeamMembershipSave', '2': '.identity.v1.TeamMembershipSaveRequest', '3': '.identity.v1.TeamMembershipSaveResponse', '4': {}},
+    {
+      '1': 'TeamMembershipSave',
+      '2': '.identity.v1.TeamMembershipSaveRequest',
+      '3': '.identity.v1.TeamMembershipSaveResponse',
+      '4': {}
+    },
     {
       '1': 'TeamMembershipGet',
       '2': '.identity.v1.TeamMembershipGetRequest',
@@ -2420,7 +3764,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'AccessRoleAssignmentSave', '2': '.identity.v1.AccessRoleAssignmentSaveRequest', '3': '.identity.v1.AccessRoleAssignmentSaveResponse', '4': {}},
+    {
+      '1': 'AccessRoleAssignmentSave',
+      '2': '.identity.v1.AccessRoleAssignmentSaveRequest',
+      '3': '.identity.v1.AccessRoleAssignmentSaveResponse',
+      '4': {}
+    },
     {
       '1': 'AccessRoleAssignmentGet',
       '2': '.identity.v1.AccessRoleAssignmentGetRequest',
@@ -2434,7 +3783,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'InvestorSave', '2': '.identity.v1.InvestorSaveRequest', '3': '.identity.v1.InvestorSaveResponse', '4': {}},
+    {
+      '1': 'InvestorSave',
+      '2': '.identity.v1.InvestorSaveRequest',
+      '3': '.identity.v1.InvestorSaveResponse',
+      '4': {}
+    },
     {
       '1': 'InvestorGet',
       '2': '.identity.v1.InvestorGetRequest',
@@ -2448,7 +3802,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'ClientGroupSave', '2': '.identity.v1.ClientGroupSaveRequest', '3': '.identity.v1.ClientGroupSaveResponse', '4': {}},
+    {
+      '1': 'ClientGroupSave',
+      '2': '.identity.v1.ClientGroupSaveRequest',
+      '3': '.identity.v1.ClientGroupSaveResponse',
+      '4': {}
+    },
     {
       '1': 'ClientGroupGet',
       '2': '.identity.v1.ClientGroupGetRequest',
@@ -2462,7 +3821,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'MembershipSave', '2': '.identity.v1.MembershipSaveRequest', '3': '.identity.v1.MembershipSaveResponse', '4': {}},
+    {
+      '1': 'MembershipSave',
+      '2': '.identity.v1.MembershipSaveRequest',
+      '3': '.identity.v1.MembershipSaveResponse',
+      '4': {}
+    },
     {
       '1': 'MembershipGet',
       '2': '.identity.v1.MembershipGetRequest',
@@ -2507,7 +3871,12 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '3': '.identity.v1.InvestorWithdrawResponse',
       '4': {'33': true},
     },
-    {'1': 'ClientDataSave', '2': '.identity.v1.ClientDataSaveRequest', '3': '.identity.v1.ClientDataSaveResponse', '4': {}},
+    {
+      '1': 'ClientDataSave',
+      '2': '.identity.v1.ClientDataSaveRequest',
+      '3': '.identity.v1.ClientDataSaveResponse',
+      '4': {}
+    },
     {
       '1': 'ClientDataGet',
       '2': '.identity.v1.ClientDataGetRequest',
@@ -2521,16 +3890,36 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'ClientDataVerify', '2': '.identity.v1.ClientDataVerifyRequest', '3': '.identity.v1.ClientDataVerifyResponse', '4': {}},
-    {'1': 'ClientDataReject', '2': '.identity.v1.ClientDataRejectRequest', '3': '.identity.v1.ClientDataRejectResponse', '4': {}},
-    {'1': 'ClientDataRequestInfo', '2': '.identity.v1.ClientDataRequestInfoRequest', '3': '.identity.v1.ClientDataRequestInfoResponse', '4': {}},
+    {
+      '1': 'ClientDataVerify',
+      '2': '.identity.v1.ClientDataVerifyRequest',
+      '3': '.identity.v1.ClientDataVerifyResponse',
+      '4': {}
+    },
+    {
+      '1': 'ClientDataReject',
+      '2': '.identity.v1.ClientDataRejectRequest',
+      '3': '.identity.v1.ClientDataRejectResponse',
+      '4': {}
+    },
+    {
+      '1': 'ClientDataRequestInfo',
+      '2': '.identity.v1.ClientDataRequestInfoRequest',
+      '3': '.identity.v1.ClientDataRequestInfoResponse',
+      '4': {}
+    },
     {
       '1': 'ClientDataHistory',
       '2': '.identity.v1.ClientDataHistoryRequest',
       '3': '.identity.v1.ClientDataHistoryResponse',
       '4': {'34': 1},
     },
-    {'1': 'FormTemplateSave', '2': '.identity.v1.FormTemplateSaveRequest', '3': '.identity.v1.FormTemplateSaveResponse', '4': {}},
+    {
+      '1': 'FormTemplateSave',
+      '2': '.identity.v1.FormTemplateSaveRequest',
+      '3': '.identity.v1.FormTemplateSaveResponse',
+      '4': {}
+    },
     {
       '1': 'FormTemplateGet',
       '2': '.identity.v1.FormTemplateGetRequest',
@@ -2544,8 +3933,18 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'FormTemplatePublish', '2': '.identity.v1.FormTemplatePublishRequest', '3': '.identity.v1.FormTemplatePublishResponse', '4': {}},
-    {'1': 'FormSubmissionSave', '2': '.identity.v1.FormSubmissionSaveRequest', '3': '.identity.v1.FormSubmissionSaveResponse', '4': {}},
+    {
+      '1': 'FormTemplatePublish',
+      '2': '.identity.v1.FormTemplatePublishRequest',
+      '3': '.identity.v1.FormTemplatePublishResponse',
+      '4': {}
+    },
+    {
+      '1': 'FormSubmissionSave',
+      '2': '.identity.v1.FormSubmissionSaveRequest',
+      '3': '.identity.v1.FormSubmissionSaveResponse',
+      '4': {}
+    },
     {
       '1': 'FormSubmissionGet',
       '2': '.identity.v1.FormSubmissionGetRequest',
@@ -2564,18 +3963,19 @@ const $core.Map<$core.String, $core.dynamic> IdentityServiceBase$json = {
 };
 
 @$core.Deprecated('Use identityServiceDescriptor instead')
-const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentityServiceBase$messageJson = {
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+    IdentityServiceBase$messageJson = {
   '.identity.v1.OrganizationSaveRequest': OrganizationSaveRequest$json,
   '.identity.v1.OrganizationObject': OrganizationObject$json,
-  '.google.protobuf.Struct': $6.Struct$json,
-  '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
-  '.google.protobuf.Value': $6.Value$json,
-  '.google.protobuf.ListValue': $6.ListValue$json,
+  '.google.protobuf.Struct': $0.Struct$json,
+  '.google.protobuf.Struct.FieldsEntry': $0.Struct_FieldsEntry$json,
+  '.google.protobuf.Value': $0.Value$json,
+  '.google.protobuf.ListValue': $0.ListValue$json,
   '.identity.v1.OrganizationSaveResponse': OrganizationSaveResponse$json,
   '.identity.v1.OrganizationGetRequest': OrganizationGetRequest$json,
   '.identity.v1.OrganizationGetResponse': OrganizationGetResponse$json,
-  '.common.v1.SearchRequest': $7.SearchRequest$json,
-  '.common.v1.PageCursor': $7.PageCursor$json,
+  '.common.v1.SearchRequest': $1.SearchRequest$json,
+  '.common.v1.PageCursor': $1.PageCursor$json,
   '.identity.v1.OrganizationSearchResponse': OrganizationSearchResponse$json,
   '.identity.v1.OrgUnitSaveRequest': OrgUnitSaveRequest$json,
   '.identity.v1.OrgUnitObject': OrgUnitObject$json,
@@ -2589,8 +3989,10 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentitySe
   '.identity.v1.WorkforceMemberSaveResponse': WorkforceMemberSaveResponse$json,
   '.identity.v1.WorkforceMemberGetRequest': WorkforceMemberGetRequest$json,
   '.identity.v1.WorkforceMemberGetResponse': WorkforceMemberGetResponse$json,
-  '.identity.v1.WorkforceMemberSearchRequest': WorkforceMemberSearchRequest$json,
-  '.identity.v1.WorkforceMemberSearchResponse': WorkforceMemberSearchResponse$json,
+  '.identity.v1.WorkforceMemberSearchRequest':
+      WorkforceMemberSearchRequest$json,
+  '.identity.v1.WorkforceMemberSearchResponse':
+      WorkforceMemberSearchResponse$json,
   '.identity.v1.DepartmentSaveRequest': DepartmentSaveRequest$json,
   '.identity.v1.DepartmentObject': DepartmentObject$json,
   '.identity.v1.DepartmentSaveResponse': DepartmentSaveResponse$json,
@@ -2605,13 +4007,19 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentitySe
   '.identity.v1.PositionGetResponse': PositionGetResponse$json,
   '.identity.v1.PositionSearchRequest': PositionSearchRequest$json,
   '.identity.v1.PositionSearchResponse': PositionSearchResponse$json,
-  '.identity.v1.PositionAssignmentSaveRequest': PositionAssignmentSaveRequest$json,
+  '.identity.v1.PositionAssignmentSaveRequest':
+      PositionAssignmentSaveRequest$json,
   '.identity.v1.PositionAssignmentObject': PositionAssignmentObject$json,
-  '.identity.v1.PositionAssignmentSaveResponse': PositionAssignmentSaveResponse$json,
-  '.identity.v1.PositionAssignmentGetRequest': PositionAssignmentGetRequest$json,
-  '.identity.v1.PositionAssignmentGetResponse': PositionAssignmentGetResponse$json,
-  '.identity.v1.PositionAssignmentSearchRequest': PositionAssignmentSearchRequest$json,
-  '.identity.v1.PositionAssignmentSearchResponse': PositionAssignmentSearchResponse$json,
+  '.identity.v1.PositionAssignmentSaveResponse':
+      PositionAssignmentSaveResponse$json,
+  '.identity.v1.PositionAssignmentGetRequest':
+      PositionAssignmentGetRequest$json,
+  '.identity.v1.PositionAssignmentGetResponse':
+      PositionAssignmentGetResponse$json,
+  '.identity.v1.PositionAssignmentSearchRequest':
+      PositionAssignmentSearchRequest$json,
+  '.identity.v1.PositionAssignmentSearchResponse':
+      PositionAssignmentSearchResponse$json,
   '.identity.v1.InternalTeamSaveRequest': InternalTeamSaveRequest$json,
   '.identity.v1.InternalTeamObject': InternalTeamObject$json,
   '.identity.v1.InternalTeamSaveResponse': InternalTeamSaveResponse$json,
@@ -2625,14 +4033,21 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentitySe
   '.identity.v1.TeamMembershipGetRequest': TeamMembershipGetRequest$json,
   '.identity.v1.TeamMembershipGetResponse': TeamMembershipGetResponse$json,
   '.identity.v1.TeamMembershipSearchRequest': TeamMembershipSearchRequest$json,
-  '.identity.v1.TeamMembershipSearchResponse': TeamMembershipSearchResponse$json,
-  '.identity.v1.AccessRoleAssignmentSaveRequest': AccessRoleAssignmentSaveRequest$json,
+  '.identity.v1.TeamMembershipSearchResponse':
+      TeamMembershipSearchResponse$json,
+  '.identity.v1.AccessRoleAssignmentSaveRequest':
+      AccessRoleAssignmentSaveRequest$json,
   '.identity.v1.AccessRoleAssignmentObject': AccessRoleAssignmentObject$json,
-  '.identity.v1.AccessRoleAssignmentSaveResponse': AccessRoleAssignmentSaveResponse$json,
-  '.identity.v1.AccessRoleAssignmentGetRequest': AccessRoleAssignmentGetRequest$json,
-  '.identity.v1.AccessRoleAssignmentGetResponse': AccessRoleAssignmentGetResponse$json,
-  '.identity.v1.AccessRoleAssignmentSearchRequest': AccessRoleAssignmentSearchRequest$json,
-  '.identity.v1.AccessRoleAssignmentSearchResponse': AccessRoleAssignmentSearchResponse$json,
+  '.identity.v1.AccessRoleAssignmentSaveResponse':
+      AccessRoleAssignmentSaveResponse$json,
+  '.identity.v1.AccessRoleAssignmentGetRequest':
+      AccessRoleAssignmentGetRequest$json,
+  '.identity.v1.AccessRoleAssignmentGetResponse':
+      AccessRoleAssignmentGetResponse$json,
+  '.identity.v1.AccessRoleAssignmentSearchRequest':
+      AccessRoleAssignmentSearchRequest$json,
+  '.identity.v1.AccessRoleAssignmentSearchResponse':
+      AccessRoleAssignmentSearchResponse$json,
   '.identity.v1.InvestorSaveRequest': InvestorSaveRequest$json,
   '.identity.v1.InvestorObject': InvestorObject$json,
   '.identity.v1.InvestorSaveResponse': InvestorSaveResponse$json,
@@ -2656,12 +4071,14 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentitySe
   '.identity.v1.MembershipSearchResponse': MembershipSearchResponse$json,
   '.identity.v1.InvestorAccountSaveRequest': InvestorAccountSaveRequest$json,
   '.identity.v1.InvestorAccountObject': InvestorAccountObject$json,
-  '.common.v1.Money': $8.Money$json,
+  '.common.v1.Money': $2.Money$json,
   '.identity.v1.InvestorAccountSaveResponse': InvestorAccountSaveResponse$json,
   '.identity.v1.InvestorAccountGetRequest': InvestorAccountGetRequest$json,
   '.identity.v1.InvestorAccountGetResponse': InvestorAccountGetResponse$json,
-  '.identity.v1.InvestorAccountSearchRequest': InvestorAccountSearchRequest$json,
-  '.identity.v1.InvestorAccountSearchResponse': InvestorAccountSearchResponse$json,
+  '.identity.v1.InvestorAccountSearchRequest':
+      InvestorAccountSearchRequest$json,
+  '.identity.v1.InvestorAccountSearchResponse':
+      InvestorAccountSearchResponse$json,
   '.identity.v1.InvestorDepositRequest': InvestorDepositRequest$json,
   '.identity.v1.InvestorDepositResponse': InvestorDepositResponse$json,
   '.identity.v1.InvestorWithdrawRequest': InvestorWithdrawRequest$json,
@@ -2677,11 +4094,14 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentitySe
   '.identity.v1.ClientDataVerifyResponse': ClientDataVerifyResponse$json,
   '.identity.v1.ClientDataRejectRequest': ClientDataRejectRequest$json,
   '.identity.v1.ClientDataRejectResponse': ClientDataRejectResponse$json,
-  '.identity.v1.ClientDataRequestInfoRequest': ClientDataRequestInfoRequest$json,
-  '.identity.v1.ClientDataRequestInfoResponse': ClientDataRequestInfoResponse$json,
+  '.identity.v1.ClientDataRequestInfoRequest':
+      ClientDataRequestInfoRequest$json,
+  '.identity.v1.ClientDataRequestInfoResponse':
+      ClientDataRequestInfoResponse$json,
   '.identity.v1.ClientDataHistoryRequest': ClientDataHistoryRequest$json,
   '.identity.v1.ClientDataHistoryResponse': ClientDataHistoryResponse$json,
-  '.identity.v1.ClientDataEntryHistoryObject': ClientDataEntryHistoryObject$json,
+  '.identity.v1.ClientDataEntryHistoryObject':
+      ClientDataEntryHistoryObject$json,
   '.identity.v1.FormTemplateSaveRequest': FormTemplateSaveRequest$json,
   '.identity.v1.FormTemplateObject': FormTemplateObject$json,
   '.identity.v1.FormFieldDefinition': FormFieldDefinition$json,
@@ -2698,7 +4118,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> IdentitySe
   '.identity.v1.FormSubmissionGetRequest': FormSubmissionGetRequest$json,
   '.identity.v1.FormSubmissionGetResponse': FormSubmissionGetResponse$json,
   '.identity.v1.FormSubmissionSearchRequest': FormSubmissionSearchRequest$json,
-  '.identity.v1.FormSubmissionSearchResponse': FormSubmissionSearchResponse$json,
+  '.identity.v1.FormSubmissionSearchResponse':
+      FormSubmissionSearchResponse$json,
 };
 
 /// Descriptor for `IdentityService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -2994,4 +4415,3 @@ final $typed_data.Uint8List identityServiceDescriptor = $convert.base64Decode(
     'Z2USEGNsaWVudF9kYXRhX3ZpZXcSEmNsaWVudF9kYXRhX21hbmFnZRISY2xpZW50X2RhdGFfdm'
     'VyaWZ5EhJmb3JtX3RlbXBsYXRlX3ZpZXcSFGZvcm1fdGVtcGxhdGVfbWFuYWdlEhRmb3JtX3N1'
     'Ym1pc3Npb25fdmlldxIWZm9ybV9zdWJtaXNzaW9uX21hbmFnZQ==');
-

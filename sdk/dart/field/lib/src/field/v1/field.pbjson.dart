@@ -1,20 +1,24 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: field/v1/field.proto
-//
-// @dart = 2.12
+// Generated from field/v1/field.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+// ignore_for_file: unused_import
 
 import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-import '../../common/v1/common.pbjson.dart' as $7;
-import '../../google/protobuf/struct.pbjson.dart' as $6;
+import 'package:protobuf/well_known_types/google/protobuf/struct.pbjson.dart'
+    as $0;
+
+import '../../common/v1/common.pbjson.dart' as $1;
 
 @$core.Deprecated('Use agentTypeDescriptor instead')
 const AgentType$json = {
@@ -36,15 +40,50 @@ const AgentObject$json = {
   '1': 'AgentObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'parent_agent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentAgentId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'parent_agent_id',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'parentAgentId'
+    },
     {'1': 'profile_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
-    {'1': 'agent_type', '3': 5, '4': 1, '5': 14, '6': '.field.v1.AgentType', '10': 'agentType'},
+    {
+      '1': 'agent_type',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.field.v1.AgentType',
+      '10': 'agentType'
+    },
     {'1': 'name', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'geo_id', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'geoId'},
     {'1': 'depth', '3': 8, '4': 1, '5': 5, '10': 'depth'},
-    {'1': 'state', '3': 9, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 9,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
     {'1': 'branch_ids', '3': 11, '4': 3, '5': 9, '10': 'branchIds'},
   ],
 };
@@ -68,8 +107,22 @@ const AgentBranchObject$json = {
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'agent_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'branch_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'state', '3': 4, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 5, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -89,9 +142,30 @@ const ClientObject$json = {
     {'1': 'agent_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'profile_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
     {'1': 'name', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'name'},
-    {'1': 'state', '3': 5, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 6, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
-    {'1': 'owning_team_id', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'owningTeamId'},
+    {
+      '1': 'state',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
+    {
+      '1': 'owning_team_id',
+      '3': 7,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'owningTeamId'
+    },
   ],
   '9': [
     {'1': 8, '2': 9},
@@ -101,11 +175,11 @@ const ClientObject$json = {
 /// Descriptor for `ClientObject`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List clientObjectDescriptor = $convert.base64Decode(
     'CgxDbGllbnRPYmplY3QSLgoCaWQYASABKAlCHrpIG9gBAXIWEAMYKDIQWzAtOWEtel8tXXszLD'
-    'QwfVICaWQSJAoIYWdlbnRfaWQYAiABKAlCCbpIBnIEEAMYKFIHYWdlbnRJZBIoCgpwcm9maWxl'
-    'X2lkGAMgASgJQgm6SAZyBBADGChSCXByb2ZpbGVJZBIbCgRuYW1lGAQgASgJQge6SARyAhABUg'
-    'RuYW1lEiYKBXN0YXRlGAUgASgOMhAuY29tbW9uLnYxLlNUQVRFUgVzdGF0ZRI3Cgpwcm9wZXJ0'
-    'aWVzGAYgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVydGllcxIwCg5vd25pbm'
-    'dfdGVhbV9pZBgHIAEoCUIKukgH2AEBcgIYKFIMb3duaW5nVGVhbUlkSgQICBAJ');
+    'QwfVICaWQSJwoIYWdlbnRfaWQYAiABKAlCDLpICdgBAXIEEAMYKFIHYWdlbnRJZBIrCgpwcm9m'
+    'aWxlX2lkGAMgASgJQgy6SAnYAQFyBBADGChSCXByb2ZpbGVJZBIbCgRuYW1lGAQgASgJQge6SA'
+    'RyAhABUgRuYW1lEiYKBXN0YXRlGAUgASgOMhAuY29tbW9uLnYxLlNUQVRFUgVzdGF0ZRI3Cgpw'
+    'cm9wZXJ0aWVzGAYgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVydGllcxIwCg'
+    '5vd25pbmdfdGVhbV9pZBgHIAEoCUIKukgH2AEBcgIYKFIMb3duaW5nVGVhbUlkSgQICBAJ');
 
 @$core.Deprecated('Use clientRelationshipObjectDescriptor instead')
 const ClientRelationshipObject$json = {
@@ -117,8 +191,22 @@ const ClientRelationshipObject$json = {
     {'1': 'name', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'description', '3': 5, '4': 1, '5': 9, '10': 'description'},
     {'1': 'is_primary', '3': 6, '4': 1, '5': 8, '10': 'isPrimary'},
-    {'1': 'state', '3': 7, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -136,7 +224,15 @@ final $typed_data.Uint8List clientRelationshipObjectDescriptor = $convert.base64
 const AgentSaveRequest$json = {
   '1': 'AgentSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.AgentObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.AgentObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -149,7 +245,14 @@ final $typed_data.Uint8List agentSaveRequestDescriptor = $convert.base64Decode(
 const AgentSaveResponse$json = {
   '1': 'AgentSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.AgentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.AgentObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -175,7 +278,14 @@ final $typed_data.Uint8List agentGetRequestDescriptor = $convert.base64Decode(
 const AgentGetResponse$json = {
   '1': 'AgentGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.AgentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.AgentObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -190,9 +300,31 @@ const AgentSearchRequest$json = {
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'branch_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'parent_agent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'parentAgentId'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
-    {'1': 'organization_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'parent_agent_id',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'parentAgentId'
+    },
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
+    {
+      '1': 'organization_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
   ],
 };
 
@@ -209,7 +341,14 @@ final $typed_data.Uint8List agentSearchRequestDescriptor = $convert.base64Decode
 const AgentSearchResponse$json = {
   '1': 'AgentSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.field.v1.AgentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.field.v1.AgentObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -236,40 +375,65 @@ final $typed_data.Uint8List agentHierarchyRequestDescriptor = $convert.base64Dec
 const AgentHierarchyResponse$json = {
   '1': 'AgentHierarchyResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.field.v1.AgentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.field.v1.AgentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AgentHierarchyResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List agentHierarchyResponseDescriptor = $convert.base64Decode(
-    'ChZBZ2VudEhpZXJhcmNoeVJlc3BvbnNlEikKBGRhdGEYASADKAsyFS5maWVsZC52MS5BZ2VudE'
-    '9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List agentHierarchyResponseDescriptor =
+    $convert.base64Decode(
+        'ChZBZ2VudEhpZXJhcmNoeVJlc3BvbnNlEikKBGRhdGEYASADKAsyFS5maWVsZC52MS5BZ2VudE'
+        '9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use agentBranchSaveRequestDescriptor instead')
 const AgentBranchSaveRequest$json = {
   '1': 'AgentBranchSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.AgentBranchObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.AgentBranchObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AgentBranchSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List agentBranchSaveRequestDescriptor = $convert.base64Decode(
-    'ChZBZ2VudEJyYW5jaFNhdmVSZXF1ZXN0EjcKBGRhdGEYASABKAsyGy5maWVsZC52MS5BZ2VudE'
-    'JyYW5jaE9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List agentBranchSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChZBZ2VudEJyYW5jaFNhdmVSZXF1ZXN0EjcKBGRhdGEYASABKAsyGy5maWVsZC52MS5BZ2VudE'
+        'JyYW5jaE9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use agentBranchSaveResponseDescriptor instead')
 const AgentBranchSaveResponse$json = {
   '1': 'AgentBranchSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.AgentBranchObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.AgentBranchObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AgentBranchSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List agentBranchSaveResponseDescriptor = $convert.base64Decode(
-    'ChdBZ2VudEJyYW5jaFNhdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsuZmllbGQudjEuQWdlbn'
-    'RCcmFuY2hPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List agentBranchSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChdBZ2VudEJyYW5jaFNhdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsuZmllbGQudjEuQWdlbn'
+        'RCcmFuY2hPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use agentBranchDeleteRequestDescriptor instead')
 const AgentBranchDeleteRequest$json = {
@@ -280,9 +444,10 @@ const AgentBranchDeleteRequest$json = {
 };
 
 /// Descriptor for `AgentBranchDeleteRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List agentBranchDeleteRequestDescriptor = $convert.base64Decode(
-    'ChhBZ2VudEJyYW5jaERlbGV0ZVJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
-    'Etel8tXXszLDQwfVICaWQ=');
+final $typed_data.Uint8List agentBranchDeleteRequestDescriptor =
+    $convert.base64Decode(
+        'ChhBZ2VudEJyYW5jaERlbGV0ZVJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
+        'Etel8tXXszLDQwfVICaWQ=');
 
 @$core.Deprecated('Use agentBranchDeleteResponseDescriptor instead')
 const AgentBranchDeleteResponse$json = {
@@ -290,8 +455,8 @@ const AgentBranchDeleteResponse$json = {
 };
 
 /// Descriptor for `AgentBranchDeleteResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List agentBranchDeleteResponseDescriptor = $convert.base64Decode(
-    'ChlBZ2VudEJyYW5jaERlbGV0ZVJlc3BvbnNl');
+final $typed_data.Uint8List agentBranchDeleteResponseDescriptor =
+    $convert.base64Decode('ChlBZ2VudEJyYW5jaERlbGV0ZVJlc3BvbnNl');
 
 @$core.Deprecated('Use agentBranchListRequestDescriptor instead')
 const AgentBranchListRequest$json = {
@@ -299,7 +464,15 @@ const AgentBranchListRequest$json = {
   '2': [
     {'1': 'agent_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'branch_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -315,20 +488,36 @@ final $typed_data.Uint8List agentBranchListRequestDescriptor = $convert.base64De
 const AgentBranchListResponse$json = {
   '1': 'AgentBranchListResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.field.v1.AgentBranchObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.field.v1.AgentBranchObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `AgentBranchListResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List agentBranchListResponseDescriptor = $convert.base64Decode(
-    'ChdBZ2VudEJyYW5jaExpc3RSZXNwb25zZRIvCgRkYXRhGAEgAygLMhsuZmllbGQudjEuQWdlbn'
-    'RCcmFuY2hPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List agentBranchListResponseDescriptor =
+    $convert.base64Decode(
+        'ChdBZ2VudEJyYW5jaExpc3RSZXNwb25zZRIvCgRkYXRhGAEgAygLMhsuZmllbGQudjEuQWdlbn'
+        'RCcmFuY2hPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use clientSaveRequestDescriptor instead')
 const ClientSaveRequest$json = {
   '1': 'ClientSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -341,7 +530,14 @@ final $typed_data.Uint8List clientSaveRequestDescriptor = $convert.base64Decode(
 const ClientSaveResponse$json = {
   '1': 'ClientSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -367,7 +563,14 @@ final $typed_data.Uint8List clientGetRequestDescriptor = $convert.base64Decode(
 const ClientGetResponse$json = {
   '1': 'ClientGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -382,8 +585,23 @@ const ClientSearchRequest$json = {
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'agent_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
-    {'1': 'owning_team_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'owningTeamId'},
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
+    {
+      '1': 'owning_team_id',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'owningTeamId'
+    },
     {'1': 'member_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
     {'1': 'profile_id', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'profileId'},
   ],
@@ -403,7 +621,14 @@ final $typed_data.Uint8List clientSearchRequestDescriptor = $convert.base64Decod
 const ClientSearchResponse$json = {
   '1': 'ClientSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.field.v1.ClientObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.field.v1.ClientObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -433,70 +658,111 @@ final $typed_data.Uint8List clientReassignRequestDescriptor = $convert.base64Dec
 const ClientReassignResponse$json = {
   '1': 'ClientReassignResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientReassignResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientReassignResponseDescriptor = $convert.base64Decode(
-    'ChZDbGllbnRSZWFzc2lnblJlc3BvbnNlEioKBGRhdGEYASABKAsyFi5maWVsZC52MS5DbGllbn'
-    'RPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List clientReassignResponseDescriptor =
+    $convert.base64Decode(
+        'ChZDbGllbnRSZWFzc2lnblJlc3BvbnNlEioKBGRhdGEYASABKAsyFi5maWVsZC52MS5DbGllbn'
+        'RPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use clientOwnershipTransferRequestDescriptor instead')
 const ClientOwnershipTransferRequest$json = {
   '1': 'ClientOwnershipTransferRequest',
   '2': [
     {'1': 'client_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
-    {'1': 'new_owning_team_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'newOwningTeamId'},
+    {
+      '1': 'new_owning_team_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'newOwningTeamId'
+    },
     {'1': 'reason', '3': 3, '4': 1, '5': 9, '10': 'reason'},
   ],
 };
 
 /// Descriptor for `ClientOwnershipTransferRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientOwnershipTransferRequestDescriptor = $convert.base64Decode(
-    'Ch5DbGllbnRPd25lcnNoaXBUcmFuc2ZlclJlcXVlc3QSOAoJY2xpZW50X2lkGAEgASgJQhu6SB'
-    'hyFhADGCgyEFswLTlhLXpfLV17Myw0MH1SCGNsaWVudElkEjYKEm5ld19vd25pbmdfdGVhbV9p'
-    'ZBgCIAEoCUIJukgGcgQQAxgoUg9uZXdPd25pbmdUZWFtSWQSFgoGcmVhc29uGAMgASgJUgZyZW'
-    'Fzb24=');
+final $typed_data.Uint8List clientOwnershipTransferRequestDescriptor =
+    $convert.base64Decode(
+        'Ch5DbGllbnRPd25lcnNoaXBUcmFuc2ZlclJlcXVlc3QSOAoJY2xpZW50X2lkGAEgASgJQhu6SB'
+        'hyFhADGCgyEFswLTlhLXpfLV17Myw0MH1SCGNsaWVudElkEjYKEm5ld19vd25pbmdfdGVhbV9p'
+        'ZBgCIAEoCUIJukgGcgQQAxgoUg9uZXdPd25pbmdUZWFtSWQSFgoGcmVhc29uGAMgASgJUgZyZW'
+        'Fzb24=');
 
 @$core.Deprecated('Use clientOwnershipTransferResponseDescriptor instead')
 const ClientOwnershipTransferResponse$json = {
   '1': 'ClientOwnershipTransferResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientOwnershipTransferResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientOwnershipTransferResponseDescriptor = $convert.base64Decode(
-    'Ch9DbGllbnRPd25lcnNoaXBUcmFuc2ZlclJlc3BvbnNlEioKBGRhdGEYASABKAsyFi5maWVsZC'
-    '52MS5DbGllbnRPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List clientOwnershipTransferResponseDescriptor =
+    $convert.base64Decode(
+        'Ch9DbGllbnRPd25lcnNoaXBUcmFuc2ZlclJlc3BvbnNlEioKBGRhdGEYASABKAsyFi5maWVsZC'
+        '52MS5DbGllbnRPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use clientRelationshipSaveRequestDescriptor instead')
 const ClientRelationshipSaveRequest$json = {
   '1': 'ClientRelationshipSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientRelationshipObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientRelationshipObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientRelationshipSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientRelationshipSaveRequestDescriptor = $convert.base64Decode(
-    'Ch1DbGllbnRSZWxhdGlvbnNoaXBTYXZlUmVxdWVzdBI+CgRkYXRhGAEgASgLMiIuZmllbGQudj'
-    'EuQ2xpZW50UmVsYXRpb25zaGlwT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
+final $typed_data.Uint8List clientRelationshipSaveRequestDescriptor =
+    $convert.base64Decode(
+        'Ch1DbGllbnRSZWxhdGlvbnNoaXBTYXZlUmVxdWVzdBI+CgRkYXRhGAEgASgLMiIuZmllbGQudj'
+        'EuQ2xpZW50UmVsYXRpb25zaGlwT2JqZWN0Qga6SAPIAQFSBGRhdGE=');
 
 @$core.Deprecated('Use clientRelationshipSaveResponseDescriptor instead')
 const ClientRelationshipSaveResponse$json = {
   '1': 'ClientRelationshipSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientRelationshipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientRelationshipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientRelationshipSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientRelationshipSaveResponseDescriptor = $convert.base64Decode(
-    'Ch5DbGllbnRSZWxhdGlvbnNoaXBTYXZlUmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmZpZWxkLn'
-    'YxLkNsaWVudFJlbGF0aW9uc2hpcE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List clientRelationshipSaveResponseDescriptor =
+    $convert.base64Decode(
+        'Ch5DbGllbnRSZWxhdGlvbnNoaXBTYXZlUmVzcG9uc2USNgoEZGF0YRgBIAEoCzIiLmZpZWxkLn'
+        'YxLkNsaWVudFJlbGF0aW9uc2hpcE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use clientRelationshipGetRequestDescriptor instead')
 const ClientRelationshipGetRequest$json = {
@@ -507,22 +773,31 @@ const ClientRelationshipGetRequest$json = {
 };
 
 /// Descriptor for `ClientRelationshipGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientRelationshipGetRequestDescriptor = $convert.base64Decode(
-    'ChxDbGllbnRSZWxhdGlvbnNoaXBHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEF'
-    'swLTlhLXpfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List clientRelationshipGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChxDbGllbnRSZWxhdGlvbnNoaXBHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEF'
+        'swLTlhLXpfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use clientRelationshipGetResponseDescriptor instead')
 const ClientRelationshipGetResponse$json = {
   '1': 'ClientRelationshipGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.field.v1.ClientRelationshipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.field.v1.ClientRelationshipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientRelationshipGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientRelationshipGetResponseDescriptor = $convert.base64Decode(
-    'Ch1DbGllbnRSZWxhdGlvbnNoaXBHZXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuZmllbGQudj'
-    'EuQ2xpZW50UmVsYXRpb25zaGlwT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List clientRelationshipGetResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1DbGllbnRSZWxhdGlvbnNoaXBHZXRSZXNwb25zZRI2CgRkYXRhGAEgASgLMiIuZmllbGQudj'
+        'EuQ2xpZW50UmVsYXRpb25zaGlwT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use clientRelationshipSearchRequestDescriptor instead')
 const ClientRelationshipSearchRequest$json = {
@@ -530,7 +805,15 @@ const ClientRelationshipSearchRequest$json = {
   '2': [
     {'1': 'client_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'member_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'memberId'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '8': {}, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '8': {},
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -546,19 +829,32 @@ final $typed_data.Uint8List clientRelationshipSearchRequestDescriptor = $convert
 const ClientRelationshipSearchResponse$json = {
   '1': 'ClientRelationshipSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.field.v1.ClientRelationshipObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.field.v1.ClientRelationshipObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientRelationshipSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientRelationshipSearchResponseDescriptor = $convert.base64Decode(
-    'CiBDbGllbnRSZWxhdGlvbnNoaXBTZWFyY2hSZXNwb25zZRI2CgRkYXRhGAEgAygLMiIuZmllbG'
-    'QudjEuQ2xpZW50UmVsYXRpb25zaGlwT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List clientRelationshipSearchResponseDescriptor =
+    $convert.base64Decode(
+        'CiBDbGllbnRSZWxhdGlvbnNoaXBTZWFyY2hSZXNwb25zZRI2CgRkYXRhGAEgAygLMiIuZmllbG'
+        'QudjEuQ2xpZW50UmVsYXRpb25zaGlwT2JqZWN0UgRkYXRh');
 
 const $core.Map<$core.String, $core.dynamic> FieldServiceBase$json = {
   '1': 'FieldService',
   '2': [
-    {'1': 'AgentSave', '2': '.field.v1.AgentSaveRequest', '3': '.field.v1.AgentSaveResponse', '4': {}},
+    {
+      '1': 'AgentSave',
+      '2': '.field.v1.AgentSaveRequest',
+      '3': '.field.v1.AgentSaveResponse',
+      '4': {}
+    },
     {
       '1': 'AgentGet',
       '2': '.field.v1.AgentGetRequest',
@@ -579,8 +875,18 @@ const $core.Map<$core.String, $core.dynamic> FieldServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'AgentBranchSave', '2': '.field.v1.AgentBranchSaveRequest', '3': '.field.v1.AgentBranchSaveResponse', '4': {}},
-    {'1': 'AgentBranchDelete', '2': '.field.v1.AgentBranchDeleteRequest', '3': '.field.v1.AgentBranchDeleteResponse', '4': {}},
+    {
+      '1': 'AgentBranchSave',
+      '2': '.field.v1.AgentBranchSaveRequest',
+      '3': '.field.v1.AgentBranchSaveResponse',
+      '4': {}
+    },
+    {
+      '1': 'AgentBranchDelete',
+      '2': '.field.v1.AgentBranchDeleteRequest',
+      '3': '.field.v1.AgentBranchDeleteResponse',
+      '4': {}
+    },
     {
       '1': 'AgentBranchList',
       '2': '.field.v1.AgentBranchListRequest',
@@ -588,7 +894,12 @@ const $core.Map<$core.String, $core.dynamic> FieldServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'ClientSave', '2': '.field.v1.ClientSaveRequest', '3': '.field.v1.ClientSaveResponse', '4': {}},
+    {
+      '1': 'ClientSave',
+      '2': '.field.v1.ClientSaveRequest',
+      '3': '.field.v1.ClientSaveResponse',
+      '4': {}
+    },
     {
       '1': 'ClientGet',
       '2': '.field.v1.ClientGetRequest',
@@ -602,9 +913,24 @@ const $core.Map<$core.String, $core.dynamic> FieldServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'ClientReassign', '2': '.field.v1.ClientReassignRequest', '3': '.field.v1.ClientReassignResponse', '4': {}},
-    {'1': 'ClientOwnershipTransfer', '2': '.field.v1.ClientOwnershipTransferRequest', '3': '.field.v1.ClientOwnershipTransferResponse', '4': {}},
-    {'1': 'ClientRelationshipSave', '2': '.field.v1.ClientRelationshipSaveRequest', '3': '.field.v1.ClientRelationshipSaveResponse', '4': {}},
+    {
+      '1': 'ClientReassign',
+      '2': '.field.v1.ClientReassignRequest',
+      '3': '.field.v1.ClientReassignResponse',
+      '4': {}
+    },
+    {
+      '1': 'ClientOwnershipTransfer',
+      '2': '.field.v1.ClientOwnershipTransferRequest',
+      '3': '.field.v1.ClientOwnershipTransferResponse',
+      '4': {}
+    },
+    {
+      '1': 'ClientRelationshipSave',
+      '2': '.field.v1.ClientRelationshipSaveRequest',
+      '3': '.field.v1.ClientRelationshipSaveResponse',
+      '4': {}
+    },
     {
       '1': 'ClientRelationshipGet',
       '2': '.field.v1.ClientRelationshipGetRequest',
@@ -623,18 +949,19 @@ const $core.Map<$core.String, $core.dynamic> FieldServiceBase$json = {
 };
 
 @$core.Deprecated('Use fieldServiceDescriptor instead')
-const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> FieldServiceBase$messageJson = {
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+    FieldServiceBase$messageJson = {
   '.field.v1.AgentSaveRequest': AgentSaveRequest$json,
   '.field.v1.AgentObject': AgentObject$json,
-  '.google.protobuf.Struct': $6.Struct$json,
-  '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
-  '.google.protobuf.Value': $6.Value$json,
-  '.google.protobuf.ListValue': $6.ListValue$json,
+  '.google.protobuf.Struct': $0.Struct$json,
+  '.google.protobuf.Struct.FieldsEntry': $0.Struct_FieldsEntry$json,
+  '.google.protobuf.Value': $0.Value$json,
+  '.google.protobuf.ListValue': $0.ListValue$json,
   '.field.v1.AgentSaveResponse': AgentSaveResponse$json,
   '.field.v1.AgentGetRequest': AgentGetRequest$json,
   '.field.v1.AgentGetResponse': AgentGetResponse$json,
   '.field.v1.AgentSearchRequest': AgentSearchRequest$json,
-  '.common.v1.PageCursor': $7.PageCursor$json,
+  '.common.v1.PageCursor': $1.PageCursor$json,
   '.field.v1.AgentSearchResponse': AgentSearchResponse$json,
   '.field.v1.AgentHierarchyRequest': AgentHierarchyRequest$json,
   '.field.v1.AgentHierarchyResponse': AgentHierarchyResponse$json,
@@ -654,15 +981,20 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> FieldServi
   '.field.v1.ClientSearchResponse': ClientSearchResponse$json,
   '.field.v1.ClientReassignRequest': ClientReassignRequest$json,
   '.field.v1.ClientReassignResponse': ClientReassignResponse$json,
-  '.field.v1.ClientOwnershipTransferRequest': ClientOwnershipTransferRequest$json,
-  '.field.v1.ClientOwnershipTransferResponse': ClientOwnershipTransferResponse$json,
+  '.field.v1.ClientOwnershipTransferRequest':
+      ClientOwnershipTransferRequest$json,
+  '.field.v1.ClientOwnershipTransferResponse':
+      ClientOwnershipTransferResponse$json,
   '.field.v1.ClientRelationshipSaveRequest': ClientRelationshipSaveRequest$json,
   '.field.v1.ClientRelationshipObject': ClientRelationshipObject$json,
-  '.field.v1.ClientRelationshipSaveResponse': ClientRelationshipSaveResponse$json,
+  '.field.v1.ClientRelationshipSaveResponse':
+      ClientRelationshipSaveResponse$json,
   '.field.v1.ClientRelationshipGetRequest': ClientRelationshipGetRequest$json,
   '.field.v1.ClientRelationshipGetResponse': ClientRelationshipGetResponse$json,
-  '.field.v1.ClientRelationshipSearchRequest': ClientRelationshipSearchRequest$json,
-  '.field.v1.ClientRelationshipSearchResponse': ClientRelationshipSearchResponse$json,
+  '.field.v1.ClientRelationshipSearchRequest':
+      ClientRelationshipSearchRequest$json,
+  '.field.v1.ClientRelationshipSearchResponse':
+      ClientRelationshipSearchResponse$json,
 };
 
 /// Descriptor for `FieldService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -736,7 +1068,7 @@ final $typed_data.Uint8List fieldServiceDescriptor = $convert.base64Decode(
     'Y2hSZXNwb25zZSK0AZACAbpHjwEKE0NsaWVudFJlbGF0aW9uc2hpcHMSG1NlYXJjaCBjbGllbn'
     'QgcmVsYXRpb25zaGlwcxpBU2VhcmNoZXMgZm9yIGNsaWVudC1tZW1iZXIgcmVsYXRpb25zaGlw'
     'cyBieSBjbGllbnQgYW5kL29yIG1lbWJlci4qGGNsaWVudFJlbGF0aW9uc2hpcFNlYXJjaIK1GB'
-    'oKGGNsaWVudF9yZWxhdGlvbnNoaXBfdmlldzABGrwGgrUYtwYKDXNlcnZpY2VfZmllbGQSCmFn'
+    'oKGGNsaWVudF9yZWxhdGlvbnNoaXBfdmlldzABGucGgrUY4gYKDXNlcnZpY2VfZmllbGQSCmFn'
     'ZW50X3ZpZXcSDGFnZW50X21hbmFnZRIVYWdlbnRfc3ViYWdlbnRfbWFuYWdlEgtjbGllbnRfdm'
     'lldxINY2xpZW50X21hbmFnZRIYY2xpZW50X3JlbGF0aW9uc2hpcF92aWV3EhpjbGllbnRfcmVs'
     'YXRpb25zaGlwX21hbmFnZRqFAQgBEgphZ2VudF92aWV3EgxhZ2VudF9tYW5hZ2USFWFnZW50X3'
@@ -747,9 +1079,9 @@ final $typed_data.Uint8List fieldServiceDescriptor = $convert.base64Decode(
     'NoaXBfbWFuYWdlGoUBCAMSCmFnZW50X3ZpZXcSDGFnZW50X21hbmFnZRIVYWdlbnRfc3ViYWdl'
     'bnRfbWFuYWdlEgtjbGllbnRfdmlldxINY2xpZW50X21hbmFnZRIYY2xpZW50X3JlbGF0aW9uc2'
     'hpcF92aWV3EhpjbGllbnRfcmVsYXRpb25zaGlwX21hbmFnZRo1CAQSCmFnZW50X3ZpZXcSC2Ns'
-    'aWVudF92aWV3EhhjbGllbnRfcmVsYXRpb25zaGlwX3ZpZXcaTAgFEgphZ2VudF92aWV3EhVhZ2'
-    'VudF9zdWJhZ2VudF9tYW5hZ2USC2NsaWVudF92aWV3EhhjbGllbnRfcmVsYXRpb25zaGlwX3Zp'
-    'ZXcahQEIBhIKYWdlbnRfdmlldxIMYWdlbnRfbWFuYWdlEhVhZ2VudF9zdWJhZ2VudF9tYW5hZ2'
-    'USC2NsaWVudF92aWV3Eg1jbGllbnRfbWFuYWdlEhhjbGllbnRfcmVsYXRpb25zaGlwX3ZpZXcS'
-    'GmNsaWVudF9yZWxhdGlvbnNoaXBfbWFuYWdl');
-
+    'aWVudF92aWV3EhhjbGllbnRfcmVsYXRpb25zaGlwX3ZpZXcadwgFEgphZ2VudF92aWV3EhVhZ2'
+    'VudF9zdWJhZ2VudF9tYW5hZ2USC2NsaWVudF92aWV3Eg1jbGllbnRfbWFuYWdlEhhjbGllbnRf'
+    'cmVsYXRpb25zaGlwX3ZpZXcSGmNsaWVudF9yZWxhdGlvbnNoaXBfbWFuYWdlGoUBCAYSCmFnZW'
+    '50X3ZpZXcSDGFnZW50X21hbmFnZRIVYWdlbnRfc3ViYWdlbnRfbWFuYWdlEgtjbGllbnRfdmll'
+    'dxINY2xpZW50X21hbmFnZRIYY2xpZW50X3JlbGF0aW9uc2hpcF92aWV3EhpjbGllbnRfcmVsYX'
+    'Rpb25zaGlwX21hbmFnZQ==');

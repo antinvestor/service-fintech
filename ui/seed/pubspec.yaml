@@ -12,17 +12,17 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
   cupertino_icons: ^1.0.9
-  antinvestor_ui_core: ^0.5.1
-  antinvestor_ui_audit: ^0.3.2
+  antinvestor_ui_core: ^0.6.0
+  antinvestor_ui_audit: ^0.4.0
   antinvestor_ui_identity:
     path: ../identity
   antinvestor_ui_limits:
     path: ../limits
   antinvestor_ui_loans:
     path: ../loans
-  antinvestor_ui_profile: ^0.2.5
-  antinvestor_ui_geolocation: ^0.2.3
-  antinvestor_api_common: ^1.52.0
+  antinvestor_ui_profile: ^0.3.0
+  antinvestor_ui_geolocation: ^0.3.0
+  antinvestor_api_common: ^2.0.0
   # Direct constraint, not an override: GHSA jose <=0.3.5 accepts untrusted
   # JWK header keys during signature verification, fixed in 0.3.5+1. Stated
   # here (rather than in dependency_overrides) so a local
@@ -30,9 +30,9 @@ dependencies:
   # cannot drop the security floor.
   jose: '>=0.3.5+1'
 
-  antinvestor_api_files: ^1.54.0
-  connectrpc: ^1.0.0
-  fixnum: ^1.1.0
+  antinvestor_api_files: ^2.0.0
+  connectrpc: ^2.0.0
+  fixnum: ^1.1.1
   image_picker: ^1.1.2
   flutter_riverpod: ^3.3.1
   flutter_secure_storage: ^10.0.0
@@ -40,7 +40,7 @@ dependencies:
   google_fonts: ^8.0.2
   http: ^1.6.0
   openid_client: ^0.4.10
-  protobuf: ^4.2.0
+  protobuf: ^6.1.0
   logger: ^2.7.0
   web: ^1.1.1
   app_links: ^7.0.0

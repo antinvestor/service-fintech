@@ -1,21 +1,25 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: loans/v1/loans.proto
-//
-// @dart = 2.12
+// Generated from loans/v1/loans.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+// ignore_for_file: unused_import
 
 import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-import '../../common/v1/common.pbjson.dart' as $8;
-import '../../common/v1/money.pbjson.dart' as $7;
-import '../../google/protobuf/struct.pbjson.dart' as $6;
+import 'package:protobuf/well_known_types/google/protobuf/struct.pbjson.dart'
+    as $1;
+
+import '../../common/v1/common.pbjson.dart' as $2;
+import '../../common/v1/money.pbjson.dart' as $0;
 
 @$core.Deprecated('Use loanStatusDescriptor instead')
 const LoanStatus$json = {
@@ -265,28 +269,142 @@ const LoanProductObject$json = {
   '1': 'LoanProductObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
     {'1': 'name', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'name'},
     {'1': 'code', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'code'},
     {'1': 'description', '3': 5, '4': 1, '5': 9, '10': 'description'},
-    {'1': 'product_type', '3': 6, '4': 1, '5': 14, '6': '.loans.v1.LoanProductType', '10': 'productType'},
-    {'1': 'currency_code', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'currencyCode'},
-    {'1': 'interest_method', '3': 8, '4': 1, '5': 14, '6': '.loans.v1.InterestMethod', '10': 'interestMethod'},
-    {'1': 'repayment_frequency', '3': 9, '4': 1, '5': 14, '6': '.loans.v1.RepaymentFrequency', '10': 'repaymentFrequency'},
-    {'1': 'min_amount', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'minAmount'},
-    {'1': 'max_amount', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'maxAmount'},
+    {
+      '1': 'product_type',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.LoanProductType',
+      '10': 'productType'
+    },
+    {
+      '1': 'currency_code',
+      '3': 7,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'currencyCode'
+    },
+    {
+      '1': 'interest_method',
+      '3': 8,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.InterestMethod',
+      '10': 'interestMethod'
+    },
+    {
+      '1': 'repayment_frequency',
+      '3': 9,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.RepaymentFrequency',
+      '10': 'repaymentFrequency'
+    },
+    {
+      '1': 'min_amount',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'minAmount'
+    },
+    {
+      '1': 'max_amount',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'maxAmount'
+    },
     {'1': 'min_term_days', '3': 12, '4': 1, '5': 5, '10': 'minTermDays'},
     {'1': 'max_term_days', '3': 13, '4': 1, '5': 5, '10': 'maxTermDays'},
-    {'1': 'annual_interest_rate', '3': 14, '4': 1, '5': 9, '10': 'annualInterestRate'},
-    {'1': 'processing_fee_percent', '3': 15, '4': 1, '5': 9, '10': 'processingFeePercent'},
-    {'1': 'insurance_fee_percent', '3': 16, '4': 1, '5': 9, '10': 'insuranceFeePercent'},
-    {'1': 'late_penalty_rate', '3': 17, '4': 1, '5': 9, '10': 'latePenaltyRate'},
-    {'1': 'grace_period_days', '3': 18, '4': 1, '5': 5, '10': 'gracePeriodDays'},
-    {'1': 'fee_structure', '3': 19, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'feeStructure'},
-    {'1': 'eligibility_criteria', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'eligibilityCriteria'},
-    {'1': 'state', '3': 21, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 22, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
-    {'1': 'required_forms', '3': 23, '4': 3, '5': 11, '6': '.loans.v1.ProductFormRequirement', '10': 'requiredForms'},
+    {
+      '1': 'annual_interest_rate',
+      '3': 14,
+      '4': 1,
+      '5': 9,
+      '10': 'annualInterestRate'
+    },
+    {
+      '1': 'processing_fee_percent',
+      '3': 15,
+      '4': 1,
+      '5': 9,
+      '10': 'processingFeePercent'
+    },
+    {
+      '1': 'insurance_fee_percent',
+      '3': 16,
+      '4': 1,
+      '5': 9,
+      '10': 'insuranceFeePercent'
+    },
+    {
+      '1': 'late_penalty_rate',
+      '3': 17,
+      '4': 1,
+      '5': 9,
+      '10': 'latePenaltyRate'
+    },
+    {
+      '1': 'grace_period_days',
+      '3': 18,
+      '4': 1,
+      '5': 5,
+      '10': 'gracePeriodDays'
+    },
+    {
+      '1': 'fee_structure',
+      '3': 19,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'feeStructure'
+    },
+    {
+      '1': 'eligibility_criteria',
+      '3': 20,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'eligibilityCriteria'
+    },
+    {
+      '1': 'state',
+      '3': 21,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 22,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
+    {
+      '1': 'required_forms',
+      '3': 23,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.ProductFormRequirement',
+      '10': 'requiredForms'
+    },
   ],
 };
 
@@ -324,12 +442,53 @@ const LoanRequestObject$json = {
     {'1': 'client_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'agent_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'branch_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'organization_id', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'status', '3': 7, '4': 1, '5': 14, '6': '.loans.v1.LoanRequestStatus', '8': {}, '10': 'status'},
-    {'1': 'requested_amount', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'requestedAmount'},
-    {'1': 'approved_amount', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'approvedAmount'},
-    {'1': 'requested_term_days', '3': 10, '4': 1, '5': 5, '10': 'requestedTermDays'},
-    {'1': 'approved_term_days', '3': 11, '4': 1, '5': 5, '10': 'approvedTermDays'},
+    {
+      '1': 'organization_id',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'status',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.LoanRequestStatus',
+      '8': {},
+      '10': 'status'
+    },
+    {
+      '1': 'requested_amount',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'requestedAmount'
+    },
+    {
+      '1': 'approved_amount',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'approvedAmount'
+    },
+    {
+      '1': 'requested_term_days',
+      '3': 10,
+      '4': 1,
+      '5': 5,
+      '10': 'requestedTermDays'
+    },
+    {
+      '1': 'approved_term_days',
+      '3': 11,
+      '4': 1,
+      '5': 5,
+      '10': 'approvedTermDays'
+    },
     {'1': 'interest_rate', '3': 12, '4': 1, '5': 9, '10': 'interestRate'},
     {'1': 'currency_code', '3': 13, '4': 1, '5': 9, '10': 'currencyCode'},
     {'1': 'purpose', '3': 14, '4': 1, '5': 9, '10': 'purpose'},
@@ -339,9 +498,22 @@ const LoanRequestObject$json = {
     {'1': 'decided_at', '3': 18, '4': 1, '5': 9, '10': 'decidedAt'},
     {'1': 'loan_account_id', '3': 19, '4': 1, '5': 9, '10': 'loanAccountId'},
     {'1': 'source_service', '3': 20, '4': 1, '5': 9, '10': 'sourceService'},
-    {'1': 'source_request_id', '3': 21, '4': 1, '5': 9, '10': 'sourceRequestId'},
+    {
+      '1': 'source_request_id',
+      '3': 21,
+      '4': 1,
+      '5': 9,
+      '10': 'sourceRequestId'
+    },
     {'1': 'idempotency_key', '3': 22, '4': 1, '5': 9, '10': 'idempotencyKey'},
-    {'1': 'properties', '3': 23, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 23,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -375,7 +547,14 @@ const ClientProductAccessObject$json = {
     {'1': 'client_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'product_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'productId'},
     {'1': 'granted_by', '3': 4, '4': 1, '5': 9, '10': 'grantedBy'},
-    {'1': 'state', '3': 5, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
+    {
+      '1': 'state',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
   ],
 };
 
@@ -392,29 +571,113 @@ const LoanAccountObject$json = {
   '1': 'LoanAccountObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'loan_request_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanRequestId'},
+    {
+      '1': 'loan_request_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanRequestId'
+    },
     {'1': 'product_id', '3': 3, '4': 1, '5': 9, '10': 'productId'},
     {'1': 'client_id', '3': 4, '4': 1, '5': 9, '10': 'clientId'},
     {'1': 'agent_id', '3': 5, '4': 1, '5': 9, '10': 'agentId'},
     {'1': 'branch_id', '3': 6, '4': 1, '5': 9, '10': 'branchId'},
     {'1': 'organization_id', '3': 7, '4': 1, '5': 9, '10': 'organizationId'},
-    {'1': 'status', '3': 8, '4': 1, '5': 14, '6': '.loans.v1.LoanStatus', '10': 'status'},
-    {'1': 'principal_amount', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalAmount'},
+    {
+      '1': 'status',
+      '3': 8,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.LoanStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'principal_amount',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'principalAmount'
+    },
     {'1': 'interest_rate', '3': 11, '4': 1, '5': 9, '10': 'interestRate'},
     {'1': 'term_days', '3': 12, '4': 1, '5': 5, '10': 'termDays'},
-    {'1': 'interest_method', '3': 13, '4': 1, '5': 14, '6': '.loans.v1.InterestMethod', '10': 'interestMethod'},
-    {'1': 'repayment_frequency', '3': 14, '4': 1, '5': 14, '6': '.loans.v1.RepaymentFrequency', '10': 'repaymentFrequency'},
+    {
+      '1': 'interest_method',
+      '3': 13,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.InterestMethod',
+      '10': 'interestMethod'
+    },
+    {
+      '1': 'repayment_frequency',
+      '3': 14,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.RepaymentFrequency',
+      '10': 'repaymentFrequency'
+    },
     {'1': 'disbursed_at', '3': 15, '4': 1, '5': 9, '10': 'disbursedAt'},
     {'1': 'maturity_date', '3': 16, '4': 1, '5': 9, '10': 'maturityDate'},
-    {'1': 'first_repayment_date', '3': 17, '4': 1, '5': 9, '10': 'firstRepaymentDate'},
-    {'1': 'last_repayment_date', '3': 18, '4': 1, '5': 9, '10': 'lastRepaymentDate'},
+    {
+      '1': 'first_repayment_date',
+      '3': 17,
+      '4': 1,
+      '5': 9,
+      '10': 'firstRepaymentDate'
+    },
+    {
+      '1': 'last_repayment_date',
+      '3': 18,
+      '4': 1,
+      '5': 9,
+      '10': 'lastRepaymentDate'
+    },
     {'1': 'days_past_due', '3': 19, '4': 1, '5': 5, '10': 'daysPastDue'},
-    {'1': 'ledger_asset_account_id', '3': 20, '4': 1, '5': 9, '10': 'ledgerAssetAccountId'},
-    {'1': 'ledger_interest_income_account_id', '3': 21, '4': 1, '5': 9, '10': 'ledgerInterestIncomeAccountId'},
-    {'1': 'ledger_fee_income_account_id', '3': 22, '4': 1, '5': 9, '10': 'ledgerFeeIncomeAccountId'},
-    {'1': 'ledger_penalty_income_account_id', '3': 23, '4': 1, '5': 9, '10': 'ledgerPenaltyIncomeAccountId'},
-    {'1': 'payment_account_ref', '3': 24, '4': 1, '5': 9, '10': 'paymentAccountRef'},
-    {'1': 'properties', '3': 25, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'ledger_asset_account_id',
+      '3': 20,
+      '4': 1,
+      '5': 9,
+      '10': 'ledgerAssetAccountId'
+    },
+    {
+      '1': 'ledger_interest_income_account_id',
+      '3': 21,
+      '4': 1,
+      '5': 9,
+      '10': 'ledgerInterestIncomeAccountId'
+    },
+    {
+      '1': 'ledger_fee_income_account_id',
+      '3': 22,
+      '4': 1,
+      '5': 9,
+      '10': 'ledgerFeeIncomeAccountId'
+    },
+    {
+      '1': 'ledger_penalty_income_account_id',
+      '3': 23,
+      '4': 1,
+      '5': 9,
+      '10': 'ledgerPenaltyIncomeAccountId'
+    },
+    {
+      '1': 'payment_account_ref',
+      '3': 24,
+      '4': 1,
+      '5': 9,
+      '10': 'paymentAccountRef'
+    },
+    {
+      '1': 'properties',
+      '3': 25,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -452,8 +715,22 @@ const RepaymentScheduleObject$json = {
     {'1': 'version', '3': 3, '4': 1, '5': 5, '10': 'version'},
     {'1': 'is_active', '3': 4, '4': 1, '5': 8, '10': 'isActive'},
     {'1': 'generated_at', '3': 5, '4': 1, '5': 9, '10': 'generatedAt'},
-    {'1': 'entries', '3': 6, '4': 3, '5': 11, '6': '.loans.v1.ScheduleEntryObject', '10': 'entries'},
-    {'1': 'properties', '3': 7, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'entries',
+      '3': 6,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.ScheduleEntryObject',
+      '10': 'entries'
+    },
+    {
+      '1': 'properties',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -472,20 +749,103 @@ const ScheduleEntryObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
     {'1': 'schedule_id', '3': 2, '4': 1, '5': 9, '10': 'scheduleId'},
-    {'1': 'installment_number', '3': 3, '4': 1, '5': 5, '10': 'installmentNumber'},
+    {
+      '1': 'installment_number',
+      '3': 3,
+      '4': 1,
+      '5': 5,
+      '10': 'installmentNumber'
+    },
     {'1': 'due_date', '3': 4, '4': 1, '5': 9, '10': 'dueDate'},
-    {'1': 'principal_due', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalDue'},
-    {'1': 'interest_due', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestDue'},
-    {'1': 'fees_due', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesDue'},
-    {'1': 'total_due', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDue'},
-    {'1': 'principal_paid', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalPaid'},
-    {'1': 'interest_paid', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestPaid'},
-    {'1': 'fees_paid', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesPaid'},
-    {'1': 'total_paid', '3': 12, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalPaid'},
-    {'1': 'outstanding', '3': 13, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'outstanding'},
-    {'1': 'status', '3': 14, '4': 1, '5': 14, '6': '.loans.v1.ScheduleEntryStatus', '10': 'status'},
+    {
+      '1': 'principal_due',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'principalDue'
+    },
+    {
+      '1': 'interest_due',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'interestDue'
+    },
+    {
+      '1': 'fees_due',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'feesDue'
+    },
+    {
+      '1': 'total_due',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalDue'
+    },
+    {
+      '1': 'principal_paid',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'principalPaid'
+    },
+    {
+      '1': 'interest_paid',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'interestPaid'
+    },
+    {
+      '1': 'fees_paid',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'feesPaid'
+    },
+    {
+      '1': 'total_paid',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalPaid'
+    },
+    {
+      '1': 'outstanding',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'outstanding'
+    },
+    {
+      '1': 'status',
+      '3': 14,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.ScheduleEntryStatus',
+      '10': 'status'
+    },
     {'1': 'paid_date', '3': 15, '4': 1, '5': 9, '10': 'paidDate'},
-    {'1': 'properties', '3': 16, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 16,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -511,14 +871,69 @@ const LoanBalanceObject$json = {
   '1': 'LoanBalanceObject',
   '2': [
     {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '10': 'loanAccountId'},
-    {'1': 'principal_outstanding', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalOutstanding'},
-    {'1': 'interest_accrued', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestAccrued'},
-    {'1': 'fees_outstanding', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesOutstanding'},
-    {'1': 'penalties_outstanding', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'penaltiesOutstanding'},
-    {'1': 'total_outstanding', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalOutstanding'},
-    {'1': 'total_paid', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalPaid'},
-    {'1': 'total_disbursed', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDisbursed'},
-    {'1': 'last_calculated_at', '3': 9, '4': 1, '5': 9, '10': 'lastCalculatedAt'},
+    {
+      '1': 'principal_outstanding',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'principalOutstanding'
+    },
+    {
+      '1': 'interest_accrued',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'interestAccrued'
+    },
+    {
+      '1': 'fees_outstanding',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'feesOutstanding'
+    },
+    {
+      '1': 'penalties_outstanding',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'penaltiesOutstanding'
+    },
+    {
+      '1': 'total_outstanding',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalOutstanding'
+    },
+    {
+      '1': 'total_paid',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalPaid'
+    },
+    {
+      '1': 'total_disbursed',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalDisbursed'
+    },
+    {
+      '1': 'last_calculated_at',
+      '3': 9,
+      '4': 1,
+      '5': 9,
+      '10': 'lastCalculatedAt'
+    },
   ],
 };
 
@@ -540,17 +955,63 @@ const DisbursementObject$json = {
   '1': 'DisbursementObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
-    {'1': 'status', '3': 5, '4': 1, '5': 14, '6': '.loans.v1.DisbursementStatus', '10': 'status'},
-    {'1': 'payment_reference', '3': 6, '4': 1, '5': 9, '10': 'paymentReference'},
-    {'1': 'ledger_transaction_id', '3': 7, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
+    {
+      '1': 'loan_account_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'amount',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
+    {
+      '1': 'status',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.DisbursementStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'payment_reference',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '10': 'paymentReference'
+    },
+    {
+      '1': 'ledger_transaction_id',
+      '3': 7,
+      '4': 1,
+      '5': 9,
+      '10': 'ledgerTransactionId'
+    },
     {'1': 'disbursed_at', '3': 8, '4': 1, '5': 9, '10': 'disbursedAt'},
     {'1': 'channel', '3': 9, '4': 1, '5': 9, '10': 'channel'},
-    {'1': 'recipient_reference', '3': 10, '4': 1, '5': 9, '10': 'recipientReference'},
+    {
+      '1': 'recipient_reference',
+      '3': 10,
+      '4': 1,
+      '5': 9,
+      '10': 'recipientReference'
+    },
     {'1': 'failure_reason', '3': 11, '4': 1, '5': 9, '10': 'failureReason'},
     {'1': 'idempotency_key', '3': 12, '4': 1, '5': 9, '10': 'idempotencyKey'},
-    {'1': 'properties', '3': 13, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -573,21 +1034,96 @@ const RepaymentObject$json = {
   '1': 'RepaymentObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'amount', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
-    {'1': 'status', '3': 5, '4': 1, '5': 14, '6': '.loans.v1.RepaymentStatus', '10': 'status'},
-    {'1': 'payment_reference', '3': 6, '4': 1, '5': 9, '10': 'paymentReference'},
-    {'1': 'ledger_transaction_id', '3': 7, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
+    {
+      '1': 'loan_account_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'amount',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
+    {
+      '1': 'status',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.RepaymentStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'payment_reference',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '10': 'paymentReference'
+    },
+    {
+      '1': 'ledger_transaction_id',
+      '3': 7,
+      '4': 1,
+      '5': 9,
+      '10': 'ledgerTransactionId'
+    },
     {'1': 'received_at', '3': 8, '4': 1, '5': 9, '10': 'receivedAt'},
     {'1': 'channel', '3': 9, '4': 1, '5': 9, '10': 'channel'},
     {'1': 'payer_reference', '3': 10, '4': 1, '5': 9, '10': 'payerReference'},
-    {'1': 'principal_applied', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalApplied'},
-    {'1': 'interest_applied', '3': 12, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestApplied'},
-    {'1': 'fees_applied', '3': 13, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesApplied'},
-    {'1': 'penalties_applied', '3': 14, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'penaltiesApplied'},
-    {'1': 'excess_amount', '3': 15, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'excessAmount'},
+    {
+      '1': 'principal_applied',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'principalApplied'
+    },
+    {
+      '1': 'interest_applied',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'interestApplied'
+    },
+    {
+      '1': 'fees_applied',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'feesApplied'
+    },
+    {
+      '1': 'penalties_applied',
+      '3': 14,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'penaltiesApplied'
+    },
+    {
+      '1': 'excess_amount',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'excessAmount'
+    },
     {'1': 'idempotency_key', '3': 16, '4': 1, '5': 9, '10': 'idempotencyKey'},
-    {'1': 'properties', '3': 17, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 17,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -614,17 +1150,57 @@ const PenaltyObject$json = {
   '1': 'PenaltyObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'penalty_type', '3': 3, '4': 1, '5': 14, '6': '.loans.v1.PenaltyType', '10': 'penaltyType'},
-    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
+    {
+      '1': 'loan_account_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'penalty_type',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.PenaltyType',
+      '10': 'penaltyType'
+    },
+    {
+      '1': 'amount',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
     {'1': 'reason', '3': 5, '4': 1, '5': 9, '10': 'reason'},
     {'1': 'is_waived', '3': 6, '4': 1, '5': 8, '10': 'isWaived'},
     {'1': 'waived_by', '3': 7, '4': 1, '5': 9, '10': 'waivedBy'},
     {'1': 'waived_reason', '3': 8, '4': 1, '5': 9, '10': 'waivedReason'},
-    {'1': 'ledger_transaction_id', '3': 9, '4': 1, '5': 9, '10': 'ledgerTransactionId'},
+    {
+      '1': 'ledger_transaction_id',
+      '3': 9,
+      '4': 1,
+      '5': 9,
+      '10': 'ledgerTransactionId'
+    },
     {'1': 'applied_at', '3': 10, '4': 1, '5': 9, '10': 'appliedAt'},
-    {'1': 'schedule_entry_id', '3': 11, '4': 1, '5': 9, '10': 'scheduleEntryId'},
-    {'1': 'properties', '3': 12, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'schedule_entry_id',
+      '3': 11,
+      '4': 1,
+      '5': 9,
+      '10': 'scheduleEntryId'
+    },
+    {
+      '1': 'properties',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -646,8 +1222,22 @@ const LoanRestructureObject$json = {
   '1': 'LoanRestructureObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'restructure_type', '3': 3, '4': 1, '5': 14, '6': '.loans.v1.RestructureType', '10': 'restructureType'},
+    {
+      '1': 'loan_account_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'restructure_type',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.RestructureType',
+      '10': 'restructureType'
+    },
     {'1': 'requested_by', '3': 4, '4': 1, '5': 9, '10': 'requestedBy'},
     {'1': 'approved_by', '3': 5, '4': 1, '5': 9, '10': 'approvedBy'},
     {'1': 'reason', '3': 6, '4': 1, '5': 9, '10': 'reason'},
@@ -655,11 +1245,32 @@ const LoanRestructureObject$json = {
     {'1': 'new_interest_rate', '3': 8, '4': 1, '5': 9, '10': 'newInterestRate'},
     {'1': 'old_term_days', '3': 9, '4': 1, '5': 5, '10': 'oldTermDays'},
     {'1': 'new_term_days', '3': 10, '4': 1, '5': 5, '10': 'newTermDays'},
-    {'1': 'waived_amount', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'waivedAmount'},
+    {
+      '1': 'waived_amount',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'waivedAmount'
+    },
     {'1': 'old_schedule_id', '3': 12, '4': 1, '5': 9, '10': 'oldScheduleId'},
     {'1': 'new_schedule_id', '3': 13, '4': 1, '5': 9, '10': 'newScheduleId'},
-    {'1': 'state', '3': 14, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'properties', '3': 15, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'state',
+      '3': 14,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'properties',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -706,16 +1317,62 @@ const ReconciliationObject$json = {
   '1': 'ReconciliationObject',
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
-    {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'payment_reference', '3': 3, '4': 1, '5': 9, '10': 'paymentReference'},
-    {'1': 'external_reference', '3': 4, '4': 1, '5': 9, '10': 'externalReference'},
-    {'1': 'amount', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
-    {'1': 'status', '3': 7, '4': 1, '5': 14, '6': '.loans.v1.ReconciliationStatus', '10': 'status'},
-    {'1': 'matched_repayment_id', '3': 8, '4': 1, '5': 9, '10': 'matchedRepaymentId'},
+    {
+      '1': 'loan_account_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'payment_reference',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '10': 'paymentReference'
+    },
+    {
+      '1': 'external_reference',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '10': 'externalReference'
+    },
+    {
+      '1': 'amount',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
+    {
+      '1': 'status',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.ReconciliationStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'matched_repayment_id',
+      '3': 8,
+      '4': 1,
+      '5': 9,
+      '10': 'matchedRepaymentId'
+    },
     {'1': 'notes', '3': 9, '4': 1, '5': 9, '10': 'notes'},
     {'1': 'reconciled_at', '3': 10, '4': 1, '5': 9, '10': 'reconciledAt'},
     {'1': 'reconciled_by', '3': 11, '4': 1, '5': 9, '10': 'reconciledBy'},
-    {'1': 'properties', '3': 12, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -738,9 +1395,30 @@ const LoanStatementEntry$json = {
   '2': [
     {'1': 'date', '3': 1, '4': 1, '5': 9, '10': 'date'},
     {'1': 'description', '3': 2, '4': 1, '5': 9, '10': 'description'},
-    {'1': 'debit', '3': 3, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'debit'},
-    {'1': 'credit', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'credit'},
-    {'1': 'balance', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'balance'},
+    {
+      '1': 'debit',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'debit'
+    },
+    {
+      '1': 'credit',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'credit'
+    },
+    {
+      '1': 'balance',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'balance'
+    },
     {'1': 'reference', '3': 6, '4': 1, '5': 9, '10': 'reference'},
   ],
 };
@@ -757,27 +1435,43 @@ final $typed_data.Uint8List loanStatementEntryDescriptor = $convert.base64Decode
 const LoanAccountCreateRequest$json = {
   '1': 'LoanAccountCreateRequest',
   '2': [
-    {'1': 'loan_request_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanRequestId'},
+    {
+      '1': 'loan_request_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanRequestId'
+    },
   ],
 };
 
 /// Descriptor for `LoanAccountCreateRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanAccountCreateRequestDescriptor = $convert.base64Decode(
-    'ChhMb2FuQWNjb3VudENyZWF0ZVJlcXVlc3QSMQoPbG9hbl9yZXF1ZXN0X2lkGAEgASgJQgm6SA'
-    'ZyBBADGChSDWxvYW5SZXF1ZXN0SWQ=');
+final $typed_data.Uint8List loanAccountCreateRequestDescriptor =
+    $convert.base64Decode(
+        'ChhMb2FuQWNjb3VudENyZWF0ZVJlcXVlc3QSMQoPbG9hbl9yZXF1ZXN0X2lkGAEgASgJQgm6SA'
+        'ZyBBADGChSDWxvYW5SZXF1ZXN0SWQ=');
 
 @$core.Deprecated('Use loanAccountCreateResponseDescriptor instead')
 const LoanAccountCreateResponse$json = {
   '1': 'LoanAccountCreateResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanAccountCreateResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanAccountCreateResponseDescriptor = $convert.base64Decode(
-    'ChlMb2FuQWNjb3VudENyZWF0ZVJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2'
-    'FuQWNjb3VudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanAccountCreateResponseDescriptor =
+    $convert.base64Decode(
+        'ChlMb2FuQWNjb3VudENyZWF0ZVJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2'
+        'FuQWNjb3VudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanAccountGetRequestDescriptor instead')
 const LoanAccountGetRequest$json = {
@@ -796,14 +1490,22 @@ final $typed_data.Uint8List loanAccountGetRequestDescriptor = $convert.base64Dec
 const LoanAccountGetResponse$json = {
   '1': 'LoanAccountGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanAccountGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanAccountGetResponseDescriptor = $convert.base64Decode(
-    'ChZMb2FuQWNjb3VudEdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuQW'
-    'Njb3VudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanAccountGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChZMb2FuQWNjb3VudEdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuQW'
+        'Njb3VudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanAccountSearchRequestDescriptor instead')
 const LoanAccountSearchRequest$json = {
@@ -813,9 +1515,30 @@ const LoanAccountSearchRequest$json = {
     {'1': 'client_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'agent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'branch_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'organization_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'status', '3': 6, '4': 1, '5': 14, '6': '.loans.v1.LoanStatus', '10': 'status'},
-    {'1': 'cursor', '3': 7, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'organization_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'status',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.LoanStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'cursor',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -832,20 +1555,35 @@ final $typed_data.Uint8List loanAccountSearchRequestDescriptor = $convert.base64
 const LoanAccountSearchResponse$json = {
   '1': 'LoanAccountSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.LoanAccountObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.LoanAccountObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanAccountSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanAccountSearchResponseDescriptor = $convert.base64Decode(
-    'ChlMb2FuQWNjb3VudFNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5sb2Fucy52MS5Mb2'
-    'FuQWNjb3VudE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanAccountSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChlMb2FuQWNjb3VudFNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5sb2Fucy52MS5Mb2'
+        'FuQWNjb3VudE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanBalanceGetRequestDescriptor instead')
 const LoanBalanceGetRequest$json = {
   '1': 'LoanBalanceGetRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
   ],
 };
 
@@ -858,22 +1596,43 @@ final $typed_data.Uint8List loanBalanceGetRequestDescriptor = $convert.base64Dec
 const LoanBalanceGetResponse$json = {
   '1': 'LoanBalanceGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanBalanceObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanBalanceObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanBalanceGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanBalanceGetResponseDescriptor = $convert.base64Decode(
-    'ChZMb2FuQmFsYW5jZUdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuQm'
-    'FsYW5jZU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanBalanceGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChZMb2FuQmFsYW5jZUdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuQm'
+        'FsYW5jZU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use disbursementCreateRequestDescriptor instead')
 const DisbursementCreateRequest$json = {
   '1': 'DisbursementCreateRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
     {'1': 'channel', '3': 2, '4': 1, '5': 9, '10': 'channel'},
-    {'1': 'recipient_reference', '3': 3, '4': 1, '5': 9, '10': 'recipientReference'},
+    {
+      '1': 'recipient_reference',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '10': 'recipientReference'
+    },
     {'1': 'idempotency_key', '3': 4, '4': 1, '5': 9, '10': 'idempotencyKey'},
   ],
 };
@@ -889,14 +1648,22 @@ final $typed_data.Uint8List disbursementCreateRequestDescriptor = $convert.base6
 const DisbursementCreateResponse$json = {
   '1': 'DisbursementCreateResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.DisbursementObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.DisbursementObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `DisbursementCreateResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List disbursementCreateResponseDescriptor = $convert.base64Decode(
-    'ChpEaXNidXJzZW1lbnRDcmVhdGVSZXNwb25zZRIwCgRkYXRhGAEgASgLMhwubG9hbnMudjEuRG'
-    'lzYnVyc2VtZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List disbursementCreateResponseDescriptor =
+    $convert.base64Decode(
+        'ChpEaXNidXJzZW1lbnRDcmVhdGVSZXNwb25zZRIwCgRkYXRhGAEgASgLMhwubG9hbnMudjEuRG'
+        'lzYnVyc2VtZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use disbursementGetRequestDescriptor instead')
 const DisbursementGetRequest$json = {
@@ -907,30 +1674,60 @@ const DisbursementGetRequest$json = {
 };
 
 /// Descriptor for `DisbursementGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List disbursementGetRequestDescriptor = $convert.base64Decode(
-    'ChZEaXNidXJzZW1lbnRHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
-    'pfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List disbursementGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChZEaXNidXJzZW1lbnRHZXRSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLTlhLX'
+        'pfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use disbursementGetResponseDescriptor instead')
 const DisbursementGetResponse$json = {
   '1': 'DisbursementGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.DisbursementObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.DisbursementObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `DisbursementGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List disbursementGetResponseDescriptor = $convert.base64Decode(
-    'ChdEaXNidXJzZW1lbnRHZXRSZXNwb25zZRIwCgRkYXRhGAEgASgLMhwubG9hbnMudjEuRGlzYn'
-    'Vyc2VtZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List disbursementGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChdEaXNidXJzZW1lbnRHZXRSZXNwb25zZRIwCgRkYXRhGAEgASgLMhwubG9hbnMudjEuRGlzYn'
+        'Vyc2VtZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use disbursementSearchRequestDescriptor instead')
 const DisbursementSearchRequest$json = {
   '1': 'DisbursementSearchRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'status', '3': 2, '4': 1, '5': 14, '6': '.loans.v1.DisbursementStatus', '10': 'status'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'status',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.DisbursementStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -945,22 +1742,50 @@ final $typed_data.Uint8List disbursementSearchRequestDescriptor = $convert.base6
 const DisbursementSearchResponse$json = {
   '1': 'DisbursementSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.DisbursementObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.DisbursementObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `DisbursementSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List disbursementSearchResponseDescriptor = $convert.base64Decode(
-    'ChpEaXNidXJzZW1lbnRTZWFyY2hSZXNwb25zZRIwCgRkYXRhGAEgAygLMhwubG9hbnMudjEuRG'
-    'lzYnVyc2VtZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List disbursementSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChpEaXNidXJzZW1lbnRTZWFyY2hSZXNwb25zZRIwCgRkYXRhGAEgAygLMhwubG9hbnMudjEuRG'
+        'lzYnVyc2VtZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use repaymentRecordRequestDescriptor instead')
 const RepaymentRecordRequest$json = {
   '1': 'RepaymentRecordRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
-    {'1': 'payment_reference', '3': 3, '4': 1, '5': 9, '10': 'paymentReference'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'amount',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
+    {
+      '1': 'payment_reference',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '10': 'paymentReference'
+    },
     {'1': 'channel', '3': 4, '4': 1, '5': 9, '10': 'channel'},
     {'1': 'payer_reference', '3': 5, '4': 1, '5': 9, '10': 'payerReference'},
     {'1': 'received_at', '3': 6, '4': 1, '5': 9, '10': 'receivedAt'},
@@ -981,14 +1806,22 @@ final $typed_data.Uint8List repaymentRecordRequestDescriptor = $convert.base64De
 const RepaymentRecordResponse$json = {
   '1': 'RepaymentRecordResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.RepaymentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.RepaymentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `RepaymentRecordResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List repaymentRecordResponseDescriptor = $convert.base64Decode(
-    'ChdSZXBheW1lbnRSZWNvcmRSZXNwb25zZRItCgRkYXRhGAEgASgLMhkubG9hbnMudjEuUmVwYX'
-    'ltZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List repaymentRecordResponseDescriptor =
+    $convert.base64Decode(
+        'ChdSZXBheW1lbnRSZWNvcmRSZXNwb25zZRItCgRkYXRhGAEgASgLMhkubG9hbnMudjEuUmVwYX'
+        'ltZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use repaymentGetRequestDescriptor instead')
 const RepaymentGetRequest$json = {
@@ -1007,7 +1840,14 @@ final $typed_data.Uint8List repaymentGetRequestDescriptor = $convert.base64Decod
 const RepaymentGetResponse$json = {
   '1': 'RepaymentGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.RepaymentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.RepaymentObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -1020,9 +1860,30 @@ final $typed_data.Uint8List repaymentGetResponseDescriptor = $convert.base64Deco
 const RepaymentSearchRequest$json = {
   '1': 'RepaymentSearchRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'status', '3': 2, '4': 1, '5': 14, '6': '.loans.v1.RepaymentStatus', '10': 'status'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'status',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.RepaymentStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1037,46 +1898,78 @@ final $typed_data.Uint8List repaymentSearchRequestDescriptor = $convert.base64De
 const RepaymentSearchResponse$json = {
   '1': 'RepaymentSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.RepaymentObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.RepaymentObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `RepaymentSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List repaymentSearchResponseDescriptor = $convert.base64Decode(
-    'ChdSZXBheW1lbnRTZWFyY2hSZXNwb25zZRItCgRkYXRhGAEgAygLMhkubG9hbnMudjEuUmVwYX'
-    'ltZW50T2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List repaymentSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChdSZXBheW1lbnRTZWFyY2hSZXNwb25zZRItCgRkYXRhGAEgAygLMhkubG9hbnMudjEuUmVwYX'
+        'ltZW50T2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use repaymentScheduleGetRequestDescriptor instead')
 const RepaymentScheduleGetRequest$json = {
   '1': 'RepaymentScheduleGetRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
   ],
 };
 
 /// Descriptor for `RepaymentScheduleGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List repaymentScheduleGetRequestDescriptor = $convert.base64Decode(
-    'ChtSZXBheW1lbnRTY2hlZHVsZUdldFJlcXVlc3QSMQoPbG9hbl9hY2NvdW50X2lkGAEgASgJQg'
-    'm6SAZyBBADGChSDWxvYW5BY2NvdW50SWQ=');
+final $typed_data.Uint8List repaymentScheduleGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChtSZXBheW1lbnRTY2hlZHVsZUdldFJlcXVlc3QSMQoPbG9hbl9hY2NvdW50X2lkGAEgASgJQg'
+        'm6SAZyBBADGChSDWxvYW5BY2NvdW50SWQ=');
 
 @$core.Deprecated('Use repaymentScheduleGetResponseDescriptor instead')
 const RepaymentScheduleGetResponse$json = {
   '1': 'RepaymentScheduleGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.RepaymentScheduleObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.RepaymentScheduleObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `RepaymentScheduleGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List repaymentScheduleGetResponseDescriptor = $convert.base64Decode(
-    'ChxSZXBheW1lbnRTY2hlZHVsZUdldFJlc3BvbnNlEjUKBGRhdGEYASABKAsyIS5sb2Fucy52MS'
-    '5SZXBheW1lbnRTY2hlZHVsZU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List repaymentScheduleGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChxSZXBheW1lbnRTY2hlZHVsZUdldFJlc3BvbnNlEjUKBGRhdGEYASABKAsyIS5sb2Fucy52MS'
+        '5SZXBheW1lbnRTY2hlZHVsZU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use penaltySaveRequestDescriptor instead')
 const PenaltySaveRequest$json = {
   '1': 'PenaltySaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.PenaltyObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.PenaltyObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -1089,7 +1982,14 @@ final $typed_data.Uint8List penaltySaveRequestDescriptor = $convert.base64Decode
 const PenaltySaveResponse$json = {
   '1': 'PenaltySaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.PenaltyObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.PenaltyObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -1116,7 +2016,14 @@ final $typed_data.Uint8List penaltyWaiveRequestDescriptor = $convert.base64Decod
 const PenaltyWaiveResponse$json = {
   '1': 'PenaltyWaiveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.PenaltyObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.PenaltyObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -1129,9 +2036,30 @@ final $typed_data.Uint8List penaltyWaiveResponseDescriptor = $convert.base64Deco
 const PenaltySearchRequest$json = {
   '1': 'PenaltySearchRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'penalty_type', '3': 2, '4': 1, '5': 14, '6': '.loans.v1.PenaltyType', '10': 'penaltyType'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'penalty_type',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.PenaltyType',
+      '10': 'penaltyType'
+    },
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1146,7 +2074,14 @@ final $typed_data.Uint8List penaltySearchRequestDescriptor = $convert.base64Deco
 const PenaltySearchResponse$json = {
   '1': 'PenaltySearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.PenaltyObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.PenaltyObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -1159,27 +2094,44 @@ final $typed_data.Uint8List penaltySearchResponseDescriptor = $convert.base64Dec
 const LoanRestructureCreateRequest$json = {
   '1': 'LoanRestructureCreateRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRestructureObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRestructureObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRestructureCreateRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureCreateRequestDescriptor = $convert.base64Decode(
-    'ChxMb2FuUmVzdHJ1Y3R1cmVDcmVhdGVSZXF1ZXN0EjsKBGRhdGEYASABKAsyHy5sb2Fucy52MS'
-    '5Mb2FuUmVzdHJ1Y3R1cmVPYmplY3RCBrpIA8gBAVIEZGF0YQ==');
+final $typed_data.Uint8List loanRestructureCreateRequestDescriptor =
+    $convert.base64Decode(
+        'ChxMb2FuUmVzdHJ1Y3R1cmVDcmVhdGVSZXF1ZXN0EjsKBGRhdGEYASABKAsyHy5sb2Fucy52MS'
+        '5Mb2FuUmVzdHJ1Y3R1cmVPYmplY3RCBrpIA8gBAVIEZGF0YQ==');
 
 @$core.Deprecated('Use loanRestructureCreateResponseDescriptor instead')
 const LoanRestructureCreateResponse$json = {
   '1': 'LoanRestructureCreateResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRestructureObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRestructureObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRestructureCreateResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureCreateResponseDescriptor = $convert.base64Decode(
-    'Ch1Mb2FuUmVzdHJ1Y3R1cmVDcmVhdGVSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8ubG9hbnMudj'
-    'EuTG9hblJlc3RydWN0dXJlT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List loanRestructureCreateResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1Mb2FuUmVzdHJ1Y3R1cmVDcmVhdGVSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8ubG9hbnMudj'
+        'EuTG9hblJlc3RydWN0dXJlT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use loanRestructureApproveRequestDescriptor instead')
 const LoanRestructureApproveRequest$json = {
@@ -1190,22 +2142,31 @@ const LoanRestructureApproveRequest$json = {
 };
 
 /// Descriptor for `LoanRestructureApproveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureApproveRequestDescriptor = $convert.base64Decode(
-    'Ch1Mb2FuUmVzdHJ1Y3R1cmVBcHByb3ZlUmVxdWVzdBIrCgJpZBgBIAEoCUIbukgYchYQAxgoMh'
-    'BbMC05YS16Xy1dezMsNDB9UgJpZA==');
+final $typed_data.Uint8List loanRestructureApproveRequestDescriptor =
+    $convert.base64Decode(
+        'Ch1Mb2FuUmVzdHJ1Y3R1cmVBcHByb3ZlUmVxdWVzdBIrCgJpZBgBIAEoCUIbukgYchYQAxgoMh'
+        'BbMC05YS16Xy1dezMsNDB9UgJpZA==');
 
 @$core.Deprecated('Use loanRestructureApproveResponseDescriptor instead')
 const LoanRestructureApproveResponse$json = {
   '1': 'LoanRestructureApproveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRestructureObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRestructureObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRestructureApproveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureApproveResponseDescriptor = $convert.base64Decode(
-    'Ch5Mb2FuUmVzdHJ1Y3R1cmVBcHByb3ZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmxvYW5zLn'
-    'YxLkxvYW5SZXN0cnVjdHVyZU9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanRestructureApproveResponseDescriptor =
+    $convert.base64Decode(
+        'Ch5Mb2FuUmVzdHJ1Y3R1cmVBcHByb3ZlUmVzcG9uc2USMwoEZGF0YRgBIAEoCzIfLmxvYW5zLn'
+        'YxLkxvYW5SZXN0cnVjdHVyZU9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanRestructureRejectRequestDescriptor instead')
 const LoanRestructureRejectRequest$json = {
@@ -1217,56 +2178,95 @@ const LoanRestructureRejectRequest$json = {
 };
 
 /// Descriptor for `LoanRestructureRejectRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureRejectRequestDescriptor = $convert.base64Decode(
-    'ChxMb2FuUmVzdHJ1Y3R1cmVSZWplY3RSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEF'
-    'swLTlhLXpfLV17Myw0MH1SAmlkEhYKBnJlYXNvbhgCIAEoCVIGcmVhc29u');
+final $typed_data.Uint8List loanRestructureRejectRequestDescriptor =
+    $convert.base64Decode(
+        'ChxMb2FuUmVzdHJ1Y3R1cmVSZWplY3RSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEF'
+        'swLTlhLXpfLV17Myw0MH1SAmlkEhYKBnJlYXNvbhgCIAEoCVIGcmVhc29u');
 
 @$core.Deprecated('Use loanRestructureRejectResponseDescriptor instead')
 const LoanRestructureRejectResponse$json = {
   '1': 'LoanRestructureRejectResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRestructureObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRestructureObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRestructureRejectResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureRejectResponseDescriptor = $convert.base64Decode(
-    'Ch1Mb2FuUmVzdHJ1Y3R1cmVSZWplY3RSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8ubG9hbnMudj'
-    'EuTG9hblJlc3RydWN0dXJlT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List loanRestructureRejectResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1Mb2FuUmVzdHJ1Y3R1cmVSZWplY3RSZXNwb25zZRIzCgRkYXRhGAEgASgLMh8ubG9hbnMudj'
+        'EuTG9hblJlc3RydWN0dXJlT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use loanRestructureSearchRequestDescriptor instead')
 const LoanRestructureSearchRequest$json = {
   '1': 'LoanRestructureSearchRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
 /// Descriptor for `LoanRestructureSearchRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureSearchRequestDescriptor = $convert.base64Decode(
-    'ChxMb2FuUmVzdHJ1Y3R1cmVTZWFyY2hSZXF1ZXN0EjEKD2xvYW5fYWNjb3VudF9pZBgBIAEoCU'
-    'IJukgGcgQQAxgoUg1sb2FuQWNjb3VudElkEi0KBmN1cnNvchgCIAEoCzIVLmNvbW1vbi52MS5Q'
-    'YWdlQ3Vyc29yUgZjdXJzb3I=');
+final $typed_data.Uint8List loanRestructureSearchRequestDescriptor =
+    $convert.base64Decode(
+        'ChxMb2FuUmVzdHJ1Y3R1cmVTZWFyY2hSZXF1ZXN0EjEKD2xvYW5fYWNjb3VudF9pZBgBIAEoCU'
+        'IJukgGcgQQAxgoUg1sb2FuQWNjb3VudElkEi0KBmN1cnNvchgCIAEoCzIVLmNvbW1vbi52MS5Q'
+        'YWdlQ3Vyc29yUgZjdXJzb3I=');
 
 @$core.Deprecated('Use loanRestructureSearchResponseDescriptor instead')
 const LoanRestructureSearchResponse$json = {
   '1': 'LoanRestructureSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.LoanRestructureObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.LoanRestructureObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRestructureSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRestructureSearchResponseDescriptor = $convert.base64Decode(
-    'Ch1Mb2FuUmVzdHJ1Y3R1cmVTZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8ubG9hbnMudj'
-    'EuTG9hblJlc3RydWN0dXJlT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List loanRestructureSearchResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1Mb2FuUmVzdHJ1Y3R1cmVTZWFyY2hSZXNwb25zZRIzCgRkYXRhGAEgAygLMh8ubG9hbnMudj'
+        'EuTG9hblJlc3RydWN0dXJlT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use loanStatementRequestDescriptor instead')
 const LoanStatementRequest$json = {
   '1': 'LoanStatementRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
     {'1': 'from_date', '3': 2, '4': 1, '5': 9, '10': 'fromDate'},
     {'1': 'to_date', '3': 3, '4': 1, '5': 9, '10': 'toDate'},
   ],
@@ -1282,9 +2282,30 @@ final $typed_data.Uint8List loanStatementRequestDescriptor = $convert.base64Deco
 const LoanStatementResponse$json = {
   '1': 'LoanStatementResponse',
   '2': [
-    {'1': 'loan', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanAccountObject', '10': 'loan'},
-    {'1': 'balance', '3': 2, '4': 1, '5': 11, '6': '.loans.v1.LoanBalanceObject', '10': 'balance'},
-    {'1': 'entries', '3': 3, '4': 3, '5': 11, '6': '.loans.v1.LoanStatementEntry', '10': 'entries'},
+    {
+      '1': 'loan',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanAccountObject',
+      '10': 'loan'
+    },
+    {
+      '1': 'balance',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanBalanceObject',
+      '10': 'balance'
+    },
+    {
+      '1': 'entries',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.LoanStatementEntry',
+      '10': 'entries'
+    },
   ],
 };
 
@@ -1299,35 +2320,73 @@ final $typed_data.Uint8List loanStatementResponseDescriptor = $convert.base64Dec
 const ReconciliationSaveRequest$json = {
   '1': 'ReconciliationSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.ReconciliationObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.ReconciliationObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ReconciliationSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List reconciliationSaveRequestDescriptor = $convert.base64Decode(
-    'ChlSZWNvbmNpbGlhdGlvblNhdmVSZXF1ZXN0EjoKBGRhdGEYASABKAsyHi5sb2Fucy52MS5SZW'
-    'NvbmNpbGlhdGlvbk9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List reconciliationSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChlSZWNvbmNpbGlhdGlvblNhdmVSZXF1ZXN0EjoKBGRhdGEYASABKAsyHi5sb2Fucy52MS5SZW'
+        'NvbmNpbGlhdGlvbk9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use reconciliationSaveResponseDescriptor instead')
 const ReconciliationSaveResponse$json = {
   '1': 'ReconciliationSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.ReconciliationObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.ReconciliationObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ReconciliationSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List reconciliationSaveResponseDescriptor = $convert.base64Decode(
-    'ChpSZWNvbmNpbGlhdGlvblNhdmVSZXNwb25zZRIyCgRkYXRhGAEgASgLMh4ubG9hbnMudjEuUm'
-    'Vjb25jaWxpYXRpb25PYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List reconciliationSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChpSZWNvbmNpbGlhdGlvblNhdmVSZXNwb25zZRIyCgRkYXRhGAEgASgLMh4ubG9hbnMudjEuUm'
+        'Vjb25jaWxpYXRpb25PYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use reconciliationSearchRequestDescriptor instead')
 const ReconciliationSearchRequest$json = {
   '1': 'ReconciliationSearchRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'status', '3': 2, '4': 1, '5': 14, '6': '.loans.v1.ReconciliationStatus', '10': 'status'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'status',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.ReconciliationStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1342,20 +2401,35 @@ final $typed_data.Uint8List reconciliationSearchRequestDescriptor = $convert.bas
 const ReconciliationSearchResponse$json = {
   '1': 'ReconciliationSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.ReconciliationObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.ReconciliationObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ReconciliationSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List reconciliationSearchResponseDescriptor = $convert.base64Decode(
-    'ChxSZWNvbmNpbGlhdGlvblNlYXJjaFJlc3BvbnNlEjIKBGRhdGEYASADKAsyHi5sb2Fucy52MS'
-    '5SZWNvbmNpbGlhdGlvbk9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List reconciliationSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChxSZWNvbmNpbGlhdGlvblNlYXJjaFJlc3BvbnNlEjIKBGRhdGEYASADKAsyHi5sb2Fucy52MS'
+        '5SZWNvbmNpbGlhdGlvbk9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use initiateCollectionRequestDescriptor instead')
 const InitiateCollectionRequest$json = {
   '1': 'InitiateCollectionRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
     {
       '1': 'amount',
       '3': 2,
@@ -1366,7 +2440,14 @@ const InitiateCollectionRequest$json = {
     },
     {'1': 'phone_number', '3': 3, '4': 1, '5': 9, '10': 'phoneNumber'},
     {'1': 'idempotency_key', '3': 4, '4': 1, '5': 9, '10': 'idempotencyKey'},
-    {'1': 'collection_amount', '3': 5, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'collectionAmount'},
+    {
+      '1': 'collection_amount',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'collectionAmount'
+    },
   ],
 };
 
@@ -1388,63 +2469,104 @@ const InitiateCollectionResponse$json = {
 };
 
 /// Descriptor for `InitiateCollectionResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List initiateCollectionResponseDescriptor = $convert.base64Decode(
-    'ChpJbml0aWF0ZUNvbGxlY3Rpb25SZXNwb25zZRIqChFwYXltZW50X3Byb21wdF9pZBgBIAEoCV'
-    'IPcGF5bWVudFByb21wdElkEhYKBnN0YXR1cxgCIAEoCVIGc3RhdHVz');
+final $typed_data.Uint8List initiateCollectionResponseDescriptor =
+    $convert.base64Decode(
+        'ChpJbml0aWF0ZUNvbGxlY3Rpb25SZXNwb25zZRIqChFwYXltZW50X3Byb21wdF9pZBgBIAEoCV'
+        'IPcGF5bWVudFByb21wdElkEhYKBnN0YXR1cxgCIAEoCVIGc3RhdHVz');
 
 @$core.Deprecated('Use loanStatusChangeSearchRequestDescriptor instead')
 const LoanStatusChangeSearchRequest$json = {
   '1': 'LoanStatusChangeSearchRequest',
   '2': [
-    {'1': 'loan_account_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'loanAccountId'},
-    {'1': 'cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'loan_account_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {
+      '1': 'cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
 /// Descriptor for `LoanStatusChangeSearchRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanStatusChangeSearchRequestDescriptor = $convert.base64Decode(
-    'Ch1Mb2FuU3RhdHVzQ2hhbmdlU2VhcmNoUmVxdWVzdBIxCg9sb2FuX2FjY291bnRfaWQYASABKA'
-    'lCCbpIBnIEEAMYKFINbG9hbkFjY291bnRJZBItCgZjdXJzb3IYAiABKAsyFS5jb21tb24udjEu'
-    'UGFnZUN1cnNvclIGY3Vyc29y');
+final $typed_data.Uint8List loanStatusChangeSearchRequestDescriptor =
+    $convert.base64Decode(
+        'Ch1Mb2FuU3RhdHVzQ2hhbmdlU2VhcmNoUmVxdWVzdBIxCg9sb2FuX2FjY291bnRfaWQYASABKA'
+        'lCCbpIBnIEEAMYKFINbG9hbkFjY291bnRJZBItCgZjdXJzb3IYAiABKAsyFS5jb21tb24udjEu'
+        'UGFnZUN1cnNvclIGY3Vyc29y');
 
 @$core.Deprecated('Use loanStatusChangeSearchResponseDescriptor instead')
 const LoanStatusChangeSearchResponse$json = {
   '1': 'LoanStatusChangeSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.LoanStatusChangeObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.LoanStatusChangeObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanStatusChangeSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanStatusChangeSearchResponseDescriptor = $convert.base64Decode(
-    'Ch5Mb2FuU3RhdHVzQ2hhbmdlU2VhcmNoUmVzcG9uc2USNAoEZGF0YRgBIAMoCzIgLmxvYW5zLn'
-    'YxLkxvYW5TdGF0dXNDaGFuZ2VPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List loanStatusChangeSearchResponseDescriptor =
+    $convert.base64Decode(
+        'Ch5Mb2FuU3RhdHVzQ2hhbmdlU2VhcmNoUmVzcG9uc2USNAoEZGF0YRgBIAMoCzIgLmxvYW5zLn'
+        'YxLkxvYW5TdGF0dXNDaGFuZ2VPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use loanProductSaveRequestDescriptor instead')
 const LoanProductSaveRequest$json = {
   '1': 'LoanProductSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanProductObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanProductObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanProductSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanProductSaveRequestDescriptor = $convert.base64Decode(
-    'ChZMb2FuUHJvZHVjdFNhdmVSZXF1ZXN0EjcKBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUH'
-    'JvZHVjdE9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List loanProductSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChZMb2FuUHJvZHVjdFNhdmVSZXF1ZXN0EjcKBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUH'
+        'JvZHVjdE9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use loanProductSaveResponseDescriptor instead')
 const LoanProductSaveResponse$json = {
   '1': 'LoanProductSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanProductObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanProductObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanProductSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanProductSaveResponseDescriptor = $convert.base64Decode(
-    'ChdMb2FuUHJvZHVjdFNhdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsubG9hbnMudjEuTG9hbl'
-    'Byb2R1Y3RPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List loanProductSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChdMb2FuUHJvZHVjdFNhdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsubG9hbnMudjEuTG9hbl'
+        'Byb2R1Y3RPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use loanProductGetRequestDescriptor instead')
 const LoanProductGetRequest$json = {
@@ -1463,23 +2585,52 @@ final $typed_data.Uint8List loanProductGetRequestDescriptor = $convert.base64Dec
 const LoanProductGetResponse$json = {
   '1': 'LoanProductGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanProductObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanProductObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanProductGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanProductGetResponseDescriptor = $convert.base64Decode(
-    'ChZMb2FuUHJvZHVjdEdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUH'
-    'JvZHVjdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanProductGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChZMb2FuUHJvZHVjdEdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUH'
+        'JvZHVjdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanProductSearchRequestDescriptor instead')
 const LoanProductSearchRequest$json = {
   '1': 'LoanProductSearchRequest',
   '2': [
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
-    {'1': 'organization_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'product_type', '3': 3, '4': 1, '5': 14, '6': '.loans.v1.LoanProductType', '10': 'productType'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'organization_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'product_type',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.LoanProductType',
+      '10': 'productType'
+    },
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1494,40 +2645,65 @@ final $typed_data.Uint8List loanProductSearchRequestDescriptor = $convert.base64
 const LoanProductSearchResponse$json = {
   '1': 'LoanProductSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.LoanProductObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.LoanProductObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanProductSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanProductSearchResponseDescriptor = $convert.base64Decode(
-    'ChlMb2FuUHJvZHVjdFNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5sb2Fucy52MS5Mb2'
-    'FuUHJvZHVjdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanProductSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChlMb2FuUHJvZHVjdFNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5sb2Fucy52MS5Mb2'
+        'FuUHJvZHVjdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanRequestSaveRequestDescriptor instead')
 const LoanRequestSaveRequest$json = {
   '1': 'LoanRequestSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRequestObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRequestObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRequestSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestSaveRequestDescriptor = $convert.base64Decode(
-    'ChZMb2FuUmVxdWVzdFNhdmVSZXF1ZXN0EjcKBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUm'
-    'VxdWVzdE9iamVjdEIGukgDyAEBUgRkYXRh');
+final $typed_data.Uint8List loanRequestSaveRequestDescriptor =
+    $convert.base64Decode(
+        'ChZMb2FuUmVxdWVzdFNhdmVSZXF1ZXN0EjcKBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUm'
+        'VxdWVzdE9iamVjdEIGukgDyAEBUgRkYXRh');
 
 @$core.Deprecated('Use loanRequestSaveResponseDescriptor instead')
 const LoanRequestSaveResponse$json = {
   '1': 'LoanRequestSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRequestSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestSaveResponseDescriptor = $convert.base64Decode(
-    'ChdMb2FuUmVxdWVzdFNhdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsubG9hbnMudjEuTG9hbl'
-    'JlcXVlc3RPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List loanRequestSaveResponseDescriptor =
+    $convert.base64Decode(
+        'ChdMb2FuUmVxdWVzdFNhdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsubG9hbnMudjEuTG9hbl'
+        'JlcXVlc3RPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use loanRequestGetRequestDescriptor instead')
 const LoanRequestGetRequest$json = {
@@ -1546,14 +2722,22 @@ final $typed_data.Uint8List loanRequestGetRequestDescriptor = $convert.base64Dec
 const LoanRequestGetResponse$json = {
   '1': 'LoanRequestGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRequestGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestGetResponseDescriptor = $convert.base64Decode(
-    'ChZMb2FuUmVxdWVzdEdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUm'
-    'VxdWVzdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanRequestGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChZMb2FuUmVxdWVzdEdldFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2FuUm'
+        'VxdWVzdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanRequestSearchRequestDescriptor instead')
 const LoanRequestSearchRequest$json = {
@@ -1563,10 +2747,31 @@ const LoanRequestSearchRequest$json = {
     {'1': 'client_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'agent_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'agentId'},
     {'1': 'branch_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'branchId'},
-    {'1': 'organization_id', '3': 5, '4': 1, '5': 9, '8': {}, '10': 'organizationId'},
-    {'1': 'status', '3': 6, '4': 1, '5': 14, '6': '.loans.v1.LoanRequestStatus', '10': 'status'},
+    {
+      '1': 'organization_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'organizationId'
+    },
+    {
+      '1': 'status',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.loans.v1.LoanRequestStatus',
+      '10': 'status'
+    },
     {'1': 'source_service', '3': 7, '4': 1, '5': 9, '10': 'sourceService'},
-    {'1': 'cursor', '3': 8, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -1584,14 +2789,22 @@ final $typed_data.Uint8List loanRequestSearchRequestDescriptor = $convert.base64
 const LoanRequestSearchResponse$json = {
   '1': 'LoanRequestSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.LoanRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.LoanRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRequestSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestSearchResponseDescriptor = $convert.base64Decode(
-    'ChlMb2FuUmVxdWVzdFNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5sb2Fucy52MS5Mb2'
-    'FuUmVxdWVzdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanRequestSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChlMb2FuUmVxdWVzdFNlYXJjaFJlc3BvbnNlEi8KBGRhdGEYASADKAsyGy5sb2Fucy52MS5Mb2'
+        'FuUmVxdWVzdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanRequestApproveRequestDescriptor instead')
 const LoanRequestApproveRequest$json = {
@@ -1602,22 +2815,31 @@ const LoanRequestApproveRequest$json = {
 };
 
 /// Descriptor for `LoanRequestApproveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestApproveRequestDescriptor = $convert.base64Decode(
-    'ChlMb2FuUmVxdWVzdEFwcHJvdmVSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLT'
-    'lhLXpfLV17Myw0MH1SAmlk');
+final $typed_data.Uint8List loanRequestApproveRequestDescriptor =
+    $convert.base64Decode(
+        'ChlMb2FuUmVxdWVzdEFwcHJvdmVSZXF1ZXN0EisKAmlkGAEgASgJQhu6SBhyFhADGCgyEFswLT'
+        'lhLXpfLV17Myw0MH1SAmlk');
 
 @$core.Deprecated('Use loanRequestApproveResponseDescriptor instead')
 const LoanRequestApproveResponse$json = {
   '1': 'LoanRequestApproveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRequestApproveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestApproveResponseDescriptor = $convert.base64Decode(
-    'ChpMb2FuUmVxdWVzdEFwcHJvdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsubG9hbnMudjEuTG'
-    '9hblJlcXVlc3RPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List loanRequestApproveResponseDescriptor =
+    $convert.base64Decode(
+        'ChpMb2FuUmVxdWVzdEFwcHJvdmVSZXNwb25zZRIvCgRkYXRhGAEgASgLMhsubG9hbnMudjEuTG'
+        '9hblJlcXVlc3RPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use loanRequestRejectRequestDescriptor instead')
 const LoanRequestRejectRequest$json = {
@@ -1629,22 +2851,31 @@ const LoanRequestRejectRequest$json = {
 };
 
 /// Descriptor for `LoanRequestRejectRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestRejectRequestDescriptor = $convert.base64Decode(
-    'ChhMb2FuUmVxdWVzdFJlamVjdFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
-    'Etel8tXXszLDQwfVICaWQSFgoGcmVhc29uGAIgASgJUgZyZWFzb24=');
+final $typed_data.Uint8List loanRequestRejectRequestDescriptor =
+    $convert.base64Decode(
+        'ChhMb2FuUmVxdWVzdFJlamVjdFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
+        'Etel8tXXszLDQwfVICaWQSFgoGcmVhc29uGAIgASgJUgZyZWFzb24=');
 
 @$core.Deprecated('Use loanRequestRejectResponseDescriptor instead')
 const LoanRequestRejectResponse$json = {
   '1': 'LoanRequestRejectResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRequestRejectResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestRejectResponseDescriptor = $convert.base64Decode(
-    'ChlMb2FuUmVxdWVzdFJlamVjdFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2'
-    'FuUmVxdWVzdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanRequestRejectResponseDescriptor =
+    $convert.base64Decode(
+        'ChlMb2FuUmVxdWVzdFJlamVjdFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2'
+        'FuUmVxdWVzdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use loanRequestCancelRequestDescriptor instead')
 const LoanRequestCancelRequest$json = {
@@ -1656,48 +2887,74 @@ const LoanRequestCancelRequest$json = {
 };
 
 /// Descriptor for `LoanRequestCancelRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestCancelRequestDescriptor = $convert.base64Decode(
-    'ChhMb2FuUmVxdWVzdENhbmNlbFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
-    'Etel8tXXszLDQwfVICaWQSFgoGcmVhc29uGAIgASgJUgZyZWFzb24=');
+final $typed_data.Uint8List loanRequestCancelRequestDescriptor =
+    $convert.base64Decode(
+        'ChhMb2FuUmVxdWVzdENhbmNlbFJlcXVlc3QSKwoCaWQYASABKAlCG7pIGHIWEAMYKDIQWzAtOW'
+        'Etel8tXXszLDQwfVICaWQSFgoGcmVhc29uGAIgASgJUgZyZWFzb24=');
 
 @$core.Deprecated('Use loanRequestCancelResponseDescriptor instead')
 const LoanRequestCancelResponse$json = {
   '1': 'LoanRequestCancelResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.LoanRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.LoanRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `LoanRequestCancelResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List loanRequestCancelResponseDescriptor = $convert.base64Decode(
-    'ChlMb2FuUmVxdWVzdENhbmNlbFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2'
-    'FuUmVxdWVzdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List loanRequestCancelResponseDescriptor =
+    $convert.base64Decode(
+        'ChlMb2FuUmVxdWVzdENhbmNlbFJlc3BvbnNlEi8KBGRhdGEYASABKAsyGy5sb2Fucy52MS5Mb2'
+        'FuUmVxdWVzdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use clientProductAccessSaveRequestDescriptor instead')
 const ClientProductAccessSaveRequest$json = {
   '1': 'ClientProductAccessSaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.ClientProductAccessObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.ClientProductAccessObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientProductAccessSaveRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientProductAccessSaveRequestDescriptor = $convert.base64Decode(
-    'Ch5DbGllbnRQcm9kdWN0QWNjZXNzU2F2ZVJlcXVlc3QSPwoEZGF0YRgBIAEoCzIjLmxvYW5zLn'
-    'YxLkNsaWVudFByb2R1Y3RBY2Nlc3NPYmplY3RCBrpIA8gBAVIEZGF0YQ==');
+final $typed_data.Uint8List clientProductAccessSaveRequestDescriptor =
+    $convert.base64Decode(
+        'Ch5DbGllbnRQcm9kdWN0QWNjZXNzU2F2ZVJlcXVlc3QSPwoEZGF0YRgBIAEoCzIjLmxvYW5zLn'
+        'YxLkNsaWVudFByb2R1Y3RBY2Nlc3NPYmplY3RCBrpIA8gBAVIEZGF0YQ==');
 
 @$core.Deprecated('Use clientProductAccessSaveResponseDescriptor instead')
 const ClientProductAccessSaveResponse$json = {
   '1': 'ClientProductAccessSaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.ClientProductAccessObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.ClientProductAccessObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientProductAccessSaveResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientProductAccessSaveResponseDescriptor = $convert.base64Decode(
-    'Ch9DbGllbnRQcm9kdWN0QWNjZXNzU2F2ZVJlc3BvbnNlEjcKBGRhdGEYASABKAsyIy5sb2Fucy'
-    '52MS5DbGllbnRQcm9kdWN0QWNjZXNzT2JqZWN0UgRkYXRh');
+final $typed_data.Uint8List clientProductAccessSaveResponseDescriptor =
+    $convert.base64Decode(
+        'Ch9DbGllbnRQcm9kdWN0QWNjZXNzU2F2ZVJlc3BvbnNlEjcKBGRhdGEYASABKAsyIy5sb2Fucy'
+        '52MS5DbGllbnRQcm9kdWN0QWNjZXNzT2JqZWN0UgRkYXRh');
 
 @$core.Deprecated('Use clientProductAccessGetRequestDescriptor instead')
 const ClientProductAccessGetRequest$json = {
@@ -1708,22 +2965,31 @@ const ClientProductAccessGetRequest$json = {
 };
 
 /// Descriptor for `ClientProductAccessGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientProductAccessGetRequestDescriptor = $convert.base64Decode(
-    'Ch1DbGllbnRQcm9kdWN0QWNjZXNzR2V0UmVxdWVzdBIrCgJpZBgBIAEoCUIbukgYchYQAxgoMh'
-    'BbMC05YS16Xy1dezMsNDB9UgJpZA==');
+final $typed_data.Uint8List clientProductAccessGetRequestDescriptor =
+    $convert.base64Decode(
+        'Ch1DbGllbnRQcm9kdWN0QWNjZXNzR2V0UmVxdWVzdBIrCgJpZBgBIAEoCUIbukgYchYQAxgoMh'
+        'BbMC05YS16Xy1dezMsNDB9UgJpZA==');
 
 @$core.Deprecated('Use clientProductAccessGetResponseDescriptor instead')
 const ClientProductAccessGetResponse$json = {
   '1': 'ClientProductAccessGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.ClientProductAccessObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.ClientProductAccessObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientProductAccessGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientProductAccessGetResponseDescriptor = $convert.base64Decode(
-    'Ch5DbGllbnRQcm9kdWN0QWNjZXNzR2V0UmVzcG9uc2USNwoEZGF0YRgBIAEoCzIjLmxvYW5zLn'
-    'YxLkNsaWVudFByb2R1Y3RBY2Nlc3NPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List clientProductAccessGetResponseDescriptor =
+    $convert.base64Decode(
+        'Ch5DbGllbnRQcm9kdWN0QWNjZXNzR2V0UmVzcG9uc2USNwoEZGF0YRgBIAEoCzIjLmxvYW5zLn'
+        'YxLkNsaWVudFByb2R1Y3RBY2Nlc3NPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use clientProductAccessSearchRequestDescriptor instead')
 const ClientProductAccessSearchRequest$json = {
@@ -1731,28 +2997,44 @@ const ClientProductAccessSearchRequest$json = {
   '2': [
     {'1': 'client_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'clientId'},
     {'1': 'product_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'productId'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
 /// Descriptor for `ClientProductAccessSearchRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientProductAccessSearchRequestDescriptor = $convert.base64Decode(
-    'CiBDbGllbnRQcm9kdWN0QWNjZXNzU2VhcmNoUmVxdWVzdBInCgljbGllbnRfaWQYASABKAlCCr'
-    'pIB9gBAXICGChSCGNsaWVudElkEikKCnByb2R1Y3RfaWQYAiABKAlCCrpIB9gBAXICGChSCXBy'
-    'b2R1Y3RJZBItCgZjdXJzb3IYAyABKAsyFS5jb21tb24udjEuUGFnZUN1cnNvclIGY3Vyc29y');
+final $typed_data.Uint8List clientProductAccessSearchRequestDescriptor =
+    $convert.base64Decode(
+        'CiBDbGllbnRQcm9kdWN0QWNjZXNzU2VhcmNoUmVxdWVzdBInCgljbGllbnRfaWQYASABKAlCCr'
+        'pIB9gBAXICGChSCGNsaWVudElkEikKCnByb2R1Y3RfaWQYAiABKAlCCrpIB9gBAXICGChSCXBy'
+        'b2R1Y3RJZBItCgZjdXJzb3IYAyABKAsyFS5jb21tb24udjEuUGFnZUN1cnNvclIGY3Vyc29y');
 
 @$core.Deprecated('Use clientProductAccessSearchResponseDescriptor instead')
 const ClientProductAccessSearchResponse$json = {
   '1': 'ClientProductAccessSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.loans.v1.ClientProductAccessObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.loans.v1.ClientProductAccessObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ClientProductAccessSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List clientProductAccessSearchResponseDescriptor = $convert.base64Decode(
-    'CiFDbGllbnRQcm9kdWN0QWNjZXNzU2VhcmNoUmVzcG9uc2USNwoEZGF0YRgBIAMoCzIjLmxvYW'
-    '5zLnYxLkNsaWVudFByb2R1Y3RBY2Nlc3NPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List clientProductAccessSearchResponseDescriptor =
+    $convert.base64Decode(
+        'CiFDbGllbnRQcm9kdWN0QWNjZXNzU2VhcmNoUmVzcG9uc2USNwoEZGF0YRgBIAMoCzIjLmxvYW'
+        '5zLnYxLkNsaWVudFByb2R1Y3RBY2Nlc3NPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use portfolioSummaryDescriptor instead')
 const PortfolioSummary$json = {
@@ -1764,17 +3046,72 @@ const PortfolioSummary$json = {
     {'1': 'default_loans', '3': 4, '4': 1, '5': 5, '10': 'defaultLoans'},
     {'1': 'paid_off_loans', '3': 5, '4': 1, '5': 5, '10': 'paidOffLoans'},
     {'1': 'written_off_loans', '3': 6, '4': 1, '5': 5, '10': 'writtenOffLoans'},
-    {'1': 'total_disbursed', '3': 7, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalDisbursed'},
-    {'1': 'total_outstanding', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalOutstanding'},
-    {'1': 'total_collected', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'totalCollected'},
-    {'1': 'principal_outstanding', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'principalOutstanding'},
-    {'1': 'interest_outstanding', '3': 11, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'interestOutstanding'},
-    {'1': 'fees_outstanding', '3': 12, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'feesOutstanding'},
-    {'1': 'penalties_outstanding', '3': 13, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'penaltiesOutstanding'},
+    {
+      '1': 'total_disbursed',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalDisbursed'
+    },
+    {
+      '1': 'total_outstanding',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalOutstanding'
+    },
+    {
+      '1': 'total_collected',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'totalCollected'
+    },
+    {
+      '1': 'principal_outstanding',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'principalOutstanding'
+    },
+    {
+      '1': 'interest_outstanding',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'interestOutstanding'
+    },
+    {
+      '1': 'fees_outstanding',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'feesOutstanding'
+    },
+    {
+      '1': 'penalties_outstanding',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'penaltiesOutstanding'
+    },
     {'1': 'currency_code', '3': 14, '4': 1, '5': 9, '10': 'currencyCode'},
     {'1': 'collection_rate', '3': 15, '4': 1, '5': 9, '10': 'collectionRate'},
     {'1': 'par_30', '3': 16, '4': 1, '5': 9, '10': 'par30'},
-    {'1': 'pending_disbursement_loans', '3': 17, '4': 1, '5': 5, '10': 'pendingDisbursementLoans'},
+    {
+      '1': 'pending_disbursement_loans',
+      '3': 17,
+      '4': 1,
+      '5': 5,
+      '10': 'pendingDisbursementLoans'
+    },
   ],
 };
 
@@ -1821,14 +3158,22 @@ final $typed_data.Uint8List portfolioSummaryRequestDescriptor = $convert.base64D
 const PortfolioSummaryResponse$json = {
   '1': 'PortfolioSummaryResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.loans.v1.PortfolioSummary', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.loans.v1.PortfolioSummary',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `PortfolioSummaryResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List portfolioSummaryResponseDescriptor = $convert.base64Decode(
-    'ChhQb3J0Zm9saW9TdW1tYXJ5UmVzcG9uc2USLgoEZGF0YRgBIAEoCzIaLmxvYW5zLnYxLlBvcn'
-    'Rmb2xpb1N1bW1hcnlSBGRhdGE=');
+final $typed_data.Uint8List portfolioSummaryResponseDescriptor =
+    $convert.base64Decode(
+        'ChhQb3J0Zm9saW9TdW1tYXJ5UmVzcG9uc2USLgoEZGF0YRgBIAEoCzIaLmxvYW5zLnYxLlBvcn'
+        'Rmb2xpb1N1bW1hcnlSBGRhdGE=');
 
 @$core.Deprecated('Use portfolioExportRequestDescriptor instead')
 const PortfolioExportRequest$json = {
@@ -1870,7 +3215,12 @@ final $typed_data.Uint8List portfolioExportResponseDescriptor = $convert.base64D
 const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
   '1': 'LoanManagementService',
   '2': [
-    {'1': 'LoanProductSave', '2': '.loans.v1.LoanProductSaveRequest', '3': '.loans.v1.LoanProductSaveResponse', '4': {}},
+    {
+      '1': 'LoanProductSave',
+      '2': '.loans.v1.LoanProductSaveRequest',
+      '3': '.loans.v1.LoanProductSaveResponse',
+      '4': {}
+    },
     {
       '1': 'LoanProductGet',
       '2': '.loans.v1.LoanProductGetRequest',
@@ -1884,7 +3234,12 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'LoanRequestSave', '2': '.loans.v1.LoanRequestSaveRequest', '3': '.loans.v1.LoanRequestSaveResponse', '4': {}},
+    {
+      '1': 'LoanRequestSave',
+      '2': '.loans.v1.LoanRequestSaveRequest',
+      '3': '.loans.v1.LoanRequestSaveResponse',
+      '4': {}
+    },
     {
       '1': 'LoanRequestGet',
       '2': '.loans.v1.LoanRequestGetRequest',
@@ -1898,10 +3253,30 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'LoanRequestApprove', '2': '.loans.v1.LoanRequestApproveRequest', '3': '.loans.v1.LoanRequestApproveResponse', '4': {}},
-    {'1': 'LoanRequestReject', '2': '.loans.v1.LoanRequestRejectRequest', '3': '.loans.v1.LoanRequestRejectResponse', '4': {}},
-    {'1': 'LoanRequestCancel', '2': '.loans.v1.LoanRequestCancelRequest', '3': '.loans.v1.LoanRequestCancelResponse', '4': {}},
-    {'1': 'ClientProductAccessSave', '2': '.loans.v1.ClientProductAccessSaveRequest', '3': '.loans.v1.ClientProductAccessSaveResponse', '4': {}},
+    {
+      '1': 'LoanRequestApprove',
+      '2': '.loans.v1.LoanRequestApproveRequest',
+      '3': '.loans.v1.LoanRequestApproveResponse',
+      '4': {}
+    },
+    {
+      '1': 'LoanRequestReject',
+      '2': '.loans.v1.LoanRequestRejectRequest',
+      '3': '.loans.v1.LoanRequestRejectResponse',
+      '4': {}
+    },
+    {
+      '1': 'LoanRequestCancel',
+      '2': '.loans.v1.LoanRequestCancelRequest',
+      '3': '.loans.v1.LoanRequestCancelResponse',
+      '4': {}
+    },
+    {
+      '1': 'ClientProductAccessSave',
+      '2': '.loans.v1.ClientProductAccessSaveRequest',
+      '3': '.loans.v1.ClientProductAccessSaveResponse',
+      '4': {}
+    },
     {
       '1': 'ClientProductAccessGet',
       '2': '.loans.v1.ClientProductAccessGetRequest',
@@ -1915,7 +3290,12 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'LoanAccountCreate', '2': '.loans.v1.LoanAccountCreateRequest', '3': '.loans.v1.LoanAccountCreateResponse', '4': {}},
+    {
+      '1': 'LoanAccountCreate',
+      '2': '.loans.v1.LoanAccountCreateRequest',
+      '3': '.loans.v1.LoanAccountCreateResponse',
+      '4': {}
+    },
     {
       '1': 'LoanAccountGet',
       '2': '.loans.v1.LoanAccountGetRequest',
@@ -1941,7 +3321,12 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '3': '.loans.v1.LoanStatementResponse',
       '4': {'34': 1},
     },
-    {'1': 'DisbursementCreate', '2': '.loans.v1.DisbursementCreateRequest', '3': '.loans.v1.DisbursementCreateResponse', '4': {}},
+    {
+      '1': 'DisbursementCreate',
+      '2': '.loans.v1.DisbursementCreateRequest',
+      '3': '.loans.v1.DisbursementCreateResponse',
+      '4': {}
+    },
     {
       '1': 'DisbursementGet',
       '2': '.loans.v1.DisbursementGetRequest',
@@ -1955,7 +3340,12 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'RepaymentRecord', '2': '.loans.v1.RepaymentRecordRequest', '3': '.loans.v1.RepaymentRecordResponse', '4': {}},
+    {
+      '1': 'RepaymentRecord',
+      '2': '.loans.v1.RepaymentRecordRequest',
+      '3': '.loans.v1.RepaymentRecordResponse',
+      '4': {}
+    },
     {
       '1': 'RepaymentGet',
       '2': '.loans.v1.RepaymentGetRequest',
@@ -1975,8 +3365,18 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '3': '.loans.v1.RepaymentScheduleGetResponse',
       '4': {'34': 1},
     },
-    {'1': 'PenaltySave', '2': '.loans.v1.PenaltySaveRequest', '3': '.loans.v1.PenaltySaveResponse', '4': {}},
-    {'1': 'PenaltyWaive', '2': '.loans.v1.PenaltyWaiveRequest', '3': '.loans.v1.PenaltyWaiveResponse', '4': {}},
+    {
+      '1': 'PenaltySave',
+      '2': '.loans.v1.PenaltySaveRequest',
+      '3': '.loans.v1.PenaltySaveResponse',
+      '4': {}
+    },
+    {
+      '1': 'PenaltyWaive',
+      '2': '.loans.v1.PenaltyWaiveRequest',
+      '3': '.loans.v1.PenaltyWaiveResponse',
+      '4': {}
+    },
     {
       '1': 'PenaltySearch',
       '2': '.loans.v1.PenaltySearchRequest',
@@ -1984,9 +3384,24 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'LoanRestructureCreate', '2': '.loans.v1.LoanRestructureCreateRequest', '3': '.loans.v1.LoanRestructureCreateResponse', '4': {}},
-    {'1': 'LoanRestructureApprove', '2': '.loans.v1.LoanRestructureApproveRequest', '3': '.loans.v1.LoanRestructureApproveResponse', '4': {}},
-    {'1': 'LoanRestructureReject', '2': '.loans.v1.LoanRestructureRejectRequest', '3': '.loans.v1.LoanRestructureRejectResponse', '4': {}},
+    {
+      '1': 'LoanRestructureCreate',
+      '2': '.loans.v1.LoanRestructureCreateRequest',
+      '3': '.loans.v1.LoanRestructureCreateResponse',
+      '4': {}
+    },
+    {
+      '1': 'LoanRestructureApprove',
+      '2': '.loans.v1.LoanRestructureApproveRequest',
+      '3': '.loans.v1.LoanRestructureApproveResponse',
+      '4': {}
+    },
+    {
+      '1': 'LoanRestructureReject',
+      '2': '.loans.v1.LoanRestructureRejectRequest',
+      '3': '.loans.v1.LoanRestructureRejectResponse',
+      '4': {}
+    },
     {
       '1': 'LoanRestructureSearch',
       '2': '.loans.v1.LoanRestructureSearchRequest',
@@ -1994,7 +3409,12 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'ReconciliationSave', '2': '.loans.v1.ReconciliationSaveRequest', '3': '.loans.v1.ReconciliationSaveResponse', '4': {}},
+    {
+      '1': 'ReconciliationSave',
+      '2': '.loans.v1.ReconciliationSaveRequest',
+      '3': '.loans.v1.ReconciliationSaveResponse',
+      '4': {}
+    },
     {
       '1': 'ReconciliationSearch',
       '2': '.loans.v1.ReconciliationSearchRequest',
@@ -2002,7 +3422,12 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
       '4': {'34': 1},
       '6': true,
     },
-    {'1': 'InitiateCollection', '2': '.loans.v1.InitiateCollectionRequest', '3': '.loans.v1.InitiateCollectionResponse', '4': {}},
+    {
+      '1': 'InitiateCollection',
+      '2': '.loans.v1.InitiateCollectionRequest',
+      '3': '.loans.v1.InitiateCollectionResponse',
+      '4': {}
+    },
     {
       '1': 'LoanStatusChangeSearch',
       '2': '.loans.v1.LoanStatusChangeSearchRequest',
@@ -2027,20 +3452,21 @@ const $core.Map<$core.String, $core.dynamic> LoanManagementServiceBase$json = {
 };
 
 @$core.Deprecated('Use loanManagementServiceDescriptor instead')
-const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LoanManagementServiceBase$messageJson = {
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+    LoanManagementServiceBase$messageJson = {
   '.loans.v1.LoanProductSaveRequest': LoanProductSaveRequest$json,
   '.loans.v1.LoanProductObject': LoanProductObject$json,
-  '.common.v1.Money': $7.Money$json,
-  '.google.protobuf.Struct': $6.Struct$json,
-  '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
-  '.google.protobuf.Value': $6.Value$json,
-  '.google.protobuf.ListValue': $6.ListValue$json,
+  '.common.v1.Money': $0.Money$json,
+  '.google.protobuf.Struct': $1.Struct$json,
+  '.google.protobuf.Struct.FieldsEntry': $1.Struct_FieldsEntry$json,
+  '.google.protobuf.Value': $1.Value$json,
+  '.google.protobuf.ListValue': $1.ListValue$json,
   '.loans.v1.ProductFormRequirement': ProductFormRequirement$json,
   '.loans.v1.LoanProductSaveResponse': LoanProductSaveResponse$json,
   '.loans.v1.LoanProductGetRequest': LoanProductGetRequest$json,
   '.loans.v1.LoanProductGetResponse': LoanProductGetResponse$json,
   '.loans.v1.LoanProductSearchRequest': LoanProductSearchRequest$json,
-  '.common.v1.PageCursor': $8.PageCursor$json,
+  '.common.v1.PageCursor': $2.PageCursor$json,
   '.loans.v1.LoanProductSearchResponse': LoanProductSearchResponse$json,
   '.loans.v1.LoanRequestSaveRequest': LoanRequestSaveRequest$json,
   '.loans.v1.LoanRequestObject': LoanRequestObject$json,
@@ -2055,13 +3481,18 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LoanManage
   '.loans.v1.LoanRequestRejectResponse': LoanRequestRejectResponse$json,
   '.loans.v1.LoanRequestCancelRequest': LoanRequestCancelRequest$json,
   '.loans.v1.LoanRequestCancelResponse': LoanRequestCancelResponse$json,
-  '.loans.v1.ClientProductAccessSaveRequest': ClientProductAccessSaveRequest$json,
+  '.loans.v1.ClientProductAccessSaveRequest':
+      ClientProductAccessSaveRequest$json,
   '.loans.v1.ClientProductAccessObject': ClientProductAccessObject$json,
-  '.loans.v1.ClientProductAccessSaveResponse': ClientProductAccessSaveResponse$json,
+  '.loans.v1.ClientProductAccessSaveResponse':
+      ClientProductAccessSaveResponse$json,
   '.loans.v1.ClientProductAccessGetRequest': ClientProductAccessGetRequest$json,
-  '.loans.v1.ClientProductAccessGetResponse': ClientProductAccessGetResponse$json,
-  '.loans.v1.ClientProductAccessSearchRequest': ClientProductAccessSearchRequest$json,
-  '.loans.v1.ClientProductAccessSearchResponse': ClientProductAccessSearchResponse$json,
+  '.loans.v1.ClientProductAccessGetResponse':
+      ClientProductAccessGetResponse$json,
+  '.loans.v1.ClientProductAccessSearchRequest':
+      ClientProductAccessSearchRequest$json,
+  '.loans.v1.ClientProductAccessSearchResponse':
+      ClientProductAccessSearchResponse$json,
   '.loans.v1.LoanAccountCreateRequest': LoanAccountCreateRequest$json,
   '.loans.v1.LoanAccountCreateResponse': LoanAccountCreateResponse$json,
   '.loans.v1.LoanAccountObject': LoanAccountObject$json,
@@ -2104,7 +3535,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LoanManage
   '.loans.v1.LoanRestructureObject': LoanRestructureObject$json,
   '.loans.v1.LoanRestructureCreateResponse': LoanRestructureCreateResponse$json,
   '.loans.v1.LoanRestructureApproveRequest': LoanRestructureApproveRequest$json,
-  '.loans.v1.LoanRestructureApproveResponse': LoanRestructureApproveResponse$json,
+  '.loans.v1.LoanRestructureApproveResponse':
+      LoanRestructureApproveResponse$json,
   '.loans.v1.LoanRestructureRejectRequest': LoanRestructureRejectRequest$json,
   '.loans.v1.LoanRestructureRejectResponse': LoanRestructureRejectResponse$json,
   '.loans.v1.LoanRestructureSearchRequest': LoanRestructureSearchRequest$json,
@@ -2117,7 +3549,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LoanManage
   '.loans.v1.InitiateCollectionRequest': InitiateCollectionRequest$json,
   '.loans.v1.InitiateCollectionResponse': InitiateCollectionResponse$json,
   '.loans.v1.LoanStatusChangeSearchRequest': LoanStatusChangeSearchRequest$json,
-  '.loans.v1.LoanStatusChangeSearchResponse': LoanStatusChangeSearchResponse$json,
+  '.loans.v1.LoanStatusChangeSearchResponse':
+      LoanStatusChangeSearchResponse$json,
   '.loans.v1.LoanStatusChangeObject': LoanStatusChangeObject$json,
   '.loans.v1.PortfolioSummaryRequest': PortfolioSummaryRequest$json,
   '.loans.v1.PortfolioSummaryResponse': PortfolioSummaryResponse$json,
@@ -2334,4 +3767,3 @@ final $typed_data.Uint8List loanManagementServiceDescriptor = $convert.base64Dec
     'lldxIQcmVwYXltZW50X21hbmFnZRIMcGVuYWx0eV92aWV3Eg5wZW5hbHR5X21hbmFnZRIQcmVz'
     'dHJ1Y3R1cmVfdmlldxIScmVzdHJ1Y3R1cmVfbWFuYWdlEhVyZWNvbmNpbGlhdGlvbl9tYW5hZ2'
     'USEWNvbGxlY3Rpb25fbWFuYWdlEg5wb3J0Zm9saW9fdmlldxIQcG9ydGZvbGlvX2V4cG9ydA==');
-

@@ -36,6 +36,7 @@ test: ## Run all tests with the race detector (sequential packages)
 # generation is scoped to a single module and dart packages don't leak each
 # other's types. See proto/buf.gen.dart.*.yaml.
 DART_MODULES := identity field loans savings funding operations limits
+DART_RUNTIME_WKTS := any api duration empty field_mask source_context struct timestamp type wrappers
 
 .PHONY: proto-generate-dart
 proto-generate-dart: $(BIN)/buf ## Regenerate the per-module dart SDKs
@@ -46,9 +47,24 @@ proto-generate-dart: $(BIN)/buf ## Regenerate the per-module dart SDKs
 			rm -rf sdk/dart/$$pkg/lib/src/$$other; \
 		done; \
 	done
+	@# Generated files are recreated from scratch so files the plugin no longer
+	@# emits (e.g. empty .pbserver.dart) do not linger; barrels and hand-written
+	@# files outside lib/src are untouched.
+	@for m in $(DART_MODULES); do \
+		find sdk/dart/$$m/lib/src -name '*.pb*.dart' -o -name '*.connect.*.dart' | xargs -r rm -f; \
+	done
 	@for m in $(DART_MODULES); do \
 		echo "==> dart $$m"; \
 		(cd $(PROTO_DIR) && buf generate --template buf.gen.dart.$$m.yaml $$m); \
+	done
+	@# protoc_plugin 25 imports the well-known types from package:protobuf, so
+	@# the copies include_wkt emits are unreferenced. descriptor.proto is not
+	@# shipped by the runtime and stays (buf/validate and gnostic import it).
+	@for m in $(DART_MODULES); do \
+		for wkt in $(DART_RUNTIME_WKTS); do \
+			rm -f sdk/dart/$$m/lib/src/google/protobuf/$$wkt.pb*.dart; \
+		done; \
+		find sdk/dart/$$m/lib/src -type d -empty -delete; \
 	done
 
 # Wire dart generation into the standard proto-generate pipeline.

@@ -1,7 +1,6 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
-import 'package:protobuf/protobuf.dart';
 
 import '../providers/client_providers.dart';
 

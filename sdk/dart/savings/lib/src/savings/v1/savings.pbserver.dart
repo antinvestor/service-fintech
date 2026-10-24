@@ -1,100 +1,169 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: savings/v1/savings.proto
-//
-// @dart = 2.12
+// Generated from savings/v1/savings.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
 // ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
 // ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
 
 import 'dart:async' as $async;
 import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
-import 'savings.pb.dart' as $9;
+import 'savings.pb.dart' as $3;
 import 'savings.pbjson.dart';
 
 export 'savings.pb.dart';
 
 abstract class SavingsServiceBase extends $pb.GeneratedService {
-  $async.Future<$9.SavingsProductSaveResponse> savingsProductSave($pb.ServerContext ctx, $9.SavingsProductSaveRequest request);
-  $async.Future<$9.SavingsProductGetResponse> savingsProductGet($pb.ServerContext ctx, $9.SavingsProductGetRequest request);
-  $async.Future<$9.SavingsProductSearchResponse> savingsProductSearch($pb.ServerContext ctx, $9.SavingsProductSearchRequest request);
-  $async.Future<$9.SavingsAccountCreateResponse> savingsAccountCreate($pb.ServerContext ctx, $9.SavingsAccountCreateRequest request);
-  $async.Future<$9.SavingsAccountGetResponse> savingsAccountGet($pb.ServerContext ctx, $9.SavingsAccountGetRequest request);
-  $async.Future<$9.SavingsAccountSearchResponse> savingsAccountSearch($pb.ServerContext ctx, $9.SavingsAccountSearchRequest request);
-  $async.Future<$9.SavingsAccountFreezeResponse> savingsAccountFreeze($pb.ServerContext ctx, $9.SavingsAccountFreezeRequest request);
-  $async.Future<$9.SavingsAccountCloseResponse> savingsAccountClose($pb.ServerContext ctx, $9.SavingsAccountCloseRequest request);
-  $async.Future<$9.DepositRecordResponse> depositRecord($pb.ServerContext ctx, $9.DepositRecordRequest request);
-  $async.Future<$9.DepositGetResponse> depositGet($pb.ServerContext ctx, $9.DepositGetRequest request);
-  $async.Future<$9.DepositSearchResponse> depositSearch($pb.ServerContext ctx, $9.DepositSearchRequest request);
-  $async.Future<$9.WithdrawalRequestResponse> withdrawalRequest($pb.ServerContext ctx, $9.WithdrawalRequestRequest request);
-  $async.Future<$9.WithdrawalApproveResponse> withdrawalApprove($pb.ServerContext ctx, $9.WithdrawalApproveRequest request);
-  $async.Future<$9.WithdrawalCancelResponse> withdrawalCancel($pb.ServerContext ctx, $9.WithdrawalCancelRequest request);
-  $async.Future<$9.WithdrawalGetResponse> withdrawalGet($pb.ServerContext ctx, $9.WithdrawalGetRequest request);
-  $async.Future<$9.WithdrawalSearchResponse> withdrawalSearch($pb.ServerContext ctx, $9.WithdrawalSearchRequest request);
-  $async.Future<$9.InterestAccrualGetResponse> interestAccrualGet($pb.ServerContext ctx, $9.InterestAccrualGetRequest request);
-  $async.Future<$9.InterestAccrualSearchResponse> interestAccrualSearch($pb.ServerContext ctx, $9.InterestAccrualSearchRequest request);
-  $async.Future<$9.SavingsBalanceGetResponse> savingsBalanceGet($pb.ServerContext ctx, $9.SavingsBalanceGetRequest request);
-  $async.Future<$9.SavingsStatementResponse> savingsStatement($pb.ServerContext ctx, $9.SavingsStatementRequest request);
+  $async.Future<$3.SavingsProductSaveResponse> savingsProductSave(
+      $pb.ServerContext ctx, $3.SavingsProductSaveRequest request);
+  $async.Future<$3.SavingsProductGetResponse> savingsProductGet(
+      $pb.ServerContext ctx, $3.SavingsProductGetRequest request);
+  $async.Future<$3.SavingsProductSearchResponse> savingsProductSearch(
+      $pb.ServerContext ctx, $3.SavingsProductSearchRequest request);
+  $async.Future<$3.SavingsAccountCreateResponse> savingsAccountCreate(
+      $pb.ServerContext ctx, $3.SavingsAccountCreateRequest request);
+  $async.Future<$3.SavingsAccountGetResponse> savingsAccountGet(
+      $pb.ServerContext ctx, $3.SavingsAccountGetRequest request);
+  $async.Future<$3.SavingsAccountSearchResponse> savingsAccountSearch(
+      $pb.ServerContext ctx, $3.SavingsAccountSearchRequest request);
+  $async.Future<$3.SavingsAccountFreezeResponse> savingsAccountFreeze(
+      $pb.ServerContext ctx, $3.SavingsAccountFreezeRequest request);
+  $async.Future<$3.SavingsAccountCloseResponse> savingsAccountClose(
+      $pb.ServerContext ctx, $3.SavingsAccountCloseRequest request);
+  $async.Future<$3.DepositRecordResponse> depositRecord(
+      $pb.ServerContext ctx, $3.DepositRecordRequest request);
+  $async.Future<$3.DepositGetResponse> depositGet(
+      $pb.ServerContext ctx, $3.DepositGetRequest request);
+  $async.Future<$3.DepositSearchResponse> depositSearch(
+      $pb.ServerContext ctx, $3.DepositSearchRequest request);
+  $async.Future<$3.WithdrawalRequestResponse> withdrawalRequest(
+      $pb.ServerContext ctx, $3.WithdrawalRequestRequest request);
+  $async.Future<$3.WithdrawalApproveResponse> withdrawalApprove(
+      $pb.ServerContext ctx, $3.WithdrawalApproveRequest request);
+  $async.Future<$3.WithdrawalCancelResponse> withdrawalCancel(
+      $pb.ServerContext ctx, $3.WithdrawalCancelRequest request);
+  $async.Future<$3.WithdrawalGetResponse> withdrawalGet(
+      $pb.ServerContext ctx, $3.WithdrawalGetRequest request);
+  $async.Future<$3.WithdrawalSearchResponse> withdrawalSearch(
+      $pb.ServerContext ctx, $3.WithdrawalSearchRequest request);
+  $async.Future<$3.InterestAccrualGetResponse> interestAccrualGet(
+      $pb.ServerContext ctx, $3.InterestAccrualGetRequest request);
+  $async.Future<$3.InterestAccrualSearchResponse> interestAccrualSearch(
+      $pb.ServerContext ctx, $3.InterestAccrualSearchRequest request);
+  $async.Future<$3.SavingsBalanceGetResponse> savingsBalanceGet(
+      $pb.ServerContext ctx, $3.SavingsBalanceGetRequest request);
+  $async.Future<$3.SavingsStatementResponse> savingsStatement(
+      $pb.ServerContext ctx, $3.SavingsStatementRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
-      case 'SavingsProductSave': return $9.SavingsProductSaveRequest();
-      case 'SavingsProductGet': return $9.SavingsProductGetRequest();
-      case 'SavingsProductSearch': return $9.SavingsProductSearchRequest();
-      case 'SavingsAccountCreate': return $9.SavingsAccountCreateRequest();
-      case 'SavingsAccountGet': return $9.SavingsAccountGetRequest();
-      case 'SavingsAccountSearch': return $9.SavingsAccountSearchRequest();
-      case 'SavingsAccountFreeze': return $9.SavingsAccountFreezeRequest();
-      case 'SavingsAccountClose': return $9.SavingsAccountCloseRequest();
-      case 'DepositRecord': return $9.DepositRecordRequest();
-      case 'DepositGet': return $9.DepositGetRequest();
-      case 'DepositSearch': return $9.DepositSearchRequest();
-      case 'WithdrawalRequest': return $9.WithdrawalRequestRequest();
-      case 'WithdrawalApprove': return $9.WithdrawalApproveRequest();
-      case 'WithdrawalCancel': return $9.WithdrawalCancelRequest();
-      case 'WithdrawalGet': return $9.WithdrawalGetRequest();
-      case 'WithdrawalSearch': return $9.WithdrawalSearchRequest();
-      case 'InterestAccrualGet': return $9.InterestAccrualGetRequest();
-      case 'InterestAccrualSearch': return $9.InterestAccrualSearchRequest();
-      case 'SavingsBalanceGet': return $9.SavingsBalanceGetRequest();
-      case 'SavingsStatement': return $9.SavingsStatementRequest();
-      default: throw $core.ArgumentError('Unknown method: $methodName');
+      case 'SavingsProductSave':
+        return $3.SavingsProductSaveRequest();
+      case 'SavingsProductGet':
+        return $3.SavingsProductGetRequest();
+      case 'SavingsProductSearch':
+        return $3.SavingsProductSearchRequest();
+      case 'SavingsAccountCreate':
+        return $3.SavingsAccountCreateRequest();
+      case 'SavingsAccountGet':
+        return $3.SavingsAccountGetRequest();
+      case 'SavingsAccountSearch':
+        return $3.SavingsAccountSearchRequest();
+      case 'SavingsAccountFreeze':
+        return $3.SavingsAccountFreezeRequest();
+      case 'SavingsAccountClose':
+        return $3.SavingsAccountCloseRequest();
+      case 'DepositRecord':
+        return $3.DepositRecordRequest();
+      case 'DepositGet':
+        return $3.DepositGetRequest();
+      case 'DepositSearch':
+        return $3.DepositSearchRequest();
+      case 'WithdrawalRequest':
+        return $3.WithdrawalRequestRequest();
+      case 'WithdrawalApprove':
+        return $3.WithdrawalApproveRequest();
+      case 'WithdrawalCancel':
+        return $3.WithdrawalCancelRequest();
+      case 'WithdrawalGet':
+        return $3.WithdrawalGetRequest();
+      case 'WithdrawalSearch':
+        return $3.WithdrawalSearchRequest();
+      case 'InterestAccrualGet':
+        return $3.InterestAccrualGetRequest();
+      case 'InterestAccrualSearch':
+        return $3.InterestAccrualSearchRequest();
+      case 'SavingsBalanceGet':
+        return $3.SavingsBalanceGetRequest();
+      case 'SavingsStatement':
+        return $3.SavingsStatementRequest();
+      default:
+        throw $core.ArgumentError('Unknown method: $methodName');
     }
   }
 
-  $async.Future<$pb.GeneratedMessage> handleCall($pb.ServerContext ctx, $core.String methodName, $pb.GeneratedMessage request) {
+  $async.Future<$pb.GeneratedMessage> handleCall($pb.ServerContext ctx,
+      $core.String methodName, $pb.GeneratedMessage request) {
     switch (methodName) {
-      case 'SavingsProductSave': return this.savingsProductSave(ctx, request as $9.SavingsProductSaveRequest);
-      case 'SavingsProductGet': return this.savingsProductGet(ctx, request as $9.SavingsProductGetRequest);
-      case 'SavingsProductSearch': return this.savingsProductSearch(ctx, request as $9.SavingsProductSearchRequest);
-      case 'SavingsAccountCreate': return this.savingsAccountCreate(ctx, request as $9.SavingsAccountCreateRequest);
-      case 'SavingsAccountGet': return this.savingsAccountGet(ctx, request as $9.SavingsAccountGetRequest);
-      case 'SavingsAccountSearch': return this.savingsAccountSearch(ctx, request as $9.SavingsAccountSearchRequest);
-      case 'SavingsAccountFreeze': return this.savingsAccountFreeze(ctx, request as $9.SavingsAccountFreezeRequest);
-      case 'SavingsAccountClose': return this.savingsAccountClose(ctx, request as $9.SavingsAccountCloseRequest);
-      case 'DepositRecord': return this.depositRecord(ctx, request as $9.DepositRecordRequest);
-      case 'DepositGet': return this.depositGet(ctx, request as $9.DepositGetRequest);
-      case 'DepositSearch': return this.depositSearch(ctx, request as $9.DepositSearchRequest);
-      case 'WithdrawalRequest': return this.withdrawalRequest(ctx, request as $9.WithdrawalRequestRequest);
-      case 'WithdrawalApprove': return this.withdrawalApprove(ctx, request as $9.WithdrawalApproveRequest);
-      case 'WithdrawalCancel': return this.withdrawalCancel(ctx, request as $9.WithdrawalCancelRequest);
-      case 'WithdrawalGet': return this.withdrawalGet(ctx, request as $9.WithdrawalGetRequest);
-      case 'WithdrawalSearch': return this.withdrawalSearch(ctx, request as $9.WithdrawalSearchRequest);
-      case 'InterestAccrualGet': return this.interestAccrualGet(ctx, request as $9.InterestAccrualGetRequest);
-      case 'InterestAccrualSearch': return this.interestAccrualSearch(ctx, request as $9.InterestAccrualSearchRequest);
-      case 'SavingsBalanceGet': return this.savingsBalanceGet(ctx, request as $9.SavingsBalanceGetRequest);
-      case 'SavingsStatement': return this.savingsStatement(ctx, request as $9.SavingsStatementRequest);
-      default: throw $core.ArgumentError('Unknown method: $methodName');
+      case 'SavingsProductSave':
+        return savingsProductSave(ctx, request as $3.SavingsProductSaveRequest);
+      case 'SavingsProductGet':
+        return savingsProductGet(ctx, request as $3.SavingsProductGetRequest);
+      case 'SavingsProductSearch':
+        return savingsProductSearch(
+            ctx, request as $3.SavingsProductSearchRequest);
+      case 'SavingsAccountCreate':
+        return savingsAccountCreate(
+            ctx, request as $3.SavingsAccountCreateRequest);
+      case 'SavingsAccountGet':
+        return savingsAccountGet(ctx, request as $3.SavingsAccountGetRequest);
+      case 'SavingsAccountSearch':
+        return savingsAccountSearch(
+            ctx, request as $3.SavingsAccountSearchRequest);
+      case 'SavingsAccountFreeze':
+        return savingsAccountFreeze(
+            ctx, request as $3.SavingsAccountFreezeRequest);
+      case 'SavingsAccountClose':
+        return savingsAccountClose(
+            ctx, request as $3.SavingsAccountCloseRequest);
+      case 'DepositRecord':
+        return depositRecord(ctx, request as $3.DepositRecordRequest);
+      case 'DepositGet':
+        return depositGet(ctx, request as $3.DepositGetRequest);
+      case 'DepositSearch':
+        return depositSearch(ctx, request as $3.DepositSearchRequest);
+      case 'WithdrawalRequest':
+        return withdrawalRequest(ctx, request as $3.WithdrawalRequestRequest);
+      case 'WithdrawalApprove':
+        return withdrawalApprove(ctx, request as $3.WithdrawalApproveRequest);
+      case 'WithdrawalCancel':
+        return withdrawalCancel(ctx, request as $3.WithdrawalCancelRequest);
+      case 'WithdrawalGet':
+        return withdrawalGet(ctx, request as $3.WithdrawalGetRequest);
+      case 'WithdrawalSearch':
+        return withdrawalSearch(ctx, request as $3.WithdrawalSearchRequest);
+      case 'InterestAccrualGet':
+        return interestAccrualGet(ctx, request as $3.InterestAccrualGetRequest);
+      case 'InterestAccrualSearch':
+        return interestAccrualSearch(
+            ctx, request as $3.InterestAccrualSearchRequest);
+      case 'SavingsBalanceGet':
+        return savingsBalanceGet(ctx, request as $3.SavingsBalanceGetRequest);
+      case 'SavingsStatement':
+        return savingsStatement(ctx, request as $3.SavingsStatementRequest);
+      default:
+        throw $core.ArgumentError('Unknown method: $methodName');
     }
   }
 
   $core.Map<$core.String, $core.dynamic> get $json => SavingsServiceBase$json;
-  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> get $messageJson => SavingsServiceBase$messageJson;
+  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+      get $messageJson => SavingsServiceBase$messageJson;
 }
-

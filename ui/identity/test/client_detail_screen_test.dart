@@ -68,7 +68,7 @@ Widget _host({
           properties: Struct(
             fields: {
               kClientPhoneNumberKey: Value(stringValue: '+254700000001'),
-            },
+            }.entries,
           ),
         ),
       ),
