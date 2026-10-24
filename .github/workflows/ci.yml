@@ -18,7 +18,7 @@ on:
       - '.github/actions/flutter-setup/**'
 
 env:
-  FLUTTER_VERSION: '3.41.6'
+  FLUTTER_VERSION: '3.47.7'
 
 concurrency:
   group: ui-ci-${{ github.head_ref || github.run_id }}

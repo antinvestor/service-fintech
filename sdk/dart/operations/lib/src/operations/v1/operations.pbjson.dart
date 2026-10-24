@@ -1,21 +1,25 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: operations/v1/operations.proto
-//
-// @dart = 2.12
+// Generated from operations/v1/operations.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+// ignore_for_file: unused_import
 
 import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-import '../../common/v1/common.pbjson.dart' as $8;
-import '../../common/v1/money.pbjson.dart' as $7;
-import '../../google/protobuf/struct.pbjson.dart' as $6;
+import 'package:protobuf/well_known_types/google/protobuf/struct.pbjson.dart'
+    as $1;
+
+import '../../common/v1/common.pbjson.dart' as $2;
+import '../../common/v1/money.pbjson.dart' as $0;
 
 @$core.Deprecated('Use transferOrderTypeDescriptor instead')
 const TransferOrderType$json = {
@@ -34,7 +38,10 @@ const TransferOrderType$json = {
     {'1': 'TRANSFER_ORDER_TYPE_SERVICE_FEE', '2': 16},
     {'1': 'TRANSFER_ORDER_TYPE_REGISTRATION_FEE', '2': 21},
     {'1': 'TRANSFER_ORDER_TYPE_PERIODIC_SAVING', '2': 25},
-    {'1': 'TRANSFER_ORDER_TYPE_PERIODIC_SAVINGS_INTEREST_INCOME_DISTRIBUTION', '2': 26},
+    {
+      '1': 'TRANSFER_ORDER_TYPE_PERIODIC_SAVINGS_INTEREST_INCOME_DISTRIBUTION',
+      '2': 26
+    },
     {'1': 'TRANSFER_ORDER_TYPE_PERIODIC_SAVING_RECOVERY', '2': 27},
     {'1': 'TRANSFER_ORDER_TYPE_PENALTY', '2': 31},
     {'1': 'TRANSFER_ORDER_TYPE_PENALTY_CANCEL', '2': 32},
@@ -96,8 +103,21 @@ const TransferOrderObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
     {'1': 'debit_account_ref', '3': 2, '4': 1, '5': 9, '10': 'debitAccountRef'},
-    {'1': 'credit_account_ref', '3': 3, '4': 1, '5': 9, '10': 'creditAccountRef'},
-    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
+    {
+      '1': 'credit_account_ref',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '10': 'creditAccountRef'
+    },
+    {
+      '1': 'amount',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
     {
       '1': 'order_type',
       '3': 6,
@@ -108,9 +128,30 @@ const TransferOrderObject$json = {
     },
     {'1': 'reference', '3': 7, '4': 1, '5': 9, '10': 'reference'},
     {'1': 'description', '3': 8, '4': 1, '5': 9, '10': 'description'},
-    {'1': 'extra_data', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'extraData'},
-    {'1': 'state', '3': 10, '4': 1, '5': 14, '6': '.common.v1.STATE', '10': 'state'},
-    {'1': 'transfer_type', '3': 11, '4': 1, '5': 14, '6': '.operations.v1.TransferOrderType', '10': 'transferType'},
+    {
+      '1': 'extra_data',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'extraData'
+    },
+    {
+      '1': 'state',
+      '3': 10,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'transfer_type',
+      '3': 11,
+      '4': 1,
+      '5': 14,
+      '6': '.operations.v1.TransferOrderType',
+      '10': 'transferType'
+    },
   ],
   '9': [
     {'1': 5, '2': 6},
@@ -132,27 +173,43 @@ final $typed_data.Uint8List transferOrderObjectDescriptor = $convert.base64Decod
 const TransferOrderExecuteRequest$json = {
   '1': 'TransferOrderExecuteRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.operations.v1.TransferOrderObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.operations.v1.TransferOrderObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `TransferOrderExecuteRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List transferOrderExecuteRequestDescriptor = $convert.base64Decode(
-    'ChtUcmFuc2Zlck9yZGVyRXhlY3V0ZVJlcXVlc3QSNgoEZGF0YRgBIAEoCzIiLm9wZXJhdGlvbn'
-    'MudjEuVHJhbnNmZXJPcmRlck9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List transferOrderExecuteRequestDescriptor =
+    $convert.base64Decode(
+        'ChtUcmFuc2Zlck9yZGVyRXhlY3V0ZVJlcXVlc3QSNgoEZGF0YRgBIAEoCzIiLm9wZXJhdGlvbn'
+        'MudjEuVHJhbnNmZXJPcmRlck9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use transferOrderExecuteResponseDescriptor instead')
 const TransferOrderExecuteResponse$json = {
   '1': 'TransferOrderExecuteResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.operations.v1.TransferOrderObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.operations.v1.TransferOrderObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `TransferOrderExecuteResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List transferOrderExecuteResponseDescriptor = $convert.base64Decode(
-    'ChxUcmFuc2Zlck9yZGVyRXhlY3V0ZVJlc3BvbnNlEjYKBGRhdGEYASABKAsyIi5vcGVyYXRpb2'
-    '5zLnYxLlRyYW5zZmVyT3JkZXJPYmplY3RSBGRhdGE=');
+final $typed_data.Uint8List transferOrderExecuteResponseDescriptor =
+    $convert.base64Decode(
+        'ChxUcmFuc2Zlck9yZGVyRXhlY3V0ZVJlc3BvbnNlEjYKBGRhdGEYASABKAsyIi5vcGVyYXRpb2'
+        '5zLnYxLlRyYW5zZmVyT3JkZXJPYmplY3RSBGRhdGE=');
 
 @$core.Deprecated('Use transferOrderSearchRequestDescriptor instead')
 const TransferOrderSearchRequest$json = {
@@ -167,8 +224,22 @@ const TransferOrderSearchRequest$json = {
       '8': {'3': true},
       '10': 'orderType',
     },
-    {'1': 'cursor', '3': 3, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
-    {'1': 'transfer_type', '3': 4, '4': 1, '5': 14, '6': '.operations.v1.TransferOrderType', '10': 'transferType'},
+    {
+      '1': 'cursor',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
+    {
+      '1': 'transfer_type',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.operations.v1.TransferOrderType',
+      '10': 'transferType'
+    },
   ],
 };
 
@@ -183,28 +254,50 @@ final $typed_data.Uint8List transferOrderSearchRequestDescriptor = $convert.base
 const TransferOrderSearchResponse$json = {
   '1': 'TransferOrderSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.operations.v1.TransferOrderObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.operations.v1.TransferOrderObject',
+      '10': 'data'
+    },
     {'1': 'next_cursor', '3': 2, '4': 1, '5': 9, '10': 'nextCursor'},
   ],
 };
 
 /// Descriptor for `TransferOrderSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List transferOrderSearchResponseDescriptor = $convert.base64Decode(
-    'ChtUcmFuc2Zlck9yZGVyU2VhcmNoUmVzcG9uc2USNgoEZGF0YRgBIAMoCzIiLm9wZXJhdGlvbn'
-    'MudjEuVHJhbnNmZXJPcmRlck9iamVjdFIEZGF0YRIfCgtuZXh0X2N1cnNvchgCIAEoCVIKbmV4'
-    'dEN1cnNvcg==');
+final $typed_data.Uint8List transferOrderSearchResponseDescriptor =
+    $convert.base64Decode(
+        'ChtUcmFuc2Zlck9yZGVyU2VhcmNoUmVzcG9uc2USNgoEZGF0YRgBIAMoCzIiLm9wZXJhdGlvbn'
+        'MudjEuVHJhbnNmZXJPcmRlck9iamVjdFIEZGF0YRIfCgtuZXh0X2N1cnNvchgCIAEoCVIKbmV4'
+        'dEN1cnNvcg==');
 
 @$core.Deprecated('Use incomingPaymentNotifyRequestDescriptor instead')
 const IncomingPaymentNotifyRequest$json = {
   '1': 'IncomingPaymentNotifyRequest',
   '2': [
     {'1': 'transaction_id', '3': 1, '4': 1, '5': 9, '10': 'transactionId'},
-    {'1': 'amount', '3': 2, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
+    {
+      '1': 'amount',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
     {'1': 'payer_reference', '3': 3, '4': 1, '5': 9, '10': 'payerReference'},
     {'1': 'payer_name', '3': 4, '4': 1, '5': 9, '10': 'payerName'},
     {'1': 'product_id', '3': 5, '4': 1, '5': 9, '10': 'productId'},
     {'1': 'group_id', '3': 6, '4': 1, '5': 9, '10': 'groupId'},
-    {'1': 'properties', '3': 7, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'properties'},
+    {
+      '1': 'properties',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'properties'
+    },
   ],
 };
 
@@ -223,15 +316,23 @@ const IncomingPaymentNotifyResponse$json = {
   '2': [
     {'1': 'payment_id', '3': 1, '4': 1, '5': 9, '10': 'paymentId'},
     {'1': 'status', '3': 2, '4': 1, '5': 9, '10': 'status'},
-    {'1': 'result', '3': 3, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'result'},
+    {
+      '1': 'result',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'result'
+    },
   ],
 };
 
 /// Descriptor for `IncomingPaymentNotifyResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List incomingPaymentNotifyResponseDescriptor = $convert.base64Decode(
-    'Ch1JbmNvbWluZ1BheW1lbnROb3RpZnlSZXNwb25zZRIdCgpwYXltZW50X2lkGAEgASgJUglwYX'
-    'ltZW50SWQSFgoGc3RhdHVzGAIgASgJUgZzdGF0dXMSLwoGcmVzdWx0GAMgASgLMhcuZ29vZ2xl'
-    'LnByb3RvYnVmLlN0cnVjdFIGcmVzdWx0');
+final $typed_data.Uint8List incomingPaymentNotifyResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1JbmNvbWluZ1BheW1lbnROb3RpZnlSZXNwb25zZRIdCgpwYXltZW50X2lkGAEgASgJUglwYX'
+        'ltZW50SWQSFgoGc3RhdHVzGAIgASgJUgZzdGF0dXMSLwoGcmVzdWx0GAMgASgLMhcuZ29vZ2xl'
+        'LnByb3RvYnVmLlN0cnVjdFIGcmVzdWx0');
 
 @$core.Deprecated('Use paymentAllocateRequestDescriptor instead')
 const PaymentAllocateRequest$json = {
@@ -242,49 +343,85 @@ const PaymentAllocateRequest$json = {
 };
 
 /// Descriptor for `PaymentAllocateRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List paymentAllocateRequestDescriptor = $convert.base64Decode(
-    'ChZQYXltZW50QWxsb2NhdGVSZXF1ZXN0Eh0KCnBheW1lbnRfaWQYASABKAlSCXBheW1lbnRJZA'
-    '==');
+final $typed_data.Uint8List paymentAllocateRequestDescriptor =
+    $convert.base64Decode(
+        'ChZQYXltZW50QWxsb2NhdGVSZXF1ZXN0Eh0KCnBheW1lbnRfaWQYASABKAlSCXBheW1lbnRJZA'
+        '==');
 
 @$core.Deprecated('Use paymentAllocateResponseDescriptor instead')
 const PaymentAllocateResponse$json = {
   '1': 'PaymentAllocateResponse',
   '2': [
-    {'1': 'result', '3': 1, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'result'},
+    {
+      '1': 'result',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'result'
+    },
   ],
 };
 
 /// Descriptor for `PaymentAllocateResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List paymentAllocateResponseDescriptor = $convert.base64Decode(
-    'ChdQYXltZW50QWxsb2NhdGVSZXNwb25zZRIvCgZyZXN1bHQYASABKAsyFy5nb29nbGUucHJvdG'
-    '9idWYuU3RydWN0UgZyZXN1bHQ=');
+final $typed_data.Uint8List paymentAllocateResponseDescriptor =
+    $convert.base64Decode(
+        'ChdQYXltZW50QWxsb2NhdGVSZXNwb25zZRIvCgZyZXN1bHQYASABKAsyFy5nb29nbGUucHJvdG'
+        '9idWYuU3RydWN0UgZyZXN1bHQ=');
 
 const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
   '1': 'OperationsService',
   '2': [
-    {'1': 'TransferOrderExecute', '2': '.operations.v1.TransferOrderExecuteRequest', '3': '.operations.v1.TransferOrderExecuteResponse', '4': {}},
-    {'1': 'TransferOrderSearch', '2': '.operations.v1.TransferOrderSearchRequest', '3': '.operations.v1.TransferOrderSearchResponse', '4': {}, '6': true},
-    {'1': 'IncomingPaymentNotify', '2': '.operations.v1.IncomingPaymentNotifyRequest', '3': '.operations.v1.IncomingPaymentNotifyResponse', '4': {}},
-    {'1': 'PaymentAllocate', '2': '.operations.v1.PaymentAllocateRequest', '3': '.operations.v1.PaymentAllocateResponse', '4': {}},
+    {
+      '1': 'TransferOrderExecute',
+      '2': '.operations.v1.TransferOrderExecuteRequest',
+      '3': '.operations.v1.TransferOrderExecuteResponse',
+      '4': {}
+    },
+    {
+      '1': 'TransferOrderSearch',
+      '2': '.operations.v1.TransferOrderSearchRequest',
+      '3': '.operations.v1.TransferOrderSearchResponse',
+      '4': {},
+      '6': true
+    },
+    {
+      '1': 'IncomingPaymentNotify',
+      '2': '.operations.v1.IncomingPaymentNotifyRequest',
+      '3': '.operations.v1.IncomingPaymentNotifyResponse',
+      '4': {}
+    },
+    {
+      '1': 'PaymentAllocate',
+      '2': '.operations.v1.PaymentAllocateRequest',
+      '3': '.operations.v1.PaymentAllocateResponse',
+      '4': {}
+    },
   ],
   '3': {},
 };
 
 @$core.Deprecated('Use operationsServiceDescriptor instead')
-const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> OperationsServiceBase$messageJson = {
-  '.operations.v1.TransferOrderExecuteRequest': TransferOrderExecuteRequest$json,
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+    OperationsServiceBase$messageJson = {
+  '.operations.v1.TransferOrderExecuteRequest':
+      TransferOrderExecuteRequest$json,
   '.operations.v1.TransferOrderObject': TransferOrderObject$json,
-  '.common.v1.Money': $7.Money$json,
-  '.google.protobuf.Struct': $6.Struct$json,
-  '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
-  '.google.protobuf.Value': $6.Value$json,
-  '.google.protobuf.ListValue': $6.ListValue$json,
-  '.operations.v1.TransferOrderExecuteResponse': TransferOrderExecuteResponse$json,
+  '.common.v1.Money': $0.Money$json,
+  '.google.protobuf.Struct': $1.Struct$json,
+  '.google.protobuf.Struct.FieldsEntry': $1.Struct_FieldsEntry$json,
+  '.google.protobuf.Value': $1.Value$json,
+  '.google.protobuf.ListValue': $1.ListValue$json,
+  '.operations.v1.TransferOrderExecuteResponse':
+      TransferOrderExecuteResponse$json,
   '.operations.v1.TransferOrderSearchRequest': TransferOrderSearchRequest$json,
-  '.common.v1.PageCursor': $8.PageCursor$json,
-  '.operations.v1.TransferOrderSearchResponse': TransferOrderSearchResponse$json,
-  '.operations.v1.IncomingPaymentNotifyRequest': IncomingPaymentNotifyRequest$json,
-  '.operations.v1.IncomingPaymentNotifyResponse': IncomingPaymentNotifyResponse$json,
+  '.common.v1.PageCursor': $2.PageCursor$json,
+  '.operations.v1.TransferOrderSearchResponse':
+      TransferOrderSearchResponse$json,
+  '.operations.v1.IncomingPaymentNotifyRequest':
+      IncomingPaymentNotifyRequest$json,
+  '.operations.v1.IncomingPaymentNotifyResponse':
+      IncomingPaymentNotifyResponse$json,
   '.operations.v1.PaymentAllocateRequest': PaymentAllocateRequest$json,
   '.operations.v1.PaymentAllocateResponse': PaymentAllocateResponse$json,
 };
@@ -309,4 +446,3 @@ final $typed_data.Uint8List operationsServiceDescriptor = $convert.base64Decode(
     'VudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUaEQgEEg10cmFuc2Zlcl92aWV3GhEIBRINdHJh'
     'bnNmZXJfdmlldxpFCAYSEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbn'
     'Rfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRl');
-

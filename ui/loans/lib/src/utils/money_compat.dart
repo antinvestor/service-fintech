@@ -132,14 +132,6 @@ String? validateAmount(String? value) {
   return null;
 }
 
-/// Validates a phone number.
-String? validatePhone(String? value) {
-  if (value == null || value.trim().isEmpty) return 'Phone number is required';
-  final cleaned = value.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
-  if (cleaned.length < 9) return 'Enter a valid phone number';
-  return null;
-}
-
 /// Validates a required field.
 String? validateRequired(String? value, [String field = 'This field']) {
   if (value == null || value.trim().isEmpty) return '$field is required';

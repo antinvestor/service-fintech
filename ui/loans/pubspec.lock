@@ -17,29 +17,86 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "10.0.1"
+  antinvestor_api_audit:
+    dependency: transitive
+    description:
+      name: antinvestor_api_audit
+      sha256: "705b8380d5c30e6c750850914813778ae1de4e7aec5e8b5e55a4cf1ef89ea29f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
   antinvestor_api_common:
     dependency: "direct main"
     description:
       name: antinvestor_api_common
-      sha256: "06210c68804e2720fec6bb497b6cbf43d8f712994deb00c257eec770cd2b12cc"
+      sha256: "8d6f3b1580526cc2fa8f895c9e26b6cbb969d1f9ec273b2635b996ef35e861b3"
       url: "https://pub.dev"
     source: hosted
-    version: "1.52.0"
+    version: "2.0.0"
+  antinvestor_api_field:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/field"
+      relative: true
+    source: path
+    version: "0.4.0"
+  antinvestor_api_funding:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/funding"
+      relative: true
+    source: path
+    version: "0.4.0"
+  antinvestor_api_identity:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/identity"
+      relative: true
+    source: path
+    version: "0.7.0"
+  antinvestor_api_limits:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/limits"
+      relative: true
+    source: path
+    version: "0.3.0"
   antinvestor_api_loans:
     dependency: "direct main"
     description:
       path: "../../sdk/dart/loans"
       relative: true
     source: path
+    version: "0.5.0"
+  antinvestor_api_operations:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/operations"
+      relative: true
+    source: path
+    version: "0.4.0"
+  antinvestor_api_savings:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/savings"
+      relative: true
+    source: path
+    version: "0.4.0"
+  antinvestor_ui_audit:
+    dependency: "direct overridden"
+    description:
+      path: "/tmp/claude-1000/-home-j-code-antinvestor-service-fintech/8fa0dd27-d180-400f-84fa-3e64abe9d441/scratchpad/auth-ui/ui/audit"
+      relative: false
+    source: path
     version: "0.4.0"
   antinvestor_ui_core:
     dependency: "direct main"
     description:
       name: antinvestor_ui_core
-      sha256: "20cd4811dce4a9da6efaa9f95371055e78d08f12ac6d7dff43420f7c029476bf"
+      sha256: "5a3cd467d4b0797334d3412422711f254227a5ddd1bd51a53105f3924f1924cb"
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.1"
+    version: "0.6.0"
   args:
     dependency: transitive
     description:
@@ -124,10 +181,10 @@ packages:
     dependency: "direct main"
     description:
       name: connectrpc
-      sha256: a1dbf301d0dfa189bb879a9f15bbe72f31dbac581f385035a10fcc2d31a93a18
+      sha256: c19e62091f42bcc032d3af22201df91c59d174225480aa1a0c716a2ce2d121af
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.0"
+    version: "2.0.1"
   convert:
     dependency: transitive
     description:
@@ -471,6 +528,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
+  intl:
+    dependency: transitive
+    description:
+      name: intl
+      sha256: "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.20.3"
   io:
     dependency: transitive
     description:
@@ -723,10 +788,10 @@ packages:
     dependency: "direct main"
     description:
       name: protobuf
-      sha256: de9c9eb2c33f8e933a42932fe1dc504800ca45ebc3d673e6ed7f39754ee4053e
+      sha256: "13b6717366aa7ec3792dd62c19c7d33a785708224365f2db23c5ca01f1c1a0f2"
       url: "https://pub.dev"
     source: hosted
-    version: "4.2.0"
+    version: "6.1.0"
   pub_semver:
     dependency: transitive
     description:

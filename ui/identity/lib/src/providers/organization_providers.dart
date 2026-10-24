@@ -36,7 +36,7 @@ final filteredOrganizationListProvider =
       final request = SearchRequest(
         query: params.query,
         cursor: PageCursor(limit: 50),
-        extras: extras.isNotEmpty ? Struct(fields: extras) : null,
+        extras: extras.isNotEmpty ? Struct(fields: extras.entries) : null,
       );
       return collectStream(
         client.organizationSearch(request),

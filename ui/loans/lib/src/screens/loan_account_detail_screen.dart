@@ -13,6 +13,7 @@ import '../providers/penalty_providers.dart';
 import '../providers/repayment_providers.dart';
 import '../providers/restructure_providers.dart';
 import '../providers/schedule_providers.dart';
+import '../providers/statement_providers.dart';
 import '../utils/idempotency_key.dart';
 import '../widgets/loan_status_badge.dart';
 
@@ -65,7 +66,7 @@ class _LoanAccountDetailScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -273,6 +274,7 @@ class _LoanAccountDetailScreenState
             isScrollable: true,
             tabs: const [
               Tab(text: 'Schedule'),
+              Tab(text: 'Statement'),
               Tab(text: 'Transactions'),
               Tab(text: 'Penalties'),
               Tab(text: 'Restructuring'),
@@ -285,6 +287,7 @@ class _LoanAccountDetailScreenState
               controller: _tabController,
               children: [
                 _ScheduleTab(loanAccountId: widget.loanId),
+                _StatementTab(loanAccountId: widget.loanId),
                 _TransactionsTab(loanAccountId: widget.loanId),
                 _PenaltiesTab(
                   loanAccountId: widget.loanId,
@@ -367,7 +370,7 @@ class _LoanAccountDetailScreenState
               idempotencyKey,
             ) async {
               try {
-                await ref
+                final recorded = await ref
                     .read(repaymentNotifierProvider.notifier)
                     .record(
                       loanAccountId: loan.id,
@@ -382,8 +385,13 @@ class _LoanAccountDetailScreenState
                 ref.invalidate(repaymentListProvider(widget.loanId));
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Payment recorded successfully'),
+                    SnackBar(
+                      content: Text(
+                        recorded == null
+                            ? 'Saved offline; it will be sent when the '
+                                  'connection is back'
+                            : 'Payment recorded successfully',
+                      ),
                     ),
                   );
                 }
@@ -408,21 +416,18 @@ class _LoanAccountDetailScreenState
       builder: (dialogContext) => _CollectPaymentFormDialog(
         loanAccountId: loan.id,
         currencyCode: loanMoneyCurrency(loan.principalAmount),
-        onSave: (amount, phoneNumber, idempotencyKey) async {
+        onSave: (amount, idempotencyKey) async {
           try {
             final client = ref.read(loanManagementServiceClientProvider);
             await client.initiateCollection(
               InitiateCollectionRequest(
                 loanAccountId: loan.id,
-                // The string form stays until the loans service consumes the
-                // Money field from the published SDK; both carry the same value.
-                // ignore: deprecated_member_use
-                amount: amount,
+                // No contact is named: the prompt goes to the borrower's
+                // profile, whose contacts the profile service owns.
                 collectionAmount: loanMoneyFromString(
                   amount,
                   loanMoneyCurrency(loan.principalAmount),
                 ),
-                phoneNumber: phoneNumber,
                 idempotencyKey: idempotencyKey,
               ),
             );
@@ -942,6 +947,83 @@ class _TransactionItem {
 // ---------------------------------------------------------------------------
 // Penalties Tab
 // ---------------------------------------------------------------------------
+
+class _StatementTab extends ConsumerWidget {
+  const _StatementTab({required this.loanAccountId});
+
+  final String loanAccountId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final statementAsync = ref.watch(loanStatementProvider(loanAccountId));
+
+    return statementAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Error: $e'),
+            const SizedBox(height: 8),
+            FilledButton.tonal(
+              onPressed: () =>
+                  ref.invalidate(loanStatementProvider(loanAccountId)),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+      data: (statement) {
+        if (statement.entries.isEmpty) {
+          return const Center(child: Text('No statement entries yet'));
+        }
+        return ListView.separated(
+          key: const Key('loan-statement'),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          itemCount: statement.entries.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final entry = statement.entries[index];
+            final isCredit =
+                entry.hasCredit() &&
+                (entry.credit.units > 0 || entry.credit.nanos > 0);
+            return ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(entry.description),
+              subtitle: Text(
+                [
+                  entry.date,
+                  if (entry.reference.isNotEmpty) entry.reference,
+                ].join(' · '),
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    isCredit
+                        ? '- ${formatLoanMoney(entry.credit)}'
+                        : formatLoanMoney(entry.debit),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: isCredit ? Colors.green.shade700 : null,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    'Balance ${formatLoanMoney(entry.balance)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
 
 class _PenaltiesTab extends ConsumerWidget {
   const _PenaltiesTab({required this.loanAccountId, required this.canManage});
@@ -1830,7 +1912,7 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
                 child: TextFormField(
                   controller: _recipientRefCtrl,
                   decoration: const InputDecoration(
-                    hintText: 'e.g. phone number or account',
+                    hintText: 'e.g. the rail transaction code',
                   ),
                   textInputAction: TextInputAction.done,
                   validator: (v) =>
@@ -1967,7 +2049,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  textInputAction: TextInputAction.next,
+                  textInputAction: TextInputAction.done,
                   validator: validateAmount,
                 ),
               ),
@@ -2029,7 +2111,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
                 child: TextFormField(
                   controller: _payerRefCtrl,
                   decoration: const InputDecoration(
-                    hintText: 'e.g. phone number or ID',
+                    hintText: 'e.g. the payer profile or transaction code',
                   ),
                   textInputAction: TextInputAction.done,
                   validator: (v) => validateRequired(v, 'Payer reference'),
@@ -2072,12 +2154,7 @@ class _CollectPaymentFormDialog extends StatefulWidget {
 
   final String loanAccountId;
   final String currencyCode;
-  final Future<void> Function(
-    String amount,
-    String phoneNumber,
-    String idempotencyKey,
-  )
-  onSave;
+  final Future<void> Function(String amount, String idempotencyKey) onSave;
 
   @override
   State<_CollectPaymentFormDialog> createState() =>
@@ -2087,7 +2164,6 @@ class _CollectPaymentFormDialog extends StatefulWidget {
 class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _amountCtrl;
-  late final TextEditingController _phoneCtrl;
   late final String _idempotencyKey;
   bool _saving = false;
 
@@ -2095,14 +2171,12 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
   void initState() {
     super.initState();
     _amountCtrl = TextEditingController();
-    _phoneCtrl = TextEditingController();
     _idempotencyKey = generateIdempotencyKey();
   }
 
   @override
   void dispose() {
     _amountCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -2110,11 +2184,7 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      await widget.onSave(
-        _amountCtrl.text.trim(),
-        _phoneCtrl.text.trim(),
-        _idempotencyKey,
-      );
+      await widget.onSave(_amountCtrl.text.trim(), _idempotencyKey);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _saving = false);
@@ -2146,19 +2216,11 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
                   validator: validateAmount,
                 ),
               ),
-              FormFieldCard(
-                label: 'Phone Number',
-                description:
-                    'The borrower\'s mobile money phone number for the collection prompt.',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _phoneCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. +254712345678',
-                  ),
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.done,
-                  validator: validatePhone,
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'The prompt is sent to the borrower\'s registered mobile '
+                  'number on their profile.',
                 ),
               ),
             ],

@@ -28,6 +28,7 @@ export 'src/screens/organization_form_wizard.dart';
 export 'src/screens/clients_screen.dart';
 export 'src/screens/client_detail_screen.dart';
 export 'src/screens/client_form_dialog.dart';
+export 'src/screens/consent_code_dialog.dart';
 
 // New providers
 export 'src/providers/department_providers.dart';

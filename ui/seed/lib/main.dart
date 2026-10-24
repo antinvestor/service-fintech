@@ -9,13 +9,18 @@ import 'package:antinvestor_ui_core/api/api_base.dart';
 import 'package:antinvestor_ui_core/auth/role_provider.dart';
 import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart'
-    show identityTransportProvider;
+    show identityTransportProvider, myClientAccessScopeProvider;
 import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
     show LimitsCapabilities, limitsCapabilitiesProvider;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
-    show loansTransportProvider;
+    show
+        currentAgentIdProvider,
+        loansTransportProvider,
+        outboxStoreProvider,
+        repaymentOutboxProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 
@@ -24,6 +29,7 @@ import 'core/auth/auth_bridge.dart';
 import 'core/auth/permission_manifests.dart';
 import 'core/auth/permission_provider.dart';
 import 'core/data/analytics_data_source.dart';
+import 'core/data/secure_outbox_store.dart';
 import 'core/config/app_config.dart';
 import 'core/config/url_strategy.dart';
 import 'core/theme/app_theme.dart';
@@ -94,6 +100,29 @@ void main() {
           );
         }),
 
+        // A field agent's workforce member id enables "My portfolio" on the
+        // loan book; anyone else leaves it off.
+        currentAgentIdProvider.overrideWith((ref) {
+          final memberId = ref
+              .watch(myClientAccessScopeProvider)
+              .value
+              ?.memberId;
+          return (memberId == null || memberId.isEmpty) ? null : memberId;
+        }),
+
+        // Repayments recorded offline are kept on the device.
+        outboxStoreProvider.overrideWithValue(
+          const SecureOutboxStore(
+            FlutterSecureStorage(
+              // Unlike the auth tokens, the outbox must outlive the tab.
+              webOptions: WebOptions(
+                dbName: 'seed_ui_outbox',
+                publicKey: 'seed_ui_outbox',
+              ),
+            ),
+          ),
+        ),
+
         // ── Library endpoint overrides ──────────────────────────────
         identityTransportProvider.overrideWith((ref) {
           final auth = ref.watch(authTokenProviderProvider);
@@ -125,11 +154,41 @@ void main() {
   );
 }
 
-class SeedApp extends ConsumerWidget {
+class SeedApp extends ConsumerStatefulWidget {
   const SeedApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SeedApp> createState() => _SeedAppState();
+}
+
+class _SeedAppState extends ConsumerState<SeedApp> {
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    // Repayments saved offline are sent when the app comes back to the
+    // foreground; each keeps its idempotency key, so a resend is harmless.
+    _lifecycle = AppLifecycleListener(onResume: _flushOutbox);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _flushOutbox());
+  }
+
+  Future<void> _flushOutbox() async {
+    try {
+      await ref.read(repaymentOutboxProvider.notifier).flush();
+    } catch (_) {
+      // Still offline or not signed in: the next resume tries again.
+    }
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(

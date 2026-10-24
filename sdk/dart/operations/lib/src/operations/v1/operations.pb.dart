@@ -1,24 +1,26 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: operations/v1/operations.proto
-//
-// @dart = 2.12
+// Generated from operations/v1/operations.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
 
 import 'dart:async' as $async;
 import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
+import 'package:protobuf/well_known_types/google/protobuf/struct.pb.dart' as $1;
 
-import '../../common/v1/common.pb.dart' as $8;
-import '../../common/v1/common.pbenum.dart' as $8;
-import '../../common/v1/money.pb.dart' as $7;
-import '../../google/protobuf/struct.pb.dart' as $6;
+import '../../common/v1/common.pb.dart' as $2;
+import '../../common/v1/money.pb.dart' as $0;
 import 'operations.pbenum.dart';
+
+export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'operations.pbenum.dart';
 
@@ -27,125 +29,117 @@ class TransferOrderObject extends $pb.GeneratedMessage {
     $core.String? id,
     $core.String? debitAccountRef,
     $core.String? creditAccountRef,
-    $7.Money? amount,
-  @$core.Deprecated('This field is deprecated.')
-    $core.int? orderType,
+    $0.Money? amount,
+    @$core.Deprecated('This field is deprecated.') $core.int? orderType,
     $core.String? reference,
     $core.String? description,
-    $6.Struct? extraData,
-    $8.STATE? state,
+    $1.Struct? extraData,
+    $2.STATE? state,
     TransferOrderType? transferType,
   }) {
-    final $result = create();
-    if (id != null) {
-      $result.id = id;
-    }
-    if (debitAccountRef != null) {
-      $result.debitAccountRef = debitAccountRef;
-    }
-    if (creditAccountRef != null) {
-      $result.creditAccountRef = creditAccountRef;
-    }
-    if (amount != null) {
-      $result.amount = amount;
-    }
-    if (orderType != null) {
-      // ignore: deprecated_member_use_from_same_package
-      $result.orderType = orderType;
-    }
-    if (reference != null) {
-      $result.reference = reference;
-    }
-    if (description != null) {
-      $result.description = description;
-    }
-    if (extraData != null) {
-      $result.extraData = extraData;
-    }
-    if (state != null) {
-      $result.state = state;
-    }
-    if (transferType != null) {
-      $result.transferType = transferType;
-    }
-    return $result;
+    final result = TransferOrderObject._();
+    if (id != null) result.id = id;
+    if (debitAccountRef != null) result.debitAccountRef = debitAccountRef;
+    if (creditAccountRef != null) result.creditAccountRef = creditAccountRef;
+    if (amount != null) result.amount = amount;
+    if (orderType != null) result.orderType = orderType;
+    if (reference != null) result.reference = reference;
+    if (description != null) result.description = description;
+    if (extraData != null) result.extraData = extraData;
+    if (state != null) result.state = state;
+    if (transferType != null) result.transferType = transferType;
+    return result;
   }
-  TransferOrderObject._() : super();
-  factory TransferOrderObject.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory TransferOrderObject.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TransferOrderObject', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
+  TransferOrderObject._();
+
+  factory TransferOrderObject.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderObject()..mergeFromBuffer(data, registry);
+  factory TransferOrderObject.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderObject()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TransferOrderObject',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: TransferOrderObject.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'debitAccountRef')
     ..aOS(3, _omitFieldNames ? '' : 'creditAccountRef')
-    ..aOM<$7.Money>(4, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
-    ..a<$core.int>(6, _omitFieldNames ? '' : 'orderType', $pb.PbFieldType.O3)
+    ..aOM<$0.Money>(4, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
+    ..aI(6, _omitFieldNames ? '' : 'orderType')
     ..aOS(7, _omitFieldNames ? '' : 'reference')
     ..aOS(8, _omitFieldNames ? '' : 'description')
-    ..aOM<$6.Struct>(9, _omitFieldNames ? '' : 'extraData', subBuilder: $6.Struct.create)
-    ..e<$8.STATE>(10, _omitFieldNames ? '' : 'state', $pb.PbFieldType.OE, defaultOrMaker: $8.STATE.CREATED, valueOf: $8.STATE.valueOf, enumValues: $8.STATE.values)
-    ..e<TransferOrderType>(11, _omitFieldNames ? '' : 'transferType', $pb.PbFieldType.OE, defaultOrMaker: TransferOrderType.TRANSFER_ORDER_TYPE_UNSPECIFIED, valueOf: TransferOrderType.valueOf, enumValues: TransferOrderType.values)
-    ..hasRequiredFields = false
-  ;
+    ..aOM<$1.Struct>(9, _omitFieldNames ? '' : 'extraData',
+        subBuilder: $1.Struct.$_createMessage)
+    ..aE<$2.STATE>(10, _omitFieldNames ? '' : 'state',
+        enumValues: $2.STATE.values)
+    ..aE<TransferOrderType>(11, _omitFieldNames ? '' : 'transferType',
+        enumValues: TransferOrderType.values)
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  TransferOrderObject clone() => TransferOrderObject()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  TransferOrderObject copyWith(void Function(TransferOrderObject) updates) => super.copyWith((message) => updates(message as TransferOrderObject)) as TransferOrderObject;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderObject clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderObject copyWith(void Function(TransferOrderObject) updates) =>
+      super.copyWith((message) => updates(message as TransferOrderObject))
+          as TransferOrderObject;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use TransferOrderObject() / TransferOrderObject.new instead')
   static TransferOrderObject create() => TransferOrderObject._();
-  TransferOrderObject createEmptyInstance() => create();
-  static $pb.PbList<TransferOrderObject> createRepeated() => $pb.PbList<TransferOrderObject>();
+  static $pb.GeneratedMessage $_createMessage() => TransferOrderObject._();
+  @$core.override
+  TransferOrderObject createEmptyInstance() => TransferOrderObject._();
   @$core.pragma('dart2js:noInline')
-  static TransferOrderObject getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TransferOrderObject>(create);
+  static TransferOrderObject getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TransferOrderObject>(
+          TransferOrderObject.$_createMessage);
   static TransferOrderObject? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get id => $_getSZ(0);
   @$pb.TagNumber(1)
-  set id($core.String v) { $_setString(0, v); }
+  set id($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearId() => clearField(1);
+  void clearId() => $_clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get debitAccountRef => $_getSZ(1);
   @$pb.TagNumber(2)
-  set debitAccountRef($core.String v) { $_setString(1, v); }
+  set debitAccountRef($core.String value) => $_setString(1, value);
   @$pb.TagNumber(2)
   $core.bool hasDebitAccountRef() => $_has(1);
   @$pb.TagNumber(2)
-  void clearDebitAccountRef() => clearField(2);
+  void clearDebitAccountRef() => $_clearField(2);
 
   @$pb.TagNumber(3)
   $core.String get creditAccountRef => $_getSZ(2);
   @$pb.TagNumber(3)
-  set creditAccountRef($core.String v) { $_setString(2, v); }
+  set creditAccountRef($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
   $core.bool hasCreditAccountRef() => $_has(2);
   @$pb.TagNumber(3)
-  void clearCreditAccountRef() => clearField(3);
+  void clearCreditAccountRef() => $_clearField(3);
 
   @$pb.TagNumber(4)
-  $7.Money get amount => $_getN(3);
+  $0.Money get amount => $_getN(3);
   @$pb.TagNumber(4)
-  set amount($7.Money v) { setField(4, v); }
+  set amount($0.Money value) => $_setField(4, value);
   @$pb.TagNumber(4)
   $core.bool hasAmount() => $_has(3);
   @$pb.TagNumber(4)
-  void clearAmount() => clearField(4);
+  void clearAmount() => $_clearField(4);
   @$pb.TagNumber(4)
-  $7.Money ensureAmount() => $_ensure(3);
+  $0.Money ensureAmount() => $_ensure(3);
 
   /// Deprecated: use transfer_type. Kept for existing clients; both fields
   /// carry the same value.
@@ -154,110 +148,124 @@ class TransferOrderObject extends $pb.GeneratedMessage {
   $core.int get orderType => $_getIZ(4);
   @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(6)
-  set orderType($core.int v) { $_setSignedInt32(4, v); }
+  set orderType($core.int value) => $_setSignedInt32(4, value);
   @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(6)
   $core.bool hasOrderType() => $_has(4);
   @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(6)
-  void clearOrderType() => clearField(6);
+  void clearOrderType() => $_clearField(6);
 
   @$pb.TagNumber(7)
   $core.String get reference => $_getSZ(5);
   @$pb.TagNumber(7)
-  set reference($core.String v) { $_setString(5, v); }
+  set reference($core.String value) => $_setString(5, value);
   @$pb.TagNumber(7)
   $core.bool hasReference() => $_has(5);
   @$pb.TagNumber(7)
-  void clearReference() => clearField(7);
+  void clearReference() => $_clearField(7);
 
   @$pb.TagNumber(8)
   $core.String get description => $_getSZ(6);
   @$pb.TagNumber(8)
-  set description($core.String v) { $_setString(6, v); }
+  set description($core.String value) => $_setString(6, value);
   @$pb.TagNumber(8)
   $core.bool hasDescription() => $_has(6);
   @$pb.TagNumber(8)
-  void clearDescription() => clearField(8);
+  void clearDescription() => $_clearField(8);
 
   @$pb.TagNumber(9)
-  $6.Struct get extraData => $_getN(7);
+  $1.Struct get extraData => $_getN(7);
   @$pb.TagNumber(9)
-  set extraData($6.Struct v) { setField(9, v); }
+  set extraData($1.Struct value) => $_setField(9, value);
   @$pb.TagNumber(9)
   $core.bool hasExtraData() => $_has(7);
   @$pb.TagNumber(9)
-  void clearExtraData() => clearField(9);
+  void clearExtraData() => $_clearField(9);
   @$pb.TagNumber(9)
-  $6.Struct ensureExtraData() => $_ensure(7);
+  $1.Struct ensureExtraData() => $_ensure(7);
 
   @$pb.TagNumber(10)
-  $8.STATE get state => $_getN(8);
+  $2.STATE get state => $_getN(8);
   @$pb.TagNumber(10)
-  set state($8.STATE v) { setField(10, v); }
+  set state($2.STATE value) => $_setField(10, value);
   @$pb.TagNumber(10)
   $core.bool hasState() => $_has(8);
   @$pb.TagNumber(10)
-  void clearState() => clearField(10);
+  void clearState() => $_clearField(10);
 
   @$pb.TagNumber(11)
   TransferOrderType get transferType => $_getN(9);
   @$pb.TagNumber(11)
-  set transferType(TransferOrderType v) { setField(11, v); }
+  set transferType(TransferOrderType value) => $_setField(11, value);
   @$pb.TagNumber(11)
   $core.bool hasTransferType() => $_has(9);
   @$pb.TagNumber(11)
-  void clearTransferType() => clearField(11);
+  void clearTransferType() => $_clearField(11);
 }
 
 class TransferOrderExecuteRequest extends $pb.GeneratedMessage {
   factory TransferOrderExecuteRequest({
     TransferOrderObject? data,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data = data;
-    }
-    return $result;
+    final result = TransferOrderExecuteRequest._();
+    if (data != null) result.data = data;
+    return result;
   }
-  TransferOrderExecuteRequest._() : super();
-  factory TransferOrderExecuteRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory TransferOrderExecuteRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TransferOrderExecuteRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
-    ..aOM<TransferOrderObject>(1, _omitFieldNames ? '' : 'data', subBuilder: TransferOrderObject.create)
-    ..hasRequiredFields = false
-  ;
+  TransferOrderExecuteRequest._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  TransferOrderExecuteRequest clone() => TransferOrderExecuteRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  TransferOrderExecuteRequest copyWith(void Function(TransferOrderExecuteRequest) updates) => super.copyWith((message) => updates(message as TransferOrderExecuteRequest)) as TransferOrderExecuteRequest;
+  factory TransferOrderExecuteRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderExecuteRequest()..mergeFromBuffer(data, registry);
+  factory TransferOrderExecuteRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderExecuteRequest()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TransferOrderExecuteRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: TransferOrderExecuteRequest.$_createMessage)
+    ..aOM<TransferOrderObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: TransferOrderObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderExecuteRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderExecuteRequest copyWith(
+          void Function(TransferOrderExecuteRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as TransferOrderExecuteRequest))
+          as TransferOrderExecuteRequest;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static TransferOrderExecuteRequest create() => TransferOrderExecuteRequest._();
-  TransferOrderExecuteRequest createEmptyInstance() => create();
-  static $pb.PbList<TransferOrderExecuteRequest> createRepeated() => $pb.PbList<TransferOrderExecuteRequest>();
+  @$core.Deprecated(
+      'Use TransferOrderExecuteRequest() / TransferOrderExecuteRequest.new instead')
+  static TransferOrderExecuteRequest create() =>
+      TransferOrderExecuteRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TransferOrderExecuteRequest._();
+  @$core.override
+  TransferOrderExecuteRequest createEmptyInstance() =>
+      TransferOrderExecuteRequest._();
   @$core.pragma('dart2js:noInline')
-  static TransferOrderExecuteRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TransferOrderExecuteRequest>(create);
+  static TransferOrderExecuteRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TransferOrderExecuteRequest>(
+          TransferOrderExecuteRequest.$_createMessage);
   static TransferOrderExecuteRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   TransferOrderObject get data => $_getN(0);
   @$pb.TagNumber(1)
-  set data(TransferOrderObject v) { setField(1, v); }
+  set data(TransferOrderObject value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
-  void clearData() => clearField(1);
+  void clearData() => $_clearField(1);
   @$pb.TagNumber(1)
   TransferOrderObject ensureData() => $_ensure(0);
 }
@@ -266,50 +274,64 @@ class TransferOrderExecuteResponse extends $pb.GeneratedMessage {
   factory TransferOrderExecuteResponse({
     TransferOrderObject? data,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data = data;
-    }
-    return $result;
+    final result = TransferOrderExecuteResponse._();
+    if (data != null) result.data = data;
+    return result;
   }
-  TransferOrderExecuteResponse._() : super();
-  factory TransferOrderExecuteResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory TransferOrderExecuteResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TransferOrderExecuteResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
-    ..aOM<TransferOrderObject>(1, _omitFieldNames ? '' : 'data', subBuilder: TransferOrderObject.create)
-    ..hasRequiredFields = false
-  ;
+  TransferOrderExecuteResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  TransferOrderExecuteResponse clone() => TransferOrderExecuteResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  TransferOrderExecuteResponse copyWith(void Function(TransferOrderExecuteResponse) updates) => super.copyWith((message) => updates(message as TransferOrderExecuteResponse)) as TransferOrderExecuteResponse;
+  factory TransferOrderExecuteResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderExecuteResponse()..mergeFromBuffer(data, registry);
+  factory TransferOrderExecuteResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderExecuteResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TransferOrderExecuteResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: TransferOrderExecuteResponse.$_createMessage)
+    ..aOM<TransferOrderObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: TransferOrderObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderExecuteResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderExecuteResponse copyWith(
+          void Function(TransferOrderExecuteResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as TransferOrderExecuteResponse))
+          as TransferOrderExecuteResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static TransferOrderExecuteResponse create() => TransferOrderExecuteResponse._();
-  TransferOrderExecuteResponse createEmptyInstance() => create();
-  static $pb.PbList<TransferOrderExecuteResponse> createRepeated() => $pb.PbList<TransferOrderExecuteResponse>();
+  @$core.Deprecated(
+      'Use TransferOrderExecuteResponse() / TransferOrderExecuteResponse.new instead')
+  static TransferOrderExecuteResponse create() =>
+      TransferOrderExecuteResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TransferOrderExecuteResponse._();
+  @$core.override
+  TransferOrderExecuteResponse createEmptyInstance() =>
+      TransferOrderExecuteResponse._();
   @$core.pragma('dart2js:noInline')
-  static TransferOrderExecuteResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TransferOrderExecuteResponse>(create);
+  static TransferOrderExecuteResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TransferOrderExecuteResponse>(
+          TransferOrderExecuteResponse.$_createMessage);
   static TransferOrderExecuteResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   TransferOrderObject get data => $_getN(0);
   @$pb.TagNumber(1)
-  set data(TransferOrderObject v) { setField(1, v); }
+  set data(TransferOrderObject value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
-  void clearData() => clearField(1);
+  void clearData() => $_clearField(1);
   @$pb.TagNumber(1)
   TransferOrderObject ensureData() => $_ensure(0);
 }
@@ -317,68 +339,74 @@ class TransferOrderExecuteResponse extends $pb.GeneratedMessage {
 class TransferOrderSearchRequest extends $pb.GeneratedMessage {
   factory TransferOrderSearchRequest({
     $core.String? query,
-  @$core.Deprecated('This field is deprecated.')
-    $core.int? orderType,
-    $8.PageCursor? cursor,
+    @$core.Deprecated('This field is deprecated.') $core.int? orderType,
+    $2.PageCursor? cursor,
     TransferOrderType? transferType,
   }) {
-    final $result = create();
-    if (query != null) {
-      $result.query = query;
-    }
-    if (orderType != null) {
-      // ignore: deprecated_member_use_from_same_package
-      $result.orderType = orderType;
-    }
-    if (cursor != null) {
-      $result.cursor = cursor;
-    }
-    if (transferType != null) {
-      $result.transferType = transferType;
-    }
-    return $result;
+    final result = TransferOrderSearchRequest._();
+    if (query != null) result.query = query;
+    if (orderType != null) result.orderType = orderType;
+    if (cursor != null) result.cursor = cursor;
+    if (transferType != null) result.transferType = transferType;
+    return result;
   }
-  TransferOrderSearchRequest._() : super();
-  factory TransferOrderSearchRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory TransferOrderSearchRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TransferOrderSearchRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
+  TransferOrderSearchRequest._();
+
+  factory TransferOrderSearchRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderSearchRequest()..mergeFromBuffer(data, registry);
+  factory TransferOrderSearchRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderSearchRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TransferOrderSearchRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: TransferOrderSearchRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'query')
-    ..a<$core.int>(2, _omitFieldNames ? '' : 'orderType', $pb.PbFieldType.O3)
-    ..aOM<$8.PageCursor>(3, _omitFieldNames ? '' : 'cursor', subBuilder: $8.PageCursor.create)
-    ..e<TransferOrderType>(4, _omitFieldNames ? '' : 'transferType', $pb.PbFieldType.OE, defaultOrMaker: TransferOrderType.TRANSFER_ORDER_TYPE_UNSPECIFIED, valueOf: TransferOrderType.valueOf, enumValues: TransferOrderType.values)
-    ..hasRequiredFields = false
-  ;
+    ..aI(2, _omitFieldNames ? '' : 'orderType')
+    ..aOM<$2.PageCursor>(3, _omitFieldNames ? '' : 'cursor',
+        subBuilder: $2.PageCursor.$_createMessage)
+    ..aE<TransferOrderType>(4, _omitFieldNames ? '' : 'transferType',
+        enumValues: TransferOrderType.values)
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  TransferOrderSearchRequest clone() => TransferOrderSearchRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  TransferOrderSearchRequest copyWith(void Function(TransferOrderSearchRequest) updates) => super.copyWith((message) => updates(message as TransferOrderSearchRequest)) as TransferOrderSearchRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderSearchRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderSearchRequest copyWith(
+          void Function(TransferOrderSearchRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as TransferOrderSearchRequest))
+          as TransferOrderSearchRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TransferOrderSearchRequest() / TransferOrderSearchRequest.new instead')
   static TransferOrderSearchRequest create() => TransferOrderSearchRequest._();
-  TransferOrderSearchRequest createEmptyInstance() => create();
-  static $pb.PbList<TransferOrderSearchRequest> createRepeated() => $pb.PbList<TransferOrderSearchRequest>();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TransferOrderSearchRequest._();
+  @$core.override
+  TransferOrderSearchRequest createEmptyInstance() =>
+      TransferOrderSearchRequest._();
   @$core.pragma('dart2js:noInline')
-  static TransferOrderSearchRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TransferOrderSearchRequest>(create);
+  static TransferOrderSearchRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TransferOrderSearchRequest>(
+          TransferOrderSearchRequest.$_createMessage);
   static TransferOrderSearchRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get query => $_getSZ(0);
   @$pb.TagNumber(1)
-  set query($core.String v) { $_setString(0, v); }
+  set query($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasQuery() => $_has(0);
   @$pb.TagNumber(1)
-  void clearQuery() => clearField(1);
+  void clearQuery() => $_clearField(1);
 
   /// Deprecated: use transfer_type. When both are set transfer_type wins.
   @$core.Deprecated('This field is deprecated.')
@@ -386,33 +414,33 @@ class TransferOrderSearchRequest extends $pb.GeneratedMessage {
   $core.int get orderType => $_getIZ(1);
   @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
-  set orderType($core.int v) { $_setSignedInt32(1, v); }
+  set orderType($core.int value) => $_setSignedInt32(1, value);
   @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
   $core.bool hasOrderType() => $_has(1);
   @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(2)
-  void clearOrderType() => clearField(2);
+  void clearOrderType() => $_clearField(2);
 
   @$pb.TagNumber(3)
-  $8.PageCursor get cursor => $_getN(2);
+  $2.PageCursor get cursor => $_getN(2);
   @$pb.TagNumber(3)
-  set cursor($8.PageCursor v) { setField(3, v); }
+  set cursor($2.PageCursor value) => $_setField(3, value);
   @$pb.TagNumber(3)
   $core.bool hasCursor() => $_has(2);
   @$pb.TagNumber(3)
-  void clearCursor() => clearField(3);
+  void clearCursor() => $_clearField(3);
   @$pb.TagNumber(3)
-  $8.PageCursor ensureCursor() => $_ensure(2);
+  $2.PageCursor ensureCursor() => $_ensure(2);
 
   @$pb.TagNumber(4)
   TransferOrderType get transferType => $_getN(3);
   @$pb.TagNumber(4)
-  set transferType(TransferOrderType v) { setField(4, v); }
+  set transferType(TransferOrderType value) => $_setField(4, value);
   @$pb.TagNumber(4)
   $core.bool hasTransferType() => $_has(3);
   @$pb.TagNumber(4)
-  void clearTransferType() => clearField(4);
+  void clearTransferType() => $_clearField(4);
 }
 
 class TransferOrderSearchResponse extends $pb.GeneratedMessage {
@@ -420,278 +448,303 @@ class TransferOrderSearchResponse extends $pb.GeneratedMessage {
     $core.Iterable<TransferOrderObject>? data,
     $core.String? nextCursor,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data.addAll(data);
-    }
-    if (nextCursor != null) {
-      $result.nextCursor = nextCursor;
-    }
-    return $result;
+    final result = TransferOrderSearchResponse._();
+    if (data != null) result.data.addAll(data);
+    if (nextCursor != null) result.nextCursor = nextCursor;
+    return result;
   }
-  TransferOrderSearchResponse._() : super();
-  factory TransferOrderSearchResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory TransferOrderSearchResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'TransferOrderSearchResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
-    ..pc<TransferOrderObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: TransferOrderObject.create)
+  TransferOrderSearchResponse._();
+
+  factory TransferOrderSearchResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderSearchResponse()..mergeFromBuffer(data, registry);
+  factory TransferOrderSearchResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TransferOrderSearchResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TransferOrderSearchResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: TransferOrderSearchResponse.$_createMessage)
+    ..pPM<TransferOrderObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: TransferOrderObject.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'nextCursor')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  TransferOrderSearchResponse clone() => TransferOrderSearchResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  TransferOrderSearchResponse copyWith(void Function(TransferOrderSearchResponse) updates) => super.copyWith((message) => updates(message as TransferOrderSearchResponse)) as TransferOrderSearchResponse;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderSearchResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TransferOrderSearchResponse copyWith(
+          void Function(TransferOrderSearchResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as TransferOrderSearchResponse))
+          as TransferOrderSearchResponse;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static TransferOrderSearchResponse create() => TransferOrderSearchResponse._();
-  TransferOrderSearchResponse createEmptyInstance() => create();
-  static $pb.PbList<TransferOrderSearchResponse> createRepeated() => $pb.PbList<TransferOrderSearchResponse>();
+  @$core.Deprecated(
+      'Use TransferOrderSearchResponse() / TransferOrderSearchResponse.new instead')
+  static TransferOrderSearchResponse create() =>
+      TransferOrderSearchResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TransferOrderSearchResponse._();
+  @$core.override
+  TransferOrderSearchResponse createEmptyInstance() =>
+      TransferOrderSearchResponse._();
   @$core.pragma('dart2js:noInline')
-  static TransferOrderSearchResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TransferOrderSearchResponse>(create);
+  static TransferOrderSearchResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TransferOrderSearchResponse>(
+          TransferOrderSearchResponse.$_createMessage);
   static TransferOrderSearchResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.List<TransferOrderObject> get data => $_getList(0);
+  $pb.PbList<TransferOrderObject> get data => $_getList(0);
 
   /// next_cursor is the opaque cursor for the page after this one; empty on
   /// the last page.
   @$pb.TagNumber(2)
   $core.String get nextCursor => $_getSZ(1);
   @$pb.TagNumber(2)
-  set nextCursor($core.String v) { $_setString(1, v); }
+  set nextCursor($core.String value) => $_setString(1, value);
   @$pb.TagNumber(2)
   $core.bool hasNextCursor() => $_has(1);
   @$pb.TagNumber(2)
-  void clearNextCursor() => clearField(2);
+  void clearNextCursor() => $_clearField(2);
 }
 
 /// IncomingPaymentNotifyRequest notifies the system of a new payment received.
 class IncomingPaymentNotifyRequest extends $pb.GeneratedMessage {
   factory IncomingPaymentNotifyRequest({
     $core.String? transactionId,
-    $7.Money? amount,
+    $0.Money? amount,
     $core.String? payerReference,
     $core.String? payerName,
     $core.String? productId,
     $core.String? groupId,
-    $6.Struct? properties,
+    $1.Struct? properties,
   }) {
-    final $result = create();
-    if (transactionId != null) {
-      $result.transactionId = transactionId;
-    }
-    if (amount != null) {
-      $result.amount = amount;
-    }
-    if (payerReference != null) {
-      $result.payerReference = payerReference;
-    }
-    if (payerName != null) {
-      $result.payerName = payerName;
-    }
-    if (productId != null) {
-      $result.productId = productId;
-    }
-    if (groupId != null) {
-      $result.groupId = groupId;
-    }
-    if (properties != null) {
-      $result.properties = properties;
-    }
-    return $result;
+    final result = IncomingPaymentNotifyRequest._();
+    if (transactionId != null) result.transactionId = transactionId;
+    if (amount != null) result.amount = amount;
+    if (payerReference != null) result.payerReference = payerReference;
+    if (payerName != null) result.payerName = payerName;
+    if (productId != null) result.productId = productId;
+    if (groupId != null) result.groupId = groupId;
+    if (properties != null) result.properties = properties;
+    return result;
   }
-  IncomingPaymentNotifyRequest._() : super();
-  factory IncomingPaymentNotifyRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory IncomingPaymentNotifyRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'IncomingPaymentNotifyRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
+  IncomingPaymentNotifyRequest._();
+
+  factory IncomingPaymentNotifyRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentNotifyRequest()..mergeFromBuffer(data, registry);
+  factory IncomingPaymentNotifyRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentNotifyRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IncomingPaymentNotifyRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: IncomingPaymentNotifyRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'transactionId')
-    ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'payerReference')
     ..aOS(4, _omitFieldNames ? '' : 'payerName')
     ..aOS(5, _omitFieldNames ? '' : 'productId')
     ..aOS(6, _omitFieldNames ? '' : 'groupId')
-    ..aOM<$6.Struct>(7, _omitFieldNames ? '' : 'properties', subBuilder: $6.Struct.create)
-    ..hasRequiredFields = false
-  ;
+    ..aOM<$1.Struct>(7, _omitFieldNames ? '' : 'properties',
+        subBuilder: $1.Struct.$_createMessage)
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  IncomingPaymentNotifyRequest clone() => IncomingPaymentNotifyRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  IncomingPaymentNotifyRequest copyWith(void Function(IncomingPaymentNotifyRequest) updates) => super.copyWith((message) => updates(message as IncomingPaymentNotifyRequest)) as IncomingPaymentNotifyRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentNotifyRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentNotifyRequest copyWith(
+          void Function(IncomingPaymentNotifyRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as IncomingPaymentNotifyRequest))
+          as IncomingPaymentNotifyRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static IncomingPaymentNotifyRequest create() => IncomingPaymentNotifyRequest._();
-  IncomingPaymentNotifyRequest createEmptyInstance() => create();
-  static $pb.PbList<IncomingPaymentNotifyRequest> createRepeated() => $pb.PbList<IncomingPaymentNotifyRequest>();
+  @$core.Deprecated(
+      'Use IncomingPaymentNotifyRequest() / IncomingPaymentNotifyRequest.new instead')
+  static IncomingPaymentNotifyRequest create() =>
+      IncomingPaymentNotifyRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      IncomingPaymentNotifyRequest._();
+  @$core.override
+  IncomingPaymentNotifyRequest createEmptyInstance() =>
+      IncomingPaymentNotifyRequest._();
   @$core.pragma('dart2js:noInline')
-  static IncomingPaymentNotifyRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<IncomingPaymentNotifyRequest>(create);
+  static IncomingPaymentNotifyRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IncomingPaymentNotifyRequest>(
+          IncomingPaymentNotifyRequest.$_createMessage);
   static IncomingPaymentNotifyRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get transactionId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set transactionId($core.String v) { $_setString(0, v); }
+  set transactionId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasTransactionId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearTransactionId() => clearField(1);
+  void clearTransactionId() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $7.Money get amount => $_getN(1);
+  $0.Money get amount => $_getN(1);
   @$pb.TagNumber(2)
-  set amount($7.Money v) { setField(2, v); }
+  set amount($0.Money value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasAmount() => $_has(1);
   @$pb.TagNumber(2)
-  void clearAmount() => clearField(2);
+  void clearAmount() => $_clearField(2);
   @$pb.TagNumber(2)
-  $7.Money ensureAmount() => $_ensure(1);
+  $0.Money ensureAmount() => $_ensure(1);
 
   @$pb.TagNumber(3)
   $core.String get payerReference => $_getSZ(2);
   @$pb.TagNumber(3)
-  set payerReference($core.String v) { $_setString(2, v); }
+  set payerReference($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
   $core.bool hasPayerReference() => $_has(2);
   @$pb.TagNumber(3)
-  void clearPayerReference() => clearField(3);
+  void clearPayerReference() => $_clearField(3);
 
   @$pb.TagNumber(4)
   $core.String get payerName => $_getSZ(3);
   @$pb.TagNumber(4)
-  set payerName($core.String v) { $_setString(3, v); }
+  set payerName($core.String value) => $_setString(3, value);
   @$pb.TagNumber(4)
   $core.bool hasPayerName() => $_has(3);
   @$pb.TagNumber(4)
-  void clearPayerName() => clearField(4);
+  void clearPayerName() => $_clearField(4);
 
   @$pb.TagNumber(5)
   $core.String get productId => $_getSZ(4);
   @$pb.TagNumber(5)
-  set productId($core.String v) { $_setString(4, v); }
+  set productId($core.String value) => $_setString(4, value);
   @$pb.TagNumber(5)
   $core.bool hasProductId() => $_has(4);
   @$pb.TagNumber(5)
-  void clearProductId() => clearField(5);
+  void clearProductId() => $_clearField(5);
 
   @$pb.TagNumber(6)
   $core.String get groupId => $_getSZ(5);
   @$pb.TagNumber(6)
-  set groupId($core.String v) { $_setString(5, v); }
+  set groupId($core.String value) => $_setString(5, value);
   @$pb.TagNumber(6)
   $core.bool hasGroupId() => $_has(5);
   @$pb.TagNumber(6)
-  void clearGroupId() => clearField(6);
+  void clearGroupId() => $_clearField(6);
 
   @$pb.TagNumber(7)
-  $6.Struct get properties => $_getN(6);
+  $1.Struct get properties => $_getN(6);
   @$pb.TagNumber(7)
-  set properties($6.Struct v) { setField(7, v); }
+  set properties($1.Struct value) => $_setField(7, value);
   @$pb.TagNumber(7)
   $core.bool hasProperties() => $_has(6);
   @$pb.TagNumber(7)
-  void clearProperties() => clearField(7);
+  void clearProperties() => $_clearField(7);
   @$pb.TagNumber(7)
-  $6.Struct ensureProperties() => $_ensure(6);
+  $1.Struct ensureProperties() => $_ensure(6);
 }
 
 class IncomingPaymentNotifyResponse extends $pb.GeneratedMessage {
   factory IncomingPaymentNotifyResponse({
     $core.String? paymentId,
     $core.String? status,
-    $6.Struct? result,
+    $1.Struct? result,
   }) {
-    final $result = create();
-    if (paymentId != null) {
-      $result.paymentId = paymentId;
-    }
-    if (status != null) {
-      $result.status = status;
-    }
-    if (result != null) {
-      $result.result = result;
-    }
-    return $result;
+    final result$ = IncomingPaymentNotifyResponse._();
+    if (paymentId != null) result$.paymentId = paymentId;
+    if (status != null) result$.status = status;
+    if (result != null) result$.result = result;
+    return result$;
   }
-  IncomingPaymentNotifyResponse._() : super();
-  factory IncomingPaymentNotifyResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory IncomingPaymentNotifyResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'IncomingPaymentNotifyResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
+  IncomingPaymentNotifyResponse._();
+
+  factory IncomingPaymentNotifyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentNotifyResponse()..mergeFromBuffer(data, registry);
+  factory IncomingPaymentNotifyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentNotifyResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IncomingPaymentNotifyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: IncomingPaymentNotifyResponse.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'paymentId')
     ..aOS(2, _omitFieldNames ? '' : 'status')
-    ..aOM<$6.Struct>(3, _omitFieldNames ? '' : 'result', subBuilder: $6.Struct.create)
-    ..hasRequiredFields = false
-  ;
+    ..aOM<$1.Struct>(3, _omitFieldNames ? '' : 'result',
+        subBuilder: $1.Struct.$_createMessage)
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  IncomingPaymentNotifyResponse clone() => IncomingPaymentNotifyResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  IncomingPaymentNotifyResponse copyWith(void Function(IncomingPaymentNotifyResponse) updates) => super.copyWith((message) => updates(message as IncomingPaymentNotifyResponse)) as IncomingPaymentNotifyResponse;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentNotifyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentNotifyResponse copyWith(
+          void Function(IncomingPaymentNotifyResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as IncomingPaymentNotifyResponse))
+          as IncomingPaymentNotifyResponse;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static IncomingPaymentNotifyResponse create() => IncomingPaymentNotifyResponse._();
-  IncomingPaymentNotifyResponse createEmptyInstance() => create();
-  static $pb.PbList<IncomingPaymentNotifyResponse> createRepeated() => $pb.PbList<IncomingPaymentNotifyResponse>();
+  @$core.Deprecated(
+      'Use IncomingPaymentNotifyResponse() / IncomingPaymentNotifyResponse.new instead')
+  static IncomingPaymentNotifyResponse create() =>
+      IncomingPaymentNotifyResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      IncomingPaymentNotifyResponse._();
+  @$core.override
+  IncomingPaymentNotifyResponse createEmptyInstance() =>
+      IncomingPaymentNotifyResponse._();
   @$core.pragma('dart2js:noInline')
-  static IncomingPaymentNotifyResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<IncomingPaymentNotifyResponse>(create);
+  static IncomingPaymentNotifyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IncomingPaymentNotifyResponse>(
+          IncomingPaymentNotifyResponse.$_createMessage);
   static IncomingPaymentNotifyResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get paymentId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set paymentId($core.String v) { $_setString(0, v); }
+  set paymentId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasPaymentId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearPaymentId() => clearField(1);
+  void clearPaymentId() => $_clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get status => $_getSZ(1);
   @$pb.TagNumber(2)
-  set status($core.String v) { $_setString(1, v); }
+  set status($core.String value) => $_setString(1, value);
   @$pb.TagNumber(2)
   $core.bool hasStatus() => $_has(1);
   @$pb.TagNumber(2)
-  void clearStatus() => clearField(2);
+  void clearStatus() => $_clearField(2);
 
   @$pb.TagNumber(3)
-  $6.Struct get result => $_getN(2);
+  $1.Struct get result => $_getN(2);
   @$pb.TagNumber(3)
-  set result($6.Struct v) { setField(3, v); }
+  set result($1.Struct value) => $_setField(3, value);
   @$pb.TagNumber(3)
   $core.bool hasResult() => $_has(2);
   @$pb.TagNumber(3)
-  void clearResult() => clearField(3);
+  void clearResult() => $_clearField(3);
   @$pb.TagNumber(3)
-  $6.Struct ensureResult() => $_ensure(2);
+  $1.Struct ensureResult() => $_ensure(2);
 }
 
 /// PaymentAllocateRequest triggers allocation of an identified payment to obligations.
@@ -699,122 +752,147 @@ class PaymentAllocateRequest extends $pb.GeneratedMessage {
   factory PaymentAllocateRequest({
     $core.String? paymentId,
   }) {
-    final $result = create();
-    if (paymentId != null) {
-      $result.paymentId = paymentId;
-    }
-    return $result;
+    final result = PaymentAllocateRequest._();
+    if (paymentId != null) result.paymentId = paymentId;
+    return result;
   }
-  PaymentAllocateRequest._() : super();
-  factory PaymentAllocateRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory PaymentAllocateRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PaymentAllocateRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
+  PaymentAllocateRequest._();
+
+  factory PaymentAllocateRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PaymentAllocateRequest()..mergeFromBuffer(data, registry);
+  factory PaymentAllocateRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PaymentAllocateRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PaymentAllocateRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: PaymentAllocateRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'paymentId')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  PaymentAllocateRequest clone() => PaymentAllocateRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  PaymentAllocateRequest copyWith(void Function(PaymentAllocateRequest) updates) => super.copyWith((message) => updates(message as PaymentAllocateRequest)) as PaymentAllocateRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PaymentAllocateRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PaymentAllocateRequest copyWith(
+          void Function(PaymentAllocateRequest) updates) =>
+      super.copyWith((message) => updates(message as PaymentAllocateRequest))
+          as PaymentAllocateRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PaymentAllocateRequest() / PaymentAllocateRequest.new instead')
   static PaymentAllocateRequest create() => PaymentAllocateRequest._();
-  PaymentAllocateRequest createEmptyInstance() => create();
-  static $pb.PbList<PaymentAllocateRequest> createRepeated() => $pb.PbList<PaymentAllocateRequest>();
+  static $pb.GeneratedMessage $_createMessage() => PaymentAllocateRequest._();
+  @$core.override
+  PaymentAllocateRequest createEmptyInstance() => PaymentAllocateRequest._();
   @$core.pragma('dart2js:noInline')
-  static PaymentAllocateRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PaymentAllocateRequest>(create);
+  static PaymentAllocateRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PaymentAllocateRequest>(
+          PaymentAllocateRequest.$_createMessage);
   static PaymentAllocateRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get paymentId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set paymentId($core.String v) { $_setString(0, v); }
+  set paymentId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasPaymentId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearPaymentId() => clearField(1);
+  void clearPaymentId() => $_clearField(1);
 }
 
 class PaymentAllocateResponse extends $pb.GeneratedMessage {
   factory PaymentAllocateResponse({
-    $6.Struct? result,
+    $1.Struct? result,
   }) {
-    final $result = create();
-    if (result != null) {
-      $result.result = result;
-    }
-    return $result;
+    final result$ = PaymentAllocateResponse._();
+    if (result != null) result$.result = result;
+    return result$;
   }
-  PaymentAllocateResponse._() : super();
-  factory PaymentAllocateResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory PaymentAllocateResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PaymentAllocateResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'), createEmptyInstance: create)
-    ..aOM<$6.Struct>(1, _omitFieldNames ? '' : 'result', subBuilder: $6.Struct.create)
-    ..hasRequiredFields = false
-  ;
+  PaymentAllocateResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  PaymentAllocateResponse clone() => PaymentAllocateResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  PaymentAllocateResponse copyWith(void Function(PaymentAllocateResponse) updates) => super.copyWith((message) => updates(message as PaymentAllocateResponse)) as PaymentAllocateResponse;
+  factory PaymentAllocateResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PaymentAllocateResponse()..mergeFromBuffer(data, registry);
+  factory PaymentAllocateResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PaymentAllocateResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PaymentAllocateResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: PaymentAllocateResponse.$_createMessage)
+    ..aOM<$1.Struct>(1, _omitFieldNames ? '' : 'result',
+        subBuilder: $1.Struct.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PaymentAllocateResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PaymentAllocateResponse copyWith(
+          void Function(PaymentAllocateResponse) updates) =>
+      super.copyWith((message) => updates(message as PaymentAllocateResponse))
+          as PaymentAllocateResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PaymentAllocateResponse() / PaymentAllocateResponse.new instead')
   static PaymentAllocateResponse create() => PaymentAllocateResponse._();
-  PaymentAllocateResponse createEmptyInstance() => create();
-  static $pb.PbList<PaymentAllocateResponse> createRepeated() => $pb.PbList<PaymentAllocateResponse>();
+  static $pb.GeneratedMessage $_createMessage() => PaymentAllocateResponse._();
+  @$core.override
+  PaymentAllocateResponse createEmptyInstance() => PaymentAllocateResponse._();
   @$core.pragma('dart2js:noInline')
-  static PaymentAllocateResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PaymentAllocateResponse>(create);
+  static PaymentAllocateResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PaymentAllocateResponse>(
+          PaymentAllocateResponse.$_createMessage);
   static PaymentAllocateResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $6.Struct get result => $_getN(0);
+  $1.Struct get result => $_getN(0);
   @$pb.TagNumber(1)
-  set result($6.Struct v) { setField(1, v); }
+  set result($1.Struct value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasResult() => $_has(0);
   @$pb.TagNumber(1)
-  void clearResult() => clearField(1);
+  void clearResult() => $_clearField(1);
   @$pb.TagNumber(1)
-  $6.Struct ensureResult() => $_ensure(0);
+  $1.Struct ensureResult() => $_ensure(0);
 }
 
 class OperationsServiceApi {
-  $pb.RpcClient _client;
+  final $pb.RpcClient _client;
+
   OperationsServiceApi(this._client);
 
-  $async.Future<TransferOrderExecuteResponse> transferOrderExecute($pb.ClientContext? ctx, TransferOrderExecuteRequest request) =>
-    _client.invoke<TransferOrderExecuteResponse>(ctx, 'OperationsService', 'TransferOrderExecute', request, TransferOrderExecuteResponse())
-  ;
-  $async.Future<TransferOrderSearchResponse> transferOrderSearch($pb.ClientContext? ctx, TransferOrderSearchRequest request) =>
-    _client.invoke<TransferOrderSearchResponse>(ctx, 'OperationsService', 'TransferOrderSearch', request, TransferOrderSearchResponse())
-  ;
-  $async.Future<IncomingPaymentNotifyResponse> incomingPaymentNotify($pb.ClientContext? ctx, IncomingPaymentNotifyRequest request) =>
-    _client.invoke<IncomingPaymentNotifyResponse>(ctx, 'OperationsService', 'IncomingPaymentNotify', request, IncomingPaymentNotifyResponse())
-  ;
-  $async.Future<PaymentAllocateResponse> paymentAllocate($pb.ClientContext? ctx, PaymentAllocateRequest request) =>
-    _client.invoke<PaymentAllocateResponse>(ctx, 'OperationsService', 'PaymentAllocate', request, PaymentAllocateResponse())
-  ;
+  $async.Future<TransferOrderExecuteResponse> transferOrderExecute(
+          $pb.ClientContext? ctx, TransferOrderExecuteRequest request) =>
+      _client.invoke<TransferOrderExecuteResponse>(ctx, 'OperationsService',
+          'TransferOrderExecute', request, TransferOrderExecuteResponse());
+  $async.Future<TransferOrderSearchResponse> transferOrderSearch(
+          $pb.ClientContext? ctx, TransferOrderSearchRequest request) =>
+      _client.invoke<TransferOrderSearchResponse>(ctx, 'OperationsService',
+          'TransferOrderSearch', request, TransferOrderSearchResponse());
+  $async.Future<IncomingPaymentNotifyResponse> incomingPaymentNotify(
+          $pb.ClientContext? ctx, IncomingPaymentNotifyRequest request) =>
+      _client.invoke<IncomingPaymentNotifyResponse>(ctx, 'OperationsService',
+          'IncomingPaymentNotify', request, IncomingPaymentNotifyResponse());
+  $async.Future<PaymentAllocateResponse> paymentAllocate(
+          $pb.ClientContext? ctx, PaymentAllocateRequest request) =>
+      _client.invoke<PaymentAllocateResponse>(ctx, 'OperationsService',
+          'PaymentAllocate', request, PaymentAllocateResponse());
 }
 
-
-const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
-const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames =
+    $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames =
+    $core.bool.fromEnvironment('protobuf.omit_message_names');

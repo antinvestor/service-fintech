@@ -1,23 +1,25 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: funding/v1/funding.proto
-//
-// @dart = 2.12
+// Generated from funding/v1/funding.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
 
 import 'dart:async' as $async;
 import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
+import 'package:protobuf/well_known_types/google/protobuf/struct.pb.dart' as $1;
 
-import '../../common/v1/common.pb.dart' as $8;
-import '../../common/v1/common.pbenum.dart' as $8;
-import '../../common/v1/money.pb.dart' as $7;
-import '../../google/protobuf/struct.pb.dart' as $6;
+import '../../common/v1/common.pb.dart' as $2;
+import '../../common/v1/money.pb.dart' as $0;
+
+export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 /// InvestorAccountObject represents a pre-funded investor capital account.
 class InvestorAccountObject extends $pb.GeneratedMessage {
@@ -25,192 +27,183 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
     $core.String? id,
     $core.String? investorId,
     $core.String? accountName,
-    $7.Money? availableBalance,
-    $7.Money? reservedBalance,
-    $7.Money? totalDeployed,
-    $7.Money? totalReturned,
-    $7.Money? maxExposure,
+    $0.Money? availableBalance,
+    $0.Money? reservedBalance,
+    $0.Money? totalDeployed,
+    $0.Money? totalReturned,
+    $0.Money? maxExposure,
     $core.String? minInterestRate,
-    $6.Struct? allowedProducts,
-    $6.Struct? allowedRegions,
-    $6.Struct? groupAffiliations,
-    $8.STATE? state,
-    $6.Struct? properties,
+    $1.Struct? allowedProducts,
+    $1.Struct? allowedRegions,
+    $1.Struct? groupAffiliations,
+    $2.STATE? state,
+    $1.Struct? properties,
     $core.String? currencyCode,
   }) {
-    final $result = create();
-    if (id != null) {
-      $result.id = id;
-    }
-    if (investorId != null) {
-      $result.investorId = investorId;
-    }
-    if (accountName != null) {
-      $result.accountName = accountName;
-    }
-    if (availableBalance != null) {
-      $result.availableBalance = availableBalance;
-    }
-    if (reservedBalance != null) {
-      $result.reservedBalance = reservedBalance;
-    }
-    if (totalDeployed != null) {
-      $result.totalDeployed = totalDeployed;
-    }
-    if (totalReturned != null) {
-      $result.totalReturned = totalReturned;
-    }
-    if (maxExposure != null) {
-      $result.maxExposure = maxExposure;
-    }
-    if (minInterestRate != null) {
-      $result.minInterestRate = minInterestRate;
-    }
-    if (allowedProducts != null) {
-      $result.allowedProducts = allowedProducts;
-    }
-    if (allowedRegions != null) {
-      $result.allowedRegions = allowedRegions;
-    }
-    if (groupAffiliations != null) {
-      $result.groupAffiliations = groupAffiliations;
-    }
-    if (state != null) {
-      $result.state = state;
-    }
-    if (properties != null) {
-      $result.properties = properties;
-    }
-    if (currencyCode != null) {
-      $result.currencyCode = currencyCode;
-    }
-    return $result;
+    final result = InvestorAccountObject._();
+    if (id != null) result.id = id;
+    if (investorId != null) result.investorId = investorId;
+    if (accountName != null) result.accountName = accountName;
+    if (availableBalance != null) result.availableBalance = availableBalance;
+    if (reservedBalance != null) result.reservedBalance = reservedBalance;
+    if (totalDeployed != null) result.totalDeployed = totalDeployed;
+    if (totalReturned != null) result.totalReturned = totalReturned;
+    if (maxExposure != null) result.maxExposure = maxExposure;
+    if (minInterestRate != null) result.minInterestRate = minInterestRate;
+    if (allowedProducts != null) result.allowedProducts = allowedProducts;
+    if (allowedRegions != null) result.allowedRegions = allowedRegions;
+    if (groupAffiliations != null) result.groupAffiliations = groupAffiliations;
+    if (state != null) result.state = state;
+    if (properties != null) result.properties = properties;
+    if (currencyCode != null) result.currencyCode = currencyCode;
+    return result;
   }
-  InvestorAccountObject._() : super();
-  factory InvestorAccountObject.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorAccountObject.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountObject', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  InvestorAccountObject._();
+
+  factory InvestorAccountObject.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountObject()..mergeFromBuffer(data, registry);
+  factory InvestorAccountObject.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountObject()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorAccountObject',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorAccountObject.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'investorId')
     ..aOS(3, _omitFieldNames ? '' : 'accountName')
-    ..aOM<$7.Money>(5, _omitFieldNames ? '' : 'availableBalance', subBuilder: $7.Money.create)
-    ..aOM<$7.Money>(6, _omitFieldNames ? '' : 'reservedBalance', subBuilder: $7.Money.create)
-    ..aOM<$7.Money>(7, _omitFieldNames ? '' : 'totalDeployed', subBuilder: $7.Money.create)
-    ..aOM<$7.Money>(8, _omitFieldNames ? '' : 'totalReturned', subBuilder: $7.Money.create)
-    ..aOM<$7.Money>(9, _omitFieldNames ? '' : 'maxExposure', subBuilder: $7.Money.create)
+    ..aOM<$0.Money>(5, _omitFieldNames ? '' : 'availableBalance',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(6, _omitFieldNames ? '' : 'reservedBalance',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(7, _omitFieldNames ? '' : 'totalDeployed',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(8, _omitFieldNames ? '' : 'totalReturned',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(9, _omitFieldNames ? '' : 'maxExposure',
+        subBuilder: $0.Money.$_createMessage)
     ..aOS(10, _omitFieldNames ? '' : 'minInterestRate')
-    ..aOM<$6.Struct>(11, _omitFieldNames ? '' : 'allowedProducts', subBuilder: $6.Struct.create)
-    ..aOM<$6.Struct>(12, _omitFieldNames ? '' : 'allowedRegions', subBuilder: $6.Struct.create)
-    ..aOM<$6.Struct>(13, _omitFieldNames ? '' : 'groupAffiliations', subBuilder: $6.Struct.create)
-    ..e<$8.STATE>(14, _omitFieldNames ? '' : 'state', $pb.PbFieldType.OE, defaultOrMaker: $8.STATE.CREATED, valueOf: $8.STATE.valueOf, enumValues: $8.STATE.values)
-    ..aOM<$6.Struct>(15, _omitFieldNames ? '' : 'properties', subBuilder: $6.Struct.create)
+    ..aOM<$1.Struct>(11, _omitFieldNames ? '' : 'allowedProducts',
+        subBuilder: $1.Struct.$_createMessage)
+    ..aOM<$1.Struct>(12, _omitFieldNames ? '' : 'allowedRegions',
+        subBuilder: $1.Struct.$_createMessage)
+    ..aOM<$1.Struct>(13, _omitFieldNames ? '' : 'groupAffiliations',
+        subBuilder: $1.Struct.$_createMessage)
+    ..aE<$2.STATE>(14, _omitFieldNames ? '' : 'state',
+        enumValues: $2.STATE.values)
+    ..aOM<$1.Struct>(15, _omitFieldNames ? '' : 'properties',
+        subBuilder: $1.Struct.$_createMessage)
     ..aOS(16, _omitFieldNames ? '' : 'currencyCode')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorAccountObject clone() => InvestorAccountObject()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorAccountObject copyWith(void Function(InvestorAccountObject) updates) => super.copyWith((message) => updates(message as InvestorAccountObject)) as InvestorAccountObject;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountObject clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountObject copyWith(
+          void Function(InvestorAccountObject) updates) =>
+      super.copyWith((message) => updates(message as InvestorAccountObject))
+          as InvestorAccountObject;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorAccountObject() / InvestorAccountObject.new instead')
   static InvestorAccountObject create() => InvestorAccountObject._();
-  InvestorAccountObject createEmptyInstance() => create();
-  static $pb.PbList<InvestorAccountObject> createRepeated() => $pb.PbList<InvestorAccountObject>();
+  static $pb.GeneratedMessage $_createMessage() => InvestorAccountObject._();
+  @$core.override
+  InvestorAccountObject createEmptyInstance() => InvestorAccountObject._();
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountObject getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorAccountObject>(create);
+  static InvestorAccountObject getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorAccountObject>(
+          InvestorAccountObject.$_createMessage);
   static InvestorAccountObject? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get id => $_getSZ(0);
   @$pb.TagNumber(1)
-  set id($core.String v) { $_setString(0, v); }
+  set id($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearId() => clearField(1);
+  void clearId() => $_clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get investorId => $_getSZ(1);
   @$pb.TagNumber(2)
-  set investorId($core.String v) { $_setString(1, v); }
+  set investorId($core.String value) => $_setString(1, value);
   @$pb.TagNumber(2)
   $core.bool hasInvestorId() => $_has(1);
   @$pb.TagNumber(2)
-  void clearInvestorId() => clearField(2);
+  void clearInvestorId() => $_clearField(2);
 
   @$pb.TagNumber(3)
   $core.String get accountName => $_getSZ(2);
   @$pb.TagNumber(3)
-  set accountName($core.String v) { $_setString(2, v); }
+  set accountName($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
   $core.bool hasAccountName() => $_has(2);
   @$pb.TagNumber(3)
-  void clearAccountName() => clearField(3);
+  void clearAccountName() => $_clearField(3);
 
   @$pb.TagNumber(5)
-  $7.Money get availableBalance => $_getN(3);
+  $0.Money get availableBalance => $_getN(3);
   @$pb.TagNumber(5)
-  set availableBalance($7.Money v) { setField(5, v); }
+  set availableBalance($0.Money value) => $_setField(5, value);
   @$pb.TagNumber(5)
   $core.bool hasAvailableBalance() => $_has(3);
   @$pb.TagNumber(5)
-  void clearAvailableBalance() => clearField(5);
+  void clearAvailableBalance() => $_clearField(5);
   @$pb.TagNumber(5)
-  $7.Money ensureAvailableBalance() => $_ensure(3);
+  $0.Money ensureAvailableBalance() => $_ensure(3);
 
   @$pb.TagNumber(6)
-  $7.Money get reservedBalance => $_getN(4);
+  $0.Money get reservedBalance => $_getN(4);
   @$pb.TagNumber(6)
-  set reservedBalance($7.Money v) { setField(6, v); }
+  set reservedBalance($0.Money value) => $_setField(6, value);
   @$pb.TagNumber(6)
   $core.bool hasReservedBalance() => $_has(4);
   @$pb.TagNumber(6)
-  void clearReservedBalance() => clearField(6);
+  void clearReservedBalance() => $_clearField(6);
   @$pb.TagNumber(6)
-  $7.Money ensureReservedBalance() => $_ensure(4);
+  $0.Money ensureReservedBalance() => $_ensure(4);
 
   @$pb.TagNumber(7)
-  $7.Money get totalDeployed => $_getN(5);
+  $0.Money get totalDeployed => $_getN(5);
   @$pb.TagNumber(7)
-  set totalDeployed($7.Money v) { setField(7, v); }
+  set totalDeployed($0.Money value) => $_setField(7, value);
   @$pb.TagNumber(7)
   $core.bool hasTotalDeployed() => $_has(5);
   @$pb.TagNumber(7)
-  void clearTotalDeployed() => clearField(7);
+  void clearTotalDeployed() => $_clearField(7);
   @$pb.TagNumber(7)
-  $7.Money ensureTotalDeployed() => $_ensure(5);
+  $0.Money ensureTotalDeployed() => $_ensure(5);
 
   @$pb.TagNumber(8)
-  $7.Money get totalReturned => $_getN(6);
+  $0.Money get totalReturned => $_getN(6);
   @$pb.TagNumber(8)
-  set totalReturned($7.Money v) { setField(8, v); }
+  set totalReturned($0.Money value) => $_setField(8, value);
   @$pb.TagNumber(8)
   $core.bool hasTotalReturned() => $_has(6);
   @$pb.TagNumber(8)
-  void clearTotalReturned() => clearField(8);
+  void clearTotalReturned() => $_clearField(8);
   @$pb.TagNumber(8)
-  $7.Money ensureTotalReturned() => $_ensure(6);
+  $0.Money ensureTotalReturned() => $_ensure(6);
 
   @$pb.TagNumber(9)
-  $7.Money get maxExposure => $_getN(7);
+  $0.Money get maxExposure => $_getN(7);
   @$pb.TagNumber(9)
-  set maxExposure($7.Money v) { setField(9, v); }
+  set maxExposure($0.Money value) => $_setField(9, value);
   @$pb.TagNumber(9)
   $core.bool hasMaxExposure() => $_has(7);
   @$pb.TagNumber(9)
-  void clearMaxExposure() => clearField(9);
+  void clearMaxExposure() => $_clearField(9);
   @$pb.TagNumber(9)
-  $7.Money ensureMaxExposure() => $_ensure(7);
+  $0.Money ensureMaxExposure() => $_ensure(7);
 
   /// Minimum acceptable loan interest rate as a decimal percentage with up to
   /// two decimals, e.g. "12.50" for 12.5%. The same shape savings and loans
@@ -218,64 +211,64 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(10)
   $core.String get minInterestRate => $_getSZ(8);
   @$pb.TagNumber(10)
-  set minInterestRate($core.String v) { $_setString(8, v); }
+  set minInterestRate($core.String value) => $_setString(8, value);
   @$pb.TagNumber(10)
   $core.bool hasMinInterestRate() => $_has(8);
   @$pb.TagNumber(10)
-  void clearMinInterestRate() => clearField(10);
+  void clearMinInterestRate() => $_clearField(10);
 
   @$pb.TagNumber(11)
-  $6.Struct get allowedProducts => $_getN(9);
+  $1.Struct get allowedProducts => $_getN(9);
   @$pb.TagNumber(11)
-  set allowedProducts($6.Struct v) { setField(11, v); }
+  set allowedProducts($1.Struct value) => $_setField(11, value);
   @$pb.TagNumber(11)
   $core.bool hasAllowedProducts() => $_has(9);
   @$pb.TagNumber(11)
-  void clearAllowedProducts() => clearField(11);
+  void clearAllowedProducts() => $_clearField(11);
   @$pb.TagNumber(11)
-  $6.Struct ensureAllowedProducts() => $_ensure(9);
+  $1.Struct ensureAllowedProducts() => $_ensure(9);
 
   @$pb.TagNumber(12)
-  $6.Struct get allowedRegions => $_getN(10);
+  $1.Struct get allowedRegions => $_getN(10);
   @$pb.TagNumber(12)
-  set allowedRegions($6.Struct v) { setField(12, v); }
+  set allowedRegions($1.Struct value) => $_setField(12, value);
   @$pb.TagNumber(12)
   $core.bool hasAllowedRegions() => $_has(10);
   @$pb.TagNumber(12)
-  void clearAllowedRegions() => clearField(12);
+  void clearAllowedRegions() => $_clearField(12);
   @$pb.TagNumber(12)
-  $6.Struct ensureAllowedRegions() => $_ensure(10);
+  $1.Struct ensureAllowedRegions() => $_ensure(10);
 
   @$pb.TagNumber(13)
-  $6.Struct get groupAffiliations => $_getN(11);
+  $1.Struct get groupAffiliations => $_getN(11);
   @$pb.TagNumber(13)
-  set groupAffiliations($6.Struct v) { setField(13, v); }
+  set groupAffiliations($1.Struct value) => $_setField(13, value);
   @$pb.TagNumber(13)
   $core.bool hasGroupAffiliations() => $_has(11);
   @$pb.TagNumber(13)
-  void clearGroupAffiliations() => clearField(13);
+  void clearGroupAffiliations() => $_clearField(13);
   @$pb.TagNumber(13)
-  $6.Struct ensureGroupAffiliations() => $_ensure(11);
+  $1.Struct ensureGroupAffiliations() => $_ensure(11);
 
   @$pb.TagNumber(14)
-  $8.STATE get state => $_getN(12);
+  $2.STATE get state => $_getN(12);
   @$pb.TagNumber(14)
-  set state($8.STATE v) { setField(14, v); }
+  set state($2.STATE value) => $_setField(14, value);
   @$pb.TagNumber(14)
   $core.bool hasState() => $_has(12);
   @$pb.TagNumber(14)
-  void clearState() => clearField(14);
+  void clearState() => $_clearField(14);
 
   @$pb.TagNumber(15)
-  $6.Struct get properties => $_getN(13);
+  $1.Struct get properties => $_getN(13);
   @$pb.TagNumber(15)
-  set properties($6.Struct v) { setField(15, v); }
+  set properties($1.Struct value) => $_setField(15, value);
   @$pb.TagNumber(15)
   $core.bool hasProperties() => $_has(13);
   @$pb.TagNumber(15)
-  void clearProperties() => clearField(15);
+  void clearProperties() => $_clearField(15);
   @$pb.TagNumber(15)
-  $6.Struct ensureProperties() => $_ensure(13);
+  $1.Struct ensureProperties() => $_ensure(13);
 
   /// ISO 4217 code the account is denominated in. Explicit so a caller no
   /// longer has to smuggle the currency through available_balance on create.
@@ -283,11 +276,11 @@ class InvestorAccountObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(16)
   $core.String get currencyCode => $_getSZ(14);
   @$pb.TagNumber(16)
-  set currencyCode($core.String v) { $_setString(14, v); }
+  set currencyCode($core.String value) => $_setString(14, value);
   @$pb.TagNumber(16)
   $core.bool hasCurrencyCode() => $_has(14);
   @$pb.TagNumber(16)
-  void clearCurrencyCode() => clearField(16);
+  void clearCurrencyCode() => $_clearField(16);
 }
 
 /// FundingAllocationObject represents how a loan is funded across tranches.
@@ -298,199 +291,209 @@ class FundingAllocationObject extends $pb.GeneratedMessage {
     $core.String? sourceId,
     $core.String? sourceType,
     $core.int? trancheLevel,
-    $7.Money? amount,
+    $0.Money? amount,
     $core.String? proportion,
-    $6.Struct? properties,
+    $1.Struct? properties,
   }) {
-    final $result = create();
-    if (id != null) {
-      $result.id = id;
-    }
-    if (loanRequestId != null) {
-      $result.loanRequestId = loanRequestId;
-    }
-    if (sourceId != null) {
-      $result.sourceId = sourceId;
-    }
-    if (sourceType != null) {
-      $result.sourceType = sourceType;
-    }
-    if (trancheLevel != null) {
-      $result.trancheLevel = trancheLevel;
-    }
-    if (amount != null) {
-      $result.amount = amount;
-    }
-    if (proportion != null) {
-      $result.proportion = proportion;
-    }
-    if (properties != null) {
-      $result.properties = properties;
-    }
-    return $result;
+    final result = FundingAllocationObject._();
+    if (id != null) result.id = id;
+    if (loanRequestId != null) result.loanRequestId = loanRequestId;
+    if (sourceId != null) result.sourceId = sourceId;
+    if (sourceType != null) result.sourceType = sourceType;
+    if (trancheLevel != null) result.trancheLevel = trancheLevel;
+    if (amount != null) result.amount = amount;
+    if (proportion != null) result.proportion = proportion;
+    if (properties != null) result.properties = properties;
+    return result;
   }
-  FundingAllocationObject._() : super();
-  factory FundingAllocationObject.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory FundingAllocationObject.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FundingAllocationObject', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  FundingAllocationObject._();
+
+  factory FundingAllocationObject.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundingAllocationObject()..mergeFromBuffer(data, registry);
+  factory FundingAllocationObject.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundingAllocationObject()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FundingAllocationObject',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: FundingAllocationObject.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'loanRequestId')
     ..aOS(3, _omitFieldNames ? '' : 'sourceId')
     ..aOS(4, _omitFieldNames ? '' : 'sourceType')
-    ..a<$core.int>(5, _omitFieldNames ? '' : 'trancheLevel', $pb.PbFieldType.O3)
-    ..aOM<$7.Money>(6, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aI(5, _omitFieldNames ? '' : 'trancheLevel')
+    ..aOM<$0.Money>(6, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
     ..aOS(8, _omitFieldNames ? '' : 'proportion')
-    ..aOM<$6.Struct>(9, _omitFieldNames ? '' : 'properties', subBuilder: $6.Struct.create)
-    ..hasRequiredFields = false
-  ;
+    ..aOM<$1.Struct>(9, _omitFieldNames ? '' : 'properties',
+        subBuilder: $1.Struct.$_createMessage)
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  FundingAllocationObject clone() => FundingAllocationObject()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  FundingAllocationObject copyWith(void Function(FundingAllocationObject) updates) => super.copyWith((message) => updates(message as FundingAllocationObject)) as FundingAllocationObject;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundingAllocationObject clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundingAllocationObject copyWith(
+          void Function(FundingAllocationObject) updates) =>
+      super.copyWith((message) => updates(message as FundingAllocationObject))
+          as FundingAllocationObject;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use FundingAllocationObject() / FundingAllocationObject.new instead')
   static FundingAllocationObject create() => FundingAllocationObject._();
-  FundingAllocationObject createEmptyInstance() => create();
-  static $pb.PbList<FundingAllocationObject> createRepeated() => $pb.PbList<FundingAllocationObject>();
+  static $pb.GeneratedMessage $_createMessage() => FundingAllocationObject._();
+  @$core.override
+  FundingAllocationObject createEmptyInstance() => FundingAllocationObject._();
   @$core.pragma('dart2js:noInline')
-  static FundingAllocationObject getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FundingAllocationObject>(create);
+  static FundingAllocationObject getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FundingAllocationObject>(
+          FundingAllocationObject.$_createMessage);
   static FundingAllocationObject? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get id => $_getSZ(0);
   @$pb.TagNumber(1)
-  set id($core.String v) { $_setString(0, v); }
+  set id($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearId() => clearField(1);
+  void clearId() => $_clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get loanRequestId => $_getSZ(1);
   @$pb.TagNumber(2)
-  set loanRequestId($core.String v) { $_setString(1, v); }
+  set loanRequestId($core.String value) => $_setString(1, value);
   @$pb.TagNumber(2)
   $core.bool hasLoanRequestId() => $_has(1);
   @$pb.TagNumber(2)
-  void clearLoanRequestId() => clearField(2);
+  void clearLoanRequestId() => $_clearField(2);
 
   @$pb.TagNumber(3)
   $core.String get sourceId => $_getSZ(2);
   @$pb.TagNumber(3)
-  set sourceId($core.String v) { $_setString(2, v); }
+  set sourceId($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
   $core.bool hasSourceId() => $_has(2);
   @$pb.TagNumber(3)
-  void clearSourceId() => clearField(3);
+  void clearSourceId() => $_clearField(3);
 
   @$pb.TagNumber(4)
   $core.String get sourceType => $_getSZ(3);
   @$pb.TagNumber(4)
-  set sourceType($core.String v) { $_setString(3, v); }
+  set sourceType($core.String value) => $_setString(3, value);
   @$pb.TagNumber(4)
   $core.bool hasSourceType() => $_has(3);
   @$pb.TagNumber(4)
-  void clearSourceType() => clearField(4);
+  void clearSourceType() => $_clearField(4);
 
   @$pb.TagNumber(5)
   $core.int get trancheLevel => $_getIZ(4);
   @$pb.TagNumber(5)
-  set trancheLevel($core.int v) { $_setSignedInt32(4, v); }
+  set trancheLevel($core.int value) => $_setSignedInt32(4, value);
   @$pb.TagNumber(5)
   $core.bool hasTrancheLevel() => $_has(4);
   @$pb.TagNumber(5)
-  void clearTrancheLevel() => clearField(5);
+  void clearTrancheLevel() => $_clearField(5);
 
   @$pb.TagNumber(6)
-  $7.Money get amount => $_getN(5);
+  $0.Money get amount => $_getN(5);
   @$pb.TagNumber(6)
-  set amount($7.Money v) { setField(6, v); }
+  set amount($0.Money value) => $_setField(6, value);
   @$pb.TagNumber(6)
   $core.bool hasAmount() => $_has(5);
   @$pb.TagNumber(6)
-  void clearAmount() => clearField(6);
+  void clearAmount() => $_clearField(6);
   @$pb.TagNumber(6)
-  $7.Money ensureAmount() => $_ensure(5);
+  $0.Money ensureAmount() => $_ensure(5);
 
   @$pb.TagNumber(8)
   $core.String get proportion => $_getSZ(6);
   @$pb.TagNumber(8)
-  set proportion($core.String v) { $_setString(6, v); }
+  set proportion($core.String value) => $_setString(6, value);
   @$pb.TagNumber(8)
   $core.bool hasProportion() => $_has(6);
   @$pb.TagNumber(8)
-  void clearProportion() => clearField(8);
+  void clearProportion() => $_clearField(8);
 
   @$pb.TagNumber(9)
-  $6.Struct get properties => $_getN(7);
+  $1.Struct get properties => $_getN(7);
   @$pb.TagNumber(9)
-  set properties($6.Struct v) { setField(9, v); }
+  set properties($1.Struct value) => $_setField(9, value);
   @$pb.TagNumber(9)
   $core.bool hasProperties() => $_has(7);
   @$pb.TagNumber(9)
-  void clearProperties() => clearField(9);
+  void clearProperties() => $_clearField(9);
   @$pb.TagNumber(9)
-  $6.Struct ensureProperties() => $_ensure(7);
+  $1.Struct ensureProperties() => $_ensure(7);
 }
 
 class InvestorAccountSaveRequest extends $pb.GeneratedMessage {
   factory InvestorAccountSaveRequest({
     InvestorAccountObject? data,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data = data;
-    }
-    return $result;
+    final result = InvestorAccountSaveRequest._();
+    if (data != null) result.data = data;
+    return result;
   }
-  InvestorAccountSaveRequest._() : super();
-  factory InvestorAccountSaveRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorAccountSaveRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountSaveRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data', subBuilder: InvestorAccountObject.create)
-    ..hasRequiredFields = false
-  ;
+  InvestorAccountSaveRequest._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSaveRequest clone() => InvestorAccountSaveRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSaveRequest copyWith(void Function(InvestorAccountSaveRequest) updates) => super.copyWith((message) => updates(message as InvestorAccountSaveRequest)) as InvestorAccountSaveRequest;
+  factory InvestorAccountSaveRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSaveRequest()..mergeFromBuffer(data, registry);
+  factory InvestorAccountSaveRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSaveRequest()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorAccountSaveRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorAccountSaveRequest.$_createMessage)
+    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: InvestorAccountObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSaveRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSaveRequest copyWith(
+          void Function(InvestorAccountSaveRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as InvestorAccountSaveRequest))
+          as InvestorAccountSaveRequest;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorAccountSaveRequest() / InvestorAccountSaveRequest.new instead')
   static InvestorAccountSaveRequest create() => InvestorAccountSaveRequest._();
-  InvestorAccountSaveRequest createEmptyInstance() => create();
-  static $pb.PbList<InvestorAccountSaveRequest> createRepeated() => $pb.PbList<InvestorAccountSaveRequest>();
+  static $pb.GeneratedMessage $_createMessage() =>
+      InvestorAccountSaveRequest._();
+  @$core.override
+  InvestorAccountSaveRequest createEmptyInstance() =>
+      InvestorAccountSaveRequest._();
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountSaveRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorAccountSaveRequest>(create);
+  static InvestorAccountSaveRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorAccountSaveRequest>(
+          InvestorAccountSaveRequest.$_createMessage);
   static InvestorAccountSaveRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   InvestorAccountObject get data => $_getN(0);
   @$pb.TagNumber(1)
-  set data(InvestorAccountObject v) { setField(1, v); }
+  set data(InvestorAccountObject value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
-  void clearData() => clearField(1);
+  void clearData() => $_clearField(1);
   @$pb.TagNumber(1)
   InvestorAccountObject ensureData() => $_ensure(0);
 }
@@ -499,50 +502,64 @@ class InvestorAccountSaveResponse extends $pb.GeneratedMessage {
   factory InvestorAccountSaveResponse({
     InvestorAccountObject? data,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data = data;
-    }
-    return $result;
+    final result = InvestorAccountSaveResponse._();
+    if (data != null) result.data = data;
+    return result;
   }
-  InvestorAccountSaveResponse._() : super();
-  factory InvestorAccountSaveResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorAccountSaveResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountSaveResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data', subBuilder: InvestorAccountObject.create)
-    ..hasRequiredFields = false
-  ;
+  InvestorAccountSaveResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSaveResponse clone() => InvestorAccountSaveResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSaveResponse copyWith(void Function(InvestorAccountSaveResponse) updates) => super.copyWith((message) => updates(message as InvestorAccountSaveResponse)) as InvestorAccountSaveResponse;
+  factory InvestorAccountSaveResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSaveResponse()..mergeFromBuffer(data, registry);
+  factory InvestorAccountSaveResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSaveResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorAccountSaveResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorAccountSaveResponse.$_createMessage)
+    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: InvestorAccountObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSaveResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSaveResponse copyWith(
+          void Function(InvestorAccountSaveResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as InvestorAccountSaveResponse))
+          as InvestorAccountSaveResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountSaveResponse create() => InvestorAccountSaveResponse._();
-  InvestorAccountSaveResponse createEmptyInstance() => create();
-  static $pb.PbList<InvestorAccountSaveResponse> createRepeated() => $pb.PbList<InvestorAccountSaveResponse>();
+  @$core.Deprecated(
+      'Use InvestorAccountSaveResponse() / InvestorAccountSaveResponse.new instead')
+  static InvestorAccountSaveResponse create() =>
+      InvestorAccountSaveResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      InvestorAccountSaveResponse._();
+  @$core.override
+  InvestorAccountSaveResponse createEmptyInstance() =>
+      InvestorAccountSaveResponse._();
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountSaveResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorAccountSaveResponse>(create);
+  static InvestorAccountSaveResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorAccountSaveResponse>(
+          InvestorAccountSaveResponse.$_createMessage);
   static InvestorAccountSaveResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   InvestorAccountObject get data => $_getN(0);
   @$pb.TagNumber(1)
-  set data(InvestorAccountObject v) { setField(1, v); }
+  set data(InvestorAccountObject value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
-  void clearData() => clearField(1);
+  void clearData() => $_clearField(1);
   @$pb.TagNumber(1)
   InvestorAccountObject ensureData() => $_ensure(0);
 }
@@ -551,100 +568,124 @@ class InvestorAccountGetRequest extends $pb.GeneratedMessage {
   factory InvestorAccountGetRequest({
     $core.String? id,
   }) {
-    final $result = create();
-    if (id != null) {
-      $result.id = id;
-    }
-    return $result;
+    final result = InvestorAccountGetRequest._();
+    if (id != null) result.id = id;
+    return result;
   }
-  InvestorAccountGetRequest._() : super();
-  factory InvestorAccountGetRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorAccountGetRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountGetRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  InvestorAccountGetRequest._();
+
+  factory InvestorAccountGetRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountGetRequest()..mergeFromBuffer(data, registry);
+  factory InvestorAccountGetRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountGetRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorAccountGetRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorAccountGetRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorAccountGetRequest clone() => InvestorAccountGetRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorAccountGetRequest copyWith(void Function(InvestorAccountGetRequest) updates) => super.copyWith((message) => updates(message as InvestorAccountGetRequest)) as InvestorAccountGetRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountGetRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountGetRequest copyWith(
+          void Function(InvestorAccountGetRequest) updates) =>
+      super.copyWith((message) => updates(message as InvestorAccountGetRequest))
+          as InvestorAccountGetRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorAccountGetRequest() / InvestorAccountGetRequest.new instead')
   static InvestorAccountGetRequest create() => InvestorAccountGetRequest._();
-  InvestorAccountGetRequest createEmptyInstance() => create();
-  static $pb.PbList<InvestorAccountGetRequest> createRepeated() => $pb.PbList<InvestorAccountGetRequest>();
+  static $pb.GeneratedMessage $_createMessage() =>
+      InvestorAccountGetRequest._();
+  @$core.override
+  InvestorAccountGetRequest createEmptyInstance() =>
+      InvestorAccountGetRequest._();
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountGetRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorAccountGetRequest>(create);
+  static InvestorAccountGetRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorAccountGetRequest>(
+          InvestorAccountGetRequest.$_createMessage);
   static InvestorAccountGetRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get id => $_getSZ(0);
   @$pb.TagNumber(1)
-  set id($core.String v) { $_setString(0, v); }
+  set id($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearId() => clearField(1);
+  void clearId() => $_clearField(1);
 }
 
 class InvestorAccountGetResponse extends $pb.GeneratedMessage {
   factory InvestorAccountGetResponse({
     InvestorAccountObject? data,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data = data;
-    }
-    return $result;
+    final result = InvestorAccountGetResponse._();
+    if (data != null) result.data = data;
+    return result;
   }
-  InvestorAccountGetResponse._() : super();
-  factory InvestorAccountGetResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorAccountGetResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountGetResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data', subBuilder: InvestorAccountObject.create)
-    ..hasRequiredFields = false
-  ;
+  InvestorAccountGetResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorAccountGetResponse clone() => InvestorAccountGetResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorAccountGetResponse copyWith(void Function(InvestorAccountGetResponse) updates) => super.copyWith((message) => updates(message as InvestorAccountGetResponse)) as InvestorAccountGetResponse;
+  factory InvestorAccountGetResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountGetResponse()..mergeFromBuffer(data, registry);
+  factory InvestorAccountGetResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountGetResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorAccountGetResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorAccountGetResponse.$_createMessage)
+    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: InvestorAccountObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountGetResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountGetResponse copyWith(
+          void Function(InvestorAccountGetResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as InvestorAccountGetResponse))
+          as InvestorAccountGetResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorAccountGetResponse() / InvestorAccountGetResponse.new instead')
   static InvestorAccountGetResponse create() => InvestorAccountGetResponse._();
-  InvestorAccountGetResponse createEmptyInstance() => create();
-  static $pb.PbList<InvestorAccountGetResponse> createRepeated() => $pb.PbList<InvestorAccountGetResponse>();
+  static $pb.GeneratedMessage $_createMessage() =>
+      InvestorAccountGetResponse._();
+  @$core.override
+  InvestorAccountGetResponse createEmptyInstance() =>
+      InvestorAccountGetResponse._();
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountGetResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorAccountGetResponse>(create);
+  static InvestorAccountGetResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorAccountGetResponse>(
+          InvestorAccountGetResponse.$_createMessage);
   static InvestorAccountGetResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   InvestorAccountObject get data => $_getN(0);
   @$pb.TagNumber(1)
-  set data(InvestorAccountObject v) { setField(1, v); }
+  set data(InvestorAccountObject value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
-  void clearData() => clearField(1);
+  void clearData() => $_clearField(1);
   @$pb.TagNumber(1)
   InvestorAccountObject ensureData() => $_ensure(0);
 }
@@ -653,212 +694,241 @@ class InvestorAccountSearchRequest extends $pb.GeneratedMessage {
   factory InvestorAccountSearchRequest({
     $core.String? investorId,
     $core.String? currencyCode,
-    $8.PageCursor? cursor,
+    $2.PageCursor? cursor,
   }) {
-    final $result = create();
-    if (investorId != null) {
-      $result.investorId = investorId;
-    }
-    if (currencyCode != null) {
-      $result.currencyCode = currencyCode;
-    }
-    if (cursor != null) {
-      $result.cursor = cursor;
-    }
-    return $result;
+    final result = InvestorAccountSearchRequest._();
+    if (investorId != null) result.investorId = investorId;
+    if (currencyCode != null) result.currencyCode = currencyCode;
+    if (cursor != null) result.cursor = cursor;
+    return result;
   }
-  InvestorAccountSearchRequest._() : super();
-  factory InvestorAccountSearchRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorAccountSearchRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountSearchRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  InvestorAccountSearchRequest._();
+
+  factory InvestorAccountSearchRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSearchRequest()..mergeFromBuffer(data, registry);
+  factory InvestorAccountSearchRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSearchRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorAccountSearchRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorAccountSearchRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'investorId')
     ..aOS(2, _omitFieldNames ? '' : 'currencyCode')
-    ..aOM<$8.PageCursor>(3, _omitFieldNames ? '' : 'cursor', subBuilder: $8.PageCursor.create)
-    ..hasRequiredFields = false
-  ;
+    ..aOM<$2.PageCursor>(3, _omitFieldNames ? '' : 'cursor',
+        subBuilder: $2.PageCursor.$_createMessage)
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSearchRequest clone() => InvestorAccountSearchRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSearchRequest copyWith(void Function(InvestorAccountSearchRequest) updates) => super.copyWith((message) => updates(message as InvestorAccountSearchRequest)) as InvestorAccountSearchRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSearchRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSearchRequest copyWith(
+          void Function(InvestorAccountSearchRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as InvestorAccountSearchRequest))
+          as InvestorAccountSearchRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountSearchRequest create() => InvestorAccountSearchRequest._();
-  InvestorAccountSearchRequest createEmptyInstance() => create();
-  static $pb.PbList<InvestorAccountSearchRequest> createRepeated() => $pb.PbList<InvestorAccountSearchRequest>();
+  @$core.Deprecated(
+      'Use InvestorAccountSearchRequest() / InvestorAccountSearchRequest.new instead')
+  static InvestorAccountSearchRequest create() =>
+      InvestorAccountSearchRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      InvestorAccountSearchRequest._();
+  @$core.override
+  InvestorAccountSearchRequest createEmptyInstance() =>
+      InvestorAccountSearchRequest._();
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountSearchRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorAccountSearchRequest>(create);
+  static InvestorAccountSearchRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorAccountSearchRequest>(
+          InvestorAccountSearchRequest.$_createMessage);
   static InvestorAccountSearchRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get investorId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set investorId($core.String v) { $_setString(0, v); }
+  set investorId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasInvestorId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearInvestorId() => clearField(1);
+  void clearInvestorId() => $_clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get currencyCode => $_getSZ(1);
   @$pb.TagNumber(2)
-  set currencyCode($core.String v) { $_setString(1, v); }
+  set currencyCode($core.String value) => $_setString(1, value);
   @$pb.TagNumber(2)
   $core.bool hasCurrencyCode() => $_has(1);
   @$pb.TagNumber(2)
-  void clearCurrencyCode() => clearField(2);
+  void clearCurrencyCode() => $_clearField(2);
 
   @$pb.TagNumber(3)
-  $8.PageCursor get cursor => $_getN(2);
+  $2.PageCursor get cursor => $_getN(2);
   @$pb.TagNumber(3)
-  set cursor($8.PageCursor v) { setField(3, v); }
+  set cursor($2.PageCursor value) => $_setField(3, value);
   @$pb.TagNumber(3)
   $core.bool hasCursor() => $_has(2);
   @$pb.TagNumber(3)
-  void clearCursor() => clearField(3);
+  void clearCursor() => $_clearField(3);
   @$pb.TagNumber(3)
-  $8.PageCursor ensureCursor() => $_ensure(2);
+  $2.PageCursor ensureCursor() => $_ensure(2);
 }
 
 class InvestorAccountSearchResponse extends $pb.GeneratedMessage {
   factory InvestorAccountSearchResponse({
     $core.Iterable<InvestorAccountObject>? data,
-    $8.PageCursor? nextCursor,
+    $2.PageCursor? nextCursor,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data.addAll(data);
-    }
-    if (nextCursor != null) {
-      $result.nextCursor = nextCursor;
-    }
-    return $result;
+    final result = InvestorAccountSearchResponse._();
+    if (data != null) result.data.addAll(data);
+    if (nextCursor != null) result.nextCursor = nextCursor;
+    return result;
   }
-  InvestorAccountSearchResponse._() : super();
-  factory InvestorAccountSearchResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorAccountSearchResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorAccountSearchResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..pc<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data', $pb.PbFieldType.PM, subBuilder: InvestorAccountObject.create)
-    ..aOM<$8.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor', subBuilder: $8.PageCursor.create)
-    ..hasRequiredFields = false
-  ;
+  InvestorAccountSearchResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSearchResponse clone() => InvestorAccountSearchResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorAccountSearchResponse copyWith(void Function(InvestorAccountSearchResponse) updates) => super.copyWith((message) => updates(message as InvestorAccountSearchResponse)) as InvestorAccountSearchResponse;
+  factory InvestorAccountSearchResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSearchResponse()..mergeFromBuffer(data, registry);
+  factory InvestorAccountSearchResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorAccountSearchResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorAccountSearchResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorAccountSearchResponse.$_createMessage)
+    ..pPM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: InvestorAccountObject.$_createMessage)
+    ..aOM<$2.PageCursor>(2, _omitFieldNames ? '' : 'nextCursor',
+        subBuilder: $2.PageCursor.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSearchResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorAccountSearchResponse copyWith(
+          void Function(InvestorAccountSearchResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as InvestorAccountSearchResponse))
+          as InvestorAccountSearchResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountSearchResponse create() => InvestorAccountSearchResponse._();
-  InvestorAccountSearchResponse createEmptyInstance() => create();
-  static $pb.PbList<InvestorAccountSearchResponse> createRepeated() => $pb.PbList<InvestorAccountSearchResponse>();
+  @$core.Deprecated(
+      'Use InvestorAccountSearchResponse() / InvestorAccountSearchResponse.new instead')
+  static InvestorAccountSearchResponse create() =>
+      InvestorAccountSearchResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      InvestorAccountSearchResponse._();
+  @$core.override
+  InvestorAccountSearchResponse createEmptyInstance() =>
+      InvestorAccountSearchResponse._();
   @$core.pragma('dart2js:noInline')
-  static InvestorAccountSearchResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorAccountSearchResponse>(create);
+  static InvestorAccountSearchResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorAccountSearchResponse>(
+          InvestorAccountSearchResponse.$_createMessage);
   static InvestorAccountSearchResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.List<InvestorAccountObject> get data => $_getList(0);
+  $pb.PbList<InvestorAccountObject> get data => $_getList(0);
 
   /// Cursor for the next page; unset when this page is the last.
   @$pb.TagNumber(2)
-  $8.PageCursor get nextCursor => $_getN(1);
+  $2.PageCursor get nextCursor => $_getN(1);
   @$pb.TagNumber(2)
-  set nextCursor($8.PageCursor v) { setField(2, v); }
+  set nextCursor($2.PageCursor value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasNextCursor() => $_has(1);
   @$pb.TagNumber(2)
-  void clearNextCursor() => clearField(2);
+  void clearNextCursor() => $_clearField(2);
   @$pb.TagNumber(2)
-  $8.PageCursor ensureNextCursor() => $_ensure(1);
+  $2.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
 class InvestorDepositRequest extends $pb.GeneratedMessage {
   factory InvestorDepositRequest({
     $core.String? accountId,
-    $7.Money? amount,
+    $0.Money? amount,
     $core.String? idempotencyKey,
   }) {
-    final $result = create();
-    if (accountId != null) {
-      $result.accountId = accountId;
-    }
-    if (amount != null) {
-      $result.amount = amount;
-    }
-    if (idempotencyKey != null) {
-      $result.idempotencyKey = idempotencyKey;
-    }
-    return $result;
+    final result = InvestorDepositRequest._();
+    if (accountId != null) result.accountId = accountId;
+    if (amount != null) result.amount = amount;
+    if (idempotencyKey != null) result.idempotencyKey = idempotencyKey;
+    return result;
   }
-  InvestorDepositRequest._() : super();
-  factory InvestorDepositRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorDepositRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorDepositRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  InvestorDepositRequest._();
+
+  factory InvestorDepositRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorDepositRequest()..mergeFromBuffer(data, registry);
+  factory InvestorDepositRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorDepositRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorDepositRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorDepositRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
-    ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'idempotencyKey')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorDepositRequest clone() => InvestorDepositRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorDepositRequest copyWith(void Function(InvestorDepositRequest) updates) => super.copyWith((message) => updates(message as InvestorDepositRequest)) as InvestorDepositRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorDepositRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorDepositRequest copyWith(
+          void Function(InvestorDepositRequest) updates) =>
+      super.copyWith((message) => updates(message as InvestorDepositRequest))
+          as InvestorDepositRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorDepositRequest() / InvestorDepositRequest.new instead')
   static InvestorDepositRequest create() => InvestorDepositRequest._();
-  InvestorDepositRequest createEmptyInstance() => create();
-  static $pb.PbList<InvestorDepositRequest> createRepeated() => $pb.PbList<InvestorDepositRequest>();
+  static $pb.GeneratedMessage $_createMessage() => InvestorDepositRequest._();
+  @$core.override
+  InvestorDepositRequest createEmptyInstance() => InvestorDepositRequest._();
   @$core.pragma('dart2js:noInline')
-  static InvestorDepositRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorDepositRequest>(create);
+  static InvestorDepositRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorDepositRequest>(
+          InvestorDepositRequest.$_createMessage);
   static InvestorDepositRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get accountId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set accountId($core.String v) { $_setString(0, v); }
+  set accountId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasAccountId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearAccountId() => clearField(1);
+  void clearAccountId() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $7.Money get amount => $_getN(1);
+  $0.Money get amount => $_getN(1);
   @$pb.TagNumber(2)
-  set amount($7.Money v) { setField(2, v); }
+  set amount($0.Money value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasAmount() => $_has(1);
   @$pb.TagNumber(2)
-  void clearAmount() => clearField(2);
+  void clearAmount() => $_clearField(2);
   @$pb.TagNumber(2)
-  $7.Money ensureAmount() => $_ensure(1);
+  $0.Money ensureAmount() => $_ensure(1);
 
   /// Replay key for this movement. Optional on the wire because the
   /// Idempotency-Key header is also honoured; when both are present the
@@ -866,61 +936,71 @@ class InvestorDepositRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   $core.String get idempotencyKey => $_getSZ(2);
   @$pb.TagNumber(4)
-  set idempotencyKey($core.String v) { $_setString(2, v); }
+  set idempotencyKey($core.String value) => $_setString(2, value);
   @$pb.TagNumber(4)
   $core.bool hasIdempotencyKey() => $_has(2);
   @$pb.TagNumber(4)
-  void clearIdempotencyKey() => clearField(4);
+  void clearIdempotencyKey() => $_clearField(4);
 }
 
 class InvestorDepositResponse extends $pb.GeneratedMessage {
   factory InvestorDepositResponse({
     InvestorAccountObject? data,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data = data;
-    }
-    return $result;
+    final result = InvestorDepositResponse._();
+    if (data != null) result.data = data;
+    return result;
   }
-  InvestorDepositResponse._() : super();
-  factory InvestorDepositResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorDepositResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorDepositResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data', subBuilder: InvestorAccountObject.create)
-    ..hasRequiredFields = false
-  ;
+  InvestorDepositResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorDepositResponse clone() => InvestorDepositResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorDepositResponse copyWith(void Function(InvestorDepositResponse) updates) => super.copyWith((message) => updates(message as InvestorDepositResponse)) as InvestorDepositResponse;
+  factory InvestorDepositResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorDepositResponse()..mergeFromBuffer(data, registry);
+  factory InvestorDepositResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorDepositResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorDepositResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorDepositResponse.$_createMessage)
+    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: InvestorAccountObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorDepositResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorDepositResponse copyWith(
+          void Function(InvestorDepositResponse) updates) =>
+      super.copyWith((message) => updates(message as InvestorDepositResponse))
+          as InvestorDepositResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorDepositResponse() / InvestorDepositResponse.new instead')
   static InvestorDepositResponse create() => InvestorDepositResponse._();
-  InvestorDepositResponse createEmptyInstance() => create();
-  static $pb.PbList<InvestorDepositResponse> createRepeated() => $pb.PbList<InvestorDepositResponse>();
+  static $pb.GeneratedMessage $_createMessage() => InvestorDepositResponse._();
+  @$core.override
+  InvestorDepositResponse createEmptyInstance() => InvestorDepositResponse._();
   @$core.pragma('dart2js:noInline')
-  static InvestorDepositResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorDepositResponse>(create);
+  static InvestorDepositResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorDepositResponse>(
+          InvestorDepositResponse.$_createMessage);
   static InvestorDepositResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   InvestorAccountObject get data => $_getN(0);
   @$pb.TagNumber(1)
-  set data(InvestorAccountObject v) { setField(1, v); }
+  set data(InvestorAccountObject value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
-  void clearData() => clearField(1);
+  void clearData() => $_clearField(1);
   @$pb.TagNumber(1)
   InvestorAccountObject ensureData() => $_ensure(0);
 }
@@ -928,132 +1008,149 @@ class InvestorDepositResponse extends $pb.GeneratedMessage {
 class InvestorWithdrawRequest extends $pb.GeneratedMessage {
   factory InvestorWithdrawRequest({
     $core.String? accountId,
-    $7.Money? amount,
+    $0.Money? amount,
     $core.String? idempotencyKey,
   }) {
-    final $result = create();
-    if (accountId != null) {
-      $result.accountId = accountId;
-    }
-    if (amount != null) {
-      $result.amount = amount;
-    }
-    if (idempotencyKey != null) {
-      $result.idempotencyKey = idempotencyKey;
-    }
-    return $result;
+    final result = InvestorWithdrawRequest._();
+    if (accountId != null) result.accountId = accountId;
+    if (amount != null) result.amount = amount;
+    if (idempotencyKey != null) result.idempotencyKey = idempotencyKey;
+    return result;
   }
-  InvestorWithdrawRequest._() : super();
-  factory InvestorWithdrawRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorWithdrawRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorWithdrawRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  InvestorWithdrawRequest._();
+
+  factory InvestorWithdrawRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorWithdrawRequest()..mergeFromBuffer(data, registry);
+  factory InvestorWithdrawRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorWithdrawRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorWithdrawRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorWithdrawRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
-    ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'idempotencyKey')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorWithdrawRequest clone() => InvestorWithdrawRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorWithdrawRequest copyWith(void Function(InvestorWithdrawRequest) updates) => super.copyWith((message) => updates(message as InvestorWithdrawRequest)) as InvestorWithdrawRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorWithdrawRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorWithdrawRequest copyWith(
+          void Function(InvestorWithdrawRequest) updates) =>
+      super.copyWith((message) => updates(message as InvestorWithdrawRequest))
+          as InvestorWithdrawRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorWithdrawRequest() / InvestorWithdrawRequest.new instead')
   static InvestorWithdrawRequest create() => InvestorWithdrawRequest._();
-  InvestorWithdrawRequest createEmptyInstance() => create();
-  static $pb.PbList<InvestorWithdrawRequest> createRepeated() => $pb.PbList<InvestorWithdrawRequest>();
+  static $pb.GeneratedMessage $_createMessage() => InvestorWithdrawRequest._();
+  @$core.override
+  InvestorWithdrawRequest createEmptyInstance() => InvestorWithdrawRequest._();
   @$core.pragma('dart2js:noInline')
-  static InvestorWithdrawRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorWithdrawRequest>(create);
+  static InvestorWithdrawRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorWithdrawRequest>(
+          InvestorWithdrawRequest.$_createMessage);
   static InvestorWithdrawRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get accountId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set accountId($core.String v) { $_setString(0, v); }
+  set accountId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasAccountId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearAccountId() => clearField(1);
+  void clearAccountId() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $7.Money get amount => $_getN(1);
+  $0.Money get amount => $_getN(1);
   @$pb.TagNumber(2)
-  set amount($7.Money v) { setField(2, v); }
+  set amount($0.Money value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasAmount() => $_has(1);
   @$pb.TagNumber(2)
-  void clearAmount() => clearField(2);
+  void clearAmount() => $_clearField(2);
   @$pb.TagNumber(2)
-  $7.Money ensureAmount() => $_ensure(1);
+  $0.Money ensureAmount() => $_ensure(1);
 
   /// See InvestorDepositRequest.idempotency_key.
   @$pb.TagNumber(3)
   $core.String get idempotencyKey => $_getSZ(2);
   @$pb.TagNumber(3)
-  set idempotencyKey($core.String v) { $_setString(2, v); }
+  set idempotencyKey($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
   $core.bool hasIdempotencyKey() => $_has(2);
   @$pb.TagNumber(3)
-  void clearIdempotencyKey() => clearField(3);
+  void clearIdempotencyKey() => $_clearField(3);
 }
 
 class InvestorWithdrawResponse extends $pb.GeneratedMessage {
   factory InvestorWithdrawResponse({
     InvestorAccountObject? data,
   }) {
-    final $result = create();
-    if (data != null) {
-      $result.data = data;
-    }
-    return $result;
+    final result = InvestorWithdrawResponse._();
+    if (data != null) result.data = data;
+    return result;
   }
-  InvestorWithdrawResponse._() : super();
-  factory InvestorWithdrawResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory InvestorWithdrawResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'InvestorWithdrawResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data', subBuilder: InvestorAccountObject.create)
-    ..hasRequiredFields = false
-  ;
+  InvestorWithdrawResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  InvestorWithdrawResponse clone() => InvestorWithdrawResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  InvestorWithdrawResponse copyWith(void Function(InvestorWithdrawResponse) updates) => super.copyWith((message) => updates(message as InvestorWithdrawResponse)) as InvestorWithdrawResponse;
+  factory InvestorWithdrawResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorWithdrawResponse()..mergeFromBuffer(data, registry);
+  factory InvestorWithdrawResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InvestorWithdrawResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InvestorWithdrawResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: InvestorWithdrawResponse.$_createMessage)
+    ..aOM<InvestorAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: InvestorAccountObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorWithdrawResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InvestorWithdrawResponse copyWith(
+          void Function(InvestorWithdrawResponse) updates) =>
+      super.copyWith((message) => updates(message as InvestorWithdrawResponse))
+          as InvestorWithdrawResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InvestorWithdrawResponse() / InvestorWithdrawResponse.new instead')
   static InvestorWithdrawResponse create() => InvestorWithdrawResponse._();
-  InvestorWithdrawResponse createEmptyInstance() => create();
-  static $pb.PbList<InvestorWithdrawResponse> createRepeated() => $pb.PbList<InvestorWithdrawResponse>();
+  static $pb.GeneratedMessage $_createMessage() => InvestorWithdrawResponse._();
+  @$core.override
+  InvestorWithdrawResponse createEmptyInstance() =>
+      InvestorWithdrawResponse._();
   @$core.pragma('dart2js:noInline')
-  static InvestorWithdrawResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InvestorWithdrawResponse>(create);
+  static InvestorWithdrawResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InvestorWithdrawResponse>(
+          InvestorWithdrawResponse.$_createMessage);
   static InvestorWithdrawResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   InvestorAccountObject get data => $_getN(0);
   @$pb.TagNumber(1)
-  set data(InvestorAccountObject v) { setField(1, v); }
+  set data(InvestorAccountObject value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasData() => $_has(0);
   @$pb.TagNumber(1)
-  void clearData() => clearField(1);
+  void clearData() => $_clearField(1);
   @$pb.TagNumber(1)
   InvestorAccountObject ensureData() => $_ensure(0);
 }
@@ -1062,211 +1159,226 @@ class FundLoanRequest extends $pb.GeneratedMessage {
   factory FundLoanRequest({
     $core.String? loanRequestId,
   }) {
-    final $result = create();
-    if (loanRequestId != null) {
-      $result.loanRequestId = loanRequestId;
-    }
-    return $result;
+    final result = FundLoanRequest._();
+    if (loanRequestId != null) result.loanRequestId = loanRequestId;
+    return result;
   }
-  FundLoanRequest._() : super();
-  factory FundLoanRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory FundLoanRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FundLoanRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  FundLoanRequest._();
+
+  factory FundLoanRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundLoanRequest()..mergeFromBuffer(data, registry);
+  factory FundLoanRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundLoanRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FundLoanRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: FundLoanRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'loanRequestId')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  FundLoanRequest clone() => FundLoanRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  FundLoanRequest copyWith(void Function(FundLoanRequest) updates) => super.copyWith((message) => updates(message as FundLoanRequest)) as FundLoanRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundLoanRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundLoanRequest copyWith(void Function(FundLoanRequest) updates) =>
+      super.copyWith((message) => updates(message as FundLoanRequest))
+          as FundLoanRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use FundLoanRequest() / FundLoanRequest.new instead')
   static FundLoanRequest create() => FundLoanRequest._();
-  FundLoanRequest createEmptyInstance() => create();
-  static $pb.PbList<FundLoanRequest> createRepeated() => $pb.PbList<FundLoanRequest>();
+  static $pb.GeneratedMessage $_createMessage() => FundLoanRequest._();
+  @$core.override
+  FundLoanRequest createEmptyInstance() => FundLoanRequest._();
   @$core.pragma('dart2js:noInline')
-  static FundLoanRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FundLoanRequest>(create);
+  static FundLoanRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FundLoanRequest>(
+          FundLoanRequest.$_createMessage);
   static FundLoanRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get loanRequestId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set loanRequestId($core.String v) { $_setString(0, v); }
+  set loanRequestId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasLoanRequestId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearLoanRequestId() => clearField(1);
+  void clearLoanRequestId() => $_clearField(1);
 }
 
 class FundLoanResponse extends $pb.GeneratedMessage {
   factory FundLoanResponse({
     $core.Iterable<FundingAllocationObject>? allocations,
-    $7.Money? totalAllocated,
-    $7.Money? deficit,
+    $0.Money? totalAllocated,
+    $0.Money? deficit,
     $core.bool? fullyFunded,
   }) {
-    final $result = create();
-    if (allocations != null) {
-      $result.allocations.addAll(allocations);
-    }
-    if (totalAllocated != null) {
-      $result.totalAllocated = totalAllocated;
-    }
-    if (deficit != null) {
-      $result.deficit = deficit;
-    }
-    if (fullyFunded != null) {
-      $result.fullyFunded = fullyFunded;
-    }
-    return $result;
+    final result = FundLoanResponse._();
+    if (allocations != null) result.allocations.addAll(allocations);
+    if (totalAllocated != null) result.totalAllocated = totalAllocated;
+    if (deficit != null) result.deficit = deficit;
+    if (fullyFunded != null) result.fullyFunded = fullyFunded;
+    return result;
   }
-  FundLoanResponse._() : super();
-  factory FundLoanResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory FundLoanResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FundLoanResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..pc<FundingAllocationObject>(1, _omitFieldNames ? '' : 'allocations', $pb.PbFieldType.PM, subBuilder: FundingAllocationObject.create)
-    ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'totalAllocated', subBuilder: $7.Money.create)
-    ..aOM<$7.Money>(3, _omitFieldNames ? '' : 'deficit', subBuilder: $7.Money.create)
+  FundLoanResponse._();
+
+  factory FundLoanResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundLoanResponse()..mergeFromBuffer(data, registry);
+  factory FundLoanResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundLoanResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FundLoanResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: FundLoanResponse.$_createMessage)
+    ..pPM<FundingAllocationObject>(1, _omitFieldNames ? '' : 'allocations',
+        subBuilder: FundingAllocationObject.$_createMessage)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'totalAllocated',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'deficit',
+        subBuilder: $0.Money.$_createMessage)
     ..aOB(4, _omitFieldNames ? '' : 'fullyFunded')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  FundLoanResponse clone() => FundLoanResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  FundLoanResponse copyWith(void Function(FundLoanResponse) updates) => super.copyWith((message) => updates(message as FundLoanResponse)) as FundLoanResponse;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundLoanResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundLoanResponse copyWith(void Function(FundLoanResponse) updates) =>
+      super.copyWith((message) => updates(message as FundLoanResponse))
+          as FundLoanResponse;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use FundLoanResponse() / FundLoanResponse.new instead')
   static FundLoanResponse create() => FundLoanResponse._();
-  FundLoanResponse createEmptyInstance() => create();
-  static $pb.PbList<FundLoanResponse> createRepeated() => $pb.PbList<FundLoanResponse>();
+  static $pb.GeneratedMessage $_createMessage() => FundLoanResponse._();
+  @$core.override
+  FundLoanResponse createEmptyInstance() => FundLoanResponse._();
   @$core.pragma('dart2js:noInline')
-  static FundLoanResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FundLoanResponse>(create);
+  static FundLoanResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FundLoanResponse>(
+          FundLoanResponse.$_createMessage);
   static FundLoanResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.List<FundingAllocationObject> get allocations => $_getList(0);
+  $pb.PbList<FundingAllocationObject> get allocations => $_getList(0);
 
   @$pb.TagNumber(2)
-  $7.Money get totalAllocated => $_getN(1);
+  $0.Money get totalAllocated => $_getN(1);
   @$pb.TagNumber(2)
-  set totalAllocated($7.Money v) { setField(2, v); }
+  set totalAllocated($0.Money value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasTotalAllocated() => $_has(1);
   @$pb.TagNumber(2)
-  void clearTotalAllocated() => clearField(2);
+  void clearTotalAllocated() => $_clearField(2);
   @$pb.TagNumber(2)
-  $7.Money ensureTotalAllocated() => $_ensure(1);
+  $0.Money ensureTotalAllocated() => $_ensure(1);
 
   @$pb.TagNumber(3)
-  $7.Money get deficit => $_getN(2);
+  $0.Money get deficit => $_getN(2);
   @$pb.TagNumber(3)
-  set deficit($7.Money v) { setField(3, v); }
+  set deficit($0.Money value) => $_setField(3, value);
   @$pb.TagNumber(3)
   $core.bool hasDeficit() => $_has(2);
   @$pb.TagNumber(3)
-  void clearDeficit() => clearField(3);
+  void clearDeficit() => $_clearField(3);
   @$pb.TagNumber(3)
-  $7.Money ensureDeficit() => $_ensure(2);
+  $0.Money ensureDeficit() => $_ensure(2);
 
   @$pb.TagNumber(4)
   $core.bool get fullyFunded => $_getBF(3);
   @$pb.TagNumber(4)
-  set fullyFunded($core.bool v) { $_setBool(3, v); }
+  set fullyFunded($core.bool value) => $_setBool(3, value);
   @$pb.TagNumber(4)
   $core.bool hasFullyFunded() => $_has(3);
   @$pb.TagNumber(4)
-  void clearFullyFunded() => clearField(4);
+  void clearFullyFunded() => $_clearField(4);
 }
 
 class AbsorbLossRequest extends $pb.GeneratedMessage {
   factory AbsorbLossRequest({
     $core.String? loanRequestId,
-    $7.Money? amount,
+    $0.Money? amount,
     $core.String? lossReference,
   }) {
-    final $result = create();
-    if (loanRequestId != null) {
-      $result.loanRequestId = loanRequestId;
-    }
-    if (amount != null) {
-      $result.amount = amount;
-    }
-    if (lossReference != null) {
-      $result.lossReference = lossReference;
-    }
-    return $result;
+    final result = AbsorbLossRequest._();
+    if (loanRequestId != null) result.loanRequestId = loanRequestId;
+    if (amount != null) result.amount = amount;
+    if (lossReference != null) result.lossReference = lossReference;
+    return result;
   }
-  AbsorbLossRequest._() : super();
-  factory AbsorbLossRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory AbsorbLossRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AbsorbLossRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
+  AbsorbLossRequest._();
+
+  factory AbsorbLossRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AbsorbLossRequest()..mergeFromBuffer(data, registry);
+  factory AbsorbLossRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AbsorbLossRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'AbsorbLossRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: AbsorbLossRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'loanRequestId')
-    ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'amount', subBuilder: $7.Money.create)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'lossReference')
-    ..hasRequiredFields = false
-  ;
+    ..hasRequiredFields = false;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  AbsorbLossRequest clone() => AbsorbLossRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  AbsorbLossRequest copyWith(void Function(AbsorbLossRequest) updates) => super.copyWith((message) => updates(message as AbsorbLossRequest)) as AbsorbLossRequest;
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AbsorbLossRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AbsorbLossRequest copyWith(void Function(AbsorbLossRequest) updates) =>
+      super.copyWith((message) => updates(message as AbsorbLossRequest))
+          as AbsorbLossRequest;
 
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AbsorbLossRequest() / AbsorbLossRequest.new instead')
   static AbsorbLossRequest create() => AbsorbLossRequest._();
-  AbsorbLossRequest createEmptyInstance() => create();
-  static $pb.PbList<AbsorbLossRequest> createRepeated() => $pb.PbList<AbsorbLossRequest>();
+  static $pb.GeneratedMessage $_createMessage() => AbsorbLossRequest._();
+  @$core.override
+  AbsorbLossRequest createEmptyInstance() => AbsorbLossRequest._();
   @$core.pragma('dart2js:noInline')
-  static AbsorbLossRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AbsorbLossRequest>(create);
+  static AbsorbLossRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AbsorbLossRequest>(
+          AbsorbLossRequest.$_createMessage);
   static AbsorbLossRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get loanRequestId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set loanRequestId($core.String v) { $_setString(0, v); }
+  set loanRequestId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
   $core.bool hasLoanRequestId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearLoanRequestId() => clearField(1);
+  void clearLoanRequestId() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $7.Money get amount => $_getN(1);
+  $0.Money get amount => $_getN(1);
   @$pb.TagNumber(2)
-  set amount($7.Money v) { setField(2, v); }
+  set amount($0.Money value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasAmount() => $_has(1);
   @$pb.TagNumber(2)
-  void clearAmount() => clearField(2);
+  void clearAmount() => $_clearField(2);
   @$pb.TagNumber(2)
-  $7.Money ensureAmount() => $_ensure(1);
+  $0.Money ensureAmount() => $_ensure(1);
 
   /// Identifies the loss event (write-off reference, default notice id) so a
   /// repeated call for the same event absorbs once. Empty keeps the current
@@ -1274,108 +1386,124 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   $core.String get lossReference => $_getSZ(2);
   @$pb.TagNumber(3)
-  set lossReference($core.String v) { $_setString(2, v); }
+  set lossReference($core.String value) => $_setString(2, value);
   @$pb.TagNumber(3)
   $core.bool hasLossReference() => $_has(2);
   @$pb.TagNumber(3)
-  void clearLossReference() => clearField(3);
+  void clearLossReference() => $_clearField(3);
 }
 
 class AbsorbLossResponse extends $pb.GeneratedMessage {
   factory AbsorbLossResponse({
-    $7.Money? absorbed,
-    $7.Money? unrecoverable,
+    $0.Money? absorbed,
+    $0.Money? unrecoverable,
   }) {
-    final $result = create();
-    if (absorbed != null) {
-      $result.absorbed = absorbed;
-    }
-    if (unrecoverable != null) {
-      $result.unrecoverable = unrecoverable;
-    }
-    return $result;
+    final result = AbsorbLossResponse._();
+    if (absorbed != null) result.absorbed = absorbed;
+    if (unrecoverable != null) result.unrecoverable = unrecoverable;
+    return result;
   }
-  AbsorbLossResponse._() : super();
-  factory AbsorbLossResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-  factory AbsorbLossResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AbsorbLossResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'), createEmptyInstance: create)
-    ..aOM<$7.Money>(1, _omitFieldNames ? '' : 'absorbed', subBuilder: $7.Money.create)
-    ..aOM<$7.Money>(2, _omitFieldNames ? '' : 'unrecoverable', subBuilder: $7.Money.create)
-    ..hasRequiredFields = false
-  ;
+  AbsorbLossResponse._();
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
-  AbsorbLossResponse clone() => AbsorbLossResponse()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
-  AbsorbLossResponse copyWith(void Function(AbsorbLossResponse) updates) => super.copyWith((message) => updates(message as AbsorbLossResponse)) as AbsorbLossResponse;
+  factory AbsorbLossResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AbsorbLossResponse()..mergeFromBuffer(data, registry);
+  factory AbsorbLossResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AbsorbLossResponse()..mergeFromJson(json, registry);
 
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'AbsorbLossResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: AbsorbLossResponse.$_createMessage)
+    ..aOM<$0.Money>(1, _omitFieldNames ? '' : 'absorbed',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'unrecoverable',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AbsorbLossResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AbsorbLossResponse copyWith(void Function(AbsorbLossResponse) updates) =>
+      super.copyWith((message) => updates(message as AbsorbLossResponse))
+          as AbsorbLossResponse;
+
+  @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AbsorbLossResponse() / AbsorbLossResponse.new instead')
   static AbsorbLossResponse create() => AbsorbLossResponse._();
-  AbsorbLossResponse createEmptyInstance() => create();
-  static $pb.PbList<AbsorbLossResponse> createRepeated() => $pb.PbList<AbsorbLossResponse>();
+  static $pb.GeneratedMessage $_createMessage() => AbsorbLossResponse._();
+  @$core.override
+  AbsorbLossResponse createEmptyInstance() => AbsorbLossResponse._();
   @$core.pragma('dart2js:noInline')
-  static AbsorbLossResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AbsorbLossResponse>(create);
+  static AbsorbLossResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<AbsorbLossResponse>(
+          AbsorbLossResponse.$_createMessage);
   static AbsorbLossResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $7.Money get absorbed => $_getN(0);
+  $0.Money get absorbed => $_getN(0);
   @$pb.TagNumber(1)
-  set absorbed($7.Money v) { setField(1, v); }
+  set absorbed($0.Money value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasAbsorbed() => $_has(0);
   @$pb.TagNumber(1)
-  void clearAbsorbed() => clearField(1);
+  void clearAbsorbed() => $_clearField(1);
   @$pb.TagNumber(1)
-  $7.Money ensureAbsorbed() => $_ensure(0);
+  $0.Money ensureAbsorbed() => $_ensure(0);
 
   @$pb.TagNumber(2)
-  $7.Money get unrecoverable => $_getN(1);
+  $0.Money get unrecoverable => $_getN(1);
   @$pb.TagNumber(2)
-  set unrecoverable($7.Money v) { setField(2, v); }
+  set unrecoverable($0.Money value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasUnrecoverable() => $_has(1);
   @$pb.TagNumber(2)
-  void clearUnrecoverable() => clearField(2);
+  void clearUnrecoverable() => $_clearField(2);
   @$pb.TagNumber(2)
-  $7.Money ensureUnrecoverable() => $_ensure(1);
+  $0.Money ensureUnrecoverable() => $_ensure(1);
 }
 
 class FundingServiceApi {
-  $pb.RpcClient _client;
+  final $pb.RpcClient _client;
+
   FundingServiceApi(this._client);
 
-  $async.Future<InvestorAccountSaveResponse> investorAccountSave($pb.ClientContext? ctx, InvestorAccountSaveRequest request) =>
-    _client.invoke<InvestorAccountSaveResponse>(ctx, 'FundingService', 'InvestorAccountSave', request, InvestorAccountSaveResponse())
-  ;
-  $async.Future<InvestorAccountGetResponse> investorAccountGet($pb.ClientContext? ctx, InvestorAccountGetRequest request) =>
-    _client.invoke<InvestorAccountGetResponse>(ctx, 'FundingService', 'InvestorAccountGet', request, InvestorAccountGetResponse())
-  ;
-  $async.Future<InvestorAccountSearchResponse> investorAccountSearch($pb.ClientContext? ctx, InvestorAccountSearchRequest request) =>
-    _client.invoke<InvestorAccountSearchResponse>(ctx, 'FundingService', 'InvestorAccountSearch', request, InvestorAccountSearchResponse())
-  ;
-  $async.Future<InvestorDepositResponse> investorDeposit($pb.ClientContext? ctx, InvestorDepositRequest request) =>
-    _client.invoke<InvestorDepositResponse>(ctx, 'FundingService', 'InvestorDeposit', request, InvestorDepositResponse())
-  ;
-  $async.Future<InvestorWithdrawResponse> investorWithdraw($pb.ClientContext? ctx, InvestorWithdrawRequest request) =>
-    _client.invoke<InvestorWithdrawResponse>(ctx, 'FundingService', 'InvestorWithdraw', request, InvestorWithdrawResponse())
-  ;
-  $async.Future<FundLoanResponse> fundLoan($pb.ClientContext? ctx, FundLoanRequest request) =>
-    _client.invoke<FundLoanResponse>(ctx, 'FundingService', 'FundLoan', request, FundLoanResponse())
-  ;
-  $async.Future<AbsorbLossResponse> absorbLoss($pb.ClientContext? ctx, AbsorbLossRequest request) =>
-    _client.invoke<AbsorbLossResponse>(ctx, 'FundingService', 'AbsorbLoss', request, AbsorbLossResponse())
-  ;
+  $async.Future<InvestorAccountSaveResponse> investorAccountSave(
+          $pb.ClientContext? ctx, InvestorAccountSaveRequest request) =>
+      _client.invoke<InvestorAccountSaveResponse>(ctx, 'FundingService',
+          'InvestorAccountSave', request, InvestorAccountSaveResponse());
+  $async.Future<InvestorAccountGetResponse> investorAccountGet(
+          $pb.ClientContext? ctx, InvestorAccountGetRequest request) =>
+      _client.invoke<InvestorAccountGetResponse>(ctx, 'FundingService',
+          'InvestorAccountGet', request, InvestorAccountGetResponse());
+  $async.Future<InvestorAccountSearchResponse> investorAccountSearch(
+          $pb.ClientContext? ctx, InvestorAccountSearchRequest request) =>
+      _client.invoke<InvestorAccountSearchResponse>(ctx, 'FundingService',
+          'InvestorAccountSearch', request, InvestorAccountSearchResponse());
+  $async.Future<InvestorDepositResponse> investorDeposit(
+          $pb.ClientContext? ctx, InvestorDepositRequest request) =>
+      _client.invoke<InvestorDepositResponse>(ctx, 'FundingService',
+          'InvestorDeposit', request, InvestorDepositResponse());
+  $async.Future<InvestorWithdrawResponse> investorWithdraw(
+          $pb.ClientContext? ctx, InvestorWithdrawRequest request) =>
+      _client.invoke<InvestorWithdrawResponse>(ctx, 'FundingService',
+          'InvestorWithdraw', request, InvestorWithdrawResponse());
+  $async.Future<FundLoanResponse> fundLoan(
+          $pb.ClientContext? ctx, FundLoanRequest request) =>
+      _client.invoke<FundLoanResponse>(
+          ctx, 'FundingService', 'FundLoan', request, FundLoanResponse());
+  $async.Future<AbsorbLossResponse> absorbLoss(
+          $pb.ClientContext? ctx, AbsorbLossRequest request) =>
+      _client.invoke<AbsorbLossResponse>(
+          ctx, 'FundingService', 'AbsorbLoss', request, AbsorbLossResponse());
 }
 
-
-const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
-const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames =
+    $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames =
+    $core.bool.fromEnvironment('protobuf.omit_message_names');

@@ -1,9 +1,9 @@
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import 'package:antinvestor_ui_core/api/stream_helpers.dart';
-import 'package:antinvestor_ui_core/widgets/money_helpers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'loans_transport_provider.dart';
+import 'repayment_outbox.dart';
 
 final repaymentListProvider =
     FutureProvider.family<List<RepaymentObject>, String>((
@@ -21,12 +21,34 @@ final repaymentListProvider =
       );
     });
 
+/// The repayments the signed-in field agent recorded since local midnight.
+/// The service scopes a loan-less search to the caller's own collections.
+final myCollectionsTodayProvider = FutureProvider<List<RepaymentObject>>((
+  ref,
+) async {
+  final client = ref.watch(loanManagementServiceClientProvider);
+  final now = DateTime.now();
+  final midnight = DateTime(now.year, now.month, now.day).toUtc();
+  return collectStream(
+    client.repaymentSearch(
+      RepaymentSearchRequest(
+        receivedAfter: midnight.toIso8601String(),
+        cursor: PageCursor(limit: 200),
+      ),
+    ),
+    extract: (response) => response.data,
+  );
+});
+
 /// Notifier for repayment mutations.
 class RepaymentNotifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncData(null);
 
-  Future<RepaymentObject> record({
+  /// Records a repayment. When the service cannot be reached the
+  /// repayment is queued in the outbox with its idempotency key and null is
+  /// returned; a refusal is thrown.
+  Future<RepaymentObject?> record({
     required String loanAccountId,
     required String amount,
     required String currencyCode,
@@ -36,21 +58,29 @@ class RepaymentNotifier extends Notifier<AsyncValue<void>> {
     required String idempotencyKey,
   }) async {
     state = const AsyncLoading();
+    final pending = PendingRepayment(
+      loanAccountId: loanAccountId,
+      amount: amount,
+      currencyCode: currencyCode,
+      paymentReference: paymentReference,
+      channel: channel,
+      payerReference: payerReference,
+      idempotencyKey: idempotencyKey,
+      queuedAt: DateTime.now(),
+    );
     try {
       final client = ref.read(loanManagementServiceClientProvider);
-      final req = RepaymentRecordRequest(
-        loanAccountId: loanAccountId,
-        paymentReference: paymentReference,
-        channel: channel,
-        payerReference: payerReference,
-        idempotencyKey: idempotencyKey,
-      );
-      setMoneyFields(req.ensureAmount(), amount, currencyCode);
-      final response = await client.repaymentRecord(req);
+      final response = await client.repaymentRecord(pending.toRequest());
       state = const AsyncData(null);
       ref.invalidate(repaymentListProvider);
+      ref.invalidate(myCollectionsTodayProvider);
       return response.data;
     } catch (e, st) {
+      if (isTransientFailure(e)) {
+        await ref.read(repaymentOutboxProvider.notifier).enqueue(pending);
+        state = const AsyncData(null);
+        return null;
+      }
       state = AsyncError(e, st);
       rethrow;
     }

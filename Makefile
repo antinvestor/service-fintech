@@ -28,14 +28,22 @@ include $(COMMON_MK)
 # queue shutdown race that no longer reproduces on the pinned frame, see
 # docs/runbook/race-detector.md). -p 1 keeps testcontainers-backed packages
 # sequential. make warns about the override, as it does for ui-build-prod.
+# All packages in one `go test` run share one testcontainers Ryuk reaper,
+# which exits 10s after its last client disconnects; a package starting in
+# that window fails with "wait for reaper ... failed to create network".
+# Keep the reaper up across packages (same fix as common's Makefile.common).
+TESTCONTAINERS_RYUK_RECONNECTION_TIMEOUT ?= 2m
+
 .PHONY: test
 test: ## Run all tests with the race detector (sequential packages)
+	TESTCONTAINERS_RYUK_RECONNECTION_TIMEOUT=$(TESTCONTAINERS_RYUK_RECONNECTION_TIMEOUT) \
 	$(GO) test -vet=off -race -cover -count=1 -p 1 ./...
 
 # Dart proto modules — each gets its own buf.gen.dart.<module>.yaml so that
 # generation is scoped to a single module and dart packages don't leak each
 # other's types. See proto/buf.gen.dart.*.yaml.
 DART_MODULES := identity field loans savings funding operations limits
+DART_RUNTIME_WKTS := any api duration empty field_mask source_context struct timestamp type wrappers
 
 .PHONY: proto-generate-dart
 proto-generate-dart: $(BIN)/buf ## Regenerate the per-module dart SDKs
@@ -46,9 +54,24 @@ proto-generate-dart: $(BIN)/buf ## Regenerate the per-module dart SDKs
 			rm -rf sdk/dart/$$pkg/lib/src/$$other; \
 		done; \
 	done
+	@# Generated files are recreated from scratch so files the plugin no longer
+	@# emits (e.g. empty .pbserver.dart) do not linger; barrels and hand-written
+	@# files outside lib/src are untouched.
+	@for m in $(DART_MODULES); do \
+		find sdk/dart/$$m/lib/src -name '*.pb*.dart' -o -name '*.connect.*.dart' | xargs -r rm -f; \
+	done
 	@for m in $(DART_MODULES); do \
 		echo "==> dart $$m"; \
 		(cd $(PROTO_DIR) && buf generate --template buf.gen.dart.$$m.yaml $$m); \
+	done
+	@# protoc_plugin 25 imports the well-known types from package:protobuf, so
+	@# the copies include_wkt emits are unreferenced. descriptor.proto is not
+	@# shipped by the runtime and stays (buf/validate and gnostic import it).
+	@for m in $(DART_MODULES); do \
+		for wkt in $(DART_RUNTIME_WKTS); do \
+			rm -f sdk/dart/$$m/lib/src/google/protobuf/$$wkt.pb*.dart; \
+		done; \
+		find sdk/dart/$$m/lib/src -type d -empty -delete; \
 	done
 
 # Wire dart generation into the standard proto-generate pipeline.

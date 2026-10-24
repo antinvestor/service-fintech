@@ -1,23 +1,29 @@
+// This is a generated file - do not edit.
 //
-//  Generated code. Do not modify.
-//  source: limits/v1/limits.proto
-//
-// @dart = 2.12
+// Generated from limits/v1/limits.proto.
+
+// @dart = 3.3
 
 // ignore_for_file: annotate_overrides, camel_case_types, comment_references
-// ignore_for_file: constant_identifier_names, library_prefixes
-// ignore_for_file: non_constant_identifier_names, prefer_final_fields
-// ignore_for_file: unnecessary_import, unnecessary_this, unused_import
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+// ignore_for_file: unused_import
 
 import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
-import '../../common/v1/common.pbjson.dart' as $8;
-import '../../common/v1/money.pbjson.dart' as $7;
-import '../../google/protobuf/duration.pbjson.dart' as $0;
-import '../../google/protobuf/struct.pbjson.dart' as $6;
-import '../../google/protobuf/timestamp.pbjson.dart' as $2;
+import 'package:protobuf/well_known_types/google/protobuf/duration.pbjson.dart'
+    as $0;
+import 'package:protobuf/well_known_types/google/protobuf/struct.pbjson.dart'
+    as $2;
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pbjson.dart'
+    as $3;
+
+import '../../common/v1/common.pbjson.dart' as $4;
+import '../../common/v1/money.pbjson.dart' as $1;
 
 @$core.Deprecated('Use limitActionDescriptor instead')
 const LimitAction$json = {
@@ -168,7 +174,15 @@ final $typed_data.Uint8List approvalStatusDescriptor = $convert.base64Decode(
 const SubjectRef$json = {
   '1': 'SubjectRef',
   '2': [
-    {'1': 'type', '3': 1, '4': 1, '5': 14, '6': '.limits.v1.SubjectType', '8': {}, '10': 'type'},
+    {
+      '1': 'type',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.SubjectType',
+      '8': {},
+      '10': 'type'
+    },
     {'1': 'id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'id'},
   ],
 };
@@ -199,25 +213,136 @@ const PolicyObject$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {'1': 'tenant_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'tenantId'},
-    {'1': 'scope', '3': 3, '4': 1, '5': 14, '6': '.limits.v1.PolicyScope', '8': {}, '10': 'scope'},
+    {
+      '1': 'scope',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.PolicyScope',
+      '8': {},
+      '10': 'scope'
+    },
     {'1': 'org_unit_id', '3': 4, '4': 1, '5': 9, '10': 'orgUnitId'},
-    {'1': 'action', '3': 5, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '8': {}, '10': 'action'},
-    {'1': 'subject_type', '3': 6, '4': 1, '5': 14, '6': '.limits.v1.SubjectType', '8': {}, '10': 'subjectType'},
-    {'1': 'currency_code', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'currencyCode'},
-    {'1': 'limit_kind', '3': 8, '4': 1, '5': 14, '6': '.limits.v1.LimitKind', '8': {}, '10': 'limitKind'},
-    {'1': 'window', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '10': 'window'},
-    {'1': 'cap_amount', '3': 10, '4': 1, '5': 11, '6': '.common.v1.Money', '8': {}, '10': 'capAmount'},
+    {
+      '1': 'action',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitAction',
+      '8': {},
+      '10': 'action'
+    },
+    {
+      '1': 'subject_type',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.SubjectType',
+      '8': {},
+      '10': 'subjectType'
+    },
+    {
+      '1': 'currency_code',
+      '3': 7,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'currencyCode'
+    },
+    {
+      '1': 'limit_kind',
+      '3': 8,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitKind',
+      '8': {},
+      '10': 'limitKind'
+    },
+    {
+      '1': 'window',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '10': 'window'
+    },
+    {
+      '1': 'cap_amount',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '8': {},
+      '10': 'capAmount'
+    },
     {'1': 'cap_count', '3': 11, '4': 1, '5': 3, '8': {}, '10': 'capCount'},
-    {'1': 'mode', '3': 12, '4': 1, '5': 14, '6': '.limits.v1.PolicyMode', '8': {}, '10': 'mode'},
-    {'1': 'attribute_filter', '3': 13, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'attributeFilter'},
-    {'1': 'approver_tiers', '3': 14, '4': 3, '5': 11, '6': '.limits.v1.ApproverTier', '10': 'approverTiers'},
-    {'1': 'approval_ttl', '3': 15, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '10': 'approvalTtl'},
-    {'1': 'effective_from', '3': 16, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'effectiveFrom'},
-    {'1': 'effective_to', '3': 17, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'effectiveTo'},
+    {
+      '1': 'mode',
+      '3': 12,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.PolicyMode',
+      '8': {},
+      '10': 'mode'
+    },
+    {
+      '1': 'attribute_filter',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'attributeFilter'
+    },
+    {
+      '1': 'approver_tiers',
+      '3': 14,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.ApproverTier',
+      '10': 'approverTiers'
+    },
+    {
+      '1': 'approval_ttl',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '10': 'approvalTtl'
+    },
+    {
+      '1': 'effective_from',
+      '3': 16,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'effectiveFrom'
+    },
+    {
+      '1': 'effective_to',
+      '3': 17,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'effectiveTo'
+    },
     {'1': 'notes', '3': 18, '4': 1, '5': 9, '10': 'notes'},
     {'1': 'version', '3': 19, '4': 1, '5': 5, '10': 'version'},
-    {'1': 'created_at', '3': 20, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'createdAt'},
-    {'1': 'modified_at', '3': 21, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'modifiedAt'},
+    {
+      '1': 'created_at',
+      '3': 20,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'createdAt'
+    },
+    {
+      '1': 'modified_at',
+      '3': 21,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'modifiedAt'
+    },
   ],
 };
 
@@ -251,11 +376,35 @@ final $typed_data.Uint8List policyObjectDescriptor = $convert.base64Decode(
 const LimitIntent$json = {
   '1': 'LimitIntent',
   '2': [
-    {'1': 'action', '3': 1, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '8': {}, '10': 'action'},
+    {
+      '1': 'action',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitAction',
+      '8': {},
+      '10': 'action'
+    },
     {'1': 'tenant_id', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'tenantId'},
     {'1': 'org_unit_id', '3': 3, '4': 1, '5': 9, '10': 'orgUnitId'},
-    {'1': 'amount', '3': 4, '4': 1, '5': 11, '6': '.common.v1.Money', '8': {}, '10': 'amount'},
-    {'1': 'subjects', '3': 5, '4': 3, '5': 11, '6': '.limits.v1.SubjectRef', '8': {}, '10': 'subjects'},
+    {
+      '1': 'amount',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '8': {},
+      '10': 'amount'
+    },
+    {
+      '1': 'subjects',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.SubjectRef',
+      '8': {},
+      '10': 'subjects'
+    },
     {'1': 'maker_id', '3': 6, '4': 1, '5': 9, '10': 'makerId'},
   ],
 };
@@ -277,11 +426,38 @@ const PolicyVerdict$json = {
     {'1': 'policy_version', '3': 2, '4': 1, '5': 5, '10': 'policyVersion'},
     {'1': 'matched', '3': 3, '4': 1, '5': 8, '10': 'matched'},
     {'1': 'breached', '3': 4, '4': 1, '5': 8, '10': 'breached'},
-    {'1': 'would_require_approval', '3': 5, '4': 1, '5': 8, '10': 'wouldRequireApproval'},
-    {'1': 'mode', '3': 6, '4': 1, '5': 14, '6': '.limits.v1.PolicyMode', '10': 'mode'},
+    {
+      '1': 'would_require_approval',
+      '3': 5,
+      '4': 1,
+      '5': 8,
+      '10': 'wouldRequireApproval'
+    },
+    {
+      '1': 'mode',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.PolicyMode',
+      '10': 'mode'
+    },
     {'1': 'reason', '3': 7, '4': 1, '5': 9, '10': 'reason'},
-    {'1': 'current_usage', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'currentUsage'},
-    {'1': 'cap_amount', '3': 9, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'capAmount'},
+    {
+      '1': 'current_usage',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'currentUsage'
+    },
+    {
+      '1': 'cap_amount',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'capAmount'
+    },
     {'1': 'current_count', '3': 10, '4': 1, '5': 3, '10': 'currentCount'},
     {'1': 'cap_count', '3': 11, '4': 1, '5': 3, '10': 'capCount'},
   ],
@@ -302,7 +478,15 @@ final $typed_data.Uint8List policyVerdictDescriptor = $convert.base64Decode(
 const PolicySaveRequest$json = {
   '1': 'PolicySaveRequest',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.PolicyObject', '8': {}, '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.PolicyObject',
+      '8': {},
+      '10': 'data'
+    },
   ],
 };
 
@@ -315,7 +499,14 @@ final $typed_data.Uint8List policySaveRequestDescriptor = $convert.base64Decode(
 const PolicySaveResponse$json = {
   '1': 'PolicySaveResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.PolicyObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.PolicyObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -340,7 +531,14 @@ final $typed_data.Uint8List policyGetRequestDescriptor = $convert.base64Decode(
 const PolicyGetResponse$json = {
   '1': 'PolicyGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.PolicyObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.PolicyObject',
+      '10': 'data'
+    },
   ],
 };
 
@@ -356,10 +554,38 @@ const PolicySearchRequest$json = {
     {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
     {'1': 'tenant_id', '3': 2, '4': 1, '5': 9, '10': 'tenantId'},
     {'1': 'org_unit_id', '3': 3, '4': 1, '5': 9, '10': 'orgUnitId'},
-    {'1': 'action', '3': 4, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
-    {'1': 'subject_type', '3': 5, '4': 1, '5': 14, '6': '.limits.v1.SubjectType', '10': 'subjectType'},
-    {'1': 'mode', '3': 6, '4': 1, '5': 14, '6': '.limits.v1.PolicyMode', '10': 'mode'},
-    {'1': 'cursor', '3': 7, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'action',
+      '3': 4,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitAction',
+      '10': 'action'
+    },
+    {
+      '1': 'subject_type',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.SubjectType',
+      '10': 'subjectType'
+    },
+    {
+      '1': 'mode',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.PolicyMode',
+      '10': 'mode'
+    },
+    {
+      '1': 'cursor',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -376,8 +602,22 @@ final $typed_data.Uint8List policySearchRequestDescriptor = $convert.base64Decod
 const PolicySearchResponse$json = {
   '1': 'PolicySearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.limits.v1.PolicyObject', '10': 'data'},
-    {'1': 'next_cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'nextCursor'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.PolicyObject',
+      '10': 'data'
+    },
+    {
+      '1': 'next_cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'nextCursor'
+    },
   ],
 };
 
@@ -396,8 +636,9 @@ const PolicyDeleteRequest$json = {
 };
 
 /// Descriptor for `PolicyDeleteRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List policyDeleteRequestDescriptor = $convert.base64Decode(
-    'ChNQb2xpY3lEZWxldGVSZXF1ZXN0EhcKAmlkGAEgASgJQge6SARyAhABUgJpZA==');
+final $typed_data.Uint8List policyDeleteRequestDescriptor =
+    $convert.base64Decode(
+        'ChNQb2xpY3lEZWxldGVSZXF1ZXN0EhcKAmlkGAEgASgJQge6SARyAhABUgJpZA==');
 
 @$core.Deprecated('Use policyDeleteResponseDescriptor instead')
 const PolicyDeleteResponse$json = {
@@ -405,8 +646,8 @@ const PolicyDeleteResponse$json = {
 };
 
 /// Descriptor for `PolicyDeleteResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List policyDeleteResponseDescriptor = $convert.base64Decode(
-    'ChRQb2xpY3lEZWxldGVSZXNwb25zZQ==');
+final $typed_data.Uint8List policyDeleteResponseDescriptor =
+    $convert.base64Decode('ChRQb2xpY3lEZWxldGVSZXNwb25zZQ==');
 
 @$core.Deprecated('Use policyVersionObjectDescriptor instead')
 const PolicyVersionObject$json = {
@@ -414,8 +655,22 @@ const PolicyVersionObject$json = {
   '2': [
     {'1': 'policy_id', '3': 1, '4': 1, '5': 9, '10': 'policyId'},
     {'1': 'version', '3': 2, '4': 1, '5': 5, '10': 'version'},
-    {'1': 'snapshot', '3': 3, '4': 1, '5': 11, '6': '.limits.v1.PolicyObject', '10': 'snapshot'},
-    {'1': 'created_at', '3': 4, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'createdAt'},
+    {
+      '1': 'snapshot',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.PolicyObject',
+      '10': 'snapshot'
+    },
+    {
+      '1': 'created_at',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'createdAt'
+    },
   ],
 };
 
@@ -431,7 +686,14 @@ const PolicyHistoryRequest$json = {
   '1': 'PolicyHistoryRequest',
   '2': [
     {'1': 'policy_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'policyId'},
-    {'1': 'cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -444,8 +706,22 @@ final $typed_data.Uint8List policyHistoryRequestDescriptor = $convert.base64Deco
 const PolicyHistoryResponse$json = {
   '1': 'PolicyHistoryResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.limits.v1.PolicyVersionObject', '10': 'data'},
-    {'1': 'next_cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'nextCursor'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.PolicyVersionObject',
+      '10': 'data'
+    },
+    {
+      '1': 'next_cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'nextCursor'
+    },
   ],
 };
 
@@ -462,7 +738,14 @@ const ApprovalDecisionObject$json = {
     {'1': 'approver_id', '3': 1, '4': 1, '5': 9, '10': 'approverId'},
     {'1': 'decision', '3': 2, '4': 1, '5': 9, '10': 'decision'},
     {'1': 'note', '3': 3, '4': 1, '5': 9, '10': 'note'},
-    {'1': 'decided_at', '3': 4, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'decidedAt'},
+    {
+      '1': 'decided_at',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'decidedAt'
+    },
   ],
 };
 
@@ -480,18 +763,73 @@ const ApprovalRequestObject$json = {
     {'1': 'reservation_id', '3': 2, '4': 1, '5': 9, '10': 'reservationId'},
     {'1': 'tenant_id', '3': 3, '4': 1, '5': 9, '10': 'tenantId'},
     {'1': 'org_unit_id', '3': 4, '4': 1, '5': 9, '10': 'orgUnitId'},
-    {'1': 'triggering_policy_id', '3': 5, '4': 1, '5': 9, '10': 'triggeringPolicyId'},
+    {
+      '1': 'triggering_policy_id',
+      '3': 5,
+      '4': 1,
+      '5': 9,
+      '10': 'triggeringPolicyId'
+    },
     {'1': 'policy_version', '3': 6, '4': 1, '5': 5, '10': 'policyVersion'},
-    {'1': 'action', '3': 7, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
-    {'1': 'amount', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
+    {
+      '1': 'action',
+      '3': 7,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitAction',
+      '10': 'action'
+    },
+    {
+      '1': 'amount',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
     {'1': 'required_role', '3': 9, '4': 1, '5': 9, '10': 'requiredRole'},
     {'1': 'required_count', '3': 10, '4': 1, '5': 5, '10': 'requiredCount'},
     {'1': 'maker_id', '3': 11, '4': 1, '5': 9, '10': 'makerId'},
-    {'1': 'status', '3': 12, '4': 1, '5': 14, '6': '.limits.v1.ApprovalStatus', '10': 'status'},
-    {'1': 'submitted_at', '3': 13, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'submittedAt'},
-    {'1': 'expires_at', '3': 14, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'expiresAt'},
-    {'1': 'decided_at', '3': 15, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'decidedAt'},
-    {'1': 'decisions', '3': 16, '4': 3, '5': 11, '6': '.limits.v1.ApprovalDecisionObject', '10': 'decisions'},
+    {
+      '1': 'status',
+      '3': 12,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.ApprovalStatus',
+      '10': 'status'
+    },
+    {
+      '1': 'submitted_at',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'submittedAt'
+    },
+    {
+      '1': 'expires_at',
+      '3': 14,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'expiresAt'
+    },
+    {
+      '1': 'decided_at',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'decidedAt'
+    },
+    {
+      '1': 'decisions',
+      '3': 16,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.ApprovalDecisionObject',
+      '10': 'decisions'
+    },
   ],
 };
 
@@ -516,9 +854,23 @@ const ApprovalRequestListRequest$json = {
   '1': 'ApprovalRequestListRequest',
   '2': [
     {'1': 'tenant_id', '3': 1, '4': 1, '5': 9, '10': 'tenantId'},
-    {'1': 'status', '3': 2, '4': 1, '5': 14, '6': '.limits.v1.ApprovalStatus', '10': 'status'},
+    {
+      '1': 'status',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.ApprovalStatus',
+      '10': 'status'
+    },
     {'1': 'required_role', '3': 3, '4': 1, '5': 9, '10': 'requiredRole'},
-    {'1': 'cursor', '3': 4, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -533,16 +885,31 @@ final $typed_data.Uint8List approvalRequestListRequestDescriptor = $convert.base
 const ApprovalRequestListResponse$json = {
   '1': 'ApprovalRequestListResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.limits.v1.ApprovalRequestObject', '10': 'data'},
-    {'1': 'next_cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'nextCursor'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.ApprovalRequestObject',
+      '10': 'data'
+    },
+    {
+      '1': 'next_cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'nextCursor'
+    },
   ],
 };
 
 /// Descriptor for `ApprovalRequestListResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List approvalRequestListResponseDescriptor = $convert.base64Decode(
-    'ChtBcHByb3ZhbFJlcXVlc3RMaXN0UmVzcG9uc2USNAoEZGF0YRgBIAMoCzIgLmxpbWl0cy52MS'
-    '5BcHByb3ZhbFJlcXVlc3RPYmplY3RSBGRhdGESNgoLbmV4dF9jdXJzb3IYAiABKAsyFS5jb21t'
-    'b24udjEuUGFnZUN1cnNvclIKbmV4dEN1cnNvcg==');
+final $typed_data.Uint8List approvalRequestListResponseDescriptor =
+    $convert.base64Decode(
+        'ChtBcHByb3ZhbFJlcXVlc3RMaXN0UmVzcG9uc2USNAoEZGF0YRgBIAMoCzIgLmxpbWl0cy52MS'
+        '5BcHByb3ZhbFJlcXVlc3RPYmplY3RSBGRhdGESNgoLbmV4dF9jdXJzb3IYAiABKAsyFS5jb21t'
+        'b24udjEuUGFnZUN1cnNvclIKbmV4dEN1cnNvcg==');
 
 @$core.Deprecated('Use approvalRequestGetRequestDescriptor instead')
 const ApprovalRequestGetRequest$json = {
@@ -553,21 +920,30 @@ const ApprovalRequestGetRequest$json = {
 };
 
 /// Descriptor for `ApprovalRequestGetRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List approvalRequestGetRequestDescriptor = $convert.base64Decode(
-    'ChlBcHByb3ZhbFJlcXVlc3RHZXRSZXF1ZXN0EhcKAmlkGAEgASgJQge6SARyAhABUgJpZA==');
+final $typed_data.Uint8List approvalRequestGetRequestDescriptor =
+    $convert.base64Decode(
+        'ChlBcHByb3ZhbFJlcXVlc3RHZXRSZXF1ZXN0EhcKAmlkGAEgASgJQge6SARyAhABUgJpZA==');
 
 @$core.Deprecated('Use approvalRequestGetResponseDescriptor instead')
 const ApprovalRequestGetResponse$json = {
   '1': 'ApprovalRequestGetResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.ApprovalRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.ApprovalRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ApprovalRequestGetResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List approvalRequestGetResponseDescriptor = $convert.base64Decode(
-    'ChpBcHByb3ZhbFJlcXVlc3RHZXRSZXNwb25zZRI0CgRkYXRhGAEgASgLMiAubGltaXRzLnYxLk'
-    'FwcHJvdmFsUmVxdWVzdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List approvalRequestGetResponseDescriptor =
+    $convert.base64Decode(
+        'ChpBcHByb3ZhbFJlcXVlc3RHZXRSZXNwb25zZRI0CgRkYXRhGAEgASgLMiAubGltaXRzLnYxLk'
+        'FwcHJvdmFsUmVxdWVzdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use approvalRequestDecideRequestDescriptor instead')
 const ApprovalRequestDecideRequest$json = {
@@ -580,23 +956,32 @@ const ApprovalRequestDecideRequest$json = {
 };
 
 /// Descriptor for `ApprovalRequestDecideRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List approvalRequestDecideRequestDescriptor = $convert.base64Decode(
-    'ChxBcHByb3ZhbFJlcXVlc3REZWNpZGVSZXF1ZXN0EhcKAmlkGAEgASgJQge6SARyAhABUgJpZB'
-    'IyCghkZWNpc2lvbhgCIAEoCUIWukgTchFSB2FwcHJvdmVSBnJlamVjdFIIZGVjaXNpb24SEgoE'
-    'bm90ZRgDIAEoCVIEbm90ZQ==');
+final $typed_data.Uint8List approvalRequestDecideRequestDescriptor =
+    $convert.base64Decode(
+        'ChxBcHByb3ZhbFJlcXVlc3REZWNpZGVSZXF1ZXN0EhcKAmlkGAEgASgJQge6SARyAhABUgJpZB'
+        'IyCghkZWNpc2lvbhgCIAEoCUIWukgTchFSB2FwcHJvdmVSBnJlamVjdFIIZGVjaXNpb24SEgoE'
+        'bm90ZRgDIAEoCVIEbm90ZQ==');
 
 @$core.Deprecated('Use approvalRequestDecideResponseDescriptor instead')
 const ApprovalRequestDecideResponse$json = {
   '1': 'ApprovalRequestDecideResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.ApprovalRequestObject', '10': 'data'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.ApprovalRequestObject',
+      '10': 'data'
+    },
   ],
 };
 
 /// Descriptor for `ApprovalRequestDecideResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List approvalRequestDecideResponseDescriptor = $convert.base64Decode(
-    'Ch1BcHByb3ZhbFJlcXVlc3REZWNpZGVSZXNwb25zZRI0CgRkYXRhGAEgASgLMiAubGltaXRzLn'
-    'YxLkFwcHJvdmFsUmVxdWVzdE9iamVjdFIEZGF0YQ==');
+final $typed_data.Uint8List approvalRequestDecideResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1BcHByb3ZhbFJlcXVlc3REZWNpZGVSZXNwb25zZRI0CgRkYXRhGAEgASgLMiAubGltaXRzLn'
+        'YxLkFwcHJvdmFsUmVxdWVzdE9iamVjdFIEZGF0YQ==');
 
 @$core.Deprecated('Use ledgerEntryObjectDescriptor instead')
 const LedgerEntryObject$json = {
@@ -606,12 +991,47 @@ const LedgerEntryObject$json = {
     {'1': 'reservation_id', '3': 2, '4': 1, '5': 9, '10': 'reservationId'},
     {'1': 'tenant_id', '3': 3, '4': 1, '5': 9, '10': 'tenantId'},
     {'1': 'org_unit_id', '3': 4, '4': 1, '5': 9, '10': 'orgUnitId'},
-    {'1': 'action', '3': 5, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
-    {'1': 'subject_type', '3': 6, '4': 1, '5': 14, '6': '.limits.v1.SubjectType', '10': 'subjectType'},
+    {
+      '1': 'action',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitAction',
+      '10': 'action'
+    },
+    {
+      '1': 'subject_type',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.SubjectType',
+      '10': 'subjectType'
+    },
     {'1': 'subject_id', '3': 7, '4': 1, '5': 9, '10': 'subjectId'},
-    {'1': 'amount', '3': 8, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
-    {'1': 'committed_at', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'committedAt'},
-    {'1': 'reversed_at', '3': 10, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'reversedAt'},
+    {
+      '1': 'amount',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
+    {
+      '1': 'committed_at',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'committedAt'
+    },
+    {
+      '1': 'reversed_at',
+      '3': 10,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'reversedAt'
+    },
   ],
 };
 
@@ -631,13 +1051,48 @@ const LedgerSearchRequest$json = {
   '1': 'LedgerSearchRequest',
   '2': [
     {'1': 'tenant_id', '3': 1, '4': 1, '5': 9, '10': 'tenantId'},
-    {'1': 'action', '3': 2, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
-    {'1': 'subject_type', '3': 3, '4': 1, '5': 14, '6': '.limits.v1.SubjectType', '10': 'subjectType'},
+    {
+      '1': 'action',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitAction',
+      '10': 'action'
+    },
+    {
+      '1': 'subject_type',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.SubjectType',
+      '10': 'subjectType'
+    },
     {'1': 'subject_id', '3': 4, '4': 1, '5': 9, '10': 'subjectId'},
     {'1': 'currency_code', '3': 5, '4': 1, '5': 9, '10': 'currencyCode'},
-    {'1': 'from', '3': 6, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'from'},
-    {'1': 'to', '3': 7, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'to'},
-    {'1': 'cursor', '3': 8, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'from',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'from'
+    },
+    {
+      '1': 'to',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'to'
+    },
+    {
+      '1': 'cursor',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
   ],
 };
 
@@ -655,8 +1110,22 @@ final $typed_data.Uint8List ledgerSearchRequestDescriptor = $convert.base64Decod
 const LedgerSearchResponse$json = {
   '1': 'LedgerSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.limits.v1.LedgerEntryObject', '10': 'data'},
-    {'1': 'next_cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'nextCursor'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.LedgerEntryObject',
+      '10': 'data'
+    },
+    {
+      '1': 'next_cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'nextCursor'
+    },
   ],
 };
 
@@ -677,8 +1146,22 @@ const LimitsAuditEventObject$json = {
     {'1': 'actor_id', '3': 5, '4': 1, '5': 9, '10': 'actorId'},
     {'1': 'actor_type', '3': 6, '4': 1, '5': 9, '10': 'actorType'},
     {'1': 'reason', '3': 7, '4': 1, '5': 9, '10': 'reason'},
-    {'1': 'metadata', '3': 8, '4': 1, '5': 11, '6': '.google.protobuf.Struct', '10': 'metadata'},
-    {'1': 'occurred_at', '3': 9, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'occurredAt'},
+    {
+      '1': 'metadata',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'metadata'
+    },
+    {
+      '1': 'occurred_at',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'occurredAt'
+    },
   ],
 };
 
@@ -699,9 +1182,30 @@ const LimitsAuditSearchRequest$json = {
     {'1': 'entity_type', '3': 2, '4': 1, '5': 9, '10': 'entityType'},
     {'1': 'entity_id', '3': 3, '4': 1, '5': 9, '10': 'entityId'},
     {'1': 'actor_id', '3': 4, '4': 1, '5': 9, '10': 'actorId'},
-    {'1': 'from', '3': 5, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'from'},
-    {'1': 'to', '3': 6, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'to'},
-    {'1': 'cursor', '3': 7, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'cursor'},
+    {
+      '1': 'from',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'from'
+    },
+    {
+      '1': 'to',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'to'
+    },
+    {
+      '1': 'cursor',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
     {'1': 'tenant_id', '3': 8, '4': 1, '5': 9, '10': 'tenantId'},
   ],
 };
@@ -719,8 +1223,22 @@ final $typed_data.Uint8List limitsAuditSearchRequestDescriptor = $convert.base64
 const LimitsAuditSearchResponse$json = {
   '1': 'LimitsAuditSearchResponse',
   '2': [
-    {'1': 'data', '3': 1, '4': 3, '5': 11, '6': '.limits.v1.LimitsAuditEventObject', '10': 'data'},
-    {'1': 'next_cursor', '3': 2, '4': 1, '5': 11, '6': '.common.v1.PageCursor', '10': 'nextCursor'},
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.LimitsAuditEventObject',
+      '10': 'data'
+    },
+    {
+      '1': 'next_cursor',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'nextCursor'
+    },
   ],
 };
 
@@ -734,7 +1252,15 @@ final $typed_data.Uint8List limitsAuditSearchResponseDescriptor = $convert.base6
 const CheckRequest$json = {
   '1': 'CheckRequest',
   '2': [
-    {'1': 'intent', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.LimitIntent', '8': {}, '10': 'intent'},
+    {
+      '1': 'intent',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.LimitIntent',
+      '8': {},
+      '10': 'intent'
+    },
   ],
 };
 
@@ -748,11 +1274,36 @@ const CheckResponse$json = {
   '1': 'CheckResponse',
   '2': [
     {'1': 'allowed', '3': 1, '4': 1, '5': 8, '10': 'allowed'},
-    {'1': 'requires_approval', '3': 2, '4': 1, '5': 8, '10': 'requiresApproval'},
-    {'1': 'required_approvers', '3': 3, '4': 1, '5': 5, '10': 'requiredApprovers'},
+    {
+      '1': 'requires_approval',
+      '3': 2,
+      '4': 1,
+      '5': 8,
+      '10': 'requiresApproval'
+    },
+    {
+      '1': 'required_approvers',
+      '3': 3,
+      '4': 1,
+      '5': 5,
+      '10': 'requiredApprovers'
+    },
     {'1': 'required_role', '3': 4, '4': 1, '5': 9, '10': 'requiredRole'},
-    {'1': 'verdicts', '3': 5, '4': 3, '5': 11, '6': '.limits.v1.PolicyVerdict', '10': 'verdicts'},
-    {'1': 'breached_policy_ids', '3': 6, '4': 3, '5': 9, '10': 'breachedPolicyIds'},
+    {
+      '1': 'verdicts',
+      '3': 5,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.PolicyVerdict',
+      '10': 'verdicts'
+    },
+    {
+      '1': 'breached_policy_ids',
+      '3': 6,
+      '4': 3,
+      '5': 9,
+      '10': 'breachedPolicyIds'
+    },
   ],
 };
 
@@ -772,17 +1323,79 @@ const ReservationObject$json = {
     {'1': 'tenant_id', '3': 2, '4': 1, '5': 9, '10': 'tenantId'},
     {'1': 'idempotency_key', '3': 3, '4': 1, '5': 9, '10': 'idempotencyKey'},
     {'1': 'org_unit_id', '3': 4, '4': 1, '5': 9, '10': 'orgUnitId'},
-    {'1': 'action', '3': 5, '4': 1, '5': 14, '6': '.limits.v1.LimitAction', '10': 'action'},
-    {'1': 'amount', '3': 6, '4': 1, '5': 11, '6': '.common.v1.Money', '10': 'amount'},
-    {'1': 'subjects', '3': 7, '4': 3, '5': 11, '6': '.limits.v1.SubjectRef', '10': 'subjects'},
+    {
+      '1': 'action',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitAction',
+      '10': 'action'
+    },
+    {
+      '1': 'amount',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
+    {
+      '1': 'subjects',
+      '3': 7,
+      '4': 3,
+      '5': 11,
+      '6': '.limits.v1.SubjectRef',
+      '10': 'subjects'
+    },
     {'1': 'maker_id', '3': 8, '4': 1, '5': 9, '10': 'makerId'},
-    {'1': 'status', '3': 9, '4': 1, '5': 14, '6': '.limits.v1.ReservationStatus', '10': 'status'},
+    {
+      '1': 'status',
+      '3': 9,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.ReservationStatus',
+      '10': 'status'
+    },
     {'1': 'is_shadow', '3': 10, '4': 1, '5': 8, '10': 'isShadow'},
-    {'1': 'reserved_at', '3': 11, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'reservedAt'},
-    {'1': 'ttl_at', '3': 12, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'ttlAt'},
-    {'1': 'committed_at', '3': 13, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'committedAt'},
-    {'1': 'released_at', '3': 14, '4': 1, '5': 11, '6': '.google.protobuf.Timestamp', '10': 'releasedAt'},
-    {'1': 'reverses_reservation_id', '3': 15, '4': 1, '5': 9, '10': 'reversesReservationId'},
+    {
+      '1': 'reserved_at',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'reservedAt'
+    },
+    {
+      '1': 'ttl_at',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'ttlAt'
+    },
+    {
+      '1': 'committed_at',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'committedAt'
+    },
+    {
+      '1': 'released_at',
+      '3': 14,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'releasedAt'
+    },
+    {
+      '1': 'reverses_reservation_id',
+      '3': 15,
+      '4': 1,
+      '5': 9,
+      '10': 'reversesReservationId'
+    },
     {'1': 'notes', '3': 16, '4': 1, '5': 9, '10': 'notes'},
   ],
 };
@@ -807,9 +1420,32 @@ final $typed_data.Uint8List reservationObjectDescriptor = $convert.base64Decode(
 const ReserveRequest$json = {
   '1': 'ReserveRequest',
   '2': [
-    {'1': 'intent', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.LimitIntent', '8': {}, '10': 'intent'},
-    {'1': 'idempotency_key', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'idempotencyKey'},
-    {'1': 'ttl', '3': 3, '4': 1, '5': 11, '6': '.google.protobuf.Duration', '8': {}, '10': 'ttl'},
+    {
+      '1': 'intent',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.LimitIntent',
+      '8': {},
+      '10': 'intent'
+    },
+    {
+      '1': 'idempotency_key',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'idempotencyKey'
+    },
+    {
+      '1': 'ttl',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'ttl'
+    },
   ],
 };
 
@@ -824,8 +1460,22 @@ final $typed_data.Uint8List reserveRequestDescriptor = $convert.base64Decode(
 const ReserveResponse$json = {
   '1': 'ReserveResponse',
   '2': [
-    {'1': 'reservation', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.ReservationObject', '10': 'reservation'},
-    {'1': 'check', '3': 2, '4': 1, '5': 11, '6': '.limits.v1.CheckResponse', '10': 'check'},
+    {
+      '1': 'reservation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.ReservationObject',
+      '10': 'reservation'
+    },
+    {
+      '1': 'check',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.CheckResponse',
+      '10': 'check'
+    },
   ],
 };
 
@@ -839,7 +1489,14 @@ final $typed_data.Uint8List reserveResponseDescriptor = $convert.base64Decode(
 const CommitRequest$json = {
   '1': 'CommitRequest',
   '2': [
-    {'1': 'reservation_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'reservationId'},
+    {
+      '1': 'reservation_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'reservationId'
+    },
   ],
 };
 
@@ -852,7 +1509,14 @@ final $typed_data.Uint8List commitRequestDescriptor = $convert.base64Decode(
 const CommitResponse$json = {
   '1': 'CommitResponse',
   '2': [
-    {'1': 'reservation', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.ReservationObject', '10': 'reservation'},
+    {
+      '1': 'reservation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.ReservationObject',
+      '10': 'reservation'
+    },
   ],
 };
 
@@ -865,7 +1529,14 @@ final $typed_data.Uint8List commitResponseDescriptor = $convert.base64Decode(
 const ReleaseRequest$json = {
   '1': 'ReleaseRequest',
   '2': [
-    {'1': 'reservation_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'reservationId'},
+    {
+      '1': 'reservation_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'reservationId'
+    },
     {'1': 'reason', '3': 2, '4': 1, '5': 9, '10': 'reason'},
   ],
 };
@@ -879,7 +1550,14 @@ final $typed_data.Uint8List releaseRequestDescriptor = $convert.base64Decode(
 const ReleaseResponse$json = {
   '1': 'ReleaseResponse',
   '2': [
-    {'1': 'reservation', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.ReservationObject', '10': 'reservation'},
+    {
+      '1': 'reservation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.ReservationObject',
+      '10': 'reservation'
+    },
   ],
 };
 
@@ -892,8 +1570,22 @@ final $typed_data.Uint8List releaseResponseDescriptor = $convert.base64Decode(
 const ReverseRequest$json = {
   '1': 'ReverseRequest',
   '2': [
-    {'1': 'reservation_id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'reservationId'},
-    {'1': 'idempotency_key', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'idempotencyKey'},
+    {
+      '1': 'reservation_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'reservationId'
+    },
+    {
+      '1': 'idempotency_key',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'idempotencyKey'
+    },
     {'1': 'reason', '3': 3, '4': 1, '5': 9, '10': 'reason'},
   ],
 };
@@ -908,8 +1600,22 @@ final $typed_data.Uint8List reverseRequestDescriptor = $convert.base64Decode(
 const ReverseResponse$json = {
   '1': 'ReverseResponse',
   '2': [
-    {'1': 'original_reservation', '3': 1, '4': 1, '5': 11, '6': '.limits.v1.ReservationObject', '10': 'originalReservation'},
-    {'1': 'reversal_reservation', '3': 2, '4': 1, '5': 11, '6': '.limits.v1.ReservationObject', '10': 'reversalReservation'},
+    {
+      '1': 'original_reservation',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.ReservationObject',
+      '10': 'originalReservation'
+    },
+    {
+      '1': 'reversal_reservation',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.limits.v1.ReservationObject',
+      '10': 'reversalReservation'
+    },
   ],
 };
 
@@ -923,19 +1629,45 @@ final $typed_data.Uint8List reverseResponseDescriptor = $convert.base64Decode(
 const $core.Map<$core.String, $core.dynamic> LimitsServiceBase$json = {
   '1': 'LimitsService',
   '2': [
-    {'1': 'Check', '2': '.limits.v1.CheckRequest', '3': '.limits.v1.CheckResponse', '4': {}},
-    {'1': 'Reserve', '2': '.limits.v1.ReserveRequest', '3': '.limits.v1.ReserveResponse', '4': {}},
-    {'1': 'Commit', '2': '.limits.v1.CommitRequest', '3': '.limits.v1.CommitResponse', '4': {}},
-    {'1': 'Release', '2': '.limits.v1.ReleaseRequest', '3': '.limits.v1.ReleaseResponse', '4': {}},
-    {'1': 'Reverse', '2': '.limits.v1.ReverseRequest', '3': '.limits.v1.ReverseResponse', '4': {}},
+    {
+      '1': 'Check',
+      '2': '.limits.v1.CheckRequest',
+      '3': '.limits.v1.CheckResponse',
+      '4': {}
+    },
+    {
+      '1': 'Reserve',
+      '2': '.limits.v1.ReserveRequest',
+      '3': '.limits.v1.ReserveResponse',
+      '4': {}
+    },
+    {
+      '1': 'Commit',
+      '2': '.limits.v1.CommitRequest',
+      '3': '.limits.v1.CommitResponse',
+      '4': {}
+    },
+    {
+      '1': 'Release',
+      '2': '.limits.v1.ReleaseRequest',
+      '3': '.limits.v1.ReleaseResponse',
+      '4': {}
+    },
+    {
+      '1': 'Reverse',
+      '2': '.limits.v1.ReverseRequest',
+      '3': '.limits.v1.ReverseResponse',
+      '4': {}
+    },
   ],
 };
 
 @$core.Deprecated('Use limitsServiceDescriptor instead')
-const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LimitsServiceBase$messageJson = {
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+    LimitsServiceBase$messageJson = {
   '.limits.v1.CheckRequest': CheckRequest$json,
   '.limits.v1.LimitIntent': LimitIntent$json,
-  '.common.v1.Money': $7.Money$json,
+  '.common.v1.Money': $1.Money$json,
   '.limits.v1.SubjectRef': SubjectRef$json,
   '.limits.v1.CheckResponse': CheckResponse$json,
   '.limits.v1.PolicyVerdict': PolicyVerdict$json,
@@ -943,7 +1675,7 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LimitsServ
   '.google.protobuf.Duration': $0.Duration$json,
   '.limits.v1.ReserveResponse': ReserveResponse$json,
   '.limits.v1.ReservationObject': ReservationObject$json,
-  '.google.protobuf.Timestamp': $2.Timestamp$json,
+  '.google.protobuf.Timestamp': $3.Timestamp$json,
   '.limits.v1.CommitRequest': CommitRequest$json,
   '.limits.v1.CommitResponse': CommitResponse$json,
   '.limits.v1.ReleaseRequest': ReleaseRequest$json,
@@ -966,37 +1698,92 @@ final $typed_data.Uint8List limitsServiceDescriptor = $convert.base64Decode(
 const $core.Map<$core.String, $core.dynamic> LimitsAdminServiceBase$json = {
   '1': 'LimitsAdminService',
   '2': [
-    {'1': 'PolicySave', '2': '.limits.v1.PolicySaveRequest', '3': '.limits.v1.PolicySaveResponse', '4': {}},
-    {'1': 'PolicyGet', '2': '.limits.v1.PolicyGetRequest', '3': '.limits.v1.PolicyGetResponse', '4': {}},
-    {'1': 'PolicySearch', '2': '.limits.v1.PolicySearchRequest', '3': '.limits.v1.PolicySearchResponse', '4': {}, '6': true},
-    {'1': 'PolicyDelete', '2': '.limits.v1.PolicyDeleteRequest', '3': '.limits.v1.PolicyDeleteResponse', '4': {}},
-    {'1': 'PolicyHistory', '2': '.limits.v1.PolicyHistoryRequest', '3': '.limits.v1.PolicyHistoryResponse', '4': {}},
-    {'1': 'ApprovalRequestList', '2': '.limits.v1.ApprovalRequestListRequest', '3': '.limits.v1.ApprovalRequestListResponse', '4': {}, '6': true},
-    {'1': 'ApprovalRequestGet', '2': '.limits.v1.ApprovalRequestGetRequest', '3': '.limits.v1.ApprovalRequestGetResponse', '4': {}},
-    {'1': 'ApprovalRequestDecide', '2': '.limits.v1.ApprovalRequestDecideRequest', '3': '.limits.v1.ApprovalRequestDecideResponse', '4': {}},
-    {'1': 'LedgerSearch', '2': '.limits.v1.LedgerSearchRequest', '3': '.limits.v1.LedgerSearchResponse', '4': {}, '6': true},
-    {'1': 'LimitsAuditSearch', '2': '.limits.v1.LimitsAuditSearchRequest', '3': '.limits.v1.LimitsAuditSearchResponse', '4': {}, '6': true},
+    {
+      '1': 'PolicySave',
+      '2': '.limits.v1.PolicySaveRequest',
+      '3': '.limits.v1.PolicySaveResponse',
+      '4': {}
+    },
+    {
+      '1': 'PolicyGet',
+      '2': '.limits.v1.PolicyGetRequest',
+      '3': '.limits.v1.PolicyGetResponse',
+      '4': {}
+    },
+    {
+      '1': 'PolicySearch',
+      '2': '.limits.v1.PolicySearchRequest',
+      '3': '.limits.v1.PolicySearchResponse',
+      '4': {},
+      '6': true
+    },
+    {
+      '1': 'PolicyDelete',
+      '2': '.limits.v1.PolicyDeleteRequest',
+      '3': '.limits.v1.PolicyDeleteResponse',
+      '4': {}
+    },
+    {
+      '1': 'PolicyHistory',
+      '2': '.limits.v1.PolicyHistoryRequest',
+      '3': '.limits.v1.PolicyHistoryResponse',
+      '4': {}
+    },
+    {
+      '1': 'ApprovalRequestList',
+      '2': '.limits.v1.ApprovalRequestListRequest',
+      '3': '.limits.v1.ApprovalRequestListResponse',
+      '4': {},
+      '6': true
+    },
+    {
+      '1': 'ApprovalRequestGet',
+      '2': '.limits.v1.ApprovalRequestGetRequest',
+      '3': '.limits.v1.ApprovalRequestGetResponse',
+      '4': {}
+    },
+    {
+      '1': 'ApprovalRequestDecide',
+      '2': '.limits.v1.ApprovalRequestDecideRequest',
+      '3': '.limits.v1.ApprovalRequestDecideResponse',
+      '4': {}
+    },
+    {
+      '1': 'LedgerSearch',
+      '2': '.limits.v1.LedgerSearchRequest',
+      '3': '.limits.v1.LedgerSearchResponse',
+      '4': {},
+      '6': true
+    },
+    {
+      '1': 'LimitsAuditSearch',
+      '2': '.limits.v1.LimitsAuditSearchRequest',
+      '3': '.limits.v1.LimitsAuditSearchResponse',
+      '4': {},
+      '6': true
+    },
   ],
   '3': {},
 };
 
 @$core.Deprecated('Use limitsAdminServiceDescriptor instead')
-const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LimitsAdminServiceBase$messageJson = {
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+    LimitsAdminServiceBase$messageJson = {
   '.limits.v1.PolicySaveRequest': PolicySaveRequest$json,
   '.limits.v1.PolicyObject': PolicyObject$json,
   '.google.protobuf.Duration': $0.Duration$json,
-  '.common.v1.Money': $7.Money$json,
-  '.google.protobuf.Struct': $6.Struct$json,
-  '.google.protobuf.Struct.FieldsEntry': $6.Struct_FieldsEntry$json,
-  '.google.protobuf.Value': $6.Value$json,
-  '.google.protobuf.ListValue': $6.ListValue$json,
+  '.common.v1.Money': $1.Money$json,
+  '.google.protobuf.Struct': $2.Struct$json,
+  '.google.protobuf.Struct.FieldsEntry': $2.Struct_FieldsEntry$json,
+  '.google.protobuf.Value': $2.Value$json,
+  '.google.protobuf.ListValue': $2.ListValue$json,
   '.limits.v1.ApproverTier': ApproverTier$json,
-  '.google.protobuf.Timestamp': $2.Timestamp$json,
+  '.google.protobuf.Timestamp': $3.Timestamp$json,
   '.limits.v1.PolicySaveResponse': PolicySaveResponse$json,
   '.limits.v1.PolicyGetRequest': PolicyGetRequest$json,
   '.limits.v1.PolicyGetResponse': PolicyGetResponse$json,
   '.limits.v1.PolicySearchRequest': PolicySearchRequest$json,
-  '.common.v1.PageCursor': $8.PageCursor$json,
+  '.common.v1.PageCursor': $4.PageCursor$json,
   '.limits.v1.PolicySearchResponse': PolicySearchResponse$json,
   '.limits.v1.PolicyDeleteRequest': PolicyDeleteRequest$json,
   '.limits.v1.PolicyDeleteResponse': PolicyDeleteResponse$json,
@@ -1010,7 +1797,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> LimitsAdmi
   '.limits.v1.ApprovalRequestGetRequest': ApprovalRequestGetRequest$json,
   '.limits.v1.ApprovalRequestGetResponse': ApprovalRequestGetResponse$json,
   '.limits.v1.ApprovalRequestDecideRequest': ApprovalRequestDecideRequest$json,
-  '.limits.v1.ApprovalRequestDecideResponse': ApprovalRequestDecideResponse$json,
+  '.limits.v1.ApprovalRequestDecideResponse':
+      ApprovalRequestDecideResponse$json,
   '.limits.v1.LedgerSearchRequest': LedgerSearchRequest$json,
   '.limits.v1.LedgerSearchResponse': LedgerSearchResponse$json,
   '.limits.v1.LedgerEntryObject': LedgerEntryObject$json,
@@ -1058,4 +1846,3 @@ final $typed_data.Uint8List limitsAdminServiceDescriptor = $convert.base64Decode
     'bGltaXRzX2F1ZGl0X3ZpZXcaUwgFEhJsaW1pdHNfcG9saWN5X3ZpZXcSFGxpbWl0c19hcHByb3'
     'ZhbF92aWV3EhJsaW1pdHNfbGVkZ2VyX3ZpZXcSEWxpbWl0c19hdWRpdF92aWV3Gg4IBhIKbGlt'
     'aXRzX3VzZQ==');
-

@@ -15,7 +15,6 @@
 import 'package:antinvestor_api_limits/antinvestor_api_limits.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
-import 'package:protobuf/protobuf.dart';
 
 /// The approver-count bound the service enforces on every tier.
 const int maxApproverCount = 11;

@@ -1,7 +1,6 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
-import 'package:protobuf/protobuf.dart';
 
 import '../providers/client_providers.dart';
 
@@ -34,9 +33,9 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
     super.initState();
     final c = widget.client;
     _nameCtrl = TextEditingController(text: c?.name ?? '');
-    _phoneCtrl = TextEditingController(
-      text: c == null ? '' : clientPhoneNumber(c),
-    );
+    // Contacts live on the borrower's profile: the phone is captured only
+    // to find or create that profile at onboarding, never edited here.
+    _phoneCtrl = TextEditingController();
     _nationalIdCtrl = TextEditingController(
       text: c == null ? '' : clientNationalId(c),
     );
@@ -50,14 +49,9 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
     super.dispose();
   }
 
-  static String? _validatePhone(String? value) {
-    final cleaned = (value ?? '').replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    if (cleaned.isEmpty) return 'Phone number is required';
-    if (!RegExp(r'^\+?\d{9,15}$').hasMatch(cleaned)) {
-      return 'Enter a valid phone number';
-    }
-    return null;
-  }
+  // The profile service validates the number; only presence is checked.
+  static String? _validatePhone(String? value) =>
+      (value ?? '').trim().isEmpty ? 'Phone number is required' : null;
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
@@ -67,9 +61,11 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
     final properties = widget.client?.hasProperties() == true
         ? widget.client!.properties.deepCopy()
         : Struct();
-    properties.fields[kClientPhoneNumberKey] = Value(
-      stringValue: _phoneCtrl.text.trim().replaceAll(RegExp(r'[\s\-\(\)]'), ''),
-    );
+    if (!_isEditing) {
+      properties.fields[kClientPhoneNumberKey] = Value(
+        stringValue: _phoneCtrl.text.trim(),
+      );
+    }
     final nationalId = _nationalIdCtrl.text.trim();
     if (nationalId.isNotEmpty) {
       properties.fields[kClientNationalIdKey] = Value(stringValue: nationalId);
@@ -162,23 +158,25 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
                         : null,
                   ),
                 ),
-                FormFieldCard(
-                  label: 'Phone number',
-                  description:
-                      'The number the client repays from and receives prompts on.',
-                  isRequired: true,
-                  child: TextFormField(
-                    key: const Key('client-form-phone'),
-                    controller: _phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. +254700000000',
-                      prefixIcon: Icon(Icons.phone_outlined),
+                if (!_isEditing)
+                  FormFieldCard(
+                    label: 'Phone number',
+                    description:
+                        'Used to find or create the borrower\'s profile; their '
+                        'contacts are then managed on the profile.',
+                    isRequired: true,
+                    child: TextFormField(
+                      key: const Key('client-form-phone'),
+                      controller: _phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. +254700000000',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                      ),
+                      textInputAction: TextInputAction.next,
+                      validator: _validatePhone,
                     ),
-                    textInputAction: TextInputAction.next,
-                    validator: _validatePhone,
                   ),
-                ),
                 FormFieldCard(
                   label: 'National ID',
                   description: 'Optional. Verified later under KYC.',

@@ -68,7 +68,7 @@ Widget _host({
           properties: Struct(
             fields: {
               kClientPhoneNumberKey: Value(stringValue: '+254700000001'),
-            },
+            }.entries,
           ),
         ),
       ),
@@ -106,7 +106,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Amina Wanjiru'), findsOneWidget);
-    expect(find.text('+254700000001'), findsWidgets);
+    expect(
+      find.text('+254700000001'),
+      findsNothing,
+      reason: 'a stored phone is never shown; contacts live on the profile',
+    );
     expect(find.text('team-1'), findsOneWidget);
     expect(find.byKey(const Key('client-edit')), findsNothing);
   });

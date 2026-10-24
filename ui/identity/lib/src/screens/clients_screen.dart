@@ -11,6 +11,7 @@ import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
 import 'client_form_dialog.dart';
+import 'consent_code_dialog.dart';
 
 /// The borrowers a field agent (or their supervisors) can see, with
 /// onboarding for callers who may manage clients.
@@ -63,7 +64,6 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
       breadcrumbs: _breadcrumbs,
       columns: const [
         DataColumn(label: Text('NAME')),
-        DataColumn(label: Text('PHONE')),
         DataColumn(label: Text('TEAM')),
         DataColumn(label: Text('STATE')),
       ],
@@ -84,7 +84,6 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
         ),
       ],
       rowBuilder: (client, selected, onSelect) {
-        final phone = clientPhoneNumber(client);
         return DataRow(
           selected: selected,
           onSelectChanged: (_) => onSelect(),
@@ -109,7 +108,6 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
                 ],
               ),
             ),
-            DataCell(Text(phone.isNotEmpty ? phone : '-')),
             DataCell(
               Text(client.owningTeamId.isNotEmpty ? client.owningTeamId : '-'),
             ),
@@ -126,7 +124,6 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
       },
       exportRow: (client) => [
         client.name,
-        clientPhoneNumber(client),
         clientNationalId(client),
         client.owningTeamId,
         client.state.name,
@@ -144,7 +141,20 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
     if (draft == null || !context.mounted) return;
 
     try {
-      final saved = await ref.read(clientNotifierProvider.notifier).save(draft);
+      final notifier = ref.read(clientNotifierProvider.notifier);
+      var saved = await notifier.save(draft);
+      // A person who already has a profile must consent: the service sends
+      // them a code and answers without a client until it is entered.
+      while (saved.id.isEmpty && clientConsentPending(saved)) {
+        if (!context.mounted) return;
+        final code = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const ConsentCodeDialog(),
+        );
+        if (code == null || !context.mounted) return;
+        saved = await notifier.save(withConsentCode(draft, saved, code));
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,

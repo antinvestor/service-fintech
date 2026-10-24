@@ -268,7 +268,7 @@ class _OrganizationFormWizardState
         props['avatar'] = profile.Value(stringValue: avatarUri);
       }
 
-      final propsStruct = profile.Struct(fields: props);
+      final propsStruct = profile.Struct(fields: props.entries);
 
       final created = await ref
           .read(profileNotifierProvider.notifier)
@@ -398,7 +398,7 @@ class _OrganizationFormWizardState
             .update(
               profile.UpdateRequest(
                 id: _foundProfile!.id,
-                properties: profile.Struct(fields: profileProps),
+                properties: profile.Struct(fields: profileProps.entries),
               ),
             )
             .timeout(const Duration(seconds: 10));
