@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
@@ -31,7 +32,10 @@ func TestTypedAndTypeOf(t *testing.T) {
 	if got := transferorder.TypeOf(obj); got != int32(constants.TransferTypeDisbursement) {
 		t.Fatalf("TypeOf = %d", got)
 	}
-	legacy := &operationsv1.TransferOrderObject{OrderType: 42}
+	// A legacy caller that only sets the deprecated order_type.
+	legacy := &operationsv1.TransferOrderObject{}
+	m := legacy.ProtoReflect()
+	m.Set(m.Descriptor().Fields().ByName("order_type"), protoreflect.ValueOfInt32(42))
 	if got := transferorder.TypeOf(legacy); got != 42 {
 		t.Fatalf("legacy TypeOf = %d", got)
 	}
