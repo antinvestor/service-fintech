@@ -5,38 +5,38 @@ go 1.26.0
 toolchain go1.26.1
 
 require (
-	buf.build/gen/go/antinvestor/audit/connectrpc/go v1.20.0-20260831112827-a96e87701817.1
+	buf.build/gen/go/antinvestor/audit/connectrpc/go v1.21.0-20260929093104-d5d34f953660.1
 	buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.12-20260509050709-3f270876dbf3.2
-	buf.build/gen/go/antinvestor/field/connectrpc/go v1.20.0-20260901223034-454414ebd995.1
-	buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20260901223034-454414ebd995.2
-	buf.build/gen/go/antinvestor/files/connectrpc/go v1.20.0-20260831171628-44ac946cc1ed.1
-	buf.build/gen/go/antinvestor/funding/connectrpc/go v1.20.0-20260901223034-c39d812fe3e6.1
-	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20260901223034-c39d812fe3e6.2
-	buf.build/gen/go/antinvestor/identity/connectrpc/go v1.20.0-20260901223034-a6b293e67e2a.1
-	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20260901223034-a6b293e67e2a.2
-	buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.20.0-20260831184824-b59f37b34aa1.1
-	buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.12-20260831184824-b59f37b34aa1.2
-	buf.build/gen/go/antinvestor/limits/connectrpc/go v1.20.0-20260901223034-eed28ffc3060.1
-	buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.12-20260901223034-eed28ffc3060.2
-	buf.build/gen/go/antinvestor/loans/connectrpc/go v1.20.0-20260901223034-fc25075b5b58.1
-	buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20260901223034-fc25075b5b58.2
-	buf.build/gen/go/antinvestor/notification/connectrpc/go v1.20.0-20260831182621-e7d71a2bcc5d.1
+	buf.build/gen/go/antinvestor/field/connectrpc/go v1.21.0-20261013145659-33fd9af753a1.1
+	buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261013145659-33fd9af753a1.2
+	buf.build/gen/go/antinvestor/files/connectrpc/go v1.21.0-20260831171628-44ac946cc1ed.1
+	buf.build/gen/go/antinvestor/funding/connectrpc/go v1.21.0-20261013145659-7ff989496f55.1
+	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261013145659-7ff989496f55.2
+	buf.build/gen/go/antinvestor/identity/connectrpc/go v1.21.0-20261013145659-208397fe6d4a.1
+	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261013145659-208397fe6d4a.2
+	buf.build/gen/go/antinvestor/ledger/connectrpc/go v1.21.0-20261011184341-460358e58550.1
+	buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.12-20261011184341-460358e58550.2
+	buf.build/gen/go/antinvestor/limits/connectrpc/go v1.21.0-20261013145659-d14356355217.1
+	buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.12-20261013145659-d14356355217.2
+	buf.build/gen/go/antinvestor/loans/connectrpc/go v1.21.0-20261013145659-e90f79752f62.1
+	buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261013145659-e90f79752f62.2
+	buf.build/gen/go/antinvestor/notification/connectrpc/go v1.21.0-20260831182621-e7d71a2bcc5d.1
 	buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.12-20260831182621-e7d71a2bcc5d.2
-	buf.build/gen/go/antinvestor/operations/connectrpc/go v1.20.0-20260901223034-fad5b1844d2c.1
-	buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20260901223034-fad5b1844d2c.2
-	buf.build/gen/go/antinvestor/payment/connectrpc/go v1.20.0-20260831184824-a4a7e9defafa.1
+	buf.build/gen/go/antinvestor/operations/connectrpc/go v1.21.0-20261013145659-2e602e21cc19.1
+	buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261013145659-2e602e21cc19.2
+	buf.build/gen/go/antinvestor/payment/connectrpc/go v1.21.0-20260831184824-a4a7e9defafa.1
 	buf.build/gen/go/antinvestor/payment/protocolbuffers/go v1.36.12-20260831184824-a4a7e9defafa.2
-	buf.build/gen/go/antinvestor/profile/connectrpc/go v1.20.0-20260831194050-82ad359a5ea0.1
-	buf.build/gen/go/antinvestor/profile/protocolbuffers/go v1.36.12-20260831194050-82ad359a5ea0.2
-	buf.build/gen/go/antinvestor/savings/connectrpc/go v1.20.0-20260901223034-04c61f861bec.1
-	buf.build/gen/go/antinvestor/savings/protocolbuffers/go v1.36.12-20260901223034-04c61f861bec.2
-	buf.build/gen/go/antinvestor/tenancy/connectrpc/go v1.20.0-20260831112830-2b2240b00a45.1
+	buf.build/gen/go/antinvestor/profile/connectrpc/go v1.21.0-20261010180548-eeb7b4541358.1
+	buf.build/gen/go/antinvestor/profile/protocolbuffers/go v1.36.12-20261010180548-eeb7b4541358.2
+	buf.build/gen/go/antinvestor/savings/connectrpc/go v1.21.0-20261013145659-3e8c2b1e8728.1
+	buf.build/gen/go/antinvestor/savings/protocolbuffers/go v1.36.12-20261013145659-3e8c2b1e8728.2
+	buf.build/gen/go/antinvestor/tenancy/connectrpc/go v1.21.0-20260831112830-2b2240b00a45.1
 	buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go v1.36.12-20260831112830-2b2240b00a45.2
-	connectrpc.com/connect v1.21.0
+	connectrpc.com/connect v1.21.1
 	github.com/antinvestor/common/audit v0.0.0-20260831232917-ab9b90c2a549
 	github.com/antinvestor/common/notification v0.1.0
-	github.com/antinvestor/common/v2 v2.0.7
-	github.com/antinvestor/service-trustage v0.4.9
+	github.com/antinvestor/common/v2 v2.0.8
+	github.com/antinvestor/service-trustage v0.5.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/pitabwire/frame/v2 v2.1.8
@@ -57,7 +57,7 @@ require (
 )
 
 require (
-	buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.12-20260831112827-a96e87701817.2 // indirect
+	buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.12-20260929093104-d5d34f953660.2 // indirect
 	buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2 // indirect
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2 // indirect
 	buf.build/gen/go/gnostic/gnostic/protocolbuffers/go v1.36.12-20230414000709-087bc8072ce4.2 // indirect
@@ -70,13 +70,13 @@ require (
 	cloud.google.com/go/iam v1.14.0 // indirect
 	cloud.google.com/go/pubsub v1.51.1 // indirect
 	cloud.google.com/go/pubsub/v2 v2.7.0 // indirect
-	connectrpc.com/connect/v2 v2.0.0 // indirect
+	connectrpc.com/connect/v2 v2.0.1 // indirect
 	connectrpc.com/otelconnect v0.12.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20261008234032-65faa4be4f89 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/Microsoft/go-winio v0.6.3 // indirect
+	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/caarlos0/env/v11 v11.4.1 // indirect
@@ -92,10 +92,10 @@ require (
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/exaring/otelpgx v0.13.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.5 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -105,7 +105,7 @@ require (
 	github.com/google/wire v0.7.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
 	github.com/googleapis/gax-go/v2 v2.26.2 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.32.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/influxdata/tdigest v0.0.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -188,16 +188,16 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	gocloud.dev v0.46.0 // indirect
+	gocloud.dev v0.47.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 // indirect
+	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.302.0 // indirect
+	google.golang.org/api v0.305.0 // indirect
 	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/grpc v1.84.0 // indirect
