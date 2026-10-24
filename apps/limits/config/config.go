@@ -37,6 +37,15 @@ type LimitsConfig struct {
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                  env:"IDENTITY_SERVICE_URI"`
 	IdentityServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-identity" env:"IDENTITY_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
+	// Tenancy service — resolves a partition's ancestors. Policies are tiered
+	// along the partition tree: a policy set on any ancestor of the
+	// transaction's partition applies to it.
+	TenancyServiceURI                   string `envDefault:"127.0.0.1:7003"              env:"TENANCY_SERVICE_URI"`
+	TenancyServiceWorkloadAPITargetPath string `envDefault:"/ns/auth/sa/service-tenancy" env:"TENANCY_SERVICE_WORKLOAD_API_TARGET_PATH"`
+	// PartitionChainCacheTTLSeconds bounds how long a resolved partition
+	// chain is reused; the tree changes only when partitions are created.
+	PartitionChainCacheTTLSeconds int `envDefault:"300" env:"PARTITION_CHAIN_CACHE_TTL_SECONDS"`
+
 	// ArchivalReservationRetentionHours bounds how long terminal reservations
 	// are kept before the archival job hard-deletes them.
 	ArchivalReservationRetentionHours int `envDefault:"168" env:"ARCHIVAL_RESERVATION_RETENTION_HOURS"`

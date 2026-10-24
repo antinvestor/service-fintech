@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
@@ -61,7 +62,8 @@ func NewPolicyCache(inner repository.CandidatePolicyRepository, ttl time.Duratio
 // FindCandidates returns cached candidates when available; falls through to the
 // wrapped repository on a miss and populates the cache on success.
 func (c *PolicyCache) FindCandidates(ctx context.Context, q repository.CandidateQuery) ([]*models.Policy, error) {
-	key := fmt.Sprintf("%s|%s|%s|%s", q.TenantID, q.OrgUnitID, string(q.Action), q.CurrencyCode)
+	key := fmt.Sprintf("%s|%s|%s|%s|%s", q.TenantID, q.OrgUnitID, string(q.Action), q.CurrencyCode,
+		strings.Join(q.PartitionIDs, ","))
 	if hit, ok := c.cache.Get(key); ok {
 		return hit, nil
 	}

@@ -86,6 +86,18 @@ type reservationBusiness struct {
 	auditing      *Auditing
 	dbPool        pool.Pool
 	eventsMan     fevents.Manager
+	// ancestry places the transaction's partition in the partition tree, so
+	// policies set on any ancestor apply. Nil means every tenant policy
+	// applies regardless of partition (the strictest reading).
+	ancestry PartitionAncestry
+}
+
+// ReservationOption configures optional collaborators.
+type ReservationOption func(*reservationBusiness)
+
+// WithPartitionAncestry tiers policies along the partition tree.
+func WithPartitionAncestry(a PartitionAncestry) ReservationOption {
+	return func(b *reservationBusiness) { b.ancestry = a }
 }
 
 // NewReservationBusiness wires up dependencies. eventsMan may be nil,
@@ -101,13 +113,69 @@ func NewReservationBusiness(
 	auditing *Auditing,
 	dbPool pool.Pool,
 	eventsMan fevents.Manager,
+	opts ...ReservationOption,
 ) ReservationBusiness {
-	return &reservationBusiness{
+	b := &reservationBusiness{
 		resvRepo: resvRepo, ledgerRepo: ledgerRepo, candidateRepo: candidateRepo,
 		approvalRepo: approvalRepo, policyRepo: policyRepo,
 		evaluator: evaluator, resolver: resolver, auditing: auditing, dbPool: dbPool,
 		eventsMan: eventsMan,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(b)
+		}
+	}
+	return b
+}
+
+// transactionPartition is the partition the transaction is evaluated in. A
+// calling service forwards the partition that owns the record (frame applies
+// it to the service's claims); a user calling directly is evaluated in their
+// own partition. A service that forwards none is "unknown", and every tenant
+// policy applies to it — the strictest reading, never a looser one.
+func transactionPartition(ctx context.Context) string {
+	claims := security.ClaimsFromContext(ctx)
+	if claims == nil {
+		return ""
+	}
+	if claims.IsInternalSystem() && util.GetTenancy(ctx) == nil {
+		return ""
+	}
+	return claims.GetPartitionID()
+}
+
+// findCandidates loads the policies that can bind this intent: platform
+// policies, and tenant policies set on the transaction's partition or any of
+// its ancestors. The transaction's partition is the request tenancy, which a
+// calling service sets to the partition that owns the record being moved. A
+// partition that cannot be placed in the tree fails the evaluation closed.
+func (b *reservationBusiness) findCandidates(
+	ctx context.Context,
+	intent *limitsv1.LimitIntent,
+	action models.Action,
+	currency string,
+) ([]*models.Policy, error) {
+	q := repository.CandidateQuery{
+		Action:       action,
+		CurrencyCode: currency,
+		TenantID:     intent.GetTenantId(),
+		OrgUnitID:    intent.GetOrgUnitId(),
+	}
+	if b.ancestry != nil {
+		if partitionID := transactionPartition(ctx); partitionID != "" {
+			chain, err := b.ancestry.Chain(ctx, partitionID)
+			if err != nil {
+				return nil, connect.NewError(connect.CodeUnavailable, err)
+			}
+			q.PartitionIDs = chain
+		}
+	}
+	cands, err := b.candidateRepo.FindCandidates(ctx, q)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return cands, nil
 }
 
 // evaluation holds the read-only result of evaluating a LimitIntent against
@@ -150,14 +218,9 @@ func (b *reservationBusiness) evaluateIntent(
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid action"))
 	}
 
-	cands, err := b.candidateRepo.FindCandidates(ctx, repository.CandidateQuery{
-		Action:       action,
-		CurrencyCode: currency,
-		TenantID:     intent.GetTenantId(),
-		OrgUnitID:    intent.GetOrgUnitId(),
-	})
+	cands, err := b.findCandidates(ctx, intent, action, currency)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, err
 	}
 
 	applicable, unresolved := b.resolveApplicable(ctx, intent, cands)
@@ -277,14 +340,9 @@ func (b *reservationBusiness) Reserve(
 	if err != nil || action == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid action"))
 	}
-	cands, err := b.candidateRepo.FindCandidates(ctx, repository.CandidateQuery{
-		Action:       action,
-		CurrencyCode: currency,
-		TenantID:     intent.GetTenantId(),
-		OrgUnitID:    intent.GetOrgUnitId(),
-	})
+	cands, err := b.findCandidates(ctx, intent, action, currency)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, err
 	}
 
 	// 6. Filter by subject_type + attribute predicate.

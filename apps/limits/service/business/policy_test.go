@@ -311,6 +311,27 @@ func (s *PolicyBusinessSuite) TestSaveRejectsPlatformScopeForTenantOperator() {
 	s.Require().ErrorIs(err, business.ErrPolicyScopeForbidden)
 }
 
+func (s *PolicyBusinessSuite) TestSaveKeepsTheBranchTierUnambiguous() {
+	ctx := s.WithAuthClaims(s.T().Context(), "tenant-a", "partition-a", "test-user")
+
+	noBranch := goodPolicyAPI("KES", limitsv1.PolicyMode_POLICY_MODE_ENFORCE)
+	noBranch.Scope = limitsv1.PolicyScope_POLICY_SCOPE_ORG_UNIT
+	_, err := s.biz.Save(ctx, noBranch)
+	s.Require().ErrorIs(err, business.ErrInvalidPolicy, "a branch policy must name its branch")
+
+	orgWithBranch := goodPolicyAPI("KES", limitsv1.PolicyMode_POLICY_MODE_ENFORCE)
+	orgWithBranch.OrgUnitId = "branch-a"
+	_, err = s.biz.Save(ctx, orgWithBranch)
+	s.Require().ErrorIs(err, business.ErrInvalidPolicy, "an organization policy must not name a branch")
+
+	branch := goodPolicyAPI("KES", limitsv1.PolicyMode_POLICY_MODE_ENFORCE)
+	branch.Scope = limitsv1.PolicyScope_POLICY_SCOPE_ORG_UNIT
+	branch.OrgUnitId = " branch-a "
+	saved, err := s.biz.Save(ctx, branch)
+	s.Require().NoError(err)
+	s.Equal("branch-a", saved.GetOrgUnitId())
+}
+
 func goodPolicyAPI(currency string, mode limitsv1.PolicyMode) *limitsv1.PolicyObject {
 	return &limitsv1.PolicyObject{
 		Scope:         limitsv1.PolicyScope_POLICY_SCOPE_ORG,

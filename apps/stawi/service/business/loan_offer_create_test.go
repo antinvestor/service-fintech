@@ -22,9 +22,6 @@ import (
 	"errors"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/frame/v2/data"
 	"github.com/pitabwire/frame/v2/datastore/pool"
 	fevents "github.com/pitabwire/frame/v2/events"
@@ -35,7 +32,6 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"
-	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
 // ---------------------------------------------------------------------------
@@ -128,58 +124,6 @@ func (r *stubLoanOfferRepo) GetByLoanWindowID(_ context.Context, _ string) ([]*m
 
 var _ repository.LoanOfferRepository = (*stubLoanOfferRepo)(nil)
 
-// stubStawiLimitsClient implements limitsv1connect.LimitsServiceClient.
-type stubStawiLimitsClient struct {
-	reserveResp  *limitsv1.ReserveResponse
-	reserveErr   error
-	commitCalls  int
-	releaseCalls int
-	reserveCalls int
-}
-
-func (s *stubStawiLimitsClient) Check(
-	_ context.Context,
-	_ *connect.Request[limitsv1.CheckRequest],
-) (*connect.Response[limitsv1.CheckResponse], error) {
-	return connect.NewResponse(&limitsv1.CheckResponse{}), nil
-}
-
-func (s *stubStawiLimitsClient) Reserve(
-	_ context.Context,
-	_ *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
-	s.reserveCalls++
-	if s.reserveErr != nil {
-		return nil, s.reserveErr
-	}
-	return connect.NewResponse(s.reserveResp), nil
-}
-
-func (s *stubStawiLimitsClient) Commit(
-	_ context.Context,
-	_ *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
-	s.commitCalls++
-	return connect.NewResponse(&limitsv1.CommitResponse{}), nil
-}
-
-func (s *stubStawiLimitsClient) Release(
-	_ context.Context,
-	_ *connect.Request[limitsv1.ReleaseRequest],
-) (*connect.Response[limitsv1.ReleaseResponse], error) {
-	s.releaseCalls++
-	return connect.NewResponse(&limitsv1.ReleaseResponse{}), nil
-}
-
-func (s *stubStawiLimitsClient) Reverse(
-	_ context.Context,
-	_ *connect.Request[limitsv1.ReverseRequest],
-) (*connect.Response[limitsv1.ReverseResponse], error) {
-	return connect.NewResponse(&limitsv1.ReverseResponse{}), nil
-}
-
-var _ limitsv1connect.LimitsServiceClient = (*stubStawiLimitsClient)(nil)
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -202,8 +146,7 @@ func acceptedLoanOffer() *models.LoanOffer {
 }
 
 // originatedLoanOffer is an accepted offer whose loan account already exists.
-// CreateLoanAccount short-circuits on it, so the gate can be exercised without
-// a loan management client.
+// CreateLoanAccount short-circuits on it without a loan management client.
 func originatedLoanOffer() *models.LoanOffer {
 	offer := acceptedLoanOffer()
 	offer.ApplicationID = "loan-request-1"
@@ -211,19 +154,10 @@ func originatedLoanOffer() *models.LoanOffer {
 	return offer
 }
 
-func buildLoanOfferBusiness(
-	loRepo repository.LoanOfferRepository,
-	limitsCli limitsv1connect.LimitsServiceClient,
-	gateEnabled bool,
-) *loanOfferBusiness {
+func buildLoanOfferBusiness(loRepo repository.LoanOfferRepository) *loanOfferBusiness {
 	return &loanOfferBusiness{
-		eventsMan:         &noopStawiEventsManager{},
-		loRepo:            loRepo,
-		lwRepo:            nil,
-		identityCli:       nil,
-		clients:           nil,
-		limitsCli:         limitsCli,
-		limitsGateEnabled: gateEnabled,
+		eventsMan: &noopStawiEventsManager{},
+		loRepo:    loRepo,
 	}
 }
 
@@ -231,53 +165,13 @@ func buildLoanOfferBusiness(
 // Tests
 // ---------------------------------------------------------------------------
 
-// TestCreateLoanAccount_GateDisabled verifies that when limitsGateEnabled=false
-// CreateLoanAccount runs without touching the limits client.
-func TestCreateLoanAccount_GateDisabled(t *testing.T) {
-	offer := originatedLoanOffer()
-	loRepo := &stubLoanOfferRepo{offer: offer}
-	limitsCli := &stubStawiLimitsClient{}
-
-	b := buildLoanOfferBusiness(loRepo, limitsCli, false)
-
-	result, err := b.CreateLoanAccount(context.Background(), offer.GetID())
-	require.NoError(t, err)
-	assert.Equal(t, "loan-account-1", result["loan_account_id"])
-	assert.Equal(t, 0, limitsCli.reserveCalls, "gate must not be called when disabled")
-}
-
-// TestCreateLoanAccount_GateAllowed verifies that when Reserve returns ACTIVE,
-// Commit is called and the inner function is invoked.
-func TestCreateLoanAccount_GateAllowed(t *testing.T) {
-	offer := originatedLoanOffer()
-	loRepo := &stubLoanOfferRepo{offer: offer}
-	limitsCli := &stubStawiLimitsClient{
-		reserveResp: &limitsv1.ReserveResponse{
-			Reservation: &limitsv1.ReservationObject{
-				Id:     "res-loan-disburse-allowed",
-				Status: limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE,
-			},
-		},
-	}
-
-	b := buildLoanOfferBusiness(loRepo, limitsCli, true)
-
-	result, err := b.CreateLoanAccount(context.Background(), offer.GetID())
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, 1, limitsCli.reserveCalls)
-	// Inner succeeds → Commit is called.
-	assert.Equal(t, 1, limitsCli.commitCalls)
-	assert.Equal(t, 0, limitsCli.releaseCalls)
-}
-
 // TestCreateLoanAccount_IsIdempotentOnLoanAccount verifies that a retry of the
 // workflow step returns the existing loan instead of originating a second one.
 func TestCreateLoanAccount_IsIdempotentOnLoanAccount(t *testing.T) {
 	offer := originatedLoanOffer()
 	loRepo := &stubLoanOfferRepo{offer: offer}
 
-	b := buildLoanOfferBusiness(loRepo, &stubStawiLimitsClient{}, false)
+	b := buildLoanOfferBusiness(loRepo)
 
 	result, err := b.CreateLoanAccount(context.Background(), offer.GetID())
 	require.NoError(t, err)
@@ -292,57 +186,9 @@ func TestCreateLoanAccount_RequiresLoanManagement(t *testing.T) {
 	offer := acceptedLoanOffer()
 	loRepo := &stubLoanOfferRepo{offer: offer}
 
-	b := buildLoanOfferBusiness(loRepo, &stubStawiLimitsClient{}, false)
+	b := buildLoanOfferBusiness(loRepo)
 
 	_, err := b.CreateLoanAccount(context.Background(), offer.GetID())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "loan management service is required")
-}
-
-// TestCreateLoanAccount_GateDenied verifies that when Reserve returns a deny
-// error, CreateLoanAccount returns an error and the inner logic does not proceed.
-func TestCreateLoanAccount_GateDenied(t *testing.T) {
-	offer := acceptedLoanOffer()
-	loRepo := &stubLoanOfferRepo{offer: offer}
-	limitsCli := &stubStawiLimitsClient{
-		reserveErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("loan disbursement limit breached")),
-	}
-
-	b := buildLoanOfferBusiness(loRepo, limitsCli, true)
-
-	_, err := b.CreateLoanAccount(context.Background(), offer.GetID())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "loan disbursement limit breached")
-	assert.Equal(t, 1, limitsCli.reserveCalls)
-	assert.Equal(t, 0, limitsCli.commitCalls)
-	assert.Equal(t, 0, limitsCli.releaseCalls)
-}
-
-// TestCreateLoanAccount_GatePending verifies that when Reserve returns
-// PENDING_APPROVAL, CreateLoanAccount returns a PendingApprovalError and the
-// inner logic does not proceed.
-func TestCreateLoanAccount_GatePending(t *testing.T) {
-	offer := acceptedLoanOffer()
-	loRepo := &stubLoanOfferRepo{offer: offer}
-	limitsCli := &stubStawiLimitsClient{
-		reserveResp: &limitsv1.ReserveResponse{
-			Reservation: &limitsv1.ReservationObject{
-				Id:     "res-loan-disburse-pending",
-				Status: limitsv1.ReservationStatus_RESERVATION_STATUS_PENDING_APPROVAL,
-			},
-		},
-	}
-
-	b := buildLoanOfferBusiness(loRepo, limitsCli, true)
-
-	_, err := b.CreateLoanAccount(context.Background(), offer.GetID())
-	require.Error(t, err)
-
-	var pendingErr *limits.PendingApprovalError
-	require.ErrorAs(t, err, &pendingErr)
-	assert.Equal(t, "res-loan-disburse-pending", pendingErr.ReservationID)
-
-	assert.Equal(t, 1, limitsCli.reserveCalls)
-	assert.Equal(t, 0, limitsCli.commitCalls)
-	assert.Equal(t, 0, limitsCli.releaseCalls)
 }

@@ -3,6 +3,14 @@
 This runbook walks through enabling limits enforcement for a new action key.
 Use it once per (service, action) pair.
 
+> **Since 2026-10-24 every gate ships enabled in `enforce` mode** (see
+> `required-environment.md`, "Transaction limits are on by default"). The
+> soak now happens per policy: a new policy starts in `SHADOW` mode, which
+> records would-block verdicts without blocking, and is moved to `ENFORCE`
+> once the soak is clean. The gate stages below remain the emergency
+> controls: set `LIMITS_GATE_MODE_<action>=shadow` or `off` to stop a gate
+> from blocking without touching policies.
+
 ## Stages
 
 ```

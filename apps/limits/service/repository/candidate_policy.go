@@ -37,6 +37,12 @@ type CandidateQuery struct {
 	CurrencyCode string
 	TenantID     string
 	OrgUnitID    string
+	// PartitionIDs is the transaction's partition followed by its ancestors.
+	// When set, a tenant policy applies only if it was set on one of them, so
+	// a policy on one branch's partition never binds a sibling or a parent.
+	// Empty means the partition is unknown and every tenant policy applies,
+	// the strictest reading.
+	PartitionIDs []string
 }
 
 type candidatePolicyRepository struct {
@@ -54,7 +60,7 @@ func (r *candidatePolicyRepository) FindCandidates(ctx context.Context, q Candid
 	db := r.dbPool.DB(ctx, true)
 	var rows []*models.Policy
 	now := time.Now().UTC()
-	err := db.Table(models.Policy{}.TableName()).
+	db = db.Table(models.Policy{}.TableName()).
 		Where("deleted_at IS NULL AND mode != ?", string(models.ModeOff)).
 		Where("effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)", now, now).
 		Where("action = ?", string(q.Action)).
@@ -66,7 +72,10 @@ func (r *candidatePolicyRepository) FindCandidates(ctx context.Context, q Candid
 			string(models.ScopePlatform),
 			string(models.ScopeOrg), q.TenantID,
 			string(models.ScopeOrgUnit), q.TenantID, q.OrgUnitID,
-		).
-		Find(&rows).Error
+		)
+	if len(q.PartitionIDs) > 0 {
+		db = db.Where("(scope = ? OR partition_id IN ?)", string(models.ScopePlatform), q.PartitionIDs)
+	}
+	err := db.Find(&rows).Error
 	return rows, err
 }

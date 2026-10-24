@@ -208,12 +208,12 @@ func main() {
 		return
 	}
 
-	// Limits client. Optional — when LimitsServiceURI is empty, SetupClient
-	// returns nil and the gate is disabled at runtime regardless of the config flag.
+	// Limits client. Required while the transfer-order gate is on.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if limitsErr != nil {
-		log.WithError(limitsErr).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"operations_transfer": cfg.LimitsGateEnabledOperationsTransfer,
+	}); gateErr != nil {
+		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
 	}
 
 	repos := initRepositories(ctx, dbPool, workMan)
@@ -271,7 +271,6 @@ func initBusinesses(
 	)
 	loanOfferBiz := stawibusiness.NewLoanOfferBusiness(
 		ctx, product, evtsMan, repos.loanOffer, repos.loanWindow, identityCli, platformClients,
-		limitsCli, cfg.LimitsGateEnabledStawiLoanDisbursement, cfg.LimitsGateModeStawiLoanDisbursement,
 	)
 	fundingBiz := fundingbusiness.NewFundingAllocationBusiness(
 		ctx,
@@ -312,8 +311,8 @@ func initBusinesses(
 		platformClients,
 		audit.NewWriter(evtsMan),
 		limitsCli,
-		false,     // transfer-order gate not yet enabled for stawi; governed separately
-		"enforce", // default mode; irrelevant when gate is disabled
+		cfg.LimitsGateEnabledOperationsTransfer,
+		cfg.LimitsGateModeOperationsTransfer,
 	)
 	obligationBiz := opsbusiness.NewObligationBusiness(ctx, evtsMan, repos.obligation, identityCli, periodAdapter)
 
@@ -389,8 +388,8 @@ func buildHandler(
 	return httptor.ContextSetupMiddleware(ctx, root)
 }
 
-// setupLimitsClient wires the limits service client used for stawi loan
-// disbursement gate checks. Returns nil, nil when LimitsServiceURI is empty.
+// setupLimitsClient wires the limits service client that gates stawi's
+// transfer orders. Returns nil, nil when LimitsServiceURI is empty.
 func setupLimitsClient(
 	ctx context.Context,
 	cfg aconfig.StawiConfig,

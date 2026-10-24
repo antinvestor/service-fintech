@@ -189,7 +189,11 @@ func (b *withdrawalBusiness) Approve(ctx context.Context, id string) (*savingsv1
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_SAVINGS_WITHDRAWAL,
 		TenantId: sa.BankID,
 		Amount:   moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, wdr.Amount),
+		// The limits service requires the client for savings actions: the
+		// account owner. A group owner has no client attributes, so client
+		// attribute filters simply do not apply to it.
 		Subjects: []*limitsv1.SubjectRef{
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: sa.OwnerID},
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: wdr.SavingsAccountID},
 		},
 	}
@@ -205,7 +209,9 @@ func (b *withdrawalBusiness) Approve(ctx context.Context, id string) (*savingsv1
 			}
 			result = inner
 			return nil
-		})
+		},
+		limits.InPartition(sa.TenantID, sa.PartitionID),
+	)
 	return result, gateErr
 }
 

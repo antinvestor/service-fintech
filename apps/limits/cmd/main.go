@@ -20,9 +20,11 @@ import (
 	"time"
 
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
 	limitspb "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
 	"connectrpc.com/connect"
 	common "github.com/antinvestor/common/v2"
 	"github.com/antinvestor/common/v2/connection"
@@ -165,14 +167,32 @@ func main() {
 		// starting without it would deny every matching intent.
 		log.WithError(identityErr).Fatal("could not create identity client")
 	}
+	fieldClient, fieldErr := setupFieldClient(ctx, cfg)
+	if fieldErr != nil {
+		// Borrowers (CLIENT subjects from loans and savings) live in the field
+		// service; without it a client-tier policy could never match.
+		log.WithError(fieldErr).Fatal("could not create field client")
+	}
 	resolver := business.NewAttributeResolver(
 		subjAttrRepo,
 		identityClient,
 		time.Duration(cfg.SubjectAttributeCacheTTLSeconds)*time.Second,
+		business.WithFieldClients(fieldClient),
+	)
+	tenancyClient, tenancyErr := setupTenancyClient(ctx, cfg)
+	if tenancyErr != nil {
+		// Without the partition tree an ancestor's cap could not be applied
+		// to its descendants; refuse to serve rather than under-enforce.
+		log.WithError(tenancyErr).Fatal("could not create tenancy client")
+	}
+	ancestry := business.NewPartitionAncestry(
+		tenancyClient,
+		time.Duration(cfg.PartitionChainCacheTTLSeconds)*time.Second,
 	)
 	reservationBiz := business.NewReservationBusiness(
 		reservationRepo, ledgerRepo, candidateRepo, approvalRepo, policyRepo,
 		evaluator, resolver, auditing, dbPool, evtsMan,
+		business.WithPartitionAncestry(ancestry),
 	)
 	// The approver-tier role check needs to consult limits_approval_override in
 	// the service's own namespace, so it gets its own function checker.
@@ -347,6 +367,30 @@ func setupIdentityClient(
 		Endpoint:  cfg.IdentityServiceURI,
 		ServiceID: servicecatalog.ServiceIdentity,
 	}, identityv1connect.NewIdentityServiceClient)
+}
+
+// setupFieldClient dials the field service, served by the identity binary,
+// which owns the borrowers sent as CLIENT subjects.
+func setupFieldClient(
+	ctx context.Context,
+	cfg aconfig.LimitsConfig,
+) (fieldv1connect.FieldServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:  cfg.IdentityServiceURI,
+		ServiceID: servicecatalog.ServiceIdentity,
+	}, fieldv1connect.NewFieldServiceClient)
+}
+
+// setupTenancyClient dials the tenancy service that owns the partition tree.
+func setupTenancyClient(
+	ctx context.Context,
+	cfg aconfig.LimitsConfig,
+) (tenancyv1connect.TenancyServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.TenancyServiceURI,
+		WorkloadAPITargetPath: cfg.TenancyServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceTenancy,
+	}, tenancyv1connect.NewTenancyServiceClient)
 }
 
 // runPeriodically calls fn on the given interval until ctx is cancelled.

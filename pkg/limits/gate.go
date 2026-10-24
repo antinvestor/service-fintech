@@ -135,6 +135,7 @@ func Gate(
 	idempotencyKey string,
 	mode Mode,
 	handler func(ctx context.Context, reservationID string) error,
+	opts ...GateOption,
 ) error {
 	if rpc == nil {
 		return errors.New("limits.Gate: nil rpc client")
@@ -145,8 +146,11 @@ func Gate(
 	if mode == ModeOff {
 		return handler(ctx, "")
 	}
+	// The limits RPCs run in the partition that owns the record; the handler
+	// keeps the caller's own tenancy.
+	limitsCtx := applyGateOptions(ctx, opts)
 
-	res, err := rpc.Reserve(ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	res, err := rpc.Reserve(limitsCtx, connect.NewRequest(&limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: idempotencyKey,
 		Ttl:            durationpb.New(reserveTTLFor(ctx)),
@@ -197,7 +201,7 @@ func Gate(
 				With("reservation_id", reservation.GetId()).
 				With("idempotency_key", idempotencyKey).
 				Warn("limits.Gate: shadow mode — reservation PENDING_APPROVAL, proceeding with operation")
-			go shadowRelease(ctx, rpc, reservation.GetId(), "shadow_mode_would_pend")
+			go shadowRelease(limitsCtx, rpc, reservation.GetId(), "shadow_mode_would_pend")
 			return handler(ctx, "")
 		}
 		var verdicts []*limitsv1.PolicyVerdict
@@ -215,7 +219,7 @@ func Gate(
 				With("reservation_status", reservation.GetStatus().String()).
 				With("idempotency_key", idempotencyKey).
 				Warn("limits.Gate: shadow mode — reservation denied, proceeding with operation")
-			go shadowRelease(ctx, rpc, reservation.GetId(), "shadow_mode_would_block")
+			go shadowRelease(limitsCtx, rpc, reservation.GetId(), "shadow_mode_would_block")
 			return handler(ctx, "")
 		}
 		return &LimitBreachedError{Verdicts: res.Msg.GetCheck().GetVerdicts()}
@@ -226,7 +230,7 @@ func Gate(
 		// does not prevent Release from reaching the limits service. Without this,
 		// ctx.Err() != nil causes the RPC to fail immediately and the reservation
 		// would hold cap-space for the full TTL (default 5 min).
-		relCtx, relCancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
+		relCtx, relCancel := context.WithTimeout(context.WithoutCancel(limitsCtx), releaseTimeout)
 		defer relCancel()
 		if _, relErr := rpc.Release(relCtx, connect.NewRequest(&limitsv1.ReleaseRequest{
 			ReservationId: reservation.GetId(),
@@ -239,7 +243,7 @@ func Gate(
 		return handlerErr
 	}
 
-	if _, commitErr := rpc.Commit(ctx, connect.NewRequest(&limitsv1.CommitRequest{
+	if _, commitErr := rpc.Commit(limitsCtx, connect.NewRequest(&limitsv1.CommitRequest{
 		ReservationId: reservation.GetId(),
 	})); commitErr != nil {
 		util.Log(ctx).WithError(commitErr).
@@ -265,3 +269,47 @@ func shadowRelease(ctx context.Context, rpc limitsv1connect.LimitsServiceClient,
 			Warn("limits.Gate: shadow Release failed; reservation will expire via TTL")
 	}
 }
+
+// GateOption adjusts how Gate talks to the limits service.
+type GateOption func(*gateOptions)
+
+type gateOptions struct {
+	tenancy util.TenancyInfo
+}
+
+// InPartition evaluates the transaction in the partition that owns the
+// record being moved (the loan, the account, the order) rather than the
+// partition of whoever triggered it. The limits service applies every
+// policy set on that partition and on each of its ancestors, so the record's
+// place in the partition tree decides which caps bind it. Empty ids leave
+// the caller's tenancy in place.
+func InPartition(tenantID, partitionID string) GateOption {
+	return func(o *gateOptions) {
+		if tenantID == "" || partitionID == "" {
+			return
+		}
+		o.tenancy = recordTenancy{tenantID: tenantID, partitionID: partitionID}
+	}
+}
+
+func applyGateOptions(ctx context.Context, opts []GateOption) context.Context {
+	var o gateOptions
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&o)
+		}
+	}
+	if o.tenancy == nil {
+		return ctx
+	}
+	return util.SetTenancy(ctx, o.tenancy)
+}
+
+type recordTenancy struct {
+	tenantID    string
+	partitionID string
+}
+
+func (r recordTenancy) GetTenantID() string    { return r.tenantID }
+func (r recordTenancy) GetPartitionID() string { return r.partitionID }
+func (r recordTenancy) GetAccessID() string    { return "" }

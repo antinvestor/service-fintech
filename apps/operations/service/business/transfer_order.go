@@ -176,7 +176,9 @@ func (b *transferOrderBusiness) Execute(ctx context.Context, orderID string) err
 			util.Log(innerCtx).With("limits_reservation_id", reservationID).
 				Info("transfer order execute gated by limits")
 			return b.executeInner(innerCtx, orderID)
-		})
+		},
+		limits.InPartition(order.TenantID, order.PartitionID),
+	)
 }
 
 // postLedgerOnce posts the ledger leg unless an earlier attempt already did,

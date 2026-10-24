@@ -252,8 +252,11 @@ func (b *investorAccountBusiness) Deposit(
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_FUNDING_INFLOW,
 		TenantId: account.TenantID,
 		Amount:   moneyx.FromMinorUnitsByCurrency(account.Currency, minor),
+		// The limits service requires the organization for funding actions;
+		// an investor account belongs to the lender that is its tenant.
 		Subjects: []*limitsv1.SubjectRef{
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: accountID},
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: account.TenantID},
 		},
 	}
 	idemKey := "funding_deposit:" + accountID + ":" + idempotencyKey
@@ -263,7 +266,9 @@ func (b *investorAccountBusiness) Deposit(
 			util.Log(innerCtx).With("limits_reservation_id", reservationID).
 				Info("investor deposit gated by limits")
 			return b.depositInner(innerCtx, account, minor, idempotencyKey)
-		})
+		},
+		limits.InPartition(account.TenantID, account.PartitionID),
+	)
 }
 
 // prepareMovement resolves and validates the account and amount that a
@@ -430,8 +435,11 @@ func (b *investorAccountBusiness) Withdraw(
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_FUNDING_OUTFLOW,
 		TenantId: account.TenantID,
 		Amount:   moneyx.FromMinorUnitsByCurrency(account.Currency, minor),
+		// The limits service requires the organization for funding actions;
+		// an investor account belongs to the lender that is its tenant.
 		Subjects: []*limitsv1.SubjectRef{
 			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: accountID},
+			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: account.TenantID},
 		},
 	}
 	idemKey := "funding_withdraw:" + accountID + ":" + idempotencyKey
@@ -441,7 +449,9 @@ func (b *investorAccountBusiness) Withdraw(
 			util.Log(innerCtx).With("limits_reservation_id", reservationID).
 				Info("investor withdrawal gated by limits")
 			return b.withdrawInner(innerCtx, account, minor, idempotencyKey)
-		})
+		},
+		limits.InPartition(account.TenantID, account.PartitionID),
+	)
 }
 
 // withdrawInner runs the core investor withdrawal logic after any gate check.

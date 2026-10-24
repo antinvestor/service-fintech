@@ -112,3 +112,17 @@ After this pass: **READY WITH CONDITIONS** for a field-agent pilot in which staf
 2. Publish the in-tree proto changes to BSR and wire the follow-ups listed in §8.
 3. Keep a daily look at transfer orders with `payout_status = failed` and at `incoming_payments` in a non-initial state with no recorded remainder until the reversal path exists.
 4. Treat agent registrations whose phone matched an existing profile as review items until phone verification exists.
+
+## 11. Addendum 2026-10-24 — transaction limits
+
+The limits service already evaluates every matching policy and requires all of them to pass, so the tightest cap wins. What was missing was the tie to the partition tree, plus the wiring to make the gates actually run. Fixed:
+
+- **Partition tiers.** Candidate policies were matched by tenant alone, so a policy saved on one unit's partition bound every sibling and parent. They are now restricted to the transaction's partition and its ancestors, resolved through the tenancy service's `GetPartitionParents`, cached, and failing closed when the tree cannot be read or the walk was cut short. This works for any depth.
+- **The record decides the partition.** Every gate evaluates in the partition that owns the record (`limits.InPartition`), not the partition of whoever triggered it.
+- **Client attributes.** Borrowers were looked up as investors, so a client-filtered enforce policy failed closed for every borrower. They are now resolved through the field service. Agents tighten a client by setting the client's tier property against operator-defined tier policies.
+- **Rejected intents.** Savings intents lacked the client and funding intents lacked the organization, so the limits service would have rejected them.
+- **Stawi.** Stawi reserved its loans a second time with an invalid subject set, which would have double-counted against tenant and partition caps. That gate is removed, and loans limits the same loan. Stawi's in-process transfer orders, previously hard-coded ungated, now take the operations gate settings.
+- **Branch scope.** An org-unit-scope policy must name its unit, and other scopes must not.
+- **Defaults.** Gates default to enabled in enforce mode, and a service refuses to start when a gate is on without a limits client.
+
+Not gated, by design: allocation of an incoming payment already received, because rejecting money that has arrived would strand it. The `STAWI_CONTRIBUTION` and `STAWI_PAYOUT` actions are unused. Stawi contributions arrive as payment allocations, and its outgoing movements execute as transfer orders, which are now gated.

@@ -58,6 +58,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 	"github.com/antinvestor/service-fintech/pkg/messages"
 	"github.com/antinvestor/service-fintech/pkg/notify"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
@@ -401,9 +402,12 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 	}
 
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if limitsErr != nil {
-		log.WithError(limitsErr).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"loan_disbursement":     cfg.LimitsGateEnabledLoanDisbursement,
+		"loan_request_approval": cfg.LimitsGateEnabledLoanRequestApproval,
+		"loan_repayment":        cfg.LimitsGateEnabledLoanRepayment,
+	}); gateErr != nil {
+		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
 	}
 
 	fieldCli, fieldErr := setupFieldClient(ctx, cfg)

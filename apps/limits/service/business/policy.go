@@ -382,6 +382,9 @@ func validatePolicy(ctx context.Context, p *models.Policy) error {
 			return fmt.Errorf("%w: platform scope is reserved for platform operators", ErrPolicyScopeForbidden)
 		}
 	}
+	if err := validatePolicyScope(p); err != nil {
+		return err
+	}
 	if p.LimitKind == models.KindRollingWindowAmount || p.LimitKind == models.KindRollingWindowCount {
 		if p.WindowSeconds <= 0 {
 			return fmt.Errorf("%w: rolling kind requires window > 0", ErrInvalidPolicy)
@@ -405,6 +408,26 @@ func validatePolicy(ctx context.Context, p *models.Policy) error {
 		return fmt.Errorf("%w: effective_to must be after effective_from", ErrInvalidPolicy)
 	}
 	return normaliseApproverTiers(p)
+}
+
+// validatePolicyScope keeps the branch tier unambiguous. A branch policy
+// without a branch would match every intent that carries no branch, and an
+// org or platform policy with one would never match anything.
+func validatePolicyScope(p *models.Policy) error {
+	p.OrgUnitID = strings.TrimSpace(p.OrgUnitID)
+	switch p.Scope {
+	case models.ScopeOrgUnit:
+		if p.OrgUnitID == "" {
+			return fmt.Errorf("%w: org_unit scope requires org_unit_id", ErrInvalidPolicy)
+		}
+	case models.ScopeOrg, models.ScopePlatform:
+		if p.OrgUnitID != "" {
+			return fmt.Errorf("%w: org_unit_id is only valid on org_unit scope", ErrInvalidPolicy)
+		}
+	default:
+		return fmt.Errorf("%w: unknown scope %q", ErrInvalidPolicy, p.Scope)
+	}
+	return nil
 }
 
 // normaliseApproverTiers validates the approver ladder and rewrites it in

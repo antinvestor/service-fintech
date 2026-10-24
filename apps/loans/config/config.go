@@ -47,11 +47,11 @@ type LoanManagementConfig struct {
 	FundingServiceWorkloadAPITargetPath      string `envDefault:"/ns/fintech/sa/service-funding"           env:"FUNDING_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LimitsServiceURI                         string `envDefault:"http://service_limits:80"                 env:"LIMITS_SERVICE_URI"`
 	LimitsServiceWorkloadAPITargetPath       string `envDefault:""                                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
-	LimitsGateEnabledLoanDisbursement        bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_DISBURSEMENT"`
+	LimitsGateEnabledLoanDisbursement        bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_DISBURSEMENT"`
 	LimitsGateModeLoanDisbursement           string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_DISBURSEMENT"`
-	LimitsGateEnabledLoanRequestApproval     bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_REQUEST_APPROVAL"`
+	LimitsGateEnabledLoanRequestApproval     bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_REQUEST_APPROVAL"`
 	LimitsGateModeLoanRequestApproval        string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REQUEST_APPROVAL"`
-	LimitsGateEnabledLoanRepayment           bool   `envDefault:"false"                                    env:"LIMITS_GATE_ENABLED_LOAN_REPAYMENT"`
+	LimitsGateEnabledLoanRepayment           bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_REPAYMENT"`
 	LimitsGateModeLoanRepayment              string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REPAYMENT"`
 
 	// LenderDisplayName opens every borrower-facing message ("<lender>: your

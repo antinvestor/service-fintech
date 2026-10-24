@@ -144,9 +144,11 @@ func main() {
 	// Limits client. Optional — when LimitsServiceURI is empty, SetupClient
 	// returns nil and the gate is disabled at runtime regardless of the config flag.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if limitsErr != nil {
-		log.WithError(limitsErr).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"funding_deposit":  cfg.LimitsGateEnabledFundingDeposit,
+		"funding_withdraw": cfg.LimitsGateEnabledFundingWithdraw,
+	}); gateErr != nil {
+		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
 	}
 
 	serviceOptions := setupServiceOptions(

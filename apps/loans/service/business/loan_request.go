@@ -393,7 +393,9 @@ func (b *loanRequestBusiness) Approve(ctx context.Context, id string) (*loansv1.
 			}
 			result = inner
 			return nil
-		})
+		},
+		limits.InPartition(lr.TenantID, lr.PartitionID),
+	)
 
 	var pendingErr *limits.PendingApprovalError
 	if errors.As(gateErr, &pendingErr) {

@@ -70,7 +70,7 @@ func (s *ReservationBusinessSuite) databaseResource(ctx context.Context) definit
 // resvEnv provisions a fresh isolated DB and wires up all dependencies.
 // Returns ctx (with tenancy), biz (ReservationBusiness), dbPool, and a
 // policyRepo for test setup.
-func (s *ReservationBusinessSuite) resvEnv(tenantID, partitionID string) (
+func (s *ReservationBusinessSuite) resvEnv(tenantID, partitionID string, opts ...business.ReservationOption) (
 	context.Context,
 	business.ReservationBusiness,
 	pool.Pool,
@@ -122,7 +122,7 @@ func (s *ReservationBusinessSuite) resvEnv(tenantID, partitionID string) (
 
 	biz := business.NewReservationBusiness(
 		resvRepo, ledgerRepo, candidateRepo, approvalRepo, policyRepo,
-		evaluator, resolver, auditing, dbPool, nil,
+		evaluator, resolver, auditing, dbPool, nil, opts...,
 	)
 
 	_ = policyVerRepo // used indirectly via Save

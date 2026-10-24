@@ -155,3 +155,59 @@ loans `0003` (one live disbursement per loan), loans `0004` (one penalty per
 installment and type) and identity `004` (one client per borrower profile per
 partition) create partial unique indexes. They fail on duplicate rows by
 design: clean the data in a staging copy first, as for the September indexes.
+
+## Transaction limits are on by default and fail closed
+
+Every money-moving gate is enabled in `enforce` mode by default:
+
+| Service | Gates (`LIMITS_GATE_ENABLED_*`, default `true`) |
+|---|---|
+| loans | `LOAN_DISBURSEMENT`, `LOAN_REQUEST_APPROVAL`, `LOAN_REPAYMENT` |
+| savings | `SAVINGS_DEPOSIT`, `SAVINGS_WITHDRAWAL` |
+| funding | `FUNDING_DEPOSIT`, `FUNDING_WITHDRAW` |
+| operations, stawi | `OPERATIONS_TRANSFER` (stawi runs the transfer-order engine in process) |
+
+A service with any gate enabled refuses to start unless `LIMITS_SERVICE_URI`
+reaches the limits service. A gate that cannot reach it while serving fails
+the operation, which the caller retries. With no policy defined every
+transaction is allowed, so turning the gates on changes nothing until an
+operator sets a limit. Stawi loans are limited by the loans service at
+approval and disbursement; stawi no longer reserves them a second time.
+
+The limits service itself now needs:
+
+| Variable | Purpose |
+|---|---|
+| `TENANCY_SERVICE_URI`, `TENANCY_SERVICE_WORKLOAD_API_TARGET_PATH` | resolves a partition's ancestors (`GetPartitionParents`, permission `partition_view`) |
+| `PARTITION_CHAIN_CACHE_TTL_SECONDS` | how long a resolved chain is reused (default 300) |
+| `IDENTITY_SERVICE_URI` | now also serves the field service, which resolves borrower attributes |
+
+It refuses to start without a tenancy client, and refuses to evaluate a
+transaction whose partition cannot be placed in the tree.
+
+### How limits are tiered
+
+Limits follow the partition tree: an organization's partition, its org
+units' partitions beneath it, and nested units below those, to any depth.
+
+- A policy is stored on the partition of the operator who saved it.
+- A transaction is evaluated in the partition that owns the record being
+  moved (the loan, the savings account, the investor account, the transfer
+  order), whoever triggers it.
+- Every policy set on that partition or on any of its ancestors applies, and
+  all of them must pass. The tightest cap wins.
+
+So a unit can only tighten what its parents allow. A looser policy on a
+child never lifts an ancestor's cap, and a policy on one unit never reaches a
+sibling unit or a parent. Row-level security confines an operator to the
+policies of their own partitions, so nobody below a partition can edit or
+delete the caps set on it.
+
+A field agent works inside their unit's partition, so agents do not hold
+`limits_policy_manage`. An agent tightens an individual client with a client
+tier instead: an operator defines tier policies with an `attribute_filter`
+such as `{"limit_tier": "restricted"}`, and the agent sets `limit_tier` in the
+client's properties. The tier is an extra policy on top of every partition
+cap, so it can only tighten. Client attributes are cached for
+`SUBJECT_ATTRIBUTE_CACHE_TTL_SECONDS` (default 60), so a change to a client's
+tier takes effect within that window.

@@ -167,7 +167,9 @@ func (b *repaymentBusiness) Record(
 			}
 			result = inner
 			return nil
-		})
+		},
+		limits.InPartition(la.TenantID, la.PartitionID),
+	)
 
 	var pendingErr *limits.PendingApprovalError
 	if errors.As(gateErr, &pendingErr) {

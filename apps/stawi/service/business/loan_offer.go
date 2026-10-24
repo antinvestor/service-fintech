@@ -30,8 +30,6 @@ import (
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"connectrpc.com/connect"
 	fevents "github.com/pitabwire/frame/v2/events"
@@ -45,7 +43,6 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/calculation"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/constants"
-	"github.com/antinvestor/service-fintech/pkg/limits"
 	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
@@ -68,15 +65,12 @@ func minorUnitsToMoney(v int64, currencyCode string) *commonv1.Money {
 }
 
 type loanOfferBusiness struct {
-	product           stawiproduct.ProductConfig
-	eventsMan         fevents.Manager
-	loRepo            repository.LoanOfferRepository
-	lwRepo            repository.LoanWindowRepository
-	identityCli       identityv1connect.IdentityServiceClient
-	clients           *clients.PlatformClients
-	limitsCli         limitsv1connect.LimitsServiceClient
-	limitsGateEnabled bool
-	limitsGateMode    string
+	product     stawiproduct.ProductConfig
+	eventsMan   fevents.Manager
+	loRepo      repository.LoanOfferRepository
+	lwRepo      repository.LoanWindowRepository
+	identityCli identityv1connect.IdentityServiceClient
+	clients     *clients.PlatformClients
 }
 
 func NewLoanOfferBusiness(
@@ -87,20 +81,14 @@ func NewLoanOfferBusiness(
 	lwRepo repository.LoanWindowRepository,
 	identityCli identityv1connect.IdentityServiceClient,
 	pc *clients.PlatformClients,
-	limitsCli limitsv1connect.LimitsServiceClient,
-	limitsGateEnabled bool,
-	limitsGateMode string,
 ) LoanOfferBusiness {
 	return &loanOfferBusiness{
-		product:           product,
-		eventsMan:         eventsMan,
-		loRepo:            loRepo,
-		lwRepo:            lwRepo,
-		identityCli:       identityCli,
-		clients:           pc,
-		limitsCli:         limitsCli,
-		limitsGateEnabled: limitsGateEnabled,
-		limitsGateMode:    limitsGateMode,
+		product:     product,
+		eventsMan:   eventsMan,
+		loRepo:      loRepo,
+		lwRepo:      lwRepo,
+		identityCli: identityCli,
+		clients:     pc,
 	}
 }
 
@@ -283,48 +271,14 @@ func (b *loanOfferBusiness) ExpireStale(ctx context.Context, membershipID string
 	return expired, nil
 }
 
-// CreateLoanAccount gates the loan account creation through the limits service
-// when the gate is enabled, then delegates to createLoanAccountInner.
-//
-// When the limits gate is enabled, a reservation is obtained from the limits
-// service before execution proceeds. DENY returns an error; PENDING_APPROVAL
-// returns PendingApprovalError.
+// CreateLoanAccount turns an accepted offer into a loan request with the
+// loans service and approves it. Transaction limits are enforced there: the
+// loans service gates the approval and the disbursement of the same loan in
+// the partition that owns it, so this step does not reserve against the
+// limits service a second time (that would count every stawi loan twice
+// against tenant and partition caps).
 func (b *loanOfferBusiness) CreateLoanAccount(ctx context.Context, offerID string) (map[string]interface{}, error) {
-	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == "off" {
-		return b.createLoanAccountInner(ctx, offerID)
-	}
-
-	offer, err := b.loRepo.GetByID(ctx, offerID)
-	if err != nil {
-		return nil, apperrors.ErrDataNotFound.Extend("loan offer")
-	}
-
-	intent := &limitsv1.LimitIntent{
-		Action:   limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT,
-		TenantId: offer.TenantID,
-		Amount:   minorUnitsToMoney(offer.Amount, offer.Currency),
-		Subjects: []*limitsv1.SubjectRef{
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: offer.MembershipID},
-		},
-	}
-	idemKey := "stawi_loan_disbursement:" + offerID
-
-	var result map[string]interface{}
-	gateErr := limits.Gate(ctx, b.limitsCli, intent, idemKey, limits.ParseMode(b.limitsGateMode),
-		func(innerCtx context.Context, reservationID string) error {
-			util.Log(innerCtx).With("limits_reservation_id", reservationID).
-				Info("stawi loan disbursement gated by limits")
-			inner, innerErr := b.createLoanAccountInner(innerCtx, offerID)
-			if innerErr != nil {
-				return innerErr
-			}
-			result = inner
-			return nil
-		})
-	if gateErr != nil {
-		return nil, gateErr
-	}
-	return result, nil
+	return b.createLoanAccountInner(ctx, offerID)
 }
 
 // createLoanAccountInner runs the core loan account creation logic after any

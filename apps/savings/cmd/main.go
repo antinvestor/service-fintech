@@ -146,9 +146,11 @@ func main() {
 	// returns nil and both gates are disabled at runtime regardless of the
 	// config flags.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if limitsErr != nil {
-		log.WithError(limitsErr).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"savings_deposit":    cfg.LimitsGateEnabledSavingsDeposit,
+		"savings_withdrawal": cfg.LimitsGateEnabledSavingsWithdrawal,
+	}); gateErr != nil {
+		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
 	}
 
 	// Create business logic with all dependencies

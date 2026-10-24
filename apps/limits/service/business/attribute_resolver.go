@@ -17,8 +17,11 @@ package business
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"connectrpc.com/connect"
@@ -54,6 +57,10 @@ type AttributeResolver interface {
 type attributeResolver struct {
 	repo           repository.SubjectAttributeRepository
 	identityClient identityv1connect.IdentityServiceClient
+	// fieldClient resolves borrowers: the lending flows send field-service
+	// client ids as CLIENT subjects. Investors are looked up through
+	// identityClient when the field service does not know the id.
+	fieldClient fieldv1connect.FieldServiceClient
 	// cache is a bounded expirable LRU. Capacity of 10 000 entries bounds
 	// memory growth; the TTL (default 60 s) bounds staleness. The expirable
 	// LRU handles eviction internally — no separate janitor goroutine needed.
@@ -79,16 +86,32 @@ func NewAttributeResolver(
 	repo repository.SubjectAttributeRepository,
 	identityClient identityv1connect.IdentityServiceClient,
 	ttl time.Duration,
+	opts ...AttributeResolverOption,
 ) AttributeResolver {
 	if ttl == 0 {
 		ttl = defaultAttrTTL
 	}
-	return &attributeResolver{
+	r := &attributeResolver{
 		repo:           repo,
 		identityClient: identityClient,
 		cache:          expirable.NewLRU[string, cachedAttrs](attrCacheSize, nil, ttl),
 		ttl:            ttl,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(r)
+		}
+	}
+	return r
+}
+
+// AttributeResolverOption configures optional look-ups of the resolver.
+type AttributeResolverOption func(*attributeResolver)
+
+// WithFieldClients resolves CLIENT subjects through the field service first,
+// which owns the borrowers that loans and savings send as subjects.
+func WithFieldClients(cli fieldv1connect.FieldServiceClient) AttributeResolverOption {
+	return func(r *attributeResolver) { r.fieldClient = cli }
 }
 
 // Get returns the attribute map for the given subject.
@@ -177,10 +200,28 @@ func decodeAttrs(j datatypes.JSON) map[string]any {
 //     follow-up.
 //
 // Returns (nil, nil) when the client isn't configured (graceful degradation).
+//
+// A borrower is looked up in the field service first. An id neither service
+// knows (a group account owner, say) has no attributes: an empty map, so a
+// filtered policy does not apply to it. Any other failure is an error, which
+// the reservation path turns into a fail-closed breach for enforce policies.
 func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID string) (map[string]any, error) {
-	if r.identityClient == nil {
+	if r.identityClient == nil && r.fieldClient == nil {
 		//nolint:nilnil // documented contract: nil map when no identity client is configured
 		return nil, nil
+	}
+
+	if r.fieldClient != nil {
+		attrs, err := r.fetchFieldClient(ctx, clientID)
+		if err == nil {
+			return attrs, nil
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			return nil, err
+		}
+	}
+	if r.identityClient == nil {
+		return map[string]any{}, nil
 	}
 
 	resp, err := r.identityClient.InvestorGet(
@@ -188,6 +229,9 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 		connect.NewRequest(&identityv1.InvestorGetRequest{Id: clientID}),
 	)
 	if err != nil {
+		if connect.CodeOf(err) == connect.CodeNotFound {
+			return map[string]any{}, nil
+		}
 		return nil, err
 	}
 
@@ -211,5 +255,31 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 		}
 	}
 
+	return attrs, nil
+}
+
+// fetchFieldClient projects a field-service client into attributes: state,
+// name, profile, owning team and every key of its properties bag (where an
+// agent records, for example, the limit tier the client is held to).
+func (r *attributeResolver) fetchFieldClient(ctx context.Context, clientID string) (map[string]any, error) {
+	resp, err := r.fieldClient.ClientGet(ctx, connect.NewRequest(&fieldv1.ClientGetRequest{Id: clientID}))
+	if err != nil {
+		return nil, err
+	}
+	client := resp.Msg.GetData()
+	if client == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("client not found"))
+	}
+	attrs := map[string]any{
+		"state":          client.GetState().String(),
+		"name":           client.GetName(),
+		"profile_id":     client.GetProfileId(),
+		"owning_team_id": client.GetOwningTeamId(),
+	}
+	if props := client.GetProperties(); props != nil {
+		for k, v := range props.GetFields() {
+			attrs[k] = v.AsInterface()
+		}
+	}
 	return attrs, nil
 }

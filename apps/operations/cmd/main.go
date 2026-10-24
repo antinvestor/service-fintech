@@ -268,10 +268,11 @@ func setupPeerClients(ctx context.Context, cfg aconfig.OperationsConfig) (peerCl
 		return peerClients{}, errPaymentClientRequired
 	}
 
-	limitsCli, err := setupLimitsClient(ctx, cfg)
-	if err != nil {
-		util.Log(ctx).WithError(err).
-			Warn("main -- Could not setup limits client, limits gate will be disabled")
+	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
+	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
+		"operations_transfer": cfg.LimitsGateEnabledOperationsTransfer,
+	}); gateErr != nil {
+		return peerClients{}, gateErr
 	}
 
 	return peerClients{identity: identityCli, platform: platformClients, limits: limitsCli}, nil

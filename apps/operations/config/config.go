@@ -53,7 +53,7 @@ type OperationsConfig struct {
 	// consumer.SetupClient returns nil and the gate is skipped at runtime.
 	LimitsServiceURI                    string `envDefault:"http://service_limits:80" env:"LIMITS_SERVICE_URI"`
 	LimitsServiceWorkloadAPITargetPath  string `envDefault:""                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
-	LimitsGateEnabledOperationsTransfer bool   `envDefault:"false"                    env:"LIMITS_GATE_ENABLED_OPERATIONS_TRANSFER"`
+	LimitsGateEnabledOperationsTransfer bool   `envDefault:"true"                     env:"LIMITS_GATE_ENABLED_OPERATIONS_TRANSFER"`
 	LimitsGateModeOperationsTransfer    string `envDefault:"enforce"                  env:"LIMITS_GATE_MODE_OPERATIONS_TRANSFER"`
 }
 
