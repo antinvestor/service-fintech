@@ -1,4 +1,7 @@
 version: v2
+# seed and stawi are generated in-repo and not published to BSR, so each is
+# its own workspace (proto/seed/buf.yaml, proto/stawi/buf.yaml) and this one,
+# which buf push publishes, does not include them.
 modules:
   - path: identity
     name: buf.build/antinvestor/identity
@@ -14,12 +17,6 @@ modules:
     name: buf.build/antinvestor/operations
   - path: limits
     name: buf.build/antinvestor/limits
-  # stawi is generated in-repo (gen/go/stawi) and not published to BSR; an
-  # unnamed module is skipped by buf push.
-  - path: stawi
-  # seed is generated in-repo (gen/go/seed) and not published to BSR; an
-  # unnamed module is skipped by buf push.
-  - path: seed
 deps:
   - buf.build/antinvestor/common
   - buf.build/bufbuild/protovalidate
@@ -33,13 +30,6 @@ lint:
     - PACKAGE_NO_IMPORT_CYCLE
     - RPC_REQUEST_STANDARD_NAME
     - RPC_RESPONSE_STANDARD_NAME
-  ignore_only:
-    # stawi and seed are permission manifests over an HTTP mux, not served
-    # Connect APIs: many routes legitimately share the same loosely typed
-    # request/response shapes.
-    RPC_REQUEST_RESPONSE_UNIQUE:
-      - stawi/stawi/v1/stawi.proto
-      - seed/seed/v1/seed.proto
 breaking:
   use:
     - FILE

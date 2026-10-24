@@ -2,7 +2,7 @@
 # generated code is committed under gen/go/stawi (inside the root Go module) and
 # imported as github.com/antinvestor/service-fintech/gen/go/stawi/...
 #
-#   cd proto && buf generate --template buf.gen.local-go.stawi.yaml stawi
+#   cd proto/stawi && buf generate --template ../buf.gen.local-go.stawi.yaml
 #
 # Managed mode is on only to point the buf.build/antinvestor/common dependency
 # at its BSR-generated Go package; this module's own go_package is left as
@@ -12,7 +12,7 @@ managed:
   enabled: true
   disable:
     - file_option: go_package
-      path: stawi
+      module: buf.build/antinvestor/stawi
     - file_option: go_package
       module: buf.build/googleapis/googleapis
   override:
@@ -21,10 +21,10 @@ managed:
       value: buf.build/gen/go/antinvestor/common/protocolbuffers/go
 plugins:
   - remote: buf.build/protocolbuffers/go:v1.36.12
-    out: ../gen/go/stawi/protocolbuffers/go
+    out: ../../gen/go/stawi/protocolbuffers/go
     opt:
       - paths=source_relative
   - remote: buf.build/connectrpc/go:v2.0.0
-    out: ../gen/go/stawi/connectrpc/go
+    out: ../../gen/go/stawi/connectrpc/go
     opt:
       - paths=source_relative
