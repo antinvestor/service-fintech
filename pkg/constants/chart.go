@@ -43,14 +43,13 @@ const (
 // ChartLedgers lists every chart ledger and its category.
 func ChartLedgers() map[string]LedgerCategory {
 	return map[string]LedgerCategory{
-		LedgerCash:         CategoryAsset,
-		LedgerReceivables:  CategoryAsset,
-		LedgerMemberFunds:  CategoryLiability,
-		LedgerPayables:     CategoryLiability,
-		LedgerIncome:       CategoryIncome,
-		LedgerExpense:      CategoryExpense,
-		LedgerCapital:      CategoryCapital,
-		LedgerUnclassified: CategoryLiability,
+		LedgerCash:        CategoryAsset,
+		LedgerReceivables: CategoryAsset,
+		LedgerMemberFunds: CategoryLiability,
+		LedgerPayables:    CategoryLiability,
+		LedgerIncome:      CategoryIncome,
+		LedgerExpense:     CategoryExpense,
+		LedgerCapital:     CategoryCapital,
 	}
 }
 
@@ -60,7 +59,6 @@ func ChartLedgers() map[string]LedgerCategory {
 //nolint:gochecknoglobals // immutable chart
 var chartByKind = map[string]string{
 	"product:external_cash":            LedgerCash,
-	"platform:external_cash":           LedgerCash,
 	"group:bank":                       LedgerCash,
 	"agent:cash_in_hand":               LedgerCash,
 	"product:unallocated":              LedgerReceivables,
@@ -89,15 +87,36 @@ var chartByKind = map[string]string{
 }
 
 // LedgerForAccount returns the chart ledger an account name belongs to, and
-// whether the chart knows the name. Unknown names go to LedgerUnclassified.
+// whether the name is exactly one the platform builds: "<scope>:<id>:<kind>"
+// with an id of lowercase letters, digits, "_" or "-", or the single
+// "platform:external_cash". Anything else is not on the chart.
 func LedgerForAccount(name string) (string, bool) {
-	scope, rest, found := strings.Cut(strings.TrimSpace(name), ":")
-	if !found {
+	if name == PlatformExternalCashAccount() {
+		return LedgerCash, true
+	}
+	parts := strings.Split(name, ":")
+	if len(parts) != chartNameSegments || !validChartID(parts[1]) {
 		return LedgerUnclassified, false
 	}
-	kind := rest[strings.LastIndex(rest, ":")+1:]
-	if ledger, ok := chartByKind[scope+":"+kind]; ok {
+	if ledger, ok := chartByKind[parts[0]+":"+parts[2]]; ok {
 		return ledger, true
 	}
 	return LedgerUnclassified, false
+}
+
+// chartNameSegments is the shape "<scope>:<id>:<kind>".
+const chartNameSegments = 3
+
+const maxChartIDLength = 64
+
+func validChartID(id string) bool {
+	if id == "" || len(id) > maxChartIDLength {
+		return false
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' && r != '-' {
+			return false
+		}
+	}
+	return true
 }

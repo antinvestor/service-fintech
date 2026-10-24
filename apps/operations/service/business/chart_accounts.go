@@ -67,7 +67,10 @@ func (b *transferOrderBusiness) ensureChartAccount(ctx context.Context, accountI
 	logger := util.Log(ctx).WithField("account_id", accountID)
 	ledgerID, known := constants.LedgerForAccount(accountID)
 	if !known {
-		logger.Warn("account name is not on the chart; creating it as unclassified")
+		// Only names the platform builds are created; anything else must
+		// already exist in the ledger, so the retried posting fails.
+		logger.Warn("account name is not on the chart; not creating it")
+		return
 	}
 	meta, _ := structpb.NewStruct(map[string]any{"chart_account": true})
 	create := func() error {

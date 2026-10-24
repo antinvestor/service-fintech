@@ -43,7 +43,12 @@ func TestEveryAccountNameIsOnTheChart(t *testing.T) {
 			t.Errorf("account %q is not on the chart", name)
 		}
 	}
-	if ledger, known := constants.LedgerForAccount("mystery"); known || ledger != constants.LedgerUnclassified {
-		t.Errorf("unknown names must be unclassified, got %q", ledger)
+	for _, name := range []string{
+		"mystery", "member:x:unknown_kind", " member:x:loans", "member:a:b:loans",
+		"member::loans", "member:X:loans", "member:a b:loans",
+	} {
+		if _, known := constants.LedgerForAccount(name); known {
+			t.Errorf("%q must not be on the chart", name)
+		}
 	}
 }

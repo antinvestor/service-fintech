@@ -97,3 +97,19 @@ func TestFirstPostingCreatesChartAccounts(t *testing.T) {
 	assert.Equal(t, ledgerv1.LedgerType_ASSET, ledger.ledgers[constants.LedgerCash])
 	assert.Equal(t, ledgerv1.LedgerType_LIABILITY, ledger.ledgers[constants.LedgerMemberFunds])
 }
+
+// A name that is not exactly one the platform builds is never created; the
+// posting fails instead.
+func TestOffChartAccountsAreNotCreated(t *testing.T) {
+	f := newExecuteFixture(t, int32(constants.StateJustCreated))
+	ledger := &strictLedger{ledgers: map[string]ledgerv1.LedgerType{}, accounts: map[string]string{}}
+	f.biz.clients.LedgerClient = ledger
+	f.repo.order.OrderType = constants.SafeInt32FromInt(constants.TransferTypeLoanRepayment)
+	f.repo.order.DebitAccountRef = constants.ProductExternalCashAccount("p1")
+	f.repo.order.CreditAccountRef = "member:a:b:loans"
+
+	require.Error(t, f.biz.Execute(context.Background(), f.repo.order.GetID()))
+	assert.Equal(t, 0, ledger.posts)
+	_, created := ledger.accounts["member:a:b:loans"]
+	assert.False(t, created)
+}

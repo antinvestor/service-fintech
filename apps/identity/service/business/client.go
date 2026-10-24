@@ -163,12 +163,22 @@ func (b *clientBusiness) registerNew(
 	if scope != nil {
 		client.ProfileID = ""
 	}
+	consentProps := takeConsentProperties(client.Properties)
 	if client.ProfileID == "" {
-		profileID, profileErr := b.ensureProfile(ctx, client, contact)
+		profileID, existing, profileErr := b.ensureProfile(ctx, client, contact)
 		if profileErr != nil {
 			return nil, profileErr
 		}
 		client.ProfileID = profileID
+		// A field agent binding a person who already has a profile needs
+		// that person's consent: a code is sent to their verified mobile
+		// contact, and only a correct code binds them.
+		if scope != nil && existing != nil {
+			pending, consentErr := b.requireConsent(ctx, client, existing, consentProps)
+			if consentErr != nil || pending != nil {
+				return pending, consentErr
+			}
+		}
 	}
 
 	stored, created, createErr := b.clientRepo.CreateIfAbsent(ctx, client)
@@ -345,12 +355,17 @@ func (b *clientBusiness) saveExisting(
 // contact they gave, or has it create one. The contact is passed through,
 // never inspected: the profile service validates and owns it. Without a
 // contact there is nothing to find a person by.
-func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Client, phone string) (string, error) {
+// It returns the found profile when the person already existed.
+func (b *clientBusiness) ensureProfile(
+	ctx context.Context,
+	client *models.Client,
+	phone string,
+) (string, *profilev1.ProfileObject, error) {
 	if phone == "" {
-		return "", ErrClientPhoneInvalid
+		return "", nil, ErrClientPhoneInvalid
 	}
 	if b.profiles == nil {
-		return "", ErrClientProfileUnavailable
+		return "", nil, ErrClientProfileUnavailable
 	}
 	found, err := b.profiles.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: phone})
 	if err == nil && found.GetData().GetId() != "" {
@@ -359,25 +374,25 @@ func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Clien
 		// workforce member's profile (the registering agent's own, say) is
 		// refused rather than bound to a client.
 		if profileID == actorFromClaims(ctx) {
-			return "", ErrClientPhoneIsStaff
+			return "", nil, ErrClientPhoneIsStaff
 		}
 		if b.workforceRepo != nil {
 			if member, memberErr := b.workforceRepo.GetByProfileID(ctx, profileID); memberErr == nil && member != nil {
-				return "", ErrClientPhoneIsStaff
+				return "", nil, ErrClientPhoneIsStaff
 			}
 		}
-		return profileID, nil
+		return profileID, found.GetData(), nil
 	}
 	if connect.CodeOf(err) == connect.CodeInvalidArgument {
-		return "", ErrClientPhoneInvalid
+		return "", nil, ErrClientPhoneInvalid
 	}
 	if err != nil && connect.CodeOf(err) != connect.CodeNotFound {
 		util.Log(ctx).WithError(err).Warn("could not look up the borrower's profile by contact")
-		return "", ErrClientProfileUnavailable
+		return "", nil, ErrClientProfileUnavailable
 	}
 	props, propErr := structpb.NewStruct(map[string]any{"name": client.Name})
 	if propErr != nil {
-		return "", propErr
+		return "", nil, propErr
 	}
 	created, err := b.profiles.Create(ctx, &profilev1.CreateRequest{
 		Type:       profilev1.ProfileType_PERSON,
@@ -385,13 +400,13 @@ func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Clien
 		Properties: props,
 	})
 	if connect.CodeOf(err) == connect.CodeInvalidArgument {
-		return "", ErrClientPhoneInvalid
+		return "", nil, ErrClientPhoneInvalid
 	}
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("could not create the borrower's profile")
-		return "", ErrClientProfileUnavailable
+		return "", nil, ErrClientProfileUnavailable
 	}
-	return created.GetData().GetId(), nil
+	return created.GetData().GetId(), nil, nil
 }
 
 // attachCaller makes the registering field agent the client's primary

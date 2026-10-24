@@ -37,6 +37,33 @@ type fakeProfileService struct {
 	mu        sync.Mutex
 	byContact map[string]string
 	created   int
+	// sentCodes maps verification id -> code the person received.
+	sentCodes map[string]string
+	sentTo    map[string]string // verification id -> contact id
+}
+
+func (f *fakeProfileService) CreateContactVerification(
+	_ context.Context,
+	req *profilev1.CreateContactVerificationRequest,
+) (*profilev1.CreateContactVerificationResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sentCodes == nil {
+		f.sentCodes, f.sentTo = map[string]string{}, map[string]string{}
+	}
+	f.sentCodes[req.GetId()] = "123456"
+	f.sentTo[req.GetId()] = req.GetContactId()
+	return &profilev1.CreateContactVerificationResponse{Id: req.GetId(), Success: true}, nil
+}
+
+func (f *fakeProfileService) CheckVerification(
+	_ context.Context,
+	req *profilev1.CheckVerificationRequest,
+) (*profilev1.CheckVerificationResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	code, ok := f.sentCodes[req.GetId()]
+	return &profilev1.CheckVerificationResponse{Id: req.GetId(), Success: ok && code == req.GetCode()}, nil
 }
 
 func (f *fakeProfileService) GetByContact(
@@ -53,7 +80,9 @@ func (f *fakeProfileService) GetByContact(
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, "no profile for contact")
 	}
-	return &profilev1.GetByContactResponse{Data: &profilev1.ProfileObject{Id: id}}, nil
+	return &profilev1.GetByContactResponse{Data: &profilev1.ProfileObject{Id: id, Contacts: []*profilev1.ContactObject{
+		{Id: "contact-of-" + id, Type: profilev1.ContactType_MSISDN, Verified: true},
+	}}}, nil
 }
 
 func (f *fakeProfileService) Create(
@@ -291,4 +320,44 @@ func (s *approvalWorkflowSuite) TestClientAccessScopeResolvesBorrowerAndAgent() 
 	// The exact profile filter finds the borrower's client for staff.
 	s.Require().Len(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: created.GetProfileId()}), 1)
 	s.Require().Empty(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: "nobody"}))
+}
+
+// A field agent binding someone who already has a profile needs that
+// person's consent code; a wrong code or a verification of another person
+// binds nobody.
+func (s *approvalWorkflowSuite) TestAgentBindingAnExistingPersonNeedsTheirConsent() {
+	env := s.newEnv()
+	org := env.createOrganization("Consent SACCO", "consent-sacco")
+	agent, _ := env.fieldAgent(org, "agent-consent", "consent-team")
+	asAgent := env.asRole("agent-consent", "member")
+	env.profiles.byContact = map[string]string{"+256701000555": "profile-existing"}
+
+	register := func(props map[string]any) (*fieldv1.ClientObject, error) {
+		props[clientPhoneNumberKey] = "+256701000555"
+		return env.clientBusiness.Save(
+			asAgent,
+			&fieldv1.ClientObject{Name: "Esther", Properties: propertiesStruct(props)},
+		)
+	}
+
+	pending, err := register(map[string]any{})
+	s.Require().NoError(err)
+	s.Require().Empty(pending.GetId(), "nothing is bound before consent")
+	vid := pending.GetProperties().AsMap()[consentVerificationIDKey].(string)
+	s.Require().NotEmpty(vid)
+	s.Equal("contact-of-profile-existing", env.profiles.sentTo[vid], "the code goes to the person's own contact")
+
+	_, err = register(map[string]any{consentVerificationIDKey: vid, consentCodeKey: "000000"})
+	s.Require().ErrorIs(err, ErrClientConsentFailed)
+	_, err = register(
+		map[string]any{consentVerificationIDKey: "client-consent-someone-else-x", consentCodeKey: "123456"},
+	)
+	s.Require().ErrorIs(err, ErrClientConsentFailed)
+
+	bound, err := register(map[string]any{consentVerificationIDKey: vid, consentCodeKey: "123456"})
+	s.Require().NoError(err)
+	s.Require().NotEmpty(bound.GetId())
+	s.Equal("profile-existing", bound.GetProfileId())
+	s.NotContains(bound.GetProperties().AsMap(), consentCodeKey, "the code is never stored")
+	_ = agent
 }
