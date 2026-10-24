@@ -45,6 +45,10 @@ func (f *fakeProfileService) GetByContact(
 ) (*profilev1.GetByContactResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	// The profile service validates contacts; fintech only passes them on.
+	if len(req.GetContact()) < 5 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "contact is not a valid phone or email")
+	}
 	id, ok := f.byContact[req.GetContact()]
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, "no profile for contact")
@@ -199,7 +203,6 @@ func (s *approvalWorkflowSuite) TestFieldAgentRegistersClientInOwnScope() {
 	// An agent cannot move a client to another team through an edit.
 	edited, err := env.clientBusiness.Save(asAmina, &fieldv1.ClientObject{
 		Id: created.GetId(), OwningTeamId: "some-other-team", Name: "Grace Borrower",
-		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000111"}),
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(team.GetID(), edited.GetOwningTeamId(), "ownership moves only through TransferOwnership")
@@ -211,6 +214,7 @@ func (s *approvalWorkflowSuite) TestFieldAgentRegistersClientInOwnScope() {
 	s.Require().ErrorIs(err, ErrClientPhoneIsStaff)
 
 	// A borrower with no phone cannot be registered: there is nobody to find.
+	// A malformed one is refused by the profile service and reported as such.
 	_, err = env.clientBusiness.Save(asAmina, &fieldv1.ClientObject{Name: "No Phone"})
 	s.Require().ErrorIs(err, ErrClientPhoneInvalid)
 	_, err = env.clientBusiness.Save(asAmina, &fieldv1.ClientObject{Name: "Bad Phone",

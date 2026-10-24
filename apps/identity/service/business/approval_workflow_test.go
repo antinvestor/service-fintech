@@ -249,7 +249,10 @@ func (s *approvalWorkflowSuite) TestBranchVerificationTransitionsCaseToPendingAp
 	s.Equal("profile-verifier", approvalCase.VerifiedBy)
 }
 
-func (s *approvalWorkflowSuite) TestClientPhoneChangeActualizesOnlyAfterApproval() {
+// A client's contacts live on their profile. An edit never carries a
+// contact or a contact-change case, and a row written before contacts moved
+// sheds its stored phone on the next edit.
+func (s *approvalWorkflowSuite) TestClientContactsAreManagedOnTheProfile() {
 	env := s.newEnv()
 	org := env.createOrganization("Org Client Phone", "org-client-phone")
 	branch := env.createBranch(org, "Field Branch", "field-branch")
@@ -257,70 +260,25 @@ func (s *approvalWorkflowSuite) TestClientPhoneChangeActualizesOnlyAfterApproval
 	env.assignAgentToBranch(agent, branch)
 	client := env.createClient(agent, "Jane Doe", "+256700000111")
 
-	updated, err := env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{
-		Id:           client.GetID(),
-		AgentId:      agent.GetID(),
-		OwningTeamId: client.OwningTeamID,
-		Name:         client.Name,
-		Properties: propertiesStruct(map[string]any{
-			clientPhoneNumberKey: "+256700000222",
-			caseCommentKey:       "customer requested number change",
-		}),
-	})
-	s.Require().NoError(err)
-	s.Require().NotNil(updated)
+	edit := func(props map[string]any) error {
+		_, err := env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{
+			Id:           client.GetID(),
+			AgentId:      agent.GetID(),
+			OwningTeamId: client.OwningTeamID,
+			Name:         client.Name,
+			Properties:   propertiesStruct(props),
+		})
+		return err
+	}
 
-	pendingClient, err := env.clientRepo.GetByID(env.ctx, client.GetID())
-	s.Require().NoError(err)
-	s.Equal("+256700000111", pendingClient.Properties.GetString(clientPhoneNumberKey))
-	s.Equal("+256700000222", pendingClient.Properties.GetString(clientPendingPhoneNumberKey))
-	s.Equal(approvalCaseStatusPendingVerification, pendingClient.Properties.GetString(approvalCaseStatusKey))
+	s.Require().ErrorIs(edit(map[string]any{clientPhoneNumberKey: "+256700000222"}), ErrClientContactsOnProfile)
+	s.Require().ErrorIs(edit(map[string]any{caseActionKey: approvalCaseActionApprove}), ErrClientContactsOnProfile)
 
-	verified, err := env.clientBusiness.Save(env.asProfile("profile-verifier"), &fieldv1.ClientObject{
-		Id:           client.GetID(),
-		AgentId:      agent.GetID(),
-		OwningTeamId: client.OwningTeamID,
-		Name:         client.Name,
-		Properties: propertiesStruct(map[string]any{
-			caseActionKey:  approvalCaseActionVerify,
-			caseCommentKey: "identity cross-check complete",
-		}),
-	})
+	s.Require().NoError(edit(map[string]any{"occupation": "trader"}))
+	stored, err := env.clientRepo.GetByID(env.ctx, client.GetID())
 	s.Require().NoError(err)
-	s.Require().NotNil(verified)
-
-	verifiedClient, err := env.clientRepo.GetByID(env.ctx, client.GetID())
-	s.Require().NoError(err)
-	s.Equal(approvalCaseStatusPendingApproval, verifiedClient.Properties.GetString(approvalCaseStatusKey))
-	s.Equal("+256700000111", verifiedClient.Properties.GetString(clientPhoneNumberKey))
-	s.Equal("+256700000222", verifiedClient.Properties.GetString(clientPendingPhoneNumberKey))
-
-	approved, err := env.clientBusiness.Save(env.asProfile("profile-approver"), &fieldv1.ClientObject{
-		Id:           client.GetID(),
-		AgentId:      agent.GetID(),
-		OwningTeamId: client.OwningTeamID,
-		Name:         client.Name,
-		Properties: propertiesStruct(map[string]any{
-			caseActionKey:  approvalCaseActionApprove,
-			caseCommentKey: "approved after review",
-		}),
-	})
-	s.Require().NoError(err)
-	s.Require().NotNil(approved)
-
-	approvedClient, err := env.clientRepo.GetByID(env.ctx, client.GetID())
-	s.Require().NoError(err)
-	s.Equal("+256700000222", approvedClient.Properties.GetString(clientPhoneNumberKey))
-	s.Empty(approvedClient.Properties.GetString(clientPendingPhoneNumberKey))
-	s.Equal(approvalCaseStatusApproved, approvedClient.Properties.GetString(approvalCaseStatusKey))
-
-	approvalCase, err := env.approvalCaseRepo.GetByID(
-		env.ctx,
-		approvedClient.Properties.GetString(approvalCaseIDKey),
-	)
-	s.Require().NoError(err)
-	s.Equal(approvalCaseStatusApproved, approvalCase.Status)
-	s.Equal("profile-approver", approvalCase.ApprovedBy)
+	s.Empty(stored.Properties.GetString(clientPhoneNumberKey), "the legacy stored phone is dropped")
+	s.Equal("trader", stored.Properties.GetString("occupation"))
 }
 
 func (s *approvalWorkflowSuite) TestClientGetByIDCrossTenantReturnsNotFound() {

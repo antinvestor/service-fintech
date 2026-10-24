@@ -353,12 +353,10 @@ func (m *Client) ToAPI() *fieldv1.ClientObject {
 	for k, v := range m.Properties {
 		props[k] = v
 	}
-	if phone, ok := props["phone"].(string); ok && phone != "" {
-		if _, hasCanonical := props["phone_number"]; !hasCanonical {
-			props["phone_number"] = phone
-		}
-		delete(props, "phone")
-	}
+	// Contacts belong to the profile, never to the client row.
+	delete(props, "phone")
+	delete(props, "phone_number")
+	delete(props, "pending_phone_number")
 	// Ensure credit limits are visible in properties for downstream consumers
 	props["system_credit_limit"] = float64(m.SystemCreditLimit)
 	props["agent_credit_limit"] = float64(m.AgentCreditLimit)
@@ -390,12 +388,6 @@ func ClientFromAPI(ctx context.Context, obj *fieldv1.ClientObject) *Client {
 
 	if obj.GetProperties() != nil {
 		model.Properties = (&data.JSONMap{}).FromProtoStruct(obj.GetProperties())
-	}
-	if phone, ok := model.Properties["phone"].(string); ok && phone != "" {
-		if _, hasCanonical := model.Properties["phone_number"]; !hasCanonical {
-			model.Properties["phone_number"] = phone
-		}
-		delete(model.Properties, "phone")
 	}
 
 	model.GenID(ctx)

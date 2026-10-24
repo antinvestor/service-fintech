@@ -24,6 +24,10 @@ var (
 	ErrClientNotFound       = apperrors.NewError(apperrors.NotFound, "client not found")
 	ErrClientPhoneIsStaff   = apperrors.NewError(
 		apperrors.BadRequest, "the phone number belongs to a member of staff and cannot be registered as a client")
+	ErrClientContactsOnProfile = apperrors.NewError(
+		apperrors.BadRequest,
+		"a client's contacts are managed, verified and approved on their profile",
+	)
 	ErrCallerNotWorkforceMember = apperrors.NewError(
 		apperrors.Forbidden,
 		"the caller is not a registered workforce member",

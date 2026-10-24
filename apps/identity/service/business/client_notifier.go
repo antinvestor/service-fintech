@@ -173,9 +173,9 @@ func (n *ClientNotifier) clientVars(client *models.Client) map[string]any {
 	}
 }
 
-// send addresses the client's profile when it has one, else the phone
-// number captured at onboarding (a contact detail the notification service
-// resolves). A client with neither is logged and counted as dropped.
+// send addresses the client's profile; contacts are resolved by the
+// profile and notification services. A client without a profile is logged
+// and counted as dropped.
 func (n *ClientNotifier) send(
 	ctx context.Context,
 	client *models.Client,
@@ -184,9 +184,6 @@ func (n *ClientNotifier) send(
 	priority notificationv1.PRIORITY,
 ) {
 	recipient := notify.ToProfile(client.ProfileID)
-	if recipient == nil {
-		recipient = notify.ToContact(clientPhoneNumber(client.Properties))
-	}
 	n.notifier.SendOrLog(ctx, notify.Message{
 		Template:  template,
 		Kind:      notificationKindClient,
