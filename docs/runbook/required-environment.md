@@ -26,6 +26,12 @@ and the service starts, which is the local-development mode. The rules are:
 | `OAUTH_REDIRECT_URIS` | identity only: must be set when running securely (no default; a blank value would let every organization's login client inherit nothing, an unset one used to inherit `localhost`) |
 | `FIELD_SERVICE_URI` | loans only: endpoint that serves `field.v1` (the identity binary); required at boot so client callers can be resolved for per-client read scoping |
 | `LOANS_STAFF_ROLES` | loans only: comma-separated roles treated as staff for partition-wide loan reads (default `admin,operator,viewer`); every other role is scoped to its own client |
+| `PROFILE_SERVICE_URI` | loans and seed: required at boot; loans verifies a disbursement destination against the borrower's profile contacts and seed resolves the borrower's payout phone from them |
+| `PAYMENT_SERVICE_URI` | operations: required at boot; a payout order must never post to the ledger with no rail to send the cash through |
+| `LENDER_DISPLAY_NAME` | loans and identity: the trading name that opens every borrower message (default `Your lender`) |
+| `SEED_KYC_REQUIRED_FIELDS` | seed: required when running securely; names the KYC fields a borrower must have verified (without it any single verified entry passed) |
+| `STAWI_LOAN_PRODUCT_ID` | stawi: the loans product group loans are written on (default `stawi`) |
+| `DELINQUENCY_SCAN_INTERVAL`, `DUE_REMINDER_INTERVAL`, `DUE_REMINDER_DAYS` | loans: cadence of the arrears scan (default `1h`) and the reminder job (default `6h`), and how many days before a due date the reminder goes out (default `2`) |
 
 The check applies to the serving process and to the migrate/setup Job, which
 run from the same image and environment.
@@ -125,3 +131,27 @@ has already passed these checks; a crash-looping pod logs the violation list.
 The Seed console has no defaults in release builds. See `ui/seed/README.md`;
 `make ui-build-prod` requires `OIDC_CLIENT_ID_PROD`, `OIDC_ISSUER_PROD` and
 `API_BASE_URL_PROD` and fails rather than shipping development credentials.
+
+## Notification templates are registered by the setup Job
+
+The loans and identity setup Jobs register every message in `pkg/messages`
+with the notification service (`notification-templates` setup step, warn-only
+so a notification outage cannot block a migration). `NOTIFICATION_SERVICE_URI`
+must therefore be reachable from the setup Job as well as the serving process.
+A message whose template is missing is counted in
+`notifications_dropped_total{template=...}`; a non-zero rate after a deploy
+means the setup Job did not run against the notification service.
+
+## Background jobs hold a database advisory lock
+
+The loans arrears scan and reminder job run on every replica but serialise on
+`pg_advisory_lock` keys `loans:delinquency-scan` and `loans:due-reminders`
+(via `pkg/dbmigrate.Locked`), so a scan is never duplicated across replicas.
+Each penalty and each reminder is additionally claimed on its installment.
+
+## Migrations that refuse pre-existing duplicates
+
+loans `0003` (one live disbursement per loan), loans `0004` (one penalty per
+installment and type) and identity `004` (one client per borrower profile per
+partition) create partial unique indexes. They fail on duplicate rows by
+design: clean the data in a staging copy first, as for the September indexes.
