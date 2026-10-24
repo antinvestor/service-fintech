@@ -18,17 +18,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
@@ -53,9 +53,7 @@ func NewIdentityKYCVerifier(
 }
 
 func (v *identityKYCVerifier) VerifyClient(ctx context.Context, clientID string) (KYCStatus, error) {
-	stream, err := v.identityCli.ClientDataList(ctx, connect.NewRequest(
-		&identityv1.ClientDataListRequest{ClientId: clientID},
-	))
+	stream, err := v.identityCli.ClientDataList(ctx, &identityv1.ClientDataListRequest{ClientId: clientID})
 	if err != nil {
 		return KYCStatusUnknown, fmt.Errorf("list client data: %w", err)
 	}
@@ -63,8 +61,15 @@ func (v *identityKYCVerifier) VerifyClient(ctx context.Context, clientID string)
 	verified := map[string]bool{}
 	rejected := false
 	anyEntry := false
-	for stream.Receive() {
-		for _, entry := range stream.Msg().GetData() {
+	for {
+		msg, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return KYCStatusUnknown, fmt.Errorf("list client data: %w", streamErr)
+		}
+		for _, entry := range msg.GetData() {
 			anyEntry = true
 			switch entry.GetVerificationStatus() {
 			case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED:
@@ -78,9 +83,6 @@ func (v *identityKYCVerifier) VerifyClient(ctx context.Context, clientID string)
 				identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED:
 			}
 		}
-	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return KYCStatusUnknown, fmt.Errorf("list client data: %w", streamErr)
 	}
 
 	if len(v.requiredFields) == 0 {
@@ -136,7 +138,7 @@ func (c *loansLoanCreator) CreateApplication(
 	if propErr != nil {
 		return "", fmt.Errorf("loan request properties: %w", propErr)
 	}
-	resp, err := c.loansCli.LoanRequestSave(ctx, connect.NewRequest(&loansv1.LoanRequestSaveRequest{
+	resp, err := c.loansCli.LoanRequestSave(ctx, &loansv1.LoanRequestSaveRequest{
 		Data: &loansv1.LoanRequestObject{
 			Properties:        props,
 			ProductId:         req.ProductID,
@@ -152,18 +154,19 @@ func (c *loansLoanCreator) CreateApplication(
 			SourceRequestId:   strings.TrimPrefix(req.IdempotencyKey, "seed:"),
 			IdempotencyKey:    req.IdempotencyKey,
 		},
-	}))
+	})
 	if err != nil {
 		return "", fmt.Errorf("loan request save: %w", err)
 	}
-	if resp.Msg.GetData() == nil {
+	if resp.GetData() == nil {
 		return "", errors.New("loans service returned no loan request")
 	}
 
-	requestID := resp.Msg.GetData().GetId()
-	if _, approveErr := c.loansCli.LoanRequestApprove(ctx, connect.NewRequest(
+	requestID := resp.GetData().GetId()
+	if _, approveErr := c.loansCli.LoanRequestApprove(
+		ctx,
 		&loansv1.LoanRequestApproveRequest{Id: requestID},
-	)); approveErr != nil {
+	); approveErr != nil {
 		return "", fmt.Errorf("loan request approve: %w", approveErr)
 	}
 	return requestID, nil
@@ -173,16 +176,14 @@ func (c *loansLoanCreator) CreateLoanAccount(
 	ctx context.Context,
 	applicationID string,
 ) (string, error) {
-	resp, err := c.loansCli.LoanAccountCreate(ctx, connect.NewRequest(
-		&loansv1.LoanAccountCreateRequest{LoanRequestId: applicationID},
-	))
+	resp, err := c.loansCli.LoanAccountCreate(ctx, &loansv1.LoanAccountCreateRequest{LoanRequestId: applicationID})
 	if err != nil {
 		return "", fmt.Errorf("loan account create: %w", err)
 	}
-	if resp.Msg.GetData() == nil {
+	if resp.GetData() == nil {
 		return "", errors.New("loans service returned no loan account")
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (c *loansLoanCreator) Disburse(
@@ -193,19 +194,17 @@ func (c *loansLoanCreator) Disburse(
 	if idempotencyKey == "" {
 		return "", apperrors.NewError(apperrors.BadRequest, "an idempotency key is required to disburse")
 	}
-	resp, err := c.loansCli.DisbursementCreate(ctx, connect.NewRequest(
-		&loansv1.DisbursementCreateRequest{
-			LoanAccountId:  loanAccountID,
-			IdempotencyKey: idempotencyKey,
-		},
-	))
+	resp, err := c.loansCli.DisbursementCreate(ctx, &loansv1.DisbursementCreateRequest{
+		LoanAccountId:  loanAccountID,
+		IdempotencyKey: idempotencyKey,
+	})
 	if err != nil {
 		return "", fmt.Errorf("disbursement create: %w", err)
 	}
-	if resp.Msg.GetData() == nil {
+	if resp.GetData() == nil {
 		return "", errors.New("loans service returned no disbursement")
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (c *loansLoanCreator) FindDisbursement(
@@ -216,24 +215,27 @@ func (c *loansLoanCreator) FindDisbursement(
 	if loanAccountID == "" || idempotencyKey == "" {
 		return "", false, nil
 	}
-	stream, err := c.loansCli.DisbursementSearch(ctx, connect.NewRequest(
-		&loansv1.DisbursementSearchRequest{LoanAccountId: loanAccountID},
-	))
+	stream, err := c.loansCli.DisbursementSearch(ctx, &loansv1.DisbursementSearchRequest{LoanAccountId: loanAccountID})
 	if err != nil {
 		return "", false, fmt.Errorf("disbursement search: %w", err)
 	}
 	defer func() { _ = stream.Close() }()
 
-	for stream.Receive() {
-		for _, disb := range stream.Msg().GetData() {
+	for {
+		msg, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return "", false, fmt.Errorf("disbursement search: %w", streamErr)
+		}
+		for _, disb := range msg.GetData() {
 			if disb.GetIdempotencyKey() == idempotencyKey {
 				return disb.GetId(), true, nil
 			}
 		}
 	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return "", false, fmt.Errorf("disbursement search: %w", streamErr)
-	}
+
 	return "", false, nil
 }
 
@@ -259,23 +261,26 @@ func (r *identityClientResolver) ResolveByProfileID(ctx context.Context, profile
 		return "", ErrNoClientForProfile
 	}
 
-	stream, err := r.fieldCli.ClientSearch(ctx, connect.NewRequest(
-		&fieldv1.ClientSearchRequest{Query: profileID},
-	))
+	stream, err := r.fieldCli.ClientSearch(ctx, &fieldv1.ClientSearchRequest{Query: profileID})
 	if err != nil {
 		return "", fmt.Errorf("client search: %w", err)
 	}
 	defer func() { _ = stream.Close() }()
 
-	for stream.Receive() {
-		for _, client := range stream.Msg().GetData() {
+	for {
+		msg, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return "", fmt.Errorf("client search: %w", streamErr)
+		}
+		for _, client := range msg.GetData() {
 			if client.GetProfileId() == profileID {
 				return client.GetId(), nil
 			}
 		}
 	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return "", fmt.Errorf("client search: %w", streamErr)
-	}
+
 	return "", ErrNoClientForProfile
 }

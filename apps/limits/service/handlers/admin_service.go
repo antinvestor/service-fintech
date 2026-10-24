@@ -21,9 +21,9 @@ import (
 	"context"
 	"errors"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/business"
 )
@@ -53,34 +53,34 @@ func NewAdminService(
 // PolicySave creates or updates a policy.
 func (s *AdminService) PolicySave(
 	ctx context.Context,
-	req *connect.Request[limitsv1.PolicySaveRequest],
-) (*connect.Response[limitsv1.PolicySaveResponse], error) {
-	out, err := s.policy.Save(ctx, req.Msg.GetData())
+	req *limitsv1.PolicySaveRequest,
+) (*limitsv1.PolicySaveResponse, error) {
+	out, err := s.policy.Save(ctx, req.GetData())
 	if err != nil {
 		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(&limitsv1.PolicySaveResponse{Data: out}), nil
+	return &limitsv1.PolicySaveResponse{Data: out}, nil
 }
 
 // PolicyGet returns a single policy.
 func (s *AdminService) PolicyGet(
 	ctx context.Context,
-	req *connect.Request[limitsv1.PolicyGetRequest],
-) (*connect.Response[limitsv1.PolicyGetResponse], error) {
-	out, err := s.policy.Get(ctx, req.Msg.GetId())
+	req *limitsv1.PolicyGetRequest,
+) (*limitsv1.PolicyGetResponse, error) {
+	out, err := s.policy.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(&limitsv1.PolicyGetResponse{Data: out}), nil
+	return &limitsv1.PolicyGetResponse{Data: out}, nil
 }
 
 // PolicySearch streams matching policies in batches.
 func (s *AdminService) PolicySearch(
 	ctx context.Context,
-	req *connect.Request[limitsv1.PolicySearchRequest],
-	stream *connect.ServerStream[limitsv1.PolicySearchResponse],
+	req *limitsv1.PolicySearchRequest,
+	stream limitsv1connect.LimitsAdminServicePolicySearchServerStream,
 ) error {
-	return s.policy.Search(ctx, req.Msg, func(_ context.Context, items []*limitsv1.PolicyObject) error {
+	return s.policy.Search(ctx, req, func(_ context.Context, items []*limitsv1.PolicyObject) error {
 		return stream.Send(&limitsv1.PolicySearchResponse{Data: items})
 	})
 }
@@ -88,21 +88,21 @@ func (s *AdminService) PolicySearch(
 // PolicyDelete soft-deletes a policy.
 func (s *AdminService) PolicyDelete(
 	ctx context.Context,
-	req *connect.Request[limitsv1.PolicyDeleteRequest],
-) (*connect.Response[limitsv1.PolicyDeleteResponse], error) {
-	if err := s.policy.Delete(ctx, req.Msg.GetId()); err != nil {
+	req *limitsv1.PolicyDeleteRequest,
+) (*limitsv1.PolicyDeleteResponse, error) {
+	if err := s.policy.Delete(ctx, req.GetId()); err != nil {
 		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(&limitsv1.PolicyDeleteResponse{}), nil
+	return &limitsv1.PolicyDeleteResponse{}, nil
 }
 
 // ApprovalRequestList streams approval requests filtered by tenant/status/role.
 func (s *AdminService) ApprovalRequestList(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ApprovalRequestListRequest],
-	stream *connect.ServerStream[limitsv1.ApprovalRequestListResponse],
+	req *limitsv1.ApprovalRequestListRequest,
+	stream limitsv1connect.LimitsAdminServiceApprovalRequestListServerStream,
 ) error {
-	return s.approval.List(ctx, req.Msg, func(_ context.Context, items []*limitsv1.ApprovalRequestObject) error {
+	return s.approval.List(ctx, req, func(_ context.Context, items []*limitsv1.ApprovalRequestObject) error {
 		return stream.Send(&limitsv1.ApprovalRequestListResponse{Data: items})
 	})
 }
@@ -110,34 +110,34 @@ func (s *AdminService) ApprovalRequestList(
 // ApprovalRequestGet returns a single approval request with its decisions.
 func (s *AdminService) ApprovalRequestGet(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ApprovalRequestGetRequest],
-) (*connect.Response[limitsv1.ApprovalRequestGetResponse], error) {
-	out, err := s.approval.Get(ctx, req.Msg.GetId())
+	req *limitsv1.ApprovalRequestGetRequest,
+) (*limitsv1.ApprovalRequestGetResponse, error) {
+	out, err := s.approval.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(&limitsv1.ApprovalRequestGetResponse{Data: out}), nil
+	return &limitsv1.ApprovalRequestGetResponse{Data: out}, nil
 }
 
 // ApprovalRequestDecide records an approver decision and transitions the workflow.
 func (s *AdminService) ApprovalRequestDecide(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ApprovalRequestDecideRequest],
-) (*connect.Response[limitsv1.ApprovalRequestDecideResponse], error) {
-	out, err := s.approval.Decide(ctx, req.Msg)
+	req *limitsv1.ApprovalRequestDecideRequest,
+) (*limitsv1.ApprovalRequestDecideResponse, error) {
+	out, err := s.approval.Decide(ctx, req)
 	if err != nil {
 		return nil, mapBusinessErr(err)
 	}
-	return connect.NewResponse(&limitsv1.ApprovalRequestDecideResponse{Data: out}), nil
+	return &limitsv1.ApprovalRequestDecideResponse{Data: out}, nil
 }
 
 // LedgerSearch streams committed ledger entries matching the filter.
 func (s *AdminService) LedgerSearch(
 	ctx context.Context,
-	req *connect.Request[limitsv1.LedgerSearchRequest],
-	stream *connect.ServerStream[limitsv1.LedgerSearchResponse],
+	req *limitsv1.LedgerSearchRequest,
+	stream limitsv1connect.LimitsAdminServiceLedgerSearchServerStream,
 ) error {
-	return s.ledger.Search(ctx, req.Msg, func(_ context.Context, items []*limitsv1.LedgerEntryObject) error {
+	return s.ledger.Search(ctx, req, func(_ context.Context, items []*limitsv1.LedgerEntryObject) error {
 		return stream.Send(&limitsv1.LedgerSearchResponse{Data: items})
 	})
 }
@@ -146,13 +146,13 @@ func (s *AdminService) LedgerSearch(
 // Returns Unimplemented if the audit dep has not been wired yet.
 func (s *AdminService) LimitsAuditSearch(
 	ctx context.Context,
-	req *connect.Request[limitsv1.LimitsAuditSearchRequest],
-	stream *connect.ServerStream[limitsv1.LimitsAuditSearchResponse],
+	req *limitsv1.LimitsAuditSearchRequest,
+	stream limitsv1connect.LimitsAdminServiceLimitsAuditSearchServerStream,
 ) error {
 	if s.audit == nil {
-		return connect.NewError(connect.CodeUnimplemented, errors.New("audit search not wired"))
+		return connect.NewError(connect.CodeUnimplemented, "audit search not wired")
 	}
-	return s.audit.Search(ctx, req.Msg, func(_ context.Context, items []*limitsv1.LimitsAuditEventObject) error {
+	return s.audit.Search(ctx, req, func(_ context.Context, items []*limitsv1.LimitsAuditEventObject) error {
 		return stream.Send(&limitsv1.LimitsAuditSearchResponse{Data: items})
 	})
 }
@@ -162,20 +162,24 @@ func (s *AdminService) LimitsAuditSearch(
 func mapBusinessErr(err error) error {
 	var connectErr *connect.Error
 	if errors.As(err, &connectErr) {
+		if connectErr.IsRemote() {
+			// A peer's verdict is not forwarded by connect v2; re-author it.
+			return connect.NewError(connectErr.Code(), connectErr.Message()).WithCause(err)
+		}
 		return err
 	}
 	switch {
 	case errors.Is(err, business.ErrPolicyNotFound):
-		return connect.NewError(connect.CodeNotFound, err)
+		return connect.NewError(connect.CodeNotFound, err.Error()).WithCause(err)
 	case errors.Is(err, business.ErrInvalidPolicy),
 		errors.Is(err, business.ErrCurrencyMismatch),
 		errors.Is(err, business.ErrApproverTiersInvalid):
-		return connect.NewError(connect.CodeInvalidArgument, err)
+		return connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	case errors.Is(err, business.ErrPolicyVersionConflict):
-		return connect.NewError(connect.CodeAborted, err)
+		return connect.NewError(connect.CodeAborted, err.Error()).WithCause(err)
 	case errors.Is(err, business.ErrPolicyScopeForbidden):
-		return connect.NewError(connect.CodePermissionDenied, err)
+		return connect.NewError(connect.CodePermissionDenied, err.Error()).WithCause(err)
 	default:
-		return connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}
 }

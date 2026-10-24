@@ -25,18 +25,18 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/queue"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/queue"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -299,32 +299,32 @@ type stubOperationsClient struct {
 
 func (s *stubOperationsClient) TransferOrderExecute(
 	_ context.Context,
-	_ *connect.Request[operationsv1.TransferOrderExecuteRequest],
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
+	_ *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
 	if s.transferErr != nil {
 		return nil, s.transferErr
 	}
-	return connect.NewResponse(s.transferResp), nil
+	return s.transferResp, nil
 }
 
 func (s *stubOperationsClient) TransferOrderSearch(
 	_ context.Context,
-	_ *connect.Request[operationsv1.TransferOrderSearchRequest],
-) (*connect.ServerStreamForClient[operationsv1.TransferOrderSearchResponse], error) {
+	_ *operationsv1.TransferOrderSearchRequest,
+) (operationsv1connect.OperationsServiceTransferOrderSearchClientStream, error) {
 	panic("stub: TransferOrderSearch not expected")
 }
 
 func (s *stubOperationsClient) IncomingPaymentNotify(
 	_ context.Context,
-	_ *connect.Request[operationsv1.IncomingPaymentNotifyRequest],
-) (*connect.Response[operationsv1.IncomingPaymentNotifyResponse], error) {
+	_ *operationsv1.IncomingPaymentNotifyRequest,
+) (*operationsv1.IncomingPaymentNotifyResponse, error) {
 	panic("stub: IncomingPaymentNotify not expected")
 }
 
 func (s *stubOperationsClient) PaymentAllocate(
 	_ context.Context,
-	_ *connect.Request[operationsv1.PaymentAllocateRequest],
-) (*connect.Response[operationsv1.PaymentAllocateResponse], error) {
+	_ *operationsv1.PaymentAllocateRequest,
+) (*operationsv1.PaymentAllocateResponse, error) {
 	panic("stub: PaymentAllocate not expected")
 }
 
@@ -346,26 +346,26 @@ type stubLimitsClient struct {
 
 func (s *stubLimitsClient) Check(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CheckRequest],
-) (*connect.Response[limitsv1.CheckResponse], error) {
-	return connect.NewResponse(&limitsv1.CheckResponse{}), nil
+	_ *limitsv1.CheckRequest,
+) (*limitsv1.CheckResponse, error) {
+	return &limitsv1.CheckResponse{}, nil
 }
 
 func (s *stubLimitsClient) Reserve(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
+	_ *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
 	s.reserveCalls++
 	if s.reserveErr != nil {
 		return nil, s.reserveErr
 	}
-	return connect.NewResponse(s.reserveResp), nil
+	return s.reserveResp, nil
 }
 
 func (s *stubLimitsClient) Commit(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
+	_ *limitsv1.CommitRequest,
+) (*limitsv1.CommitResponse, error) {
 	s.commitCalls++
 	if s.commitErr != nil {
 		return nil, s.commitErr
@@ -374,13 +374,13 @@ func (s *stubLimitsClient) Commit(
 	if resp == nil {
 		resp = &limitsv1.CommitResponse{}
 	}
-	return connect.NewResponse(resp), nil
+	return resp, nil
 }
 
 func (s *stubLimitsClient) Release(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReleaseRequest],
-) (*connect.Response[limitsv1.ReleaseResponse], error) {
+	_ *limitsv1.ReleaseRequest,
+) (*limitsv1.ReleaseResponse, error) {
 	s.releaseCalls++
 	if s.releaseErr != nil {
 		return nil, s.releaseErr
@@ -389,14 +389,14 @@ func (s *stubLimitsClient) Release(
 	if resp == nil {
 		resp = &limitsv1.ReleaseResponse{}
 	}
-	return connect.NewResponse(resp), nil
+	return resp, nil
 }
 
 func (s *stubLimitsClient) Reverse(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReverseRequest],
-) (*connect.Response[limitsv1.ReverseResponse], error) {
-	return connect.NewResponse(&limitsv1.ReverseResponse{}), nil
+	_ *limitsv1.ReverseRequest,
+) (*limitsv1.ReverseResponse, error) {
+	return &limitsv1.ReverseResponse{}, nil
 }
 
 // Compile-time check.
@@ -539,7 +539,7 @@ func TestCreate_GateDenied(t *testing.T) {
 	opsCli := &stubOperationsClient{} // Should not be called.
 
 	limitsCli := &stubLimitsClient{
-		reserveErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("limit breached")),
+		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "limit breached"),
 	}
 
 	b := buildDisbBusiness(disbRepo, laRepo, opsCli, limitsCli, true)
@@ -630,7 +630,7 @@ func TestCreate_TransientFailureKeepsProcessingAndSameKeyResumes(t *testing.T) {
 	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
 	laRepo := &stubLoanAccountRepo{account: la}
 	opsCli := &stubOperationsClient{
-		transferErr: connect.NewError(connect.CodeUnavailable, errors.New("ledger down")),
+		transferErr: connect.NewError(connect.CodeUnavailable, "ledger down"),
 	}
 	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
 
@@ -664,7 +664,7 @@ func TestCreate_PermanentRejectionMarksFailed(t *testing.T) {
 	disbRepo := &stubDisbursementRepo{findErr: errors.New("not found")}
 	laRepo := &stubLoanAccountRepo{account: la}
 	opsCli := &stubOperationsClient{
-		transferErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("order marked failed")),
+		transferErr: connect.NewError(connect.CodeFailedPrecondition, "order marked failed"),
 	}
 	b := buildDisbBusiness(disbRepo, laRepo, opsCli, nil, false)
 

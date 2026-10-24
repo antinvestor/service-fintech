@@ -21,9 +21,8 @@ import (
 	"testing"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,34 +39,34 @@ type recordingOperationsClient struct {
 
 func (c *recordingOperationsClient) TransferOrderExecute(
 	_ context.Context,
-	req *connect.Request[operationsv1.TransferOrderExecuteRequest],
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
+	req *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.orders = append(c.orders, req.Msg.GetData())
-	return connect.NewResponse(&operationsv1.TransferOrderExecuteResponse{
+	c.orders = append(c.orders, req.GetData())
+	return &operationsv1.TransferOrderExecuteResponse{
 		Data: &operationsv1.TransferOrderObject{Id: "txn-rep"},
-	}), nil
+	}, nil
 }
 
 func (c *recordingOperationsClient) TransferOrderSearch(
 	_ context.Context,
-	_ *connect.Request[operationsv1.TransferOrderSearchRequest],
-) (*connect.ServerStreamForClient[operationsv1.TransferOrderSearchResponse], error) {
+	_ *operationsv1.TransferOrderSearchRequest,
+) (operationsv1connect.OperationsServiceTransferOrderSearchClientStream, error) {
 	panic("stub: TransferOrderSearch not expected")
 }
 
 func (c *recordingOperationsClient) IncomingPaymentNotify(
 	_ context.Context,
-	_ *connect.Request[operationsv1.IncomingPaymentNotifyRequest],
-) (*connect.Response[operationsv1.IncomingPaymentNotifyResponse], error) {
+	_ *operationsv1.IncomingPaymentNotifyRequest,
+) (*operationsv1.IncomingPaymentNotifyResponse, error) {
 	panic("stub: IncomingPaymentNotify not expected")
 }
 
 func (c *recordingOperationsClient) PaymentAllocate(
 	_ context.Context,
-	_ *connect.Request[operationsv1.PaymentAllocateRequest],
-) (*connect.Response[operationsv1.PaymentAllocateResponse], error) {
+	_ *operationsv1.PaymentAllocateRequest,
+) (*operationsv1.PaymentAllocateResponse, error) {
 	panic("stub: PaymentAllocate not expected")
 }
 

@@ -27,8 +27,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/util"
 )
 

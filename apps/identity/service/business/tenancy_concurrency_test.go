@@ -20,7 +20,7 @@ import (
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v3/security"
 )
 
 // asPartition returns a context whose claims name otherPartition as the acting

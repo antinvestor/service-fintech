@@ -20,12 +20,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
-	"connectrpc.com/connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"connectrpc.com/connect/v2"
 	"github.com/antinvestor/common/audit"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/servicecatalog"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/servicecatalog"
 	"github.com/pitabwire/util"
 )
 
@@ -75,7 +75,7 @@ func ResolveAuditClient(
 
 // AuditInterceptor returns the RPC-level audit interceptor for serviceName
 // backed by the resolved client (nil disables delivery).
-func AuditInterceptor(serviceName string, cli auditv1connect.AuditServiceClient) connect.Interceptor {
+func AuditInterceptor(serviceName string, cli auditv1connect.AuditServiceClient) connect.ServerInterceptor {
 	return audit.NewInterceptor(serviceName, cli)
 }
 

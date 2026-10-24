@@ -42,7 +42,7 @@ package audit
 import (
 	"time"
 
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // Event is the append-only record written for every significant state

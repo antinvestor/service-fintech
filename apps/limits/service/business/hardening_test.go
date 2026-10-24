@@ -19,7 +19,7 @@ import (
 	"time"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"

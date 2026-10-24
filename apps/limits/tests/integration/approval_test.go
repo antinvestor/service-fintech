@@ -19,21 +19,24 @@ package integration
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -58,26 +61,21 @@ type headerProfileInterceptor struct {
 	roles []string
 }
 
-func (h *headerProfileInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
-	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		return next(h.injectClaims(ctx, req.Header()), req)
+// server returns the identity switch as a connect server interceptor,
+// reading the test header from the server call info.
+func (h *headerProfileInterceptor) server() connect.ServerInterceptor {
+	return func(next connect.ServerFunc) connect.ServerFunc {
+		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {
+			profile := ""
+			if info, ok := connect.CallInfoForServerContext(ctx); ok {
+				profile = info.RequestHeader().Get("X-Test-As-Profile")
+			}
+			return next(h.injectClaims(ctx, profile), spec, stream)
+		}
 	}
 }
 
-func (h *headerProfileInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
-	return next
-}
-
-func (h *headerProfileInterceptor) WrapStreamingHandler(
-	next connect.StreamingHandlerFunc,
-) connect.StreamingHandlerFunc {
-	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		return next(h.injectClaims(ctx, conn.RequestHeader()), conn)
-	}
-}
-
-func (h *headerProfileInterceptor) injectClaims(ctx context.Context, header http.Header) context.Context {
-	profileID := header.Get("X-Test-As-Profile")
+func (h *headerProfileInterceptor) injectClaims(ctx context.Context, profileID string) context.Context {
 	if profileID == "" {
 		profileID = h.defaultProfile
 	}
@@ -183,29 +181,29 @@ func (s *ApprovalIntegrationSuite) SetupTest() {
 		defaultProfile: "wf-maker",
 		roles:          []string{"branch_manager"},
 	}
-	interceptorOpt := connect.WithInterceptors(headerInterceptor)
-
-	runtimePath, runtimeHandler := limitsv1connect.NewLimitsServiceHandler(runtimeH, interceptorOpt)
-	adminPath, adminHandler := limitsv1connect.NewLimitsAdminServiceHandler(adminH, interceptorOpt)
+	server := connect.NewServer(headerInterceptor.server())
+	limitsv1connect.RegisterLimitsServiceHandler(server, runtimeH)
+	limitsv1connect.RegisterLimitsAdminServiceHandler(server, adminH)
 
 	mux := http.NewServeMux()
-	mux.Handle(runtimePath, runtimeHandler)
-	mux.Handle(adminPath, adminHandler)
+	connecthttp.Mount(mux, server)
 
 	srv := httptest.NewServer(mux)
 	s.T().Cleanup(srv.Close)
 
-	s.makerClient = limitsv1connect.NewLimitsServiceClient(srv.Client(), srv.URL)
+	s.makerClient = limitsv1connect.NewLimitsServiceClient(
+		connect.NewClient(connecthttp.NewTransport(srv.Client(), srv.URL)),
+	)
 
 	// approverAdminClient sends "x-test-as-profile: wf-approver" on each request.
-	s.approverAdminClient = limitsv1connect.NewLimitsAdminServiceClient(
+	s.approverAdminClient = limitsv1connect.NewLimitsAdminServiceClient(connect.NewClient(connecthttp.NewTransport(
 		srv.Client(),
 		srv.URL,
-		connect.WithInterceptors(&headerInjectorInterceptor{
-			key:   "x-test-as-profile",
-			value: "wf-approver",
-		}),
-	)
+	), (&headerInjectorInterceptor{
+		key:   "x-test-as-profile",
+		value: "wf-approver",
+	}).client(),
+	))
 }
 
 func (s *ApprovalIntegrationSuite) databaseResource(ctx context.Context) definition.DependancyConn {
@@ -226,25 +224,16 @@ type headerInjectorInterceptor struct {
 	value string
 }
 
-func (h *headerInjectorInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
-	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		req.Header().Set(h.key, h.value)
-		return next(ctx, req)
+// client returns the header injection as a connect client interceptor.
+func (h *headerInjectorInterceptor) client() connect.ClientInterceptor {
+	return func(next connect.ClientFunc) connect.ClientFunc {
+		return func(ctx context.Context, spec connect.Spec) (connect.ClientStream, error) {
+			if info, ok := connect.CallInfoForClientContext(ctx); ok {
+				info.RequestHeader().Set(h.key, h.value)
+			}
+			return next(ctx, spec)
+		}
 	}
-}
-
-func (h *headerInjectorInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
-	return func(ctx context.Context, spec connect.Spec) connect.StreamingClientConn {
-		conn := next(ctx, spec)
-		conn.RequestHeader().Set(h.key, h.value)
-		return conn
-	}
-}
-
-func (h *headerInjectorInterceptor) WrapStreamingHandler(
-	next connect.StreamingHandlerFunc,
-) connect.StreamingHandlerFunc {
-	return next
 }
 
 // seedApprovalPolicy persists a policy with cap=100 KES (10,000 minor units) and
@@ -303,35 +292,44 @@ func (s *ApprovalIntegrationSuite) TestApprovalIntegration_FullRoundTrip() {
 	}
 
 	// Step 1: maker calls Reserve → should be PENDING_APPROVAL.
-	reserveResp, err := s.makerClient.Reserve(s.ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := s.makerClient.Reserve(s.ctx, &limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: "appr-round-trip-k1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(reserveResp.Msg.GetReservation())
+	s.Require().NotNil(reserveResp.GetReservation())
 	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_PENDING_APPROVAL,
-		reserveResp.Msg.GetReservation().GetStatus(),
+		reserveResp.GetReservation().GetStatus(),
 		"reservation should be PENDING_APPROVAL when approval tiers require it")
-	s.True(reserveResp.Msg.GetCheck().GetRequiresApproval())
+	s.True(reserveResp.GetCheck().GetRequiresApproval())
 
-	reservationID := reserveResp.Msg.GetReservation().GetId()
+	reservationID := reserveResp.GetReservation().GetId()
 	s.NotEmpty(reservationID)
 
 	// Step 2: approver lists approval requests → expect 1 PENDING row.
 	var approvalID string
 	listStream, err := s.approverAdminClient.ApprovalRequestList(
 		s.ctx,
-		connect.NewRequest(&limitsv1.ApprovalRequestListRequest{
+		&limitsv1.ApprovalRequestListRequest{
 			Status: limitsv1.ApprovalStatus_APPROVAL_STATUS_PENDING,
-		}),
+		},
 	)
 	s.Require().NoError(err)
 	var approvalItems []*limitsv1.ApprovalRequestObject
-	for listStream.Receive() {
-		approvalItems = append(approvalItems, listStream.Msg().GetData()...)
+	var streamErr error
+	for {
+		msg, err := listStream.Receive()
+		if err != nil {
+			streamErr = err
+			break
+		}
+		approvalItems = append(approvalItems, msg.GetData()...)
 	}
-	s.Require().NoError(listStream.Err())
+	if errors.Is(streamErr, io.EOF) {
+		streamErr = nil
+	}
+	s.Require().NoError(streamErr)
 	s.Require().Len(approvalItems, 1, "there should be exactly 1 pending approval request")
 	approvalID = approvalItems[0].GetId()
 	s.NotEmpty(approvalID)
@@ -341,25 +339,25 @@ func (s *ApprovalIntegrationSuite) TestApprovalIntegration_FullRoundTrip() {
 	approverCtx := s.ctx // approverAdminClient already injects the header
 	decideResp, err := s.approverAdminClient.ApprovalRequestDecide(
 		approverCtx,
-		connect.NewRequest(&limitsv1.ApprovalRequestDecideRequest{
+		&limitsv1.ApprovalRequestDecideRequest{
 			Id:       approvalID,
 			Decision: "approve",
 			Note:     "approved in integration test",
-		}),
+		},
 	)
 	s.Require().NoError(err)
-	s.Require().NotNil(decideResp.Msg.GetData())
-	s.Equal(limitsv1.ApprovalStatus_APPROVAL_STATUS_APPROVED, decideResp.Msg.GetData().GetStatus(),
+	s.Require().NotNil(decideResp.GetData())
+	s.Equal(limitsv1.ApprovalStatus_APPROVAL_STATUS_APPROVED, decideResp.GetData().GetStatus(),
 		"approval should transition to APPROVED after last required approver")
 
 	// Step 4: maker calls Commit → reservation should now be ACTIVE then COMMITTED.
-	commitResp, err := s.makerClient.Commit(s.ctx, connect.NewRequest(&limitsv1.CommitRequest{
+	commitResp, err := s.makerClient.Commit(s.ctx, &limitsv1.CommitRequest{
 		ReservationId: reservationID,
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(commitResp.Msg.GetReservation())
+	s.Require().NotNil(commitResp.GetReservation())
 	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_COMMITTED,
-		commitResp.Msg.GetReservation().GetStatus(),
+		commitResp.GetReservation().GetStatus(),
 		"reservation should be COMMITTED after approved and committed")
 
 	// Step 5: verify a ledger entry was created.

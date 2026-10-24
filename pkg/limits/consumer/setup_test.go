@@ -18,7 +18,7 @@ import (
 	"errors"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

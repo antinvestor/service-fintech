@@ -18,20 +18,19 @@ import (
 	"context"
 	"fmt"
 
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
-	"buf.build/gen/go/antinvestor/files/connectrpc/go/files/v1/filesv1connect"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
-	"buf.build/gen/go/antinvestor/ledger/connectrpc/go/v1/ledgerv1connect"
-	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
-	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
-	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v1/paymentv1connect"
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
-	"buf.build/gen/go/antinvestor/savings/connectrpc/go/savings/v1/savingsv1connect"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/servicecatalog"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/files/connectrpc/go/v2/files/v1/filesv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2/v1/ledgerv1connect"
+	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/v2/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/savings/connectrpc/go/v2/savings/v1/savingsv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/servicecatalog"
 	"github.com/pitabwire/util"
 )
 
@@ -100,7 +99,7 @@ func audienceToServiceID(audience string) servicecatalog.ServiceID {
 // newClient creates one typed Connect RPC client for the given endpoint and audience.
 func newClient[T any](
 	ctx context.Context, cfg any, endpoint, audience string,
-	ctor func(connect.HTTPClient, string, ...connect.ClientOption) T,
+	ctor connection.ConnectServiceClientFactory[T],
 ) (T, error) {
 	target := common.ServiceTarget{
 		Endpoint:  endpoint,
@@ -198,7 +197,7 @@ func initServiceClient[T any](
 	b *clientBuilder,
 	endpoint, audience, name string,
 	setter func(T),
-	ctor func(connect.HTTPClient, string, ...connect.ClientOption) T,
+	ctor connection.ConnectServiceClientFactory[T],
 ) {
 	if endpoint == "" {
 		b.log.Warn(fmt.Sprintf("Skipping %s client: no endpoint configured", name))

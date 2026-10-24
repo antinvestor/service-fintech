@@ -19,8 +19,8 @@ import (
 	"errors"
 	"net/http"
 
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
 
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )

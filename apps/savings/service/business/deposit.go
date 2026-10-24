@@ -22,13 +22,12 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -263,7 +262,7 @@ func (b *depositBusiness) postDepositTransferOrder(
 		fieldChannel:          dep.Channel,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  PaymentAccountRef(sa),
 			CreditAccountRef: LedgerAccountRef(sa),
@@ -273,7 +272,7 @@ func (b *depositBusiness) postDepositTransferOrder(
 			Description:      "Savings deposit",
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
 	if execErr != nil {
@@ -282,7 +281,7 @@ func (b *depositBusiness) postDepositTransferOrder(
 			Error("could not execute transfer order for deposit")
 		return "", fmt.Errorf("deposit transfer order %s failed: %w", reference, execErr)
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (b *depositBusiness) Get(ctx context.Context, id string) (*savingsv1.DepositObject, error) {

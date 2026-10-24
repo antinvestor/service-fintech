@@ -29,10 +29,10 @@ import (
 	"time"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"gorm.io/datatypes"
@@ -166,14 +166,14 @@ func (b *reservationBusiness) findCandidates(
 		if partitionID := transactionPartition(ctx); partitionID != "" {
 			chain, err := b.ancestry.Chain(ctx, partitionID)
 			if err != nil {
-				return nil, connect.NewError(connect.CodeUnavailable, err)
+				return nil, connect.NewError(connect.CodeUnavailable, err.Error()).WithCause(err)
 			}
 			q.PartitionIDs = chain
 		}
 	}
 	cands, err := b.candidateRepo.FindCandidates(ctx, q)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}
 	return cands, nil
 }
@@ -201,21 +201,21 @@ func (b *reservationBusiness) evaluateIntent(
 ) (*evaluation, error) {
 	stampMakerFromClaims(ctx, intent)
 	if err := validateIntent(intent); err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 	if err := validateRequiredSubjects(intent); err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
 	currency := intent.GetAmount().GetCurrencyCode()
 	intentMinor, err := moneyx.ToMinorUnitsByCurrency(intent.GetAmount(), currency)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
 	action, err := models.ActionFromAPISafe(intent.GetAction())
 	if err != nil || action == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid action"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, "invalid action")
 	}
 
 	cands, err := b.findCandidates(ctx, intent, action, currency)
@@ -231,7 +231,7 @@ func (b *reservationBusiness) evaluateIntent(
 	for _, ap := range applicable {
 		v, evErr := b.evaluator.Evaluate(ctx, ap.policy, ap.subject, intent, intentMinor)
 		if evErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, evErr)
+			return nil, connect.NewError(connect.CodeInternal, evErr.Error()).WithCause(evErr)
 		}
 		ev.verdicts = append(ev.verdicts, v)
 		switch ap.policy.Mode {
@@ -298,21 +298,21 @@ func (b *reservationBusiness) Reserve(
 	// client-chosen value would let a maker approve their own disbursement.
 	stampMakerFromClaims(ctx, intent)
 	if err := validateIntent(intent); err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 	if idempotencyKey == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("idempotency_key required"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, "idempotency_key required")
 	}
 
 	// 2. Idempotency short-circuit.
 	existing, lookupErr := b.resvRepo.GetByIdempotencyKey(ctx, intent.GetTenantId(), idempotencyKey)
 	if lookupErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, lookupErr)
+		return nil, connect.NewError(connect.CodeInternal, lookupErr.Error()).WithCause(lookupErr)
 	}
 	if existing != nil {
 		if intentHash(intent, idempotencyKey) != reservationIntentHash(existing) {
 			return nil, connect.NewError(connect.CodeAlreadyExists,
-				errors.New("idempotency-key collision with a different intent"))
+				"idempotency-key collision with a different intent")
 		}
 		return &limitsv1.ReserveResponse{Reservation: existing.ToAPI()}, nil
 	}
@@ -325,20 +325,20 @@ func (b *reservationBusiness) Reserve(
 
 	// 3. Subject schema validation.
 	if err := validateRequiredSubjects(intent); err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
 	// 4. Compute minor units.
 	currency := intent.GetAmount().GetCurrencyCode()
 	intentMinor, err := moneyx.ToMinorUnitsByCurrency(intent.GetAmount(), currency)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 
 	// 5. Candidate policies.
 	action, err := models.ActionFromAPISafe(intent.GetAction())
 	if err != nil || action == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid action"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, "invalid action")
 	}
 	cands, err := b.findCandidates(ctx, intent, action, currency)
 	if err != nil {
@@ -352,7 +352,7 @@ func (b *reservationBusiness) Reserve(
 	db := b.dbPool.DB(ctx, false)
 	tx := db.Begin()
 	if tx.Error != nil {
-		return nil, connect.NewError(connect.CodeInternal, tx.Error)
+		return nil, connect.NewError(connect.CodeInternal, tx.Error.Error()).WithCause(tx.Error)
 	}
 	committed := false
 	defer func() {
@@ -371,7 +371,7 @@ func (b *reservationBusiness) Reserve(
 	keys := LockKeys(action, currency, rollingSubjects)
 	for _, k := range keys {
 		if lockErr := tx.Exec("SELECT pg_advisory_xact_lock(?)", k).Error; lockErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, lockErr)
+			return nil, connect.NewError(connect.CodeInternal, lockErr.Error()).WithCause(lockErr)
 		}
 	}
 
@@ -386,7 +386,7 @@ func (b *reservationBusiness) Reserve(
 	for _, ap := range applicable {
 		v, evErr := b.evaluator.EvaluateInTx(ctx, tx, ap.policy, ap.subject, intent, intentMinor)
 		if evErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, evErr)
+			return nil, connect.NewError(connect.CodeInternal, evErr.Error()).WithCause(evErr)
 		}
 		verdicts = append(verdicts, v)
 
@@ -417,13 +417,13 @@ func (b *reservationBusiness) Reserve(
 		committed = true // prevent double-rollback in defer
 		b.recordBreaches(ctx, intent, intentMinor, hardBreaches, shadowBreaches)
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			errors.New("limits cap breached"))
+			"limits cap breached")
 	}
 
 	// 11. Persist reservation.
 	resv, err := models.ReservationFromIntent(intent, idempotencyKey)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	}
 	resv.ID = util.IDString()
 	if len(approvalNeeded) > 0 {
@@ -452,7 +452,7 @@ func (b *reservationBusiness) Reserve(
 				return &limitsv1.ReserveResponse{Reservation: dup.ToAPI()}, nil
 			}
 		}
-		return nil, connect.NewError(connect.CodeInternal, createErr)
+		return nil, connect.NewError(connect.CodeInternal, createErr.Error()).WithCause(createErr)
 	}
 
 	// 12. Persist approval requests.
@@ -460,8 +460,8 @@ func (b *reservationBusiness) Reserve(
 	for _, ap := range approvalNeeded {
 		tier, ok := pickTier(ap.policy, intentMinor)
 		if !ok {
-			return nil, connect.NewError(connect.CodeInternal,
-				fmt.Errorf("policy %s flagged for approval but no tier covers amount", ap.policy.ID))
+			return nil, connect.Errorf(connect.CodeInternal,
+				"policy %s flagged for approval but no tier covers amount", ap.policy.ID)
 		}
 		ar := &models.ApprovalRequest{
 			ReservationID:      resv.ID,
@@ -483,18 +483,18 @@ func (b *reservationBusiness) Reserve(
 		}
 		ar.ID = util.IDString()
 		if createErr := tx.Create(ar).Error; createErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, createErr)
+			return nil, connect.NewError(connect.CodeInternal, createErr.Error()).WithCause(createErr)
 		}
 		// Audit inside the tx so the record lands atomically with the approval row.
 		if auditErr := b.auditing.RecordApprovalRequiredTx(ctx, tx, ar); auditErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, auditErr)
+			return nil, connect.NewError(connect.CodeInternal, auditErr.Error()).WithCause(auditErr)
 		}
 		approvalRows = append(approvalRows, ar)
 	}
 
 	// 13. Commit transaction.
 	if commitErr := tx.Commit().Error; commitErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, commitErr)
+		return nil, connect.NewError(connect.CodeInternal, commitErr.Error()).WithCause(commitErr)
 	}
 	committed = true
 
@@ -534,7 +534,7 @@ func (b *reservationBusiness) Commit(
 	// 1. Fetch reservation.
 	r, err := b.resvRepo.GetByID(ctx, reservationID)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reservation %s not found", reservationID))
+		return nil, connect.Errorf(connect.CodeNotFound, "reservation %s not found", reservationID)
 	}
 	if tErr := assertSameTenant(ctx, r.TenantID); tErr != nil {
 		return nil, tErr
@@ -547,12 +547,12 @@ func (b *reservationBusiness) Commit(
 
 	// 3. Pending approval: caller must get approval first.
 	if r.Status == models.ReservationStatusPendingApproval {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("pending approval"))
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "pending approval")
 	}
 
 	// 4. Must be active.
 	if r.Status != models.ReservationStatusActive {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("not active"))
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "not active")
 	}
 
 	now := time.Now().UTC()
@@ -561,7 +561,7 @@ func (b *reservationBusiness) Commit(
 	db := b.dbPool.DB(ctx, false)
 	tx := db.Begin()
 	if tx.Error != nil {
-		return nil, connect.NewError(connect.CodeInternal, tx.Error)
+		return nil, connect.NewError(connect.CodeInternal, tx.Error.Error()).WithCause(tx.Error)
 	}
 	txCommitted := false
 	defer func() {
@@ -572,14 +572,14 @@ func (b *reservationBusiness) Commit(
 
 	// 6. Update reservation status via scoped Tx method (enforces tenant + status guard).
 	if setErr := b.resvRepo.SetCommittedTx(ctx, tx, r.ID, now); setErr != nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("not active"))
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "not active")
 	}
 
 	// 7. Materialise ledger entries (skip for shadow reservations).
 	if !r.IsShadow {
 		subjects, unmarshalErr := unmarshalReservationSubjects(r.SubjectRefs)
 		if unmarshalErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, unmarshalErr)
+			return nil, connect.NewError(connect.CodeInternal, unmarshalErr.Error()).WithCause(unmarshalErr)
 		}
 		entries := make([]*models.LedgerEntry, 0, len(subjects))
 		for _, s := range subjects {
@@ -598,7 +598,7 @@ func (b *reservationBusiness) Commit(
 		}
 		if len(entries) > 0 {
 			if createErr := tx.Create(&entries).Error; createErr != nil {
-				return nil, connect.NewError(connect.CodeInternal, createErr)
+				return nil, connect.NewError(connect.CodeInternal, createErr.Error()).WithCause(createErr)
 			}
 		}
 	}
@@ -608,12 +608,12 @@ func (b *reservationBusiness) Commit(
 	r.Status = models.ReservationStatusCommitted
 	r.CommittedAt = &now
 	if auditErr := b.auditing.RecordReservationCommittedTx(ctx, tx, r); auditErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, auditErr)
+		return nil, connect.NewError(connect.CodeInternal, auditErr.Error()).WithCause(auditErr)
 	}
 
 	// 9. Commit transaction.
 	if commitErr := tx.Commit().Error; commitErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, commitErr)
+		return nil, connect.NewError(connect.CodeInternal, commitErr.Error()).WithCause(commitErr)
 	}
 	txCommitted = true
 
@@ -630,7 +630,7 @@ func (b *reservationBusiness) Release(
 	// 1. Fetch.
 	r, err := b.resvRepo.GetByID(ctx, reservationID)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reservation %s not found", reservationID))
+		return nil, connect.Errorf(connect.CodeNotFound, "reservation %s not found", reservationID)
 	}
 	if tErr := assertSameTenant(ctx, r.TenantID); tErr != nil {
 		return nil, tErr
@@ -643,8 +643,8 @@ func (b *reservationBusiness) Release(
 
 	// 3. Must be active or pending_approval.
 	if r.Status != models.ReservationStatusActive && r.Status != models.ReservationStatusPendingApproval {
-		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("cannot release reservation with status %s", r.Status))
+		return nil, connect.Errorf(connect.CodeFailedPrecondition,
+			"cannot release reservation with status %s", r.Status)
 	}
 
 	now := time.Now().UTC()
@@ -654,7 +654,7 @@ func (b *reservationBusiness) Release(
 	db := b.dbPool.DB(ctx, false)
 	tx := db.Begin()
 	if tx.Error != nil {
-		return nil, connect.NewError(connect.CodeInternal, tx.Error)
+		return nil, connect.NewError(connect.CodeInternal, tx.Error.Error()).WithCause(tx.Error)
 	}
 	txCommitted := false
 	defer func() {
@@ -665,13 +665,13 @@ func (b *reservationBusiness) Release(
 
 	// 4. Update reservation row.
 	if setErr := b.resvRepo.SetReleasedTx(ctx, tx, reservationID, reason, now); setErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, setErr)
+		return nil, connect.NewError(connect.CodeInternal, setErr.Error()).WithCause(setErr)
 	}
 
 	// 5. Cancel any pending approval requests.
 	approvals, listErr := b.approvalRepo.ListByReservation(ctx, reservationID)
 	if listErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, listErr)
+		return nil, connect.NewError(connect.CodeInternal, listErr.Error()).WithCause(listErr)
 	}
 	for _, ar := range approvals {
 		if ar.Status == models.ApprovalStatusPending {
@@ -682,11 +682,11 @@ func (b *reservationBusiness) Release(
 				models.ApprovalStatusRejected,
 				&now,
 			); setErr != nil {
-				return nil, connect.NewError(connect.CodeInternal, setErr)
+				return nil, connect.NewError(connect.CodeInternal, setErr.Error()).WithCause(setErr)
 			}
 			// Audit the cascade-rejected approval inside the same tx.
 			if auditErr := b.auditing.RecordApprovalRejectedCascadeTx(ctx, tx, ar, reason); auditErr != nil {
-				return nil, connect.NewError(connect.CodeInternal, auditErr)
+				return nil, connect.NewError(connect.CodeInternal, auditErr.Error()).WithCause(auditErr)
 			}
 		}
 	}
@@ -697,12 +697,12 @@ func (b *reservationBusiness) Release(
 
 	// 6. Audit the reservation release inside the tx.
 	if auditErr := b.auditing.RecordReservationReleasedTx(ctx, tx, r, reason); auditErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, auditErr)
+		return nil, connect.NewError(connect.CodeInternal, auditErr.Error()).WithCause(auditErr)
 	}
 
 	// 7. Commit.
 	if commitErr := tx.Commit().Error; commitErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, commitErr)
+		return nil, connect.NewError(connect.CodeInternal, commitErr.Error()).WithCause(commitErr)
 	}
 	txCommitted = true
 
@@ -719,13 +719,13 @@ func (b *reservationBusiness) Reverse(
 	// 1. Idempotency: check if a reversal-reservation already exists for this key.
 	existing, lookupErr := b.resvRepo.GetByIdempotencyKey(ctx, callerTenant(ctx), idempotencyKey)
 	if lookupErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, lookupErr)
+		return nil, connect.NewError(connect.CodeInternal, lookupErr.Error()).WithCause(lookupErr)
 	}
 	if existing != nil &&
 		existing.ReversesReservationID != nil && *existing.ReversesReservationID == reservationID {
 		original, origErr := b.resvRepo.GetByID(ctx, reservationID)
 		if origErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, origErr)
+			return nil, connect.NewError(connect.CodeInternal, origErr.Error()).WithCause(origErr)
 		}
 		return &limitsv1.ReverseResponse{
 			OriginalReservation: original.ToAPI(),
@@ -736,7 +736,7 @@ func (b *reservationBusiness) Reverse(
 	// 2. Fetch original.
 	original, err := b.resvRepo.GetByID(ctx, reservationID)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reservation %s not found", reservationID))
+		return nil, connect.Errorf(connect.CodeNotFound, "reservation %s not found", reservationID)
 	}
 
 	// 2a. Defense-in-depth: reject cross-tenant access before any further work.
@@ -746,8 +746,8 @@ func (b *reservationBusiness) Reverse(
 
 	// 3. Must be committed.
 	if original.Status != models.ReservationStatusCommitted {
-		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("reservation must be committed to reverse; current status: %s", original.Status))
+		return nil, connect.Errorf(connect.CodeFailedPrecondition,
+			"reservation must be committed to reverse; current status: %s", original.Status)
 	}
 
 	now := time.Now().UTC()
@@ -756,7 +756,7 @@ func (b *reservationBusiness) Reverse(
 	db := b.dbPool.DB(ctx, false)
 	tx := db.Begin()
 	if tx.Error != nil {
-		return nil, connect.NewError(connect.CodeInternal, tx.Error)
+		return nil, connect.NewError(connect.CodeInternal, tx.Error.Error()).WithCause(tx.Error)
 	}
 	txCommitted := false
 	defer func() {
@@ -769,7 +769,7 @@ func (b *reservationBusiness) Reverse(
 	// on the same original are serialised and only the first succeeds.
 	reverseSubjects, subjectErr := unmarshalReservationSubjects(original.SubjectRefs)
 	if subjectErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, subjectErr)
+		return nil, connect.NewError(connect.CodeInternal, subjectErr.Error()).WithCause(subjectErr)
 	}
 	var reverseSubjectFilters []repository.SubjectFilter
 	for _, s := range reverseSubjects {
@@ -781,7 +781,7 @@ func (b *reservationBusiness) Reverse(
 	lockKeys := LockKeys(original.Action, original.CurrencyCode, reverseSubjectFilters)
 	for _, k := range lockKeys {
 		if lockErr := tx.Exec("SELECT pg_advisory_xact_lock(?)", k).Error; lockErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, lockErr)
+			return nil, connect.NewError(connect.CodeInternal, lockErr.Error()).WithCause(lockErr)
 		}
 	}
 
@@ -789,7 +789,7 @@ func (b *reservationBusiness) Reverse(
 	if updErr := tx.Table(models.LedgerEntry{}.TableName()).
 		Where("reservation_id = ? AND reversed_at IS NULL", original.ID).
 		Update("reversed_at", now).Error; updErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, updErr)
+		return nil, connect.NewError(connect.CodeInternal, updErr.Error()).WithCause(updErr)
 	}
 
 	// 6. Create traceability reservation.
@@ -816,13 +816,13 @@ func (b *reservationBusiness) Reverse(
 	traceability.PartitionID = original.PartitionID
 
 	if createErr := tx.Create(traceability).Error; createErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, createErr)
+		return nil, connect.NewError(connect.CodeInternal, createErr.Error()).WithCause(createErr)
 	}
 
 	// 8. Mark original status reversed (status='committed' guard prevents double-reverse).
 	if setErr := b.resvRepo.SetReversedTx(ctx, tx, original.ID, now); setErr != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("reservation %s cannot be reversed: %w", original.ID, setErr))
+			fmt.Errorf("reservation %s cannot be reversed: %w", original.ID, setErr).Error()).WithCause(setErr)
 	}
 
 	// Apply in-memory so reservationMetadata reflects the new status.
@@ -830,12 +830,12 @@ func (b *reservationBusiness) Reverse(
 
 	// 9. Audit inside the tx so the record lands atomically with the state change.
 	if auditErr := b.auditing.RecordReservationReversedTx(ctx, tx, original, reason); auditErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, auditErr)
+		return nil, connect.NewError(connect.CodeInternal, auditErr.Error()).WithCause(auditErr)
 	}
 
 	// 10. Commit transaction.
 	if commitErr := tx.Commit().Error; commitErr != nil {
-		return nil, connect.NewError(connect.CodeInternal, commitErr)
+		return nil, connect.NewError(connect.CodeInternal, commitErr.Error()).WithCause(commitErr)
 	}
 	txCommitted = true
 
@@ -1289,7 +1289,7 @@ func assertSameTenant(ctx context.Context, rowTenant string) error {
 		return nil
 	}
 	if ctxTenant := callerTenant(ctx); ctxTenant == "" || rowTenant != ctxTenant {
-		return connect.NewError(connect.CodeNotFound, errors.New("reservation not found"))
+		return connect.NewError(connect.CodeNotFound, "reservation not found")
 	}
 	return nil
 }

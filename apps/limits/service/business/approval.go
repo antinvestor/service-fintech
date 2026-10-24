@@ -29,10 +29,10 @@ import (
 	"time"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"gorm.io/gorm"
@@ -144,14 +144,14 @@ func (b *approvalBusiness) List(
 func (b *approvalBusiness) Get(ctx context.Context, id string) (*limitsv1.ApprovalRequestObject, error) {
 	ar, err := b.approvalRepo.GetByID(ctx, id)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("approval request not found"))
+		return nil, connect.NewError(connect.CodeNotFound, "approval request not found")
 	}
 	if tErr := assertApprovalTenant(ctx, ar); tErr != nil {
 		return nil, tErr
 	}
 	decisions, err := b.decisionRepo.ListDecisions(ctx, id)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}
 	return ar.ToAPI(decisions), nil
 }
@@ -181,7 +181,7 @@ func (b *approvalBusiness) Decide(
 ) (*limitsv1.ApprovalRequestObject, error) {
 	ar, err := b.approvalRepo.GetByID(ctx, req.GetId())
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("approval request not found"))
+		return nil, connect.NewError(connect.CodeNotFound, "approval request not found")
 	}
 	if tErr := assertApprovalTenant(ctx, ar); tErr != nil {
 		return nil, tErr
@@ -189,20 +189,20 @@ func (b *approvalBusiness) Decide(
 
 	caller := callerSubject(ctx)
 	if caller == "" {
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("missing caller identity"))
+		return nil, connect.NewError(connect.CodeUnauthenticated, "missing caller identity")
 	}
 	if caller == ar.MakerID {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("maker cannot approve own request"))
+		return nil, connect.NewError(connect.CodePermissionDenied, "maker cannot approve own request")
 	}
 	if roleErr := b.assertApproverRole(ctx, ar); roleErr != nil {
 		return nil, roleErr
 	}
 	if ar.Status != models.ApprovalStatusPending {
-		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("approval %s not pending (status=%s)", ar.ID, ar.Status))
+		return nil, connect.Errorf(connect.CodeFailedPrecondition,
+			"approval %s not pending (status=%s)", ar.ID, ar.Status)
 	}
 	if time.Now().UTC().After(ar.ExpiresAt) {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("approval request expired"))
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "approval request expired")
 	}
 
 	switch req.GetDecision() {
@@ -212,7 +212,7 @@ func (b *approvalBusiness) Decide(
 		return b.decideApprove(ctx, ar, caller, req.GetNote())
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument,
-			errors.New(`decision must be "approve" or "reject"`))
+			`decision must be "approve" or "reject"`)
 	}
 }
 
@@ -230,7 +230,7 @@ func (b *approvalBusiness) assertApproverRole(ctx context.Context, ar *models.Ap
 	}
 	claims := security.ClaimsFromContext(ctx)
 	if claims == nil {
-		return connect.NewError(connect.CodeUnauthenticated, errors.New("missing caller identity"))
+		return connect.NewError(connect.CodeUnauthenticated, "missing caller identity")
 	}
 	for _, role := range claims.GetRoles() {
 		if strings.EqualFold(strings.TrimSpace(role), required) {
@@ -244,8 +244,8 @@ func (b *approvalBusiness) assertApproverRole(ctx context.Context, ar *models.Ap
 			Info("limits: approval decided under limits_approval_override")
 		return nil
 	}
-	return connect.NewError(connect.CodePermissionDenied,
-		fmt.Errorf("approver does not hold required role %q", required))
+	return connect.Errorf(connect.CodePermissionDenied,
+		"approver does not hold required role %q", required)
 }
 
 // decideReject records a rejection and releases the reservation atomically.
@@ -577,13 +577,13 @@ func (b *approvalBusiness) activateReservation(ctx context.Context, tx *gorm.DB,
 func mapDecisionErr(err error) error {
 	switch {
 	case errors.Is(err, errApproverAlreadyDecided):
-		return connect.NewError(connect.CodeAlreadyExists, err)
+		return connect.NewError(connect.CodeAlreadyExists, err.Error()).WithCause(err)
 	case errors.Is(err, errApprovalNoLongerPending), errors.Is(err, repository.ErrApprovalNotPending):
-		return connect.NewError(connect.CodeFailedPrecondition, err)
+		return connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
 	case errors.Is(err, repository.ErrNotPendingApproval):
-		return connect.NewError(connect.CodeFailedPrecondition, err)
+		return connect.NewError(connect.CodeFailedPrecondition, err.Error()).WithCause(err)
 	default:
-		return connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}
 }
 
@@ -597,7 +597,7 @@ func assertApprovalTenant(ctx context.Context, ar *models.ApprovalRequest) error
 		return nil
 	}
 	if ctxTenant := callerTenant(ctx); ctxTenant == "" || ar.TenantID != ctxTenant {
-		return connect.NewError(connect.CodeNotFound, errors.New("approval request not found"))
+		return connect.NewError(connect.CodeNotFound, "approval request not found")
 	}
 	return nil
 }
@@ -615,14 +615,14 @@ func assertRequestTenant(ctx context.Context, requested string) error {
 	}
 	claims := security.ClaimsFromContext(ctx)
 	if claims == nil {
-		return connect.NewError(connect.CodeUnauthenticated, errors.New("missing caller identity"))
+		return connect.NewError(connect.CodeUnauthenticated, "missing caller identity")
 	}
 	ctxTenant := claims.GetTenantID()
 	if ctxTenant == "" {
-		return connect.NewError(connect.CodeUnauthenticated, errors.New("caller claims carry no tenant"))
+		return connect.NewError(connect.CodeUnauthenticated, "caller claims carry no tenant")
 	}
 	if requested != "" && requested != ctxTenant {
-		return connect.NewError(connect.CodePermissionDenied, errors.New("tenant mismatch"))
+		return connect.NewError(connect.CodePermissionDenied, "tenant mismatch")
 	}
 	return nil
 }
@@ -642,7 +642,7 @@ func (b *approvalBusiness) runInTx(ctx context.Context, fn func(tx *gorm.DB) err
 func (b *approvalBusiness) fetchWithDecisions(ctx context.Context, id string) (*limitsv1.ApprovalRequestObject, error) {
 	ar, err := b.approvalRepo.GetByID(ctx, id)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}
 	decisions, _ := b.decisionRepo.ListDecisions(ctx, id)
 	return ar.ToAPI(decisions), nil

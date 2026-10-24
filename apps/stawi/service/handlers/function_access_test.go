@@ -23,8 +23,8 @@ import (
 	"testing"
 
 	operationspb "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/handlers"
 	stawiv1 "github.com/antinvestor/service-fintech/gen/go/stawi/protocolbuffers/go/stawi/v1"

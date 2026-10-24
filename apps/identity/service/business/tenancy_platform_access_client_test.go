@@ -16,14 +16,14 @@ package business
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,29 +51,29 @@ type stubTenancyServer struct {
 
 func (s *stubTenancyServer) GetAccess(
 	_ context.Context,
-	req *connect.Request[tenancyv1.GetAccessRequest],
-) (*connect.Response[tenancyv1.GetAccessResponse], error) {
-	if req.Msg.GetProfileId() != s.knownProfileID {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("no access for profile"))
+	req *tenancyv1.GetAccessRequest,
+) (*tenancyv1.GetAccessResponse, error) {
+	if req.GetProfileId() != s.knownProfileID {
+		return nil, connect.NewError(connect.CodeNotFound, "no access for profile")
 	}
-	return connect.NewResponse(&tenancyv1.GetAccessResponse{
+	return &tenancyv1.GetAccessResponse{
 		Data: &tenancyv1.AccessObject{Id: s.accessForProfile},
-	}), nil
+	}, nil
 }
 
 func (s *stubTenancyServer) CreateAccess(
 	_ context.Context,
-	req *connect.Request[tenancyv1.CreateAccessRequest],
-) (*connect.Response[tenancyv1.CreateAccessResponse], error) {
-	return connect.NewResponse(&tenancyv1.CreateAccessResponse{
-		Data: &tenancyv1.AccessObject{Id: "access-for-" + req.Msg.GetProfileId()},
-	}), nil
+	req *tenancyv1.CreateAccessRequest,
+) (*tenancyv1.CreateAccessResponse, error) {
+	return &tenancyv1.CreateAccessResponse{
+		Data: &tenancyv1.AccessObject{Id: "access-for-" + req.GetProfileId()},
+	}, nil
 }
 
 func (s *stubTenancyServer) ListPartitionRole(
 	_ context.Context,
-	_ *connect.Request[tenancyv1.ListPartitionRoleRequest],
-	stream *connect.ServerStream[tenancyv1.ListPartitionRoleResponse],
+	_ *tenancyv1.ListPartitionRoleRequest,
+	stream tenancyv1connect.TenancyServiceListPartitionRoleServerStream,
 ) error {
 	for _, role := range s.partitionRoles {
 		if err := stream.Send(&tenancyv1.ListPartitionRoleResponse{
@@ -87,18 +87,18 @@ func (s *stubTenancyServer) ListPartitionRole(
 
 func (s *stubTenancyServer) CreatePartitionRole(
 	_ context.Context,
-	req *connect.Request[tenancyv1.CreatePartitionRoleRequest],
-) (*connect.Response[tenancyv1.CreatePartitionRoleResponse], error) {
-	s.createdRole = req.Msg
-	return connect.NewResponse(&tenancyv1.CreatePartitionRoleResponse{
-		Data: &tenancyv1.PartitionRoleObject{Id: "role-created", Name: req.Msg.GetName()},
-	}), nil
+	req *tenancyv1.CreatePartitionRoleRequest,
+) (*tenancyv1.CreatePartitionRoleResponse, error) {
+	s.createdRole = req
+	return &tenancyv1.CreatePartitionRoleResponse{
+		Data: &tenancyv1.PartitionRoleObject{Id: "role-created", Name: req.GetName()},
+	}, nil
 }
 
 func (s *stubTenancyServer) ListAccessRole(
 	_ context.Context,
-	_ *connect.Request[tenancyv1.ListAccessRoleRequest],
-	stream *connect.ServerStream[tenancyv1.ListAccessRoleResponse],
+	_ *tenancyv1.ListAccessRoleRequest,
+	stream tenancyv1connect.TenancyServiceListAccessRoleServerStream,
 ) error {
 	for _, accessRole := range s.accessRoles {
 		if err := stream.Send(&tenancyv1.ListAccessRoleResponse{
@@ -112,22 +112,22 @@ func (s *stubTenancyServer) ListAccessRole(
 
 func (s *stubTenancyServer) CreateAccessRole(
 	_ context.Context,
-	req *connect.Request[tenancyv1.CreateAccessRoleRequest],
-) (*connect.Response[tenancyv1.CreateAccessRoleResponse], error) {
-	return connect.NewResponse(&tenancyv1.CreateAccessRoleResponse{
-		Data: &tenancyv1.AccessRoleObject{Id: "access-role-created", AccessId: req.Msg.GetAccessId()},
-	}), nil
+	req *tenancyv1.CreateAccessRoleRequest,
+) (*tenancyv1.CreateAccessRoleResponse, error) {
+	return &tenancyv1.CreateAccessRoleResponse{
+		Data: &tenancyv1.AccessRoleObject{Id: "access-role-created", AccessId: req.GetAccessId()},
+	}, nil
 }
 
 func (s *stubTenancyServer) RemoveAccessRole(
 	_ context.Context,
-	req *connect.Request[tenancyv1.RemoveAccessRoleRequest],
-) (*connect.Response[tenancyv1.RemoveAccessRoleResponse], error) {
-	s.removedAccessRoleIDs = append(s.removedAccessRoleIDs, req.Msg.GetId())
+	req *tenancyv1.RemoveAccessRoleRequest,
+) (*tenancyv1.RemoveAccessRoleResponse, error) {
+	s.removedAccessRoleIDs = append(s.removedAccessRoleIDs, req.GetId())
 	if s.removeAccessRoleErr != nil {
 		return nil, s.removeAccessRoleErr
 	}
-	return connect.NewResponse(&tenancyv1.RemoveAccessRoleResponse{}), nil
+	return &tenancyv1.RemoveAccessRoleResponse{}, nil
 }
 
 // newStubTenancyAdapter serves stub over an httptest server and returns the
@@ -136,12 +136,14 @@ func newStubTenancyAdapter(t *testing.T, stub *stubTenancyServer) platformAccess
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.Handle(tenancyv1connect.NewTenancyServiceHandler(stub))
+	server := connect.NewServer()
+	tenancyv1connect.RegisterTenancyServiceHandler(server, stub)
+	connecthttp.Mount(mux, server)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
 	return newTenancyPlatformAccessClient(
-		tenancyv1connect.NewTenancyServiceClient(srv.Client(), srv.URL),
+		tenancyv1connect.NewTenancyServiceClient(connect.NewClient(connecthttp.NewTransport(srv.Client(), srv.URL))),
 	)
 }
 
@@ -244,7 +246,7 @@ func TestTenancyPlatformAccessClientListPartitionRoles(t *testing.T) {
 			partitionRoles: []*tenancyv1.PartitionRoleObject{{Id: "role-admin", Name: "admin"}},
 			listPartitionRoleErr: connect.NewError(
 				connect.CodeUnavailable,
-				errors.New("tenancy went away mid stream"),
+				"tenancy went away mid stream",
 			),
 		})
 
@@ -328,7 +330,7 @@ func TestTenancyPlatformAccessClientRemoveAccessRole(t *testing.T) {
 		t.Parallel()
 
 		adapter := newStubTenancyAdapter(t, &stubTenancyServer{
-			removeAccessRoleErr: connect.NewError(connect.CodeUnavailable, errors.New("down")),
+			removeAccessRoleErr: connect.NewError(connect.CodeUnavailable, "down"),
 		})
 		err := adapter.RemoveAccessRole(t.Context(), "access-role-1")
 		require.Error(t, err)

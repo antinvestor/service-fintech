@@ -24,13 +24,12 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -633,7 +632,7 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 		fieldInvestorID:       account.InvestorID,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  debitAccount,
 			CreditAccountRef: creditAccount,
@@ -643,7 +642,7 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 			Description:      description,
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
 		logger.WithError(execErr).

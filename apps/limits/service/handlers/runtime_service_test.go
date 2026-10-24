@@ -23,13 +23,12 @@ import (
 
 	moneypb "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	testpostgres "github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -226,22 +225,22 @@ func (s *RuntimeHandlerSuite) TestRuntimeService_ReserveCommitFlow() {
 	))
 
 	intent := kesIntentForHandler(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 500)
-	reserveResp, err := handler.Reserve(ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := handler.Reserve(ctx, &limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: "rt-handler-reserve-commit-1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(reserveResp.Msg.GetReservation())
-	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE, reserveResp.Msg.GetReservation().GetStatus())
+	s.Require().NotNil(reserveResp.GetReservation())
+	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE, reserveResp.GetReservation().GetStatus())
 
-	resvID := reserveResp.Msg.GetReservation().GetId()
-	commitResp, err := handler.Commit(ctx, connect.NewRequest(&limitsv1.CommitRequest{
+	resvID := reserveResp.GetReservation().GetId()
+	commitResp, err := handler.Commit(ctx, &limitsv1.CommitRequest{
 		ReservationId: resvID,
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(commitResp.Msg.GetReservation())
-	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_COMMITTED, commitResp.Msg.GetReservation().GetStatus())
+	s.Require().NotNil(commitResp.GetReservation())
+	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_COMMITTED, commitResp.GetReservation().GetStatus())
 }
 
 // TestRuntimeService_CheckReadOnly: Check on a breaching amount returns Allowed=false
@@ -256,12 +255,12 @@ func (s *RuntimeHandlerSuite) TestRuntimeService_CheckReadOnly() {
 	))
 
 	intent := kesIntentForHandler(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 2000)
-	checkResp, err := handler.Check(ctx, connect.NewRequest(&limitsv1.CheckRequest{
+	checkResp, err := handler.Check(ctx, &limitsv1.CheckRequest{
 		Intent: intent,
-	}))
+	})
 	s.Require().NoError(err)
-	s.False(checkResp.Msg.GetAllowed())
-	s.NotEmpty(checkResp.Msg.GetBreachedPolicyIds())
+	s.False(checkResp.GetAllowed())
+	s.NotEmpty(checkResp.GetBreachedPolicyIds())
 
 	// Verify no reservation row was written.
 	var count int64
@@ -280,22 +279,22 @@ func (s *RuntimeHandlerSuite) TestRuntimeService_ReserveRelease() {
 	))
 
 	intent := kesIntentForHandler(limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT, 500)
-	reserveResp, err := handler.Reserve(ctx, connect.NewRequest(&limitsv1.ReserveRequest{
+	reserveResp, err := handler.Reserve(ctx, &limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: "rt-handler-reserve-release-1",
 		Ttl:            durationpb.New(5 * time.Minute),
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(reserveResp.Msg.GetReservation())
-	resvID := reserveResp.Msg.GetReservation().GetId()
+	s.Require().NotNil(reserveResp.GetReservation())
+	resvID := reserveResp.GetReservation().GetId()
 
-	releaseResp, err := handler.Release(ctx, connect.NewRequest(&limitsv1.ReleaseRequest{
+	releaseResp, err := handler.Release(ctx, &limitsv1.ReleaseRequest{
 		ReservationId: resvID,
 		Reason:        "handler test release",
-	}))
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(releaseResp.Msg.GetReservation())
-	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_RELEASED, releaseResp.Msg.GetReservation().GetStatus())
+	s.Require().NotNil(releaseResp.GetReservation())
+	s.Equal(limitsv1.ReservationStatus_RESERVATION_STATUS_RELEASED, releaseResp.GetReservation().GetStatus())
 }
 
 func TestRuntimeHandlerSuite(t *testing.T) {

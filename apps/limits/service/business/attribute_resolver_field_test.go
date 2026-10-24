@@ -16,14 +16,13 @@ package business
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -38,13 +37,13 @@ type fakeFieldClients struct {
 
 func (f fakeFieldClients) ClientGet(
 	_ context.Context,
-	req *connect.Request[fieldv1.ClientGetRequest],
-) (*connect.Response[fieldv1.ClientGetResponse], error) {
-	c, ok := f.clients[req.Msg.GetId()]
+	req *fieldv1.ClientGetRequest,
+) (*fieldv1.ClientGetResponse, error) {
+	c, ok := f.clients[req.GetId()]
 	if !ok {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("no such client"))
+		return nil, connect.NewError(connect.CodeNotFound, "no such client")
 	}
-	return connect.NewResponse(&fieldv1.ClientGetResponse{Data: c}), nil
+	return &fieldv1.ClientGetResponse{Data: c}, nil
 }
 
 func TestResolver_FieldClientPropertiesCannotOverrideSystemAttributes(t *testing.T) {

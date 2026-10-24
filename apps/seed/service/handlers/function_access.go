@@ -22,8 +22,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/pitabwire/frame/v2/security/authorizer"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/pitabwire/frame/v3/security/authorizer"
 	"github.com/pitabwire/util"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/proto"

@@ -17,14 +17,13 @@ package business
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -225,15 +224,15 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 
 	resp, err := r.identityClient.InvestorGet(
 		ctx,
-		connect.NewRequest(&identityv1.InvestorGetRequest{Id: clientID}),
+		&identityv1.InvestorGetRequest{Id: clientID},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	inv := resp.Msg.GetData()
+	inv := resp.GetData()
 	if inv == nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("subject not found"))
+		return nil, connect.NewError(connect.CodeNotFound, "subject not found")
 	}
 
 	attrs := map[string]any{
@@ -254,13 +253,13 @@ func (r *attributeResolver) fetchFromIdentity(ctx context.Context, clientID stri
 // name, profile, owning team and every key of its properties bag (where an
 // agent records, for example, the limit tier the client is held to).
 func (r *attributeResolver) fetchFieldClient(ctx context.Context, clientID string) (map[string]any, error) {
-	resp, err := r.fieldClient.ClientGet(ctx, connect.NewRequest(&fieldv1.ClientGetRequest{Id: clientID}))
+	resp, err := r.fieldClient.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
 	if err != nil {
 		return nil, err
 	}
-	client := resp.Msg.GetData()
+	client := resp.GetData()
 	if client == nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("client not found"))
+		return nil, connect.NewError(connect.CodeNotFound, "client not found")
 	}
 	attrs := map[string]any{
 		"state":          client.GetState().String(),

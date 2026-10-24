@@ -21,9 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
-	"connectrpc.com/connect"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 )
 
@@ -77,12 +76,12 @@ func (a *tenancyPartitionAncestry) Chain(ctx context.Context, partitionID string
 	}
 	resp, err := a.cli.GetPartitionParents(
 		ctx,
-		connect.NewRequest(&tenancyv1.GetPartitionParentsRequest{Id: partitionID}),
+		&tenancyv1.GetPartitionParentsRequest{Id: partitionID},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrPartitionChainUnavailable, err)
 	}
-	chain, err := chainFromParents(partitionID, resp.Msg.GetData())
+	chain, err := chainFromParents(partitionID, resp.GetData())
 	if err != nil {
 		return nil, err
 	}

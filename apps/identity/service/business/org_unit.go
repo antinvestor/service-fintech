@@ -21,11 +21,10 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
@@ -402,19 +401,17 @@ func (b *orgUnitBusiness) createChildPartition(
 		logger.Warn("partition client is nil")
 		return "", ErrLoginClientCreationFailed.Extend("partition client is nil")
 	}
-	resp, err := b.partitionCli.CreatePartition(ctx, connect.NewRequest(
-		&tenancyv1.CreatePartitionRequest{
-			TenantId:    tenantID,
-			ParentId:    parentID,
-			Name:        name,
-			Description: "Partition for org unit: " + name,
-		},
-	))
+	resp, err := b.partitionCli.CreatePartition(ctx, &tenancyv1.CreatePartitionRequest{
+		TenantId:    tenantID,
+		ParentId:    parentID,
+		Name:        name,
+		Description: "Partition for org unit: " + name,
+	})
 	if err != nil {
 		logger.WithError(err).Warn("failed to create child partition")
 		return "", ErrLoginClientCreationFailed.Extend("failed to create child partition")
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (b *orgUnitBusiness) Get(ctx context.Context, id string) (*identityv1.OrgUnitObject, error) {

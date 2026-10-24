@@ -21,8 +21,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/handlers"
 	seedv1 "github.com/antinvestor/service-fintech/gen/go/seed/protocolbuffers/go/seed/v1"

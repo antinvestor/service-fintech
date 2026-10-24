@@ -18,17 +18,16 @@ import (
 	"context"
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v2/tenancyv2connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v2/tenancyv2connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
 	tenancyv2 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v2"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
 	"github.com/antinvestor/service-fintech/apps/identity/service/repository"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 )
 
 // maxLoginTargets is the maximum number of child login targets returned per drill-down.
@@ -143,26 +142,24 @@ func (b *loginClientBusiness) createClientForPartition(
 		return "", ErrLoginClientCreationFailed
 	}
 
-	resp, err := b.authContractCli.CreateOAuthClient(ctx, connect.NewRequest(
-		&tenancyv2.CreateOAuthClientRequest{
-			PartitionId: partitionID,
-			Name:        name + " Login",
-			Type:        "public",
-			Configuration: &tenancyv2.OAuthClientConfiguration{
-				GrantTypes:         []string{"authorization_code", "refresh_token"},
-				ResponseTypes:      []string{"code"},
-				RedirectUris:       b.redirectURIs,
-				Scopes:             "openid profile offline_access",
-				ResourceRecipients: b.audiences,
-			},
+	resp, err := b.authContractCli.CreateOAuthClient(ctx, &tenancyv2.CreateOAuthClientRequest{
+		PartitionId: partitionID,
+		Name:        name + " Login",
+		Type:        "public",
+		Configuration: &tenancyv2.OAuthClientConfiguration{
+			GrantTypes:         []string{"authorization_code", "refresh_token"},
+			ResponseTypes:      []string{"code"},
+			RedirectUris:       b.redirectURIs,
+			Scopes:             "openid profile offline_access",
+			ResourceRecipients: b.audiences,
 		},
-	))
+	})
 	if err != nil {
 		logger.WithError(err).Error("failed to create OAuth client for partition")
 		return "", ErrLoginClientCreationFailed
 	}
 
-	return resp.Msg.GetData().GetClientId(), nil
+	return resp.GetData().GetClientId(), nil
 }
 
 // LoginTarget represents a drill-down login target returned by the login targets endpoint.
@@ -192,35 +189,31 @@ func (b *loginClientBusiness) GetLoginTargets(ctx context.Context, clientID stri
 	}
 
 	// Resolve client_id → partition_id via AuthContract, then load partition details.
-	clientResp, err := b.authContractCli.GetOAuthClient(ctx, connect.NewRequest(
-		&tenancyv2.GetOAuthClientRequest{
-			Selector: &tenancyv2.GetOAuthClientRequest_ClientId{
-				ClientId: clientID,
-			},
+	clientResp, err := b.authContractCli.GetOAuthClient(ctx, &tenancyv2.GetOAuthClientRequest{
+		Selector: &tenancyv2.GetOAuthClientRequest_ClientId{
+			ClientId: clientID,
 		},
-	))
+	})
 	if err != nil {
 		logger.WithError(err).Warn("failed to resolve client_id")
 		return nil, err
 	}
 
-	oauthClient := clientResp.Msg.GetData()
+	oauthClient := clientResp.GetData()
 	if oauthClient == nil || oauthClient.GetPartitionId() == "" {
 		return nil, ErrLoginClientCreationFailed
 	}
 
 	partitionID := oauthClient.GetPartitionId()
-	partitionResp, err := b.partitionCli.GetPartition(ctx, connect.NewRequest(
-		&tenancyv1.GetPartitionRequest{
-			// Prefer ID lookup; field names differ slightly across generations so keep flexible.
-			Id: partitionID,
-		},
-	))
+	partitionResp, err := b.partitionCli.GetPartition(ctx, &tenancyv1.GetPartitionRequest{
+		// Prefer ID lookup; field names differ slightly across generations so keep flexible.
+		Id: partitionID,
+	})
 	if err != nil {
 		logger.WithError(err).Warn("failed to resolve partition for oauth client")
 		return nil, err
 	}
-	partition := partitionResp.Msg.GetData()
+	partition := partitionResp.GetData()
 	if partition == nil {
 		return nil, ErrLoginClientCreationFailed
 	}

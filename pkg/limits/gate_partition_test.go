@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,8 +34,8 @@ type tenancyRecorder struct {
 
 func (r *tenancyRecorder) Reserve(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
+	req *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
 	if t := util.GetTenancy(ctx); t != nil {
 		r.reservePartition = t.GetPartitionID()
 	}
@@ -45,8 +44,8 @@ func (r *tenancyRecorder) Reserve(
 
 func (r *tenancyRecorder) Commit(
 	ctx context.Context,
-	req *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
+	req *limitsv1.CommitRequest,
+) (*limitsv1.CommitResponse, error) {
 	if t := util.GetTenancy(ctx); t != nil {
 		r.commitPartition = t.GetPartitionID()
 	}

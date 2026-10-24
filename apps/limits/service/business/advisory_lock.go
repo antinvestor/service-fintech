@@ -20,7 +20,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/models"

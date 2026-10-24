@@ -20,10 +20,9 @@ import (
 	"sync"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,15 +39,15 @@ type fakeLender struct {
 
 func (f *fakeLender) RepaymentRecord(
 	_ context.Context,
-	req *connect.Request[loansv1.RepaymentRecordRequest],
-) (*connect.Response[loansv1.RepaymentRecordResponse], error) {
+	req *loansv1.RepaymentRecordRequest,
+) (*loansv1.RepaymentRecordResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, req.Msg)
+	f.calls = append(f.calls, req)
 	if f.fail != nil {
 		return nil, f.fail
 	}
-	return connect.NewResponse(&loansv1.RepaymentRecordResponse{}), nil
+	return &loansv1.RepaymentRecordResponse{}, nil
 }
 
 func TestObligationLoanAccountID_ComesFromThePropertyNotTheCause(t *testing.T) {

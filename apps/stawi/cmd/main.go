@@ -20,25 +20,24 @@ import (
 	"net/http"
 	"os"
 
-	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
 	"github.com/antinvestor/service-trustage/client/workflows"
-	"github.com/antinvestor/service-trustage/gen/go/workflow/v1/workflowv1connect"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	"github.com/pitabwire/frame/v2/security/interceptors/httptor"
-	"github.com/pitabwire/frame/v2/setup"
-	"github.com/pitabwire/frame/v2/tenancy"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	"github.com/pitabwire/frame/v3/security/interceptors/httptor"
+	"github.com/pitabwire/frame/v3/setup"
+	"github.com/pitabwire/frame/v3/tenancy"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -71,7 +70,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 )
 
 // namespaceTenancyAccess is the Keto namespace that carries partition-level
@@ -438,7 +437,7 @@ func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.StawiConfig) {
 	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  trustageURL,
 		ServiceID: servicecatalog.ServiceTrustage,
-	}, workflowv1connect.NewWorkflowServiceClient)
+	}, newTrustageWorkflows)
 	if cliErr != nil {
 		util.Log(ctx).WithError(cliErr).Warn("trustage workflow client init failed")
 		return

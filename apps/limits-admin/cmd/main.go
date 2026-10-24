@@ -20,10 +20,12 @@ import (
 	"os"
 	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/servicecatalog"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/servicecatalog"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +83,9 @@ func newAdminClient(ctx context.Context) (limitsv1connect.LimitsAdminServiceClie
 				base:  http.DefaultTransport,
 			},
 		}
-		return limitsv1connect.NewLimitsAdminServiceClient(httpClient, flagURI), nil
+		return limitsv1connect.NewLimitsAdminServiceClient(
+			connect.NewClient(connecthttp.NewTransport(httpClient, flagURI)),
+		), nil
 	}
 
 	// Production path: workload identity via platform auth helper.

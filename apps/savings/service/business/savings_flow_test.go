@@ -22,17 +22,17 @@ import (
 	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/frametests"
-	"github.com/pitabwire/frame/v2/frametests/definition"
-	"github.com/pitabwire/frame/v2/frametests/deps/testpostgres"
-	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/frametests"
+	"github.com/pitabwire/frame/v3/frametests/definition"
+	"github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 
@@ -59,41 +59,41 @@ type recordingOperationsClient struct {
 
 func (c *recordingOperationsClient) TransferOrderExecute(
 	_ context.Context,
-	req *connect.Request[operationsv1.TransferOrderExecuteRequest],
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
+	req *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.fail != nil {
 		return nil, c.fail
 	}
-	c.orders = append(c.orders, req.Msg.GetData())
+	c.orders = append(c.orders, req.GetData())
 	txnID := "ledger-txn-1"
 	if c.emptyTxnID {
 		txnID = ""
 	}
-	return connect.NewResponse(&operationsv1.TransferOrderExecuteResponse{
+	return &operationsv1.TransferOrderExecuteResponse{
 		Data: &operationsv1.TransferOrderObject{Id: txnID},
-	}), nil
+	}, nil
 }
 
 func (c *recordingOperationsClient) TransferOrderSearch(
 	_ context.Context,
-	_ *connect.Request[operationsv1.TransferOrderSearchRequest],
-) (*connect.ServerStreamForClient[operationsv1.TransferOrderSearchResponse], error) {
+	_ *operationsv1.TransferOrderSearchRequest,
+) (operationsv1connect.OperationsServiceTransferOrderSearchClientStream, error) {
 	panic("not used")
 }
 
 func (c *recordingOperationsClient) IncomingPaymentNotify(
 	_ context.Context,
-	_ *connect.Request[operationsv1.IncomingPaymentNotifyRequest],
-) (*connect.Response[operationsv1.IncomingPaymentNotifyResponse], error) {
+	_ *operationsv1.IncomingPaymentNotifyRequest,
+) (*operationsv1.IncomingPaymentNotifyResponse, error) {
 	panic("not used")
 }
 
 func (c *recordingOperationsClient) PaymentAllocate(
 	_ context.Context,
-	_ *connect.Request[operationsv1.PaymentAllocateRequest],
-) (*connect.Response[operationsv1.PaymentAllocateResponse], error) {
+	_ *operationsv1.PaymentAllocateRequest,
+) (*operationsv1.PaymentAllocateResponse, error) {
 	panic("not used")
 }
 

@@ -19,7 +19,7 @@ import (
 	"time"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 

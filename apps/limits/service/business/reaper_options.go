@@ -17,8 +17,8 @@ package business
 import (
 	"context"
 
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/tenancy"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/tenancy"
 	"gorm.io/gorm"
 )
 

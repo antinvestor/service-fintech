@@ -18,15 +18,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/events"
@@ -87,13 +87,11 @@ func (b *obligationBusiness) CalculateForGroup(
 		WithField("group_id", groupID)
 
 	// Load the group to get saving amount and currency
-	grpResp, err := b.identityCli.ClientGroupGet(ctx, connect.NewRequest(
-		&identityv1.ClientGroupGetRequest{Id: groupID},
-	))
+	grpResp, err := b.identityCli.ClientGroupGet(ctx, &identityv1.ClientGroupGetRequest{Id: groupID})
 	if err != nil {
 		return nil, fmt.Errorf("group not found: %w", err)
 	}
-	group := grpResp.Msg.GetData()
+	group := grpResp.GetData()
 
 	if group.GetState() != commonv1.STATE_ACTIVE {
 		logger.Warn("group is not active, skipping obligation calculation")
@@ -464,20 +462,22 @@ func (b *obligationBusiness) getMembersByGroupID(
 		return nil, errors.New("identity client not available")
 	}
 
-	stream, err := b.identityCli.MembershipSearch(ctx, connect.NewRequest(
-		&identityv1.MembershipSearchRequest{GroupId: groupID},
-	))
+	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{GroupId: groupID})
 	if err != nil {
 		return nil, err
 	}
 
 	var members []*identityv1.MembershipObject
-	for stream.Receive() {
-		msg := stream.Msg()
+	for {
+		msg2, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return nil, streamErr
+		}
+		msg := msg2
 		members = append(members, msg.GetData()...)
-	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return nil, streamErr
 	}
 
 	return members, nil

@@ -19,24 +19,25 @@ import (
 	"net/http"
 	"time"
 
-	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
-	"buf.build/gen/go/antinvestor/savings/connectrpc/go/savings/v1/savingsv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/savings/connectrpc/go/v2/savings/v1/savingsv1connect"
 	savingspb "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/setup"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/setup"
 	"github.com/pitabwire/util"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/savings/config"
@@ -306,13 +307,12 @@ func setupConnectServer(
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}
 
-	interceptorOption := connect.WithInterceptors(defaultInterceptorList...)
-
-	// Register the savings service on the mux
-	savingsPath, savingsServerHandler := savingsv1connect.NewSavingsServiceHandler(savingsHandler, interceptorOption)
+	// Register the savings service on a server carrying the interceptor chain.
+	server := connect.NewServer(defaultInterceptorList...)
+	savingsv1connect.RegisterSavingsServiceHandler(server, savingsHandler)
 
 	mux := http.NewServeMux()
-	mux.Handle(savingsPath, savingsServerHandler)
+	connecthttp.Mount(mux, server)
 
 	return mux
 }

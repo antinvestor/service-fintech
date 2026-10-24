@@ -23,8 +23,8 @@ import (
 	"os"
 	"strings"
 
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/queue"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/queue"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/limits/service/events"

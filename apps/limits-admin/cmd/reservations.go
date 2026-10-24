@@ -16,7 +16,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,7 +27,6 @@ import (
 	"time"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -105,17 +106,21 @@ func listReservationsOnce(ctx context.Context, status limitsv1.ApprovalStatus) e
 		Status: status,
 	}
 
-	stream, err := client.ApprovalRequestList(ctx, connect.NewRequest(req))
+	stream, err := client.ApprovalRequestList(ctx, req)
 	if err != nil {
 		return fmt.Errorf("ApprovalRequestList: %w", err)
 	}
 
 	var items []*limitsv1.ApprovalRequestObject
-	for stream.Receive() {
-		items = append(items, stream.Msg().GetData()...)
-	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return fmt.Errorf("stream error: %w", streamErr)
+	for {
+		msg, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return fmt.Errorf("stream error: %w", streamErr)
+		}
+		items = append(items, msg.GetData()...)
 	}
 
 	return renderReservations(items)
@@ -195,15 +200,15 @@ func reservationsShowCmd() *cobra.Command {
 			}
 			resp, err := client.ApprovalRequestGet(
 				cmd.Context(),
-				connect.NewRequest(&limitsv1.ApprovalRequestGetRequest{
+				&limitsv1.ApprovalRequestGetRequest{
 					Id: args[0],
-				}),
+				},
 			)
 			if err != nil {
 				return fmt.Errorf("ApprovalRequestGet: %w", err)
 			}
 
-			item := resp.Msg.GetData()
+			item := resp.GetData()
 			if flagJSON {
 				out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(item)
 				if marshalErr != nil {

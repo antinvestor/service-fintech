@@ -19,12 +19,11 @@ import (
 	"strconv"
 	"time"
 
-	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/workerpool"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/business"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
@@ -88,35 +87,35 @@ func NewLoanManagementServer(
 
 func (s *LoanManagementServer) LoanProductSave(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanProductSaveRequest],
-) (*connect.Response[loansv1.LoanProductSaveResponse], error) {
-	result, err := s.lpBusiness.Save(ctx, req.Msg.GetData())
+	req *loansv1.LoanProductSaveRequest,
+) (*loansv1.LoanProductSaveResponse, error) {
+	result, err := s.lpBusiness.Save(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceLoanProduct, result.GetId())
 	audit.WithAction(ctx, audit.ActionSave)
 	audit.WithDetail(ctx, "name", result.GetName())
-	return connect.NewResponse(&loansv1.LoanProductSaveResponse{Data: result}), nil
+	return &loansv1.LoanProductSaveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanProductGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanProductGetRequest],
-) (*connect.Response[loansv1.LoanProductGetResponse], error) {
-	result, err := s.lpBusiness.Get(ctx, req.Msg.GetId())
+	req *loansv1.LoanProductGetRequest,
+) (*loansv1.LoanProductGetResponse, error) {
+	result, err := s.lpBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.LoanProductGetResponse{Data: result}), nil
+	return &loansv1.LoanProductGetResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanProductSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanProductSearchRequest],
-	stream *connect.ServerStream[loansv1.LoanProductSearchResponse],
+	req *loansv1.LoanProductSearchRequest,
+	stream loansv1connect.LoanManagementServiceLoanProductSearchServerStream,
 ) error {
-	err := s.lpBusiness.Search(ctx, req.Msg, func(_ context.Context, batch []*loansv1.LoanProductObject) error {
+	err := s.lpBusiness.Search(ctx, req, func(_ context.Context, batch []*loansv1.LoanProductObject) error {
 		return stream.Send(&loansv1.LoanProductSearchResponse{Data: batch})
 	})
 	if err != nil {
@@ -129,34 +128,34 @@ func (s *LoanManagementServer) LoanProductSearch(
 
 func (s *LoanManagementServer) LoanRequestSave(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRequestSaveRequest],
-) (*connect.Response[loansv1.LoanRequestSaveResponse], error) {
-	result, err := s.lrBusiness.Save(ctx, req.Msg.GetData())
+	req *loansv1.LoanRequestSaveRequest,
+) (*loansv1.LoanRequestSaveResponse, error) {
+	result, err := s.lrBusiness.Save(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceLoanRequest, result.GetId())
 	audit.WithAction(ctx, audit.ActionSave)
-	return connect.NewResponse(&loansv1.LoanRequestSaveResponse{Data: result}), nil
+	return &loansv1.LoanRequestSaveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanRequestGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRequestGetRequest],
-) (*connect.Response[loansv1.LoanRequestGetResponse], error) {
-	result, err := s.lrBusiness.Get(ctx, req.Msg.GetId())
+	req *loansv1.LoanRequestGetRequest,
+) (*loansv1.LoanRequestGetResponse, error) {
+	result, err := s.lrBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.LoanRequestGetResponse{Data: result}), nil
+	return &loansv1.LoanRequestGetResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanRequestSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRequestSearchRequest],
-	stream *connect.ServerStream[loansv1.LoanRequestSearchResponse],
+	req *loansv1.LoanRequestSearchRequest,
+	stream loansv1connect.LoanManagementServiceLoanRequestSearchServerStream,
 ) error {
-	err := s.lrBusiness.Search(ctx, req.Msg, func(_ context.Context, batch []*loansv1.LoanRequestObject) error {
+	err := s.lrBusiness.Search(ctx, req, func(_ context.Context, batch []*loansv1.LoanRequestObject) error {
 		return stream.Send(&loansv1.LoanRequestSearchResponse{Data: batch})
 	})
 	if err != nil {
@@ -167,78 +166,78 @@ func (s *LoanManagementServer) LoanRequestSearch(
 
 func (s *LoanManagementServer) LoanRequestApprove(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRequestApproveRequest],
-) (*connect.Response[loansv1.LoanRequestApproveResponse], error) {
-	result, err := s.lrBusiness.Approve(ctx, req.Msg.GetId())
+	req *loansv1.LoanRequestApproveRequest,
+) (*loansv1.LoanRequestApproveResponse, error) {
+	result, err := s.lrBusiness.Approve(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceLoanRequest, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceLoanRequest, req.GetId())
 	audit.WithAction(ctx, audit.ActionApprove)
-	return connect.NewResponse(&loansv1.LoanRequestApproveResponse{Data: result}), nil
+	return &loansv1.LoanRequestApproveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanRequestReject(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRequestRejectRequest],
-) (*connect.Response[loansv1.LoanRequestRejectResponse], error) {
-	result, err := s.lrBusiness.Reject(ctx, req.Msg.GetId(), req.Msg.GetReason())
+	req *loansv1.LoanRequestRejectRequest,
+) (*loansv1.LoanRequestRejectResponse, error) {
+	result, err := s.lrBusiness.Reject(ctx, req.GetId(), req.GetReason())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceLoanRequest, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceLoanRequest, req.GetId())
 	audit.WithAction(ctx, audit.ActionReject)
-	audit.WithDetail(ctx, "reason", req.Msg.GetReason())
-	return connect.NewResponse(&loansv1.LoanRequestRejectResponse{Data: result}), nil
+	audit.WithDetail(ctx, "reason", req.GetReason())
+	return &loansv1.LoanRequestRejectResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanRequestCancel(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRequestCancelRequest],
-) (*connect.Response[loansv1.LoanRequestCancelResponse], error) {
-	result, err := s.lrBusiness.Cancel(ctx, req.Msg.GetId(), req.Msg.GetReason())
+	req *loansv1.LoanRequestCancelRequest,
+) (*loansv1.LoanRequestCancelResponse, error) {
+	result, err := s.lrBusiness.Cancel(ctx, req.GetId(), req.GetReason())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceLoanRequest, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceLoanRequest, req.GetId())
 	audit.WithAction(ctx, audit.ActionCancel)
-	audit.WithDetail(ctx, "reason", req.Msg.GetReason())
-	return connect.NewResponse(&loansv1.LoanRequestCancelResponse{Data: result}), nil
+	audit.WithDetail(ctx, "reason", req.GetReason())
+	return &loansv1.LoanRequestCancelResponse{Data: result}, nil
 }
 
 // --- LoanAccount RPCs ---
 
 func (s *LoanManagementServer) LoanAccountCreate(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanAccountCreateRequest],
-) (*connect.Response[loansv1.LoanAccountCreateResponse], error) {
-	result, err := s.laBusiness.Create(ctx, req.Msg.GetLoanRequestId())
+	req *loansv1.LoanAccountCreateRequest,
+) (*loansv1.LoanAccountCreateResponse, error) {
+	result, err := s.laBusiness.Create(ctx, req.GetLoanRequestId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceLoanAccount, result.GetId())
 	audit.WithAction(ctx, audit.ActionCreate)
-	audit.WithDetail(ctx, "loan_request_id", req.Msg.GetLoanRequestId())
-	return connect.NewResponse(&loansv1.LoanAccountCreateResponse{Data: result}), nil
+	audit.WithDetail(ctx, "loan_request_id", req.GetLoanRequestId())
+	return &loansv1.LoanAccountCreateResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanAccountGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanAccountGetRequest],
-) (*connect.Response[loansv1.LoanAccountGetResponse], error) {
-	result, err := s.laBusiness.Get(ctx, req.Msg.GetId())
+	req *loansv1.LoanAccountGetRequest,
+) (*loansv1.LoanAccountGetResponse, error) {
+	result, err := s.laBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.LoanAccountGetResponse{Data: result}), nil
+	return &loansv1.LoanAccountGetResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanAccountSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanAccountSearchRequest],
-	stream *connect.ServerStream[loansv1.LoanAccountSearchResponse],
+	req *loansv1.LoanAccountSearchRequest,
+	stream loansv1connect.LoanManagementServiceLoanAccountSearchServerStream,
 ) error {
-	err := s.laBusiness.Search(ctx, req.Msg,
+	err := s.laBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*loansv1.LoanAccountObject) error {
 			return stream.Send(&loansv1.LoanAccountSearchResponse{Data: batch})
 		})
@@ -250,59 +249,59 @@ func (s *LoanManagementServer) LoanAccountSearch(
 
 func (s *LoanManagementServer) LoanBalanceGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanBalanceGetRequest],
-) (*connect.Response[loansv1.LoanBalanceGetResponse], error) {
-	result, err := s.laBusiness.GetBalance(ctx, req.Msg.GetLoanAccountId())
+	req *loansv1.LoanBalanceGetRequest,
+) (*loansv1.LoanBalanceGetResponse, error) {
+	result, err := s.laBusiness.GetBalance(ctx, req.GetLoanAccountId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.LoanBalanceGetResponse{Data: result}), nil
+	return &loansv1.LoanBalanceGetResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanStatement(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanStatementRequest],
-) (*connect.Response[loansv1.LoanStatementResponse], error) {
-	result, err := s.laBusiness.GetStatement(ctx, req.Msg)
+	req *loansv1.LoanStatementRequest,
+) (*loansv1.LoanStatementResponse, error) {
+	result, err := s.laBusiness.GetStatement(ctx, req)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(result), nil
+	return result, nil
 }
 
 // --- Repayment RPCs ---
 
 func (s *LoanManagementServer) RepaymentRecord(
 	ctx context.Context,
-	req *connect.Request[loansv1.RepaymentRecordRequest],
-) (*connect.Response[loansv1.RepaymentRecordResponse], error) {
-	result, err := s.repBusiness.Record(ctx, req.Msg)
+	req *loansv1.RepaymentRecordRequest,
+) (*loansv1.RepaymentRecordResponse, error) {
+	result, err := s.repBusiness.Record(ctx, req)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceRepayment, result.GetId())
 	audit.WithAction(ctx, audit.ActionCreate)
-	audit.WithDetail(ctx, "loan_account_id", req.Msg.GetLoanAccountId())
-	return connect.NewResponse(&loansv1.RepaymentRecordResponse{Data: result}), nil
+	audit.WithDetail(ctx, "loan_account_id", req.GetLoanAccountId())
+	return &loansv1.RepaymentRecordResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) RepaymentGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.RepaymentGetRequest],
-) (*connect.Response[loansv1.RepaymentGetResponse], error) {
-	result, err := s.repBusiness.Get(ctx, req.Msg.GetId())
+	req *loansv1.RepaymentGetRequest,
+) (*loansv1.RepaymentGetResponse, error) {
+	result, err := s.repBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.RepaymentGetResponse{Data: result}), nil
+	return &loansv1.RepaymentGetResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) RepaymentSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.RepaymentSearchRequest],
-	stream *connect.ServerStream[loansv1.RepaymentSearchResponse],
+	req *loansv1.RepaymentSearchRequest,
+	stream loansv1connect.LoanManagementServiceRepaymentSearchServerStream,
 ) error {
-	err := s.repBusiness.Search(ctx, req.Msg,
+	err := s.repBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*loansv1.RepaymentObject) error {
 			return stream.Send(&loansv1.RepaymentSearchResponse{Data: batch})
 		})
@@ -316,50 +315,50 @@ func (s *LoanManagementServer) RepaymentSearch(
 
 func (s *LoanManagementServer) RepaymentScheduleGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.RepaymentScheduleGetRequest],
-) (*connect.Response[loansv1.RepaymentScheduleGetResponse], error) {
-	result, err := s.scheduleBusiness.GetActive(ctx, req.Msg.GetLoanAccountId())
+	req *loansv1.RepaymentScheduleGetRequest,
+) (*loansv1.RepaymentScheduleGetResponse, error) {
+	result, err := s.scheduleBusiness.GetActive(ctx, req.GetLoanAccountId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.RepaymentScheduleGetResponse{Data: result}), nil
+	return &loansv1.RepaymentScheduleGetResponse{Data: result}, nil
 }
 
 // --- Penalty RPCs ---
 
 func (s *LoanManagementServer) PenaltySave(
 	ctx context.Context,
-	req *connect.Request[loansv1.PenaltySaveRequest],
-) (*connect.Response[loansv1.PenaltySaveResponse], error) {
-	result, err := s.penaltyBusiness.Save(ctx, req.Msg.GetData())
+	req *loansv1.PenaltySaveRequest,
+) (*loansv1.PenaltySaveResponse, error) {
+	result, err := s.penaltyBusiness.Save(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourcePenalty, result.GetId())
 	audit.WithAction(ctx, audit.ActionSave)
-	return connect.NewResponse(&loansv1.PenaltySaveResponse{Data: result}), nil
+	return &loansv1.PenaltySaveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) PenaltyWaive(
 	ctx context.Context,
-	req *connect.Request[loansv1.PenaltyWaiveRequest],
-) (*connect.Response[loansv1.PenaltyWaiveResponse], error) {
-	result, err := s.penaltyBusiness.Waive(ctx, req.Msg.GetId(), req.Msg.GetReason())
+	req *loansv1.PenaltyWaiveRequest,
+) (*loansv1.PenaltyWaiveResponse, error) {
+	result, err := s.penaltyBusiness.Waive(ctx, req.GetId(), req.GetReason())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourcePenalty, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourcePenalty, req.GetId())
 	audit.WithAction(ctx, "waive")
-	audit.WithDetail(ctx, "reason", req.Msg.GetReason())
-	return connect.NewResponse(&loansv1.PenaltyWaiveResponse{Data: result}), nil
+	audit.WithDetail(ctx, "reason", req.GetReason())
+	return &loansv1.PenaltyWaiveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) PenaltySearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.PenaltySearchRequest],
-	stream *connect.ServerStream[loansv1.PenaltySearchResponse],
+	req *loansv1.PenaltySearchRequest,
+	stream loansv1connect.LoanManagementServicePenaltySearchServerStream,
 ) error {
-	err := s.penaltyBusiness.Search(ctx, req.Msg,
+	err := s.penaltyBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*loansv1.PenaltyObject) error {
 			return stream.Send(&loansv1.PenaltySearchResponse{Data: batch})
 		})
@@ -373,50 +372,50 @@ func (s *LoanManagementServer) PenaltySearch(
 
 func (s *LoanManagementServer) LoanRestructureCreate(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRestructureCreateRequest],
-) (*connect.Response[loansv1.LoanRestructureCreateResponse], error) {
-	result, err := s.restructBusiness.Create(ctx, req.Msg.GetData())
+	req *loansv1.LoanRestructureCreateRequest,
+) (*loansv1.LoanRestructureCreateResponse, error) {
+	result, err := s.restructBusiness.Create(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceLoanRestructure, result.GetId())
 	audit.WithAction(ctx, audit.ActionCreate)
-	return connect.NewResponse(&loansv1.LoanRestructureCreateResponse{Data: result}), nil
+	return &loansv1.LoanRestructureCreateResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanRestructureApprove(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRestructureApproveRequest],
-) (*connect.Response[loansv1.LoanRestructureApproveResponse], error) {
-	result, err := s.restructBusiness.Approve(ctx, req.Msg.GetId())
+	req *loansv1.LoanRestructureApproveRequest,
+) (*loansv1.LoanRestructureApproveResponse, error) {
+	result, err := s.restructBusiness.Approve(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceLoanRestructure, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceLoanRestructure, req.GetId())
 	audit.WithAction(ctx, audit.ActionApprove)
-	return connect.NewResponse(&loansv1.LoanRestructureApproveResponse{Data: result}), nil
+	return &loansv1.LoanRestructureApproveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanRestructureReject(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRestructureRejectRequest],
-) (*connect.Response[loansv1.LoanRestructureRejectResponse], error) {
-	result, err := s.restructBusiness.Reject(ctx, req.Msg.GetId(), req.Msg.GetReason())
+	req *loansv1.LoanRestructureRejectRequest,
+) (*loansv1.LoanRestructureRejectResponse, error) {
+	result, err := s.restructBusiness.Reject(ctx, req.GetId(), req.GetReason())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceLoanRestructure, req.Msg.GetId())
+	audit.WithResource(ctx, audit.ResourceLoanRestructure, req.GetId())
 	audit.WithAction(ctx, audit.ActionReject)
-	audit.WithDetail(ctx, "reason", req.Msg.GetReason())
-	return connect.NewResponse(&loansv1.LoanRestructureRejectResponse{Data: result}), nil
+	audit.WithDetail(ctx, "reason", req.GetReason())
+	return &loansv1.LoanRestructureRejectResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) LoanRestructureSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanRestructureSearchRequest],
-	stream *connect.ServerStream[loansv1.LoanRestructureSearchResponse],
+	req *loansv1.LoanRestructureSearchRequest,
+	stream loansv1connect.LoanManagementServiceLoanRestructureSearchServerStream,
 ) error {
-	err := s.restructBusiness.Search(ctx, req.Msg,
+	err := s.restructBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*loansv1.LoanRestructureObject) error {
 			return stream.Send(&loansv1.LoanRestructureSearchResponse{Data: batch})
 		})
@@ -430,23 +429,23 @@ func (s *LoanManagementServer) LoanRestructureSearch(
 
 func (s *LoanManagementServer) ReconciliationSave(
 	ctx context.Context,
-	req *connect.Request[loansv1.ReconciliationSaveRequest],
-) (*connect.Response[loansv1.ReconciliationSaveResponse], error) {
-	result, err := s.reconBusiness.Save(ctx, req.Msg.GetData())
+	req *loansv1.ReconciliationSaveRequest,
+) (*loansv1.ReconciliationSaveResponse, error) {
+	result, err := s.reconBusiness.Save(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceReconciliation, result.GetId())
 	audit.WithAction(ctx, audit.ActionSave)
-	return connect.NewResponse(&loansv1.ReconciliationSaveResponse{Data: result}), nil
+	return &loansv1.ReconciliationSaveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) ReconciliationSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.ReconciliationSearchRequest],
-	stream *connect.ServerStream[loansv1.ReconciliationSearchResponse],
+	req *loansv1.ReconciliationSearchRequest,
+	stream loansv1connect.LoanManagementServiceReconciliationSearchServerStream,
 ) error {
-	err := s.reconBusiness.Search(ctx, req.Msg,
+	err := s.reconBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*loansv1.ReconciliationObject) error {
 			return stream.Send(&loansv1.ReconciliationSearchResponse{Data: batch})
 		})
@@ -460,12 +459,12 @@ func (s *LoanManagementServer) ReconciliationSearch(
 
 func (s *LoanManagementServer) LoanStatusChangeSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.LoanStatusChangeSearchRequest],
-	stream *connect.ServerStream[loansv1.LoanStatusChangeSearchResponse],
+	req *loansv1.LoanStatusChangeSearchRequest,
+	stream loansv1connect.LoanManagementServiceLoanStatusChangeSearchServerStream,
 ) error {
 	var searchOpts []data.SearchOption
 
-	cursor := req.Msg.GetCursor()
+	cursor := req.GetCursor()
 	if cursor != nil {
 		offset, offsetErr := strconv.Atoi(cursor.GetPage())
 		if offsetErr != nil {
@@ -475,8 +474,8 @@ func (s *LoanManagementServer) LoanStatusChangeSearch(
 	}
 
 	andQueryVal := map[string]any{}
-	if req.Msg.GetLoanAccountId() != "" {
-		andQueryVal["loan_account_id = ?"] = req.Msg.GetLoanAccountId()
+	if req.GetLoanAccountId() != "" {
+		andQueryVal["loan_account_id = ?"] = req.GetLoanAccountId()
 	}
 
 	if len(andQueryVal) > 0 {
@@ -505,35 +504,35 @@ func (s *LoanManagementServer) LoanStatusChangeSearch(
 
 func (s *LoanManagementServer) DisbursementCreate(
 	ctx context.Context,
-	req *connect.Request[loansv1.DisbursementCreateRequest],
-) (*connect.Response[loansv1.DisbursementCreateResponse], error) {
-	result, err := s.disbBusiness.Create(ctx, req.Msg)
+	req *loansv1.DisbursementCreateRequest,
+) (*loansv1.DisbursementCreateResponse, error) {
+	result, err := s.disbBusiness.Create(ctx, req)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceDisbursement, result.GetId())
 	audit.WithAction(ctx, audit.ActionCreate)
-	audit.WithDetail(ctx, "loan_account_id", req.Msg.GetLoanAccountId())
-	return connect.NewResponse(&loansv1.DisbursementCreateResponse{Data: result}), nil
+	audit.WithDetail(ctx, "loan_account_id", req.GetLoanAccountId())
+	return &loansv1.DisbursementCreateResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) DisbursementGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.DisbursementGetRequest],
-) (*connect.Response[loansv1.DisbursementGetResponse], error) {
-	result, err := s.disbBusiness.Get(ctx, req.Msg.GetId())
+	req *loansv1.DisbursementGetRequest,
+) (*loansv1.DisbursementGetResponse, error) {
+	result, err := s.disbBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.DisbursementGetResponse{Data: result}), nil
+	return &loansv1.DisbursementGetResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) DisbursementSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.DisbursementSearchRequest],
-	stream *connect.ServerStream[loansv1.DisbursementSearchResponse],
+	req *loansv1.DisbursementSearchRequest,
+	stream loansv1connect.LoanManagementServiceDisbursementSearchServerStream,
 ) error {
-	err := s.disbBusiness.Search(ctx, req.Msg,
+	err := s.disbBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*loansv1.DisbursementObject) error {
 			return stream.Send(&loansv1.DisbursementSearchResponse{Data: batch})
 		})
@@ -547,35 +546,35 @@ func (s *LoanManagementServer) DisbursementSearch(
 
 func (s *LoanManagementServer) ClientProductAccessSave(
 	ctx context.Context,
-	req *connect.Request[loansv1.ClientProductAccessSaveRequest],
-) (*connect.Response[loansv1.ClientProductAccessSaveResponse], error) {
-	result, err := s.cpaBusiness.Save(ctx, req.Msg.GetData())
+	req *loansv1.ClientProductAccessSaveRequest,
+) (*loansv1.ClientProductAccessSaveResponse, error) {
+	result, err := s.cpaBusiness.Save(ctx, req.GetData())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 	audit.WithResource(ctx, audit.ResourceLoanProduct, result.GetProductId())
 	audit.WithAction(ctx, audit.ActionSave)
 	audit.WithDetail(ctx, "client_id", result.GetClientId())
-	return connect.NewResponse(&loansv1.ClientProductAccessSaveResponse{Data: result}), nil
+	return &loansv1.ClientProductAccessSaveResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) ClientProductAccessGet(
 	ctx context.Context,
-	req *connect.Request[loansv1.ClientProductAccessGetRequest],
-) (*connect.Response[loansv1.ClientProductAccessGetResponse], error) {
-	result, err := s.cpaBusiness.Get(ctx, req.Msg.GetId())
+	req *loansv1.ClientProductAccessGetRequest,
+) (*loansv1.ClientProductAccessGetResponse, error) {
+	result, err := s.cpaBusiness.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	return connect.NewResponse(&loansv1.ClientProductAccessGetResponse{Data: result}), nil
+	return &loansv1.ClientProductAccessGetResponse{Data: result}, nil
 }
 
 func (s *LoanManagementServer) ClientProductAccessSearch(
 	ctx context.Context,
-	req *connect.Request[loansv1.ClientProductAccessSearchRequest],
-	stream *connect.ServerStream[loansv1.ClientProductAccessSearchResponse],
+	req *loansv1.ClientProductAccessSearchRequest,
+	stream loansv1connect.LoanManagementServiceClientProductAccessSearchServerStream,
 ) error {
-	err := s.cpaBusiness.Search(ctx, req.Msg,
+	err := s.cpaBusiness.Search(ctx, req,
 		func(_ context.Context, batch []*loansv1.ClientProductAccessObject) error {
 			return stream.Send(&loansv1.ClientProductAccessSearchResponse{Data: batch})
 		})
@@ -589,31 +588,31 @@ func (s *LoanManagementServer) ClientProductAccessSearch(
 
 func (s *LoanManagementServer) InitiateCollection(
 	ctx context.Context,
-	req *connect.Request[loansv1.InitiateCollectionRequest],
-) (*connect.Response[loansv1.InitiateCollectionResponse], error) {
-	result, err := s.collectionBusiness.Initiate(ctx, req.Msg)
+	req *loansv1.InitiateCollectionRequest,
+) (*loansv1.InitiateCollectionResponse, error) {
+	result, err := s.collectionBusiness.Initiate(ctx, req)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
-	audit.WithResource(ctx, audit.ResourceLoanAccount, req.Msg.GetLoanAccountId())
+	audit.WithResource(ctx, audit.ResourceLoanAccount, req.GetLoanAccountId())
 	audit.WithAction(ctx, audit.ActionCreate)
 	audit.WithDetail(ctx, "payment_prompt_id", result.GetPaymentPromptId())
-	return connect.NewResponse(result), nil
+	return result, nil
 }
 
 // --- Portfolio RPCs ---
 
 func (s *LoanManagementServer) PortfolioSummary(
 	ctx context.Context,
-	req *connect.Request[loansv1.PortfolioSummaryRequest],
-) (*connect.Response[loansv1.PortfolioSummaryResponse], error) {
+	req *loansv1.PortfolioSummaryRequest,
+) (*loansv1.PortfolioSummaryResponse, error) {
 	filter := business.PortfolioFilter{
-		OrganizationID: req.Msg.GetOrganizationId(),
-		BranchID:       req.Msg.GetBranchId(),
-		AgentID:        req.Msg.GetAgentId(),
-		ProductID:      req.Msg.GetProductId(),
-		ClientID:       req.Msg.GetClientId(),
-		CurrencyCode:   req.Msg.GetCurrencyCode(),
+		OrganizationID: req.GetOrganizationId(),
+		BranchID:       req.GetBranchId(),
+		AgentID:        req.GetAgentId(),
+		ProductID:      req.GetProductId(),
+		ClientID:       req.GetClientId(),
+		CurrencyCode:   req.GetCurrencyCode(),
 	}
 
 	result, err := s.portfolioBusiness.GetSummary(ctx, filter)
@@ -622,7 +621,7 @@ func (s *LoanManagementServer) PortfolioSummary(
 	}
 
 	currency := result.CurrencyCode
-	return connect.NewResponse(&loansv1.PortfolioSummaryResponse{
+	return &loansv1.PortfolioSummaryResponse{
 		Data: &loansv1.PortfolioSummary{
 			TotalLoans:           result.TotalLoans,
 			ActiveLoans:          result.ActiveLoans,
@@ -641,20 +640,20 @@ func (s *LoanManagementServer) PortfolioSummary(
 			CollectionRate:       result.CollectionRate,
 			Par_30:               result.PAR30,
 		},
-	}), nil
+	}, nil
 }
 
 func (s *LoanManagementServer) PortfolioExport(
 	ctx context.Context,
-	req *connect.Request[loansv1.PortfolioExportRequest],
-) (*connect.Response[loansv1.PortfolioExportResponse], error) {
+	req *loansv1.PortfolioExportRequest,
+) (*loansv1.PortfolioExportResponse, error) {
 	filter := business.PortfolioFilter{
-		OrganizationID: req.Msg.GetOrganizationId(),
-		BranchID:       req.Msg.GetBranchId(),
-		AgentID:        req.Msg.GetAgentId(),
-		ProductID:      req.Msg.GetProductId(),
-		ClientID:       req.Msg.GetClientId(),
-		CurrencyCode:   req.Msg.GetCurrencyCode(),
+		OrganizationID: req.GetOrganizationId(),
+		BranchID:       req.GetBranchId(),
+		AgentID:        req.GetAgentId(),
+		ProductID:      req.GetProductId(),
+		ClientID:       req.GetClientId(),
+		CurrencyCode:   req.GetCurrencyCode(),
 	}
 
 	csvData, err := s.portfolioBusiness.ExportCSV(ctx, filter)
@@ -663,9 +662,9 @@ func (s *LoanManagementServer) PortfolioExport(
 	}
 
 	audit.WithAction(ctx, "export")
-	return connect.NewResponse(&loansv1.PortfolioExportResponse{
+	return &loansv1.PortfolioExportResponse{
 		Data:        csvData,
 		Filename:    "loan_book_" + time.Now().UTC().Format("20060102_150405") + ".csv",
 		ContentType: "text/csv",
-	}), nil
+	}, nil
 }

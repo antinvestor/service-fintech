@@ -20,7 +20,7 @@ import (
 	"sync"
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 )

@@ -19,9 +19,8 @@ import (
 	"errors"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
-	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,13 +79,13 @@ type fakeTenancy struct {
 
 func (f *fakeTenancy) GetPartitionParents(
 	_ context.Context,
-	_ *connect.Request[tenancyv1.GetPartitionParentsRequest],
-) (*connect.Response[tenancyv1.GetPartitionParentsResponse], error) {
+	_ *tenancyv1.GetPartitionParentsRequest,
+) (*tenancyv1.GetPartitionParentsResponse, error) {
 	f.calls++
 	if f.err != nil {
 		return nil, f.err
 	}
-	return connect.NewResponse(&tenancyv1.GetPartitionParentsResponse{Data: f.parents}), nil
+	return &tenancyv1.GetPartitionParentsResponse{Data: f.parents}, nil
 }
 
 func TestPartitionAncestry_CachesAndFailsClosed(t *testing.T) {

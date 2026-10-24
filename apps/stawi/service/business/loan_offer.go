@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -27,12 +28,11 @@ import (
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 	"github.com/pitabwire/util/moneyx"
@@ -381,38 +381,38 @@ func (b *loanOfferBusiness) createLoanFromOffer(
 		Status:            loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED,
 		Properties:        props,
 	}
-	lrResp, lrErr := b.clients.LenderLoanMgmt.LoanRequestSave(ctx, connect.NewRequest(
-		&loansv1.LoanRequestSaveRequest{Data: lrObj},
-	))
+	lrResp, lrErr := b.clients.LenderLoanMgmt.LoanRequestSave(ctx, &loansv1.LoanRequestSaveRequest{Data: lrObj})
 	if lrErr != nil {
 		return fmt.Errorf("could not create loan request: %w", lrErr)
 	}
-	if lrResp.Msg.GetData() == nil {
+	if lrResp.GetData() == nil {
 		return errors.New("loan management returned no loan request")
 	}
 
-	loanRequestID := lrResp.Msg.GetData().GetId()
+	loanRequestID := lrResp.GetData().GetId()
 	offer.ApplicationID = loanRequestID
 	result["loan_request_id"] = loanRequestID
 
 	// Approve the loan request to create the loan account
-	if _, approveErr := b.clients.LenderLoanMgmt.LoanRequestApprove(ctx, connect.NewRequest(
+	if _, approveErr := b.clients.LenderLoanMgmt.LoanRequestApprove(
+		ctx,
 		&loansv1.LoanRequestApproveRequest{Id: loanRequestID},
-	)); approveErr != nil {
+	); approveErr != nil {
 		return fmt.Errorf("could not approve loan request: %w", approveErr)
 	}
 
-	loanResp, loanErr := b.clients.LenderLoanMgmt.LoanAccountCreate(ctx, connect.NewRequest(
+	loanResp, loanErr := b.clients.LenderLoanMgmt.LoanAccountCreate(
+		ctx,
 		&loansv1.LoanAccountCreateRequest{LoanRequestId: loanRequestID},
-	))
+	)
 	if loanErr != nil {
 		return fmt.Errorf("could not create loan account: %w", loanErr)
 	}
-	if loanResp.Msg.GetData() == nil {
+	if loanResp.GetData() == nil {
 		return errors.New("loan management returned no loan account")
 	}
 
-	offer.LoanAccountID = loanResp.Msg.GetData().GetId()
+	offer.LoanAccountID = loanResp.GetData().GetId()
 	result["loan_account_id"] = offer.LoanAccountID
 	return nil
 }
@@ -445,17 +445,15 @@ func (b *loanOfferBusiness) memberSavingsBalance(
 	ctx context.Context,
 	membershipID, currency string,
 ) (int64, error) {
-	resp, err := b.clients.LedgerClient.GetAccountStatement(ctx, connect.NewRequest(
-		&ledgerv1.GetAccountStatementRequest{
-			AccountId: constants.MemberPeriodicSavingsAccount(membershipID),
-			Limit:     statementPageLimit,
-		},
-	))
+	resp, err := b.clients.LedgerClient.GetAccountStatement(ctx, &ledgerv1.GetAccountStatementRequest{
+		AccountId: constants.MemberPeriodicSavingsAccount(membershipID),
+		Limit:     statementPageLimit,
+	})
 	if err != nil {
 		return 0, err
 	}
 
-	balance := resp.Msg.GetClosingBalance()
+	balance := resp.GetClosingBalance()
 	if balance == nil {
 		return 0, nil
 	}
@@ -477,20 +475,22 @@ func (b *loanOfferBusiness) getMembersByGroupID(
 		return nil, errors.New("identity client not available")
 	}
 
-	stream, err := b.identityCli.MembershipSearch(ctx, connect.NewRequest(
-		&identityv1.MembershipSearchRequest{GroupId: groupID},
-	))
+	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{GroupId: groupID})
 	if err != nil {
 		return nil, err
 	}
 
 	var members []*identityv1.MembershipObject
-	for stream.Receive() {
-		msg := stream.Msg()
+	for {
+		msg2, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return nil, streamErr
+		}
+		msg := msg2
 		members = append(members, msg.GetData()...)
-	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return nil, streamErr
 	}
 
 	return members, nil
@@ -504,11 +504,11 @@ func (b *loanOfferBusiness) borrowerForOffer(ctx context.Context, offer *models.
 			"identity, lender identity and profile services are required to originate a loan")
 	}
 	resp, err := b.identityCli.MembershipGet(ctx,
-		connect.NewRequest(&identityv1.MembershipGetRequest{Id: offer.MembershipID}))
+		&identityv1.MembershipGetRequest{Id: offer.MembershipID})
 	if err != nil {
 		return "", "", fmt.Errorf("membership get: %w", err)
 	}
-	membership := resp.Msg.GetData()
+	membership := resp.GetData()
 	clientID := ""
 	if props := membership.GetProperties(); props != nil {
 		if v, ok := props.AsMap()["client_id"].(string); ok {
@@ -521,20 +521,20 @@ func (b *loanOfferBusiness) borrowerForOffer(ctx context.Context, offer *models.
 	}
 	// The membership property is a hint, not an identity: the lender's client
 	// row must belong to this member's profile before money is lent on it.
-	client, err := b.clients.LenderIdentity.ClientGet(ctx, connect.NewRequest(&fieldv1.ClientGetRequest{Id: clientID}))
+	client, err := b.clients.LenderIdentity.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
 	if err != nil {
 		return "", "", fmt.Errorf("client get: %w", err)
 	}
-	if client.Msg.GetData().GetProfileId() == "" || client.Msg.GetData().GetProfileId() != membership.GetProfileId() {
+	if client.GetData().GetProfileId() == "" || client.GetData().GetProfileId() != membership.GetProfileId() {
 		return "", "", apperrors.NewError(apperrors.Unprocessable,
 			"the client recorded on the membership belongs to a different person")
 	}
 	profile, err := b.clients.ProfileClient.GetById(ctx,
-		connect.NewRequest(&profilev1.GetByIdRequest{Id: membership.GetProfileId()}))
+		&profilev1.GetByIdRequest{Id: membership.GetProfileId()})
 	if err != nil {
 		return "", "", fmt.Errorf("profile get: %w", err)
 	}
-	payout := verifiedPhoneContact(profile.Msg.GetData())
+	payout := verifiedPhoneContact(profile.GetData())
 	if payout == "" {
 		return "", "", apperrors.NewError(apperrors.Unprocessable,
 			"member has no verified phone number to disburse to")

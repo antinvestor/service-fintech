@@ -37,9 +37,9 @@ import (
 	"net/http"
 	"strings"
 
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/tenancy"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/tenancy"
 )
 
 // HeaderTenantID is the request header an internal principal uses to name
@@ -77,24 +77,30 @@ var (
 // they map directly onto both Connect and HTTP responses.
 func Resolve(claims *security.AuthenticationClaims, requested string) (string, error) {
 	if claims == nil {
-		return "", connect.NewError(connect.CodeUnauthenticated, ErrMissingCallerIdentity)
+		return "", connect.NewError(connect.CodeUnauthenticated, ErrMissingCallerIdentity.Error()).
+			WithCause(ErrMissingCallerIdentity)
 	}
 	requested = strings.TrimSpace(requested)
 	ctxTenant := strings.TrimSpace(claims.GetTenantID())
 
 	if ctxTenant == "" {
 		if !claims.IsInternalSystem() {
-			return "", connect.NewError(connect.CodeUnauthenticated, ErrUnscopedCaller)
+			return "", connect.NewError(connect.CodeUnauthenticated, ErrUnscopedCaller.Error()).
+				WithCause(ErrUnscopedCaller)
 		}
 		if requested == "" {
-			return "", connect.NewError(connect.CodeInvalidArgument, ErrInternalTenantRequired)
+			return "", connect.NewError(connect.CodeInvalidArgument, ErrInternalTenantRequired.Error()).
+				WithCause(ErrInternalTenantRequired)
 		}
 		return requested, nil
 	}
 
 	if requested != "" && requested != ctxTenant {
-		return "", connect.NewError(connect.CodePermissionDenied,
-			fmt.Errorf("%w: request=%q ctx=%q", ErrTenantMismatch, requested, ctxTenant))
+		return "", connect.NewError(
+			connect.CodePermissionDenied,
+			fmt.Errorf("%w: request=%q ctx=%q", ErrTenantMismatch, requested, ctxTenant).
+				Error(),
+		).WithCause(ErrTenantMismatch)
 	}
 	return ctxTenant, nil
 }
@@ -110,7 +116,8 @@ func requestedTenant(field, header string) (string, error) {
 	case header == "" || header == field:
 		return field, nil
 	default:
-		return "", connect.NewError(connect.CodeInvalidArgument, ErrConflictingTenant)
+		return "", connect.NewError(connect.CodeInvalidArgument, ErrConflictingTenant.Error()).
+			WithCause(ErrConflictingTenant)
 	}
 }
 

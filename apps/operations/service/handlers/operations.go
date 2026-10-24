@@ -19,12 +19,11 @@ import (
 	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
 	audit "github.com/antinvestor/common/audit"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/workerpool"
 	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/business"
@@ -66,9 +65,9 @@ func NewOperationsServer(
 
 func (s *OperationsServer) TransferOrderExecute(
 	ctx context.Context,
-	req *connect.Request[operationsv1.TransferOrderExecuteRequest],
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
-	obj := req.Msg.GetData()
+	req *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
+	obj := req.GetData()
 	if obj == nil {
 		return nil, apperrors.CleanErr(apperrors.NewError(apperrors.BadRequest, "transfer order data is required"))
 	}
@@ -104,21 +103,21 @@ func (s *OperationsServer) TransferOrderExecute(
 	audit.WithResource(ctx, audit.ResourceTransferOrder, orderID)
 	audit.WithAction(ctx, "execute")
 	audit.WithDetail(ctx, "reference", result.Reference)
-	return connect.NewResponse(&operationsv1.TransferOrderExecuteResponse{
+	return &operationsv1.TransferOrderExecuteResponse{
 		Data: transferOrderToAPI(result),
-	}), nil
+	}, nil
 }
 
 func (s *OperationsServer) TransferOrderSearch(
 	ctx context.Context,
-	req *connect.Request[operationsv1.TransferOrderSearchRequest],
-	stream *connect.ServerStream[operationsv1.TransferOrderSearchResponse],
+	req *operationsv1.TransferOrderSearchRequest,
+	stream operationsv1connect.OperationsServiceTransferOrderSearchServerStream,
 ) error {
 	var searchOpts []data.SearchOption
 
 	offset := 0
 	limit := defaultSearchLimit
-	if cursor := req.Msg.GetCursor(); cursor != nil {
+	if cursor := req.GetCursor(); cursor != nil {
 		if parsed, offsetErr := strconv.Atoi(cursor.GetPage()); offsetErr == nil && parsed > 0 {
 			offset = parsed
 		}
@@ -127,19 +126,19 @@ func (s *OperationsServer) TransferOrderSearch(
 	searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(limit))
 
 	andQueryVal := map[string]any{}
-	if req.Msg.GetOrderType() != 0 {
-		andQueryVal["order_type = ?"] = req.Msg.GetOrderType()
+	if req.GetOrderType() != 0 {
+		andQueryVal["order_type = ?"] = req.GetOrderType()
 	}
 	if len(andQueryVal) > 0 {
 		searchOpts = append(searchOpts, data.WithSearchFiltersAndByValue(andQueryVal))
 	}
 
-	if req.Msg.GetQuery() != "" {
+	if req.GetQuery() != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
 				map[string]any{
-					"reference ILIKE ?":   "%" + req.Msg.GetQuery() + "%",
-					"description ILIKE ?": "%" + req.Msg.GetQuery() + "%",
+					"reference ILIKE ?":   "%" + req.GetQuery() + "%",
+					"description ILIKE ?": "%" + req.GetQuery() + "%",
 				},
 			),
 		)
@@ -240,20 +239,20 @@ func transferOrderToAPI(m *models.TransferOrder) *operationsv1.TransferOrderObje
 
 func (s *OperationsServer) IncomingPaymentNotify(
 	ctx context.Context,
-	req *connect.Request[operationsv1.IncomingPaymentNotifyRequest],
-) (*connect.Response[operationsv1.IncomingPaymentNotifyResponse], error) {
-	currency := req.Msg.GetAmount().GetCurrencyCode()
-	amount := moneyx.ToSmallestUnit(req.Msg.GetAmount(), moneyx.Decimals(currency))
+	req *operationsv1.IncomingPaymentNotifyRequest,
+) (*operationsv1.IncomingPaymentNotifyResponse, error) {
+	currency := req.GetAmount().GetCurrencyCode()
+	amount := moneyx.ToSmallestUnit(req.GetAmount(), moneyx.Decimals(currency))
 
 	paymentData := map[string]interface{}{
-		"transaction_id":  req.Msg.GetTransactionId(),
+		"transaction_id":  req.GetTransactionId(),
 		"amount":          amount,
 		"currency":        currency,
-		"payer_reference": req.Msg.GetPayerReference(),
-		"payer_name":      req.Msg.GetPayerName(),
-		"product_id":      req.Msg.GetProductId(),
-		"group_id":        req.Msg.GetGroupId(),
-		"properties":      (&data.JSONMap{}).FromProtoStruct(req.Msg.GetProperties()),
+		"payer_reference": req.GetPayerReference(),
+		"payer_name":      req.GetPayerName(),
+		"product_id":      req.GetProductId(),
+		"group_id":        req.GetGroupId(),
+		"properties":      (&data.JSONMap{}).FromProtoStruct(req.GetProperties()),
 	}
 
 	result, err := s.prBusiness.IdentifyPayment(ctx, paymentData)
@@ -274,21 +273,21 @@ func (s *OperationsServer) IncomingPaymentNotify(
 
 	audit.WithResource(ctx, audit.ResourcePayment, paymentID)
 	audit.WithAction(ctx, "notify")
-	audit.WithDetail(ctx, "transaction_id", req.Msg.GetTransactionId())
+	audit.WithDetail(ctx, "transaction_id", req.GetTransactionId())
 	audit.WithDetail(ctx, "status", status)
 
-	return connect.NewResponse(&operationsv1.IncomingPaymentNotifyResponse{
+	return &operationsv1.IncomingPaymentNotifyResponse{
 		PaymentId: paymentID,
 		Status:    status,
 		Result:    resultStruct.ToProtoStruct(),
-	}), nil
+	}, nil
 }
 
 func (s *OperationsServer) PaymentAllocate(
 	ctx context.Context,
-	req *connect.Request[operationsv1.PaymentAllocateRequest],
-) (*connect.Response[operationsv1.PaymentAllocateResponse], error) {
-	result, err := s.prBusiness.AllocatePayment(ctx, req.Msg.GetPaymentId())
+	req *operationsv1.PaymentAllocateRequest,
+) (*operationsv1.PaymentAllocateResponse, error) {
+	result, err := s.prBusiness.AllocatePayment(ctx, req.GetPaymentId())
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
@@ -298,10 +297,10 @@ func (s *OperationsServer) PaymentAllocate(
 		resultMap[k] = v
 	}
 
-	audit.WithResource(ctx, audit.ResourcePayment, req.Msg.GetPaymentId())
+	audit.WithResource(ctx, audit.ResourcePayment, req.GetPaymentId())
 	audit.WithAction(ctx, "allocate")
 
-	return connect.NewResponse(&operationsv1.PaymentAllocateResponse{
+	return &operationsv1.PaymentAllocateResponse{
 		Result: resultMap.ToProtoStruct(),
-	}), nil
+	}, nil
 }

@@ -21,12 +21,11 @@ import (
 	"strings"
 	"time"
 
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	notificationv1 "buf.build/gen/go/antinvestor/notification/protocolbuffers/go/notification/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
@@ -64,11 +63,11 @@ func (r *fieldClientProfileResolver) ProfileIDForClient(ctx context.Context, cli
 	if clientID == "" || r == nil || r.fieldCli == nil {
 		return "", ErrClientProfileUnknown
 	}
-	resp, err := r.fieldCli.ClientGet(ctx, connect.NewRequest(&fieldv1.ClientGetRequest{Id: clientID}))
+	resp, err := r.fieldCli.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
 	if err != nil {
 		return "", fmt.Errorf("client get %s: %w", clientID, err)
 	}
-	profileID := strings.TrimSpace(resp.Msg.GetData().GetProfileId())
+	profileID := strings.TrimSpace(resp.GetData().GetProfileId())
 	if profileID == "" {
 		return "", ErrClientProfileUnknown
 	}
@@ -102,12 +101,12 @@ func (r *identityAgentProfileResolver) ProfileIDForAgent(ctx context.Context, ag
 	}
 	resp, err := r.identityCli.WorkforceMemberGet(
 		ctx,
-		connect.NewRequest(&identityv1.WorkforceMemberGetRequest{Id: agentID}),
+		&identityv1.WorkforceMemberGetRequest{Id: agentID},
 	)
 	if err != nil {
 		return "", fmt.Errorf("workforce member get %s: %w", agentID, err)
 	}
-	profileID := strings.TrimSpace(resp.Msg.GetData().GetProfileId())
+	profileID := strings.TrimSpace(resp.GetData().GetProfileId())
 	if profileID == "" {
 		return "", ErrAgentProfileUnknown
 	}

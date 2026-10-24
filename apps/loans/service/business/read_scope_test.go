@@ -21,7 +21,7 @@ import (
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/stretchr/testify/require"
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"

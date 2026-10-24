@@ -19,8 +19,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"net/http"
 	"sort"
+
+	"connectrpc.com/connect/v2"
 
 	fieldpb "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	fundingpb "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
@@ -29,8 +32,8 @@ import (
 	loanspb "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	operationspb "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingspb "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/pitabwire/frame/v2/security"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -107,10 +110,12 @@ func (c *ketoCapabilityChecker) Granted(
 
 	results, err := c.authorizer.BatchCheck(ctx, checks)
 	if err != nil {
-		return nil, err
+		// connect v2 sends a plain error as Unknown with no message; say what failed.
+		return nil, connect.NewError(connect.CodeUnavailable, "capability check unavailable").WithCause(err)
 	}
 	if len(results) != len(requests) {
-		return nil, fmt.Errorf("authorizer returned %d results for %d checks", len(results), len(requests))
+		return nil, connect.NewError(connect.CodeInternal, "capability check returned an incomplete answer").
+			WithCause(fmt.Errorf("authorizer returned %d results for %d checks", len(results), len(requests)))
 	}
 
 	granted := make([]CapabilityRequest, 0, len(requests))

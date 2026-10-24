@@ -19,8 +19,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
 )
 
 // ErrPoolNotInitialised is returned when neither the migration nor default

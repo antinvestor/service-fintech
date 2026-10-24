@@ -23,14 +23,14 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -173,7 +173,7 @@ func (b *repaymentBusiness) Record(
 
 	var pendingErr *limits.PendingApprovalError
 	if errors.As(gateErr, &pendingErr) {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr)
+		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr.Error()).WithCause(gateErr)
 	}
 	if gateErr != nil {
 		return nil, gateErr
@@ -606,7 +606,7 @@ func (b *repaymentBusiness) emitTransferOrder(
 		return ErrOperationsClientUnavailable
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  debitAccount,
 			CreditAccountRef: creditAccount,
@@ -616,7 +616,7 @@ func (b *repaymentBusiness) emitTransferOrder(
 			Description:      description,
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
 		logger.WithError(execErr).

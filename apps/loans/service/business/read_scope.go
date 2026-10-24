@@ -18,13 +18,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
@@ -246,23 +246,26 @@ func (r *fieldClientResolver) ResolveByProfileID(ctx context.Context, profileID 
 		return "", ErrNoClientForProfile
 	}
 
-	stream, err := r.fieldCli.ClientSearch(ctx, connect.NewRequest(
-		&fieldv1.ClientSearchRequest{Query: profileID},
-	))
+	stream, err := r.fieldCli.ClientSearch(ctx, &fieldv1.ClientSearchRequest{Query: profileID})
 	if err != nil {
 		return "", fmt.Errorf("client search: %w", err)
 	}
 	defer func() { _ = stream.Close() }()
 
-	for stream.Receive() {
-		for _, client := range stream.Msg().GetData() {
+	for {
+		msg, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return "", fmt.Errorf("client search: %w", streamErr)
+		}
+		for _, client := range msg.GetData() {
 			if client.GetProfileId() == profileID {
 				return client.GetId(), nil
 			}
 		}
 	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return "", fmt.Errorf("client search: %w", streamErr)
-	}
+
 	return "", ErrNoClientForProfile
 }

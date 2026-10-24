@@ -15,7 +15,7 @@
 package models
 
 import (
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // SavingsBalance is the authoritative running-balance snapshot for a savings

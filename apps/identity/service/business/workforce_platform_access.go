@@ -18,12 +18,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
 	tenancyv1 "buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go/tenancy/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/security"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -114,17 +115,17 @@ func (t *tenancyPlatformAccessClient) GetAccess(
 	ctx context.Context,
 	partitionID, profileID string,
 ) (string, error) {
-	resp, err := t.cli.GetAccess(ctx, connect.NewRequest(&tenancyv1.GetAccessRequest{
+	resp, err := t.cli.GetAccess(ctx, &tenancyv1.GetAccessRequest{
 		PartitionId: partitionID,
 		ProfileId:   profileID,
-	}))
+	})
 	if err != nil {
 		if connect.CodeOf(err) == connect.CodeNotFound {
 			return "", ErrPlatformAccessNotFound
 		}
 		return "", err
 	}
-	accessID := resp.Msg.GetData().GetId()
+	accessID := resp.GetData().GetId()
 	if accessID == "" {
 		return "", ErrPlatformAccessNotFound
 	}
@@ -135,37 +136,42 @@ func (t *tenancyPlatformAccessClient) CreateAccess(
 	ctx context.Context,
 	partitionID, profileID string,
 ) (string, error) {
-	resp, err := t.cli.CreateAccess(ctx, connect.NewRequest(&tenancyv1.CreateAccessRequest{
+	resp, err := t.cli.CreateAccess(ctx, &tenancyv1.CreateAccessRequest{
 		PartitionId: partitionID,
 		ProfileId:   profileID,
-	}))
+	})
 	if err != nil {
 		return "", err
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (t *tenancyPlatformAccessClient) ListPartitionRoles(
 	ctx context.Context,
 	partitionID string,
 ) (map[string]string, error) {
-	stream, err := t.cli.ListPartitionRole(ctx, connect.NewRequest(&tenancyv1.ListPartitionRoleRequest{
+	stream, err := t.cli.ListPartitionRole(ctx, &tenancyv1.ListPartitionRoleRequest{
 		PartitionId: partitionID,
-	}))
+	})
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = stream.Close() }()
 
 	roles := make(map[string]string)
-	for stream.Receive() {
-		for _, role := range stream.Msg().GetData() {
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return nil, recvErr
+		}
+		for _, role := range msg.GetData() {
 			roles[role.GetName()] = role.GetId()
 		}
 	}
-	if err = stream.Err(); err != nil {
-		return nil, err
-	}
+
 	return roles, nil
 }
 
@@ -179,32 +185,39 @@ func (t *tenancyPlatformAccessClient) CreatePartitionRole(
 	if err != nil {
 		return "", err
 	}
-	resp, err := t.cli.CreatePartitionRole(ctx, connect.NewRequest(&tenancyv1.CreatePartitionRoleRequest{
+	resp, err := t.cli.CreatePartitionRole(ctx, &tenancyv1.CreatePartitionRoleRequest{
 		PartitionId: partitionID,
 		Name:        name,
 		Properties:  properties,
-	}))
+	})
 	if err != nil {
 		return "", err
 	}
-	return resp.Msg.GetData().GetId(), nil
+	return resp.GetData().GetId(), nil
 }
 
 func (t *tenancyPlatformAccessClient) ListAccessRoles(
 	ctx context.Context,
 	accessID string,
 ) ([]platformAccessRole, error) {
-	stream, err := t.cli.ListAccessRole(ctx, connect.NewRequest(&tenancyv1.ListAccessRoleRequest{
+	stream, err := t.cli.ListAccessRole(ctx, &tenancyv1.ListAccessRoleRequest{
 		AccessId: accessID,
-	}))
+	})
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = stream.Close() }()
 
 	var assigned []platformAccessRole
-	for stream.Receive() {
-		for _, accessRole := range stream.Msg().GetData() {
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return nil, recvErr
+		}
+		for _, accessRole := range msg.GetData() {
 			assigned = append(assigned, platformAccessRole{
 				AccessRoleID:    accessRole.GetId(),
 				PartitionRoleID: accessRole.GetRole().GetId(),
@@ -212,9 +225,7 @@ func (t *tenancyPlatformAccessClient) ListAccessRoles(
 			})
 		}
 	}
-	if err = stream.Err(); err != nil {
-		return nil, err
-	}
+
 	return assigned, nil
 }
 
@@ -222,17 +233,17 @@ func (t *tenancyPlatformAccessClient) CreateAccessRole(
 	ctx context.Context,
 	accessID, partitionRoleID string,
 ) error {
-	_, err := t.cli.CreateAccessRole(ctx, connect.NewRequest(&tenancyv1.CreateAccessRoleRequest{
+	_, err := t.cli.CreateAccessRole(ctx, &tenancyv1.CreateAccessRoleRequest{
 		AccessId:        accessID,
 		PartitionRoleId: partitionRoleID,
-	}))
+	})
 	return err
 }
 
 func (t *tenancyPlatformAccessClient) RemoveAccessRole(ctx context.Context, accessRoleID string) error {
-	_, err := t.cli.RemoveAccessRole(ctx, connect.NewRequest(&tenancyv1.RemoveAccessRoleRequest{
+	_, err := t.cli.RemoveAccessRole(ctx, &tenancyv1.RemoveAccessRoleRequest{
 		Id: accessRoleID,
-	}))
+	})
 	return err
 }
 

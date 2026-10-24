@@ -22,12 +22,11 @@ import (
 	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/ledger/connectrpc/go/v1/ledgerv1connect"
+	"buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2/v1/ledgerv1connect"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
-	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v1/paymentv1connect"
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
 	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	utilmoney "github.com/pitabwire/util/moneyx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -200,16 +199,16 @@ type fakeLedger struct {
 
 func (f *fakeLedger) CreateTransaction(
 	_ context.Context,
-	req *connect.Request[ledgerv1.CreateTransactionRequest],
-) (*connect.Response[ledgerv1.CreateTransactionResponse], error) {
+	req *ledgerv1.CreateTransactionRequest,
+) (*ledgerv1.CreateTransactionResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
 	if f.fail != nil {
 		return nil, f.fail
 	}
-	txn := (&ledgerv1.Transaction_builder{Id: "ledger-" + req.Msg.GetId()}).Build()
-	return connect.NewResponse((&ledgerv1.CreateTransactionResponse_builder{Data: txn}).Build()), nil
+	txn := (&ledgerv1.Transaction_builder{Id: "ledger-" + req.GetId()}).Build()
+	return (&ledgerv1.CreateTransactionResponse_builder{Data: txn}).Build(), nil
 }
 
 type fakePayment struct {
@@ -222,8 +221,8 @@ type fakePayment struct {
 
 func (f *fakePayment) Send(
 	_ context.Context,
-	_ *connect.Request[paymentv1.SendRequest],
-) (*connect.Response[paymentv1.SendResponse], error) {
+	_ *paymentv1.SendRequest,
+) (*paymentv1.SendResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.sends++
@@ -235,7 +234,7 @@ func (f *fakePayment) Send(
 		st = commonv1.STATUS_FAILED
 	}
 	status := (&commonv1.StatusResponse_builder{Id: "pay-1", Status: st}).Build()
-	return connect.NewResponse((&paymentv1.SendResponse_builder{Data: status}).Build()), nil
+	return (&paymentv1.SendResponse_builder{Data: status}).Build(), nil
 }
 
 // fakeLocator stands in for the payment-service search by reference.

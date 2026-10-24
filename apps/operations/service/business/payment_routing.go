@@ -18,17 +18,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 
@@ -422,13 +422,11 @@ func (b *paymentRoutingBusiness) identifyByMembershipID(
 	ctx context.Context,
 	ref string,
 ) (*identificationResult, error) {
-	resp, err := b.identityCli.MembershipGet(ctx, connect.NewRequest(
-		&identityv1.MembershipGetRequest{Id: ref},
-	))
+	resp, err := b.identityCli.MembershipGet(ctx, &identityv1.MembershipGetRequest{Id: ref})
 	if err != nil {
 		return nil, err
 	}
-	mem := resp.Msg.GetData()
+	mem := resp.GetData()
 	if mem == nil || mem.GetId() == "" {
 		return nil, fmt.Errorf("membership not found for reference %s", ref)
 	}
@@ -1235,20 +1233,22 @@ func (b *paymentRoutingBusiness) getMembersByGroupID(
 		return nil, errors.New("identity client not available")
 	}
 
-	stream, err := b.identityCli.MembershipSearch(ctx, connect.NewRequest(
-		&identityv1.MembershipSearchRequest{GroupId: groupID},
-	))
+	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{GroupId: groupID})
 	if err != nil {
 		return nil, err
 	}
 
 	var members []*identityv1.MembershipObject
-	for stream.Receive() {
-		msg := stream.Msg()
+	for {
+		msg2, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return nil, streamErr
+		}
+		msg := msg2
 		members = append(members, msg.GetData()...)
-	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return nil, streamErr
 	}
 
 	return members, nil
@@ -1263,20 +1263,22 @@ func (b *paymentRoutingBusiness) getMembersByProfileID(
 		return nil, errors.New("identity client not available")
 	}
 
-	stream, err := b.identityCli.MembershipSearch(ctx, connect.NewRequest(
-		&identityv1.MembershipSearchRequest{ProfileId: profileID},
-	))
+	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{ProfileId: profileID})
 	if err != nil {
 		return nil, err
 	}
 
 	var members []*identityv1.MembershipObject
-	for stream.Receive() {
-		msg := stream.Msg()
+	for {
+		msg2, streamErr := stream.Receive()
+		if streamErr != nil {
+			if errors.Is(streamErr, io.EOF) {
+				break
+			}
+			return nil, streamErr
+		}
+		msg := msg2
 		members = append(members, msg.GetData()...)
-	}
-	if streamErr := stream.Err(); streamErr != nil {
-		return nil, streamErr
 	}
 
 	return members, nil

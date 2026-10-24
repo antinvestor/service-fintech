@@ -18,10 +18,9 @@ import (
 	"context"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -269,7 +268,7 @@ func (b *penaltyBusiness) postPenaltyAccrual(
 		fieldClientID:      la.ClientID,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.MemberPenaltyReceivableAccount(la.ClientID),
 			CreditAccountRef: la.LedgerPenaltyIncomeAccountID,
@@ -279,7 +278,7 @@ func (b *penaltyBusiness) postPenaltyAccrual(
 			Description:      "Penalty accrual",
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
 	if execErr != nil {
@@ -289,7 +288,7 @@ func (b *penaltyBusiness) postPenaltyAccrual(
 		return ErrPenaltyAccrualFailed
 	}
 
-	if td := resp.Msg.GetData(); td != nil {
+	if td := resp.GetData(); td != nil {
 		penalty.LedgerTransactionID = td.GetId()
 		if _, err := b.penaltyRepo.UpdateColumns(ctx, penalty.GetID(), map[string]any{
 			fieldLedgerTxnID: penalty.LedgerTransactionID,
@@ -384,7 +383,7 @@ func (b *penaltyBusiness) reversePenaltyAccrual(
 	}
 
 	reference := "penalty_waiver:" + penalty.GetID()
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  la.LedgerPenaltyIncomeAccountID,
 			CreditAccountRef: constants.MemberPenaltyReceivableAccount(la.ClientID),
@@ -398,7 +397,7 @@ func (b *penaltyBusiness) reversePenaltyAccrual(
 				fieldClientID:      la.ClientID,
 			}).ToProtoStruct(),
 		},
-	})
+	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
 		logger.WithError(execErr).

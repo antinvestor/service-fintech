@@ -19,10 +19,9 @@ import (
 	"fmt"
 	"time"
 
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
@@ -63,13 +62,11 @@ func (b *tenureBusiness) Open(ctx context.Context, groupID string) (*models.Tenu
 		WithField("group_id", groupID)
 
 	// Get the group to read properties
-	grpResp, err := b.identityCli.ClientGroupGet(ctx, connect.NewRequest(
-		&identityv1.ClientGroupGetRequest{Id: groupID},
-	))
+	grpResp, err := b.identityCli.ClientGroupGet(ctx, &identityv1.ClientGroupGetRequest{Id: groupID})
 	if err != nil {
 		return nil, apperrors.ErrDataNotFound.Extend("client group")
 	}
-	group := grpResp.Msg.GetData()
+	group := grpResp.GetData()
 
 	// Ensure no active tenure already exists
 	existing, err := b.tenRepo.GetActiveByGroupID(ctx, groupID)

@@ -21,7 +21,7 @@ package business
 import (
 	"context"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 )
 

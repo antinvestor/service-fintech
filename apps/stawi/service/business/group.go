@@ -18,14 +18,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
@@ -59,24 +59,20 @@ func (b *groupBusiness) Create(
 	// let a group skip formation checks, ledger setup and lender registration.
 	group.State = commonv1.STATE_CREATED
 
-	resp, err := b.identityCli.ClientGroupSave(ctx, connect.NewRequest(
-		&identityv1.ClientGroupSaveRequest{Data: group},
-	))
+	resp, err := b.identityCli.ClientGroupSave(ctx, &identityv1.ClientGroupSaveRequest{Data: group})
 	if err != nil {
 		return nil, fmt.Errorf("could not save client group: %w", err)
 	}
 
-	return resp.Msg.GetData(), nil
+	return resp.GetData(), nil
 }
 
 func (b *groupBusiness) Get(ctx context.Context, id string) (*identityv1.ClientGroupObject, error) {
-	resp, err := b.identityCli.ClientGroupGet(ctx, connect.NewRequest(
-		&identityv1.ClientGroupGetRequest{Id: id},
-	))
+	resp, err := b.identityCli.ClientGroupGet(ctx, &identityv1.ClientGroupGetRequest{Id: id})
 	if err != nil {
 		return nil, apperrors.ErrDataNotFound.Extend("client group")
 	}
-	return resp.Msg.GetData(), nil
+	return resp.GetData(), nil
 }
 
 func (b *groupBusiness) Transition(ctx context.Context, groupID string, newState int32, reason string) error {
@@ -113,9 +109,10 @@ func (b *groupBusiness) Transition(ctx context.Context, groupID string, newState
 	}
 
 	group.State = commonv1.STATE(newState)
-	if _, saveErr := b.identityCli.ClientGroupSave(ctx, connect.NewRequest(
+	if _, saveErr := b.identityCli.ClientGroupSave(
+		ctx,
 		&identityv1.ClientGroupSaveRequest{Data: group},
-	)); saveErr != nil {
+	); saveErr != nil {
 		logger.WithError(saveErr).Error("could not save group state transition")
 		return saveErr
 	}
@@ -216,11 +213,11 @@ func (b *groupBusiness) SetupLedgerAccounts(ctx context.Context, groupID string)
 	// step is safe to re-run.
 	var failures []error
 	for _, acctName := range accountNames {
-		req := connect.NewRequest(&ledgerv1.CreateAccountRequest{
+		req := &ledgerv1.CreateAccountRequest{
 			Id:       acctName,
 			LedgerId: groupID,
 			Currency: group.GetCurrencyCode(),
-		})
+		}
 		if _, createErr := b.clients.LedgerClient.CreateAccount(ctx, req); createErr != nil {
 			logger.WithError(createErr).WithField("account", acctName).Error("could not create ledger account")
 			failures = append(failures, fmt.Errorf("account %s: %w", acctName, createErr))
@@ -256,23 +253,26 @@ func (b *groupBusiness) RegisterWithLender(ctx context.Context, groupID string) 
 }
 
 func (b *groupBusiness) searchMembers(ctx context.Context, groupID string) ([]*identityv1.MembershipObject, error) {
-	stream, err := b.identityCli.MembershipSearch(ctx, connect.NewRequest(
-		&identityv1.MembershipSearchRequest{
-			GroupId: groupID,
-			Cursor:  &commonv1.PageCursor{Limit: membershipSearchLimit},
-		},
-	))
+	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{
+		GroupId: groupID,
+		Cursor:  &commonv1.PageCursor{Limit: membershipSearchLimit},
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	var result []*identityv1.MembershipObject
-	for stream.Receive() {
-		result = append(result, stream.Msg().GetData()...)
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return nil, recvErr
+		}
+		result = append(result, msg.GetData()...)
 	}
-	if stream.Err() != nil {
-		return nil, stream.Err()
-	}
+
 	return result, nil
 }
 
@@ -332,6 +332,6 @@ func (b *groupBusiness) rememberClientID(ctx context.Context, m *identityv1.Memb
 		return err
 	}
 	m.Properties = updated
-	_, err = b.identityCli.MembershipSave(ctx, connect.NewRequest(&identityv1.MembershipSaveRequest{Data: m}))
+	_, err = b.identityCli.MembershipSave(ctx, &identityv1.MembershipSaveRequest{Data: m})
 	return err
 }

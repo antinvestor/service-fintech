@@ -21,11 +21,10 @@ import (
 	"strings"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
-	"connectrpc.com/connect"
 )
 
 // ErrNoPayoutDestination is returned when a borrower has no contact money can
@@ -57,21 +56,21 @@ func (r *profilePayoutResolver) PayoutDestination(ctx context.Context, clientID 
 	if r == nil || r.fieldCli == nil || r.profileCli == nil {
 		return "", ErrNoPayoutDestination
 	}
-	client, err := r.fieldCli.ClientGet(ctx, connect.NewRequest(&fieldv1.ClientGetRequest{Id: clientID}))
+	client, err := r.fieldCli.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
 	if err != nil {
 		return "", fmt.Errorf("client get: %w", err)
 	}
-	profileID := strings.TrimSpace(client.Msg.GetData().GetProfileId())
+	profileID := strings.TrimSpace(client.GetData().GetProfileId())
 	if profileID == "" {
 		return "", ErrNoPayoutDestination
 	}
-	profile, err := r.profileCli.GetById(ctx, connect.NewRequest(&profilev1.GetByIdRequest{Id: profileID}))
+	profile, err := r.profileCli.GetById(ctx, &profilev1.GetByIdRequest{Id: profileID})
 	if err != nil {
 		return "", fmt.Errorf("profile get: %w", err)
 	}
 	// Only a verified, active phone is a destination: money is never sent to
 	// a number nobody has confirmed belongs to the borrower.
-	for _, contact := range profile.Msg.GetData().GetContacts() {
+	for _, contact := range profile.GetData().GetContacts() {
 		if contact == nil || !contact.GetVerified() || !looksLikePhone(contact.GetDetail()) {
 			continue
 		}

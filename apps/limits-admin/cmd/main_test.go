@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,9 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
 )
 
 // stubAdminServer is a minimal in-process LimitsAdminService handler
@@ -42,49 +42,49 @@ type stubAdminServer struct {
 
 func (s *stubAdminServer) PolicySearch(
 	_ context.Context,
-	_ *connect.Request[limitsv1.PolicySearchRequest],
-	stream *connect.ServerStream[limitsv1.PolicySearchResponse],
+	_ *limitsv1.PolicySearchRequest,
+	stream limitsv1connect.LimitsAdminServicePolicySearchServerStream,
 ) error {
 	return stream.Send(&limitsv1.PolicySearchResponse{Data: s.policies})
 }
 
 func (s *stubAdminServer) PolicyGet(
 	_ context.Context,
-	req *connect.Request[limitsv1.PolicyGetRequest],
-) (*connect.Response[limitsv1.PolicyGetResponse], error) {
+	req *limitsv1.PolicyGetRequest,
+) (*limitsv1.PolicyGetResponse, error) {
 	for _, p := range s.policies {
-		if p.GetId() == req.Msg.GetId() {
-			return connect.NewResponse(&limitsv1.PolicyGetResponse{Data: p}), nil
+		if p.GetId() == req.GetId() {
+			return &limitsv1.PolicyGetResponse{Data: p}, nil
 		}
 	}
-	return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("policy %q not found", req.Msg.GetId()))
+	return nil, connect.Errorf(connect.CodeNotFound, "policy %q not found", req.GetId())
 }
 
 func (s *stubAdminServer) ApprovalRequestList(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ApprovalRequestListRequest],
-	stream *connect.ServerStream[limitsv1.ApprovalRequestListResponse],
+	_ *limitsv1.ApprovalRequestListRequest,
+	stream limitsv1connect.LimitsAdminServiceApprovalRequestListServerStream,
 ) error {
 	return stream.Send(&limitsv1.ApprovalRequestListResponse{})
 }
 
 func (s *stubAdminServer) ApprovalRequestGet(
 	_ context.Context,
-	req *connect.Request[limitsv1.ApprovalRequestGetRequest],
-) (*connect.Response[limitsv1.ApprovalRequestGetResponse], error) {
-	return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("not found: %s", req.Msg.GetId()))
+	req *limitsv1.ApprovalRequestGetRequest,
+) (*limitsv1.ApprovalRequestGetResponse, error) {
+	return nil, connect.Errorf(connect.CodeNotFound, "not found: %s", req.GetId())
 }
 
 func (s *stubAdminServer) ApprovalRequestDecide(
 	_ context.Context,
-	req *connect.Request[limitsv1.ApprovalRequestDecideRequest],
-) (*connect.Response[limitsv1.ApprovalRequestDecideResponse], error) {
-	return connect.NewResponse(&limitsv1.ApprovalRequestDecideResponse{
+	req *limitsv1.ApprovalRequestDecideRequest,
+) (*limitsv1.ApprovalRequestDecideResponse, error) {
+	return &limitsv1.ApprovalRequestDecideResponse{
 		Data: &limitsv1.ApprovalRequestObject{
-			Id:     req.Msg.GetId(),
+			Id:     req.GetId(),
 			Status: limitsv1.ApprovalStatus_APPROVAL_STATUS_APPROVED,
 		},
-	}), nil
+	}, nil
 }
 
 // newTestServer spins up an httptest.Server with the stub admin handler and
@@ -93,9 +93,10 @@ func newTestServer(t *testing.T, policies []*limitsv1.PolicyObject) (string, fun
 	t.Helper()
 
 	stub := &stubAdminServer{policies: policies}
+	server := connect.NewServer()
+	limitsv1connect.RegisterLimitsAdminServiceHandler(server, stub)
 	mux := http.NewServeMux()
-	path, handler := limitsv1connect.NewLimitsAdminServiceHandler(stub)
-	mux.Handle(path, handler)
+	connecthttp.Mount(mux, server)
 
 	srv := httptest.NewServer(mux)
 	return srv.URL, srv.Close

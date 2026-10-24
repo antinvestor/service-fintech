@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -25,14 +26,13 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v1/paymentv1connect"
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
 	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 	utilmoney "github.com/pitabwire/util/moneyx"
@@ -399,27 +399,32 @@ type connectPayoutLocator struct {
 }
 
 func (l connectPayoutLocator) FindByReference(ctx context.Context, reference string) (*paymentv1.Payment, error) {
-	stream, err := l.cli.Search(ctx, connect.NewRequest(commonv1.SearchRequest_builder{
+	stream, err := l.cli.Search(ctx, commonv1.SearchRequest_builder{
 		Query:      reference,
 		Properties: []string{"reference_id"},
 		Cursor:     commonv1.PageCursor_builder{Limit: payoutSearchLimit}.Build(),
-	}.Build()))
+	}.Build())
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = stream.Close() }()
 	seen := 0
-	for stream.Receive() {
-		for _, p := range stream.Msg().GetData() {
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return nil, recvErr
+		}
+		for _, p := range msg.GetData() {
 			seen++
 			if p.GetReferenceId() == reference {
 				return p, nil
 			}
 		}
 	}
-	if err = stream.Err(); err != nil {
-		return nil, err
-	}
+
 	if seen > 0 {
 		// The search ORs a text match with the exact reference filter, so
 		// any result set that holds other payments but not ours may have
@@ -733,7 +738,7 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 		Type:    ledgerv1.TransactionType_NORMAL,
 	}).Build()
 
-	resp, err := b.clients.LedgerClient.CreateTransaction(ctx, connect.NewRequest(req))
+	resp, err := b.clients.LedgerClient.CreateTransaction(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("ledger CreateTransaction failed: %w", err)
 	}
@@ -742,7 +747,7 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 	// back to the ledger entry. The ledger service dedupes on the request id
 	// (which is order.GetID()) so retries return the same transaction id.
 	var ledgerTxnID string
-	if txn := resp.Msg.GetData(); txn != nil {
+	if txn := resp.GetData(); txn != nil {
 		ledgerTxnID = txn.GetId()
 	}
 	return ledgerTxnID, nil
@@ -834,14 +839,14 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 		}).Build(),
 	}).Build()
 
-	resp, err := b.clients.PaymentClient.Send(ctx, connect.NewRequest(req))
+	resp, err := b.clients.PaymentClient.Send(ctx, req)
 	if err != nil {
 		// The claim stays: we cannot tell whether the rail accepted the
 		// request before the error. Reconciliation against the payment
 		// service by reference settles it; a blind resend could pay twice.
 		return fmt.Errorf("payment send failed: %w", err)
 	}
-	status := resp.Msg.GetData()
+	status := resp.GetData()
 	if status == nil {
 		return nil
 	}
@@ -1289,13 +1294,13 @@ func (b *transferOrderBusiness) recordRepaymentWithLender(
 	if b.clients == nil || b.clients.LenderLoanMgmt == nil {
 		return errors.New("record loan repayment with lender: loans client not configured")
 	}
-	_, err := b.clients.LenderLoanMgmt.RepaymentRecord(ctx, connect.NewRequest(&loansv1.RepaymentRecordRequest{
+	_, err := b.clients.LenderLoanMgmt.RepaymentRecord(ctx, &loansv1.RepaymentRecordRequest{
 		LoanAccountId:    loanID,
 		Amount:           minorToMoney(order.Currency, order.Amount),
 		PaymentReference: order.Reference,
 		Channel:          "savings",
 		IdempotencyKey:   order.Reference,
-	}))
+	})
 	if err != nil {
 		return fmt.Errorf("record loan repayment with lender for loan %s: %w", loanID, err)
 	}

@@ -20,9 +20,8 @@ import (
 	"unicode"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
@@ -62,13 +61,13 @@ func (c *profilePayoutChecker) Allowed(ctx context.Context, la *models.LoanAccou
 			Warn("payout destination check: client profile could not be resolved")
 		return ErrPayoutDestinationUnverifiable
 	}
-	resp, err := c.profiles.GetById(ctx, connect.NewRequest(&profilev1.GetByIdRequest{Id: profileID}))
+	resp, err := c.profiles.GetById(ctx, &profilev1.GetByIdRequest{Id: profileID})
 	if err != nil {
 		util.Log(ctx).WithError(err).WithField("profile_id", profileID).
 			Warn("payout destination check: profile could not be loaded")
 		return ErrPayoutDestinationUnverifiable
 	}
-	for _, contact := range resp.Msg.GetData().GetContacts() {
+	for _, contact := range resp.GetData().GetContacts() {
 		if contact == nil || contact.GetState() == commonv1.STATE_DELETED ||
 			contact.GetState() == commonv1.STATE_INACTIVE {
 			continue

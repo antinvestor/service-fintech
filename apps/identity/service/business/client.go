@@ -18,15 +18,15 @@ import (
 	"context"
 	"fmt"
 
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/events"
@@ -352,9 +352,9 @@ func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Clien
 	if b.profiles == nil {
 		return "", ErrClientProfileUnavailable
 	}
-	found, err := b.profiles.GetByContact(ctx, connect.NewRequest(&profilev1.GetByContactRequest{Contact: phone}))
-	if err == nil && found.Msg.GetData().GetId() != "" {
-		profileID := found.Msg.GetData().GetId()
+	found, err := b.profiles.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: phone})
+	if err == nil && found.GetData().GetId() != "" {
+		profileID := found.GetData().GetId()
 		// A borrower is never a member of staff: a phone that resolves to a
 		// workforce member's profile (the registering agent's own, say) is
 		// refused rather than bound to a client.
@@ -376,16 +376,16 @@ func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Clien
 	if propErr != nil {
 		return "", propErr
 	}
-	created, err := b.profiles.Create(ctx, connect.NewRequest(&profilev1.CreateRequest{
+	created, err := b.profiles.Create(ctx, &profilev1.CreateRequest{
 		Type:       profilev1.ProfileType_PERSON,
 		Contact:    phone,
 		Properties: props,
-	}))
+	})
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("could not create the borrower's profile")
 		return "", ErrClientProfileUnavailable
 	}
-	return created.Msg.GetData().GetId(), nil
+	return created.GetData().GetId(), nil
 }
 
 // attachCaller makes the registering field agent the client's primary

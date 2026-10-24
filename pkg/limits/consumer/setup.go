@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"sort"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
 )
 
 // SetupClient constructs a LimitsServiceClient from the provided config and target.

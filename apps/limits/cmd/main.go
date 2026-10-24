@@ -19,26 +19,27 @@ import (
 	"net/http"
 	"time"
 
-	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitspb "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
-	"connectrpc.com/connect"
-	common "github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/security/interceptors/httptor"
-	"github.com/pitabwire/frame/v2/setup"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	common "github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/security/interceptors/httptor"
+	"github.com/pitabwire/frame/v3/setup"
 	"github.com/pitabwire/util"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/limits/config"
@@ -306,10 +307,10 @@ func setupConnectServer(
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create runtime interceptors")
 	}
 
-	runtimePath, runtimeHandler := limitsv1connect.NewLimitsServiceHandler(
-		runtimeH,
-		connect.WithInterceptors(runtimeInterceptors...),
-	)
+	// Each service keeps its own interceptor chain, so each gets its own
+	// server; both mount on the same mux.
+	runtimeServer := connect.NewServer(runtimeInterceptors...)
+	limitsv1connect.RegisterLimitsServiceHandler(runtimeServer, runtimeH)
 
 	// ─── Admin service (LimitsAdminService) ───────────────────────────
 	adminSD := limitspb.File_limits_v1_limits_proto.Services().ByName("LimitsAdminService")
@@ -333,14 +334,12 @@ func setupConnectServer(
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create admin interceptors")
 	}
 
-	adminPath, adminHandler := limitsv1connect.NewLimitsAdminServiceHandler(
-		adminH,
-		connect.WithInterceptors(adminInterceptors...),
-	)
+	adminServer := connect.NewServer(adminInterceptors...)
+	limitsv1connect.RegisterLimitsAdminServiceHandler(adminServer, adminH)
 
 	mux := http.NewServeMux()
-	mux.Handle(runtimePath, runtimeHandler)
-	mux.Handle(adminPath, adminHandler)
+	connecthttp.Mount(mux, runtimeServer)
+	connecthttp.Mount(mux, adminServer)
 	if archivalH != nil {
 		// /admin/archive hard-deletes across every tenant. Authentication alone
 		// is not a control: it is mounted behind the same function-access check

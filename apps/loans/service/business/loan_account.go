@@ -23,14 +23,13 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
+	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -403,14 +402,14 @@ func (b *loanAccountBusiness) ensureLoanRequestFunding(
 		return ErrFundingServiceUnavailable
 	}
 
-	resp, err := b.fundingCli.FundLoan(ctx, connect.NewRequest(fundingcompat.NewFundLoanRequest(loanRequestID)))
+	resp, err := b.fundingCli.FundLoan(ctx, fundingcompat.NewFundLoanRequest(loanRequestID))
 	if err != nil {
 		logger.WithError(err).Error("could not reserve funding for loan request")
 		return ErrFundingAllocationUnavailable
 	}
 
-	totalAllocated, _ := models.MoneyToMinorUnits(resp.Msg.GetTotalAllocated())
-	if !resp.Msg.GetFullyFunded() || totalAllocated < la.PrincipalAmount {
+	totalAllocated, _ := models.MoneyToMinorUnits(resp.GetTotalAllocated())
+	if !resp.GetFullyFunded() || totalAllocated < la.PrincipalAmount {
 		return ErrLoanFundingInsufficient
 	}
 
@@ -420,8 +419,8 @@ func (b *loanAccountBusiness) ensureLoanRequestFunding(
 	la.Properties["loan_request_id"] = loanRequestID
 	la.Properties["funding_fully_funded"] = true
 	la.Properties["funding_total_allocated"] = float64(totalAllocated)
-	la.Properties["funding_allocation_count"] = float64(len(resp.Msg.GetAllocations()))
-	la.Properties["funding_allocations"] = fundingAllocationsJSON(resp.Msg.GetAllocations())
+	la.Properties["funding_allocation_count"] = float64(len(resp.GetAllocations()))
+	la.Properties["funding_allocations"] = fundingAllocationsJSON(resp.GetAllocations())
 	return nil
 }
 
@@ -1032,7 +1031,7 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 		"penalties_outstanding": balance.PenaltiesOutstanding,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.ProductBadDebtExpenseAccount(la.ProductID),
 			CreditAccountRef: la.LedgerAssetAccountID,
@@ -1042,7 +1041,7 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 			Description:      "Loan write-off recovery",
 			ExtraData:        extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
 		logger.WithError(execErr).

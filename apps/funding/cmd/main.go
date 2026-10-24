@@ -20,29 +20,30 @@ import (
 	"fmt"
 	"net/http"
 
-	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
-	"buf.build/gen/go/antinvestor/funding/connectrpc/go/funding/v1/fundingv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
 	fundingpb "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
-	"buf.build/gen/go/antinvestor/loans/connectrpc/go/loans/v1/loansv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/setup"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/setup"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/funding/config"
@@ -277,10 +278,10 @@ func (a *loanRequestAdapter) GetByID(ctx context.Context, id string) (*business.
 	if a.loanMgmtCli != nil {
 		resp, err := a.loanMgmtCli.LoanRequestGet(
 			ctx,
-			connect.NewRequest(&loansv1.LoanRequestGetRequest{Id: id}),
+			&loansv1.LoanRequestGetRequest{Id: id},
 		)
-		if err == nil && resp.Msg.GetData() != nil {
-			info, convErr := loanRequestToRequestInfo(resp.Msg.GetData())
+		if err == nil && resp.GetData() != nil {
+			info, convErr := loanRequestToRequestInfo(resp.GetData())
 			if convErr != nil {
 				// A malformed rate must not be funded as 0%: skip the loan.
 				util.Log(ctx).WithError(convErr).WithField("loan_request_id", id).
@@ -367,12 +368,11 @@ func setupConnectServer(
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create default interceptors")
 	}
 
-	interceptorOption := connect.WithInterceptors(defaultInterceptorList...)
-
-	fundingPath, fundingServerHandler := fundingv1connect.NewFundingServiceHandler(fundingHandler, interceptorOption)
+	server := connect.NewServer(defaultInterceptorList...)
+	fundingv1connect.RegisterFundingServiceHandler(server, fundingHandler)
 
 	mux := http.NewServeMux()
-	mux.Handle(fundingPath, fundingServerHandler)
+	connecthttp.Mount(mux, server)
 
 	return mux
 }

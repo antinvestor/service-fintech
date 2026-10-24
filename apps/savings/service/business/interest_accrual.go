@@ -25,12 +25,11 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -327,7 +326,7 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 		"balance_used":        ia.BalanceUsed,
 	}
 
-	req := connect.NewRequest(&operationsv1.TransferOrderExecuteRequest{
+	req := &operationsv1.TransferOrderExecuteRequest{
 		Data: &operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.ProductSavingsInterestExpenseAccount(sa.ProductID),
 			CreditAccountRef: sa.LedgerAccountID,
@@ -339,7 +338,7 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 			Description: "Savings interest accrual",
 			ExtraData:   extraData.ToProtoStruct(),
 		},
-	})
+	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
 	if execErr != nil {
@@ -351,7 +350,7 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 	// The transaction id is the settlement guard: an accrual stored with an
 	// empty id still satisfies the "not yet settled" predicate, so a rerun
 	// would credit the interest a second time. No id means no settlement.
-	txnID := resp.Msg.GetData().GetId()
+	txnID := resp.GetData().GetId()
 	if txnID == "" {
 		logger.WithField("reference", reference).
 			Error("interest accrual transfer order returned no transaction id")

@@ -22,7 +22,6 @@ import (
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util/decimalx"
 	"github.com/pitabwire/util/moneyx"
 
@@ -47,13 +46,11 @@ func (b *loanOfferBusiness) CheckEligibility(
 			"identity service is required to check loan eligibility")
 	}
 
-	memResp, err := b.identityCli.MembershipGet(ctx, connect.NewRequest(
-		&identityv1.MembershipGetRequest{Id: membershipID},
-	))
+	memResp, err := b.identityCli.MembershipGet(ctx, &identityv1.MembershipGetRequest{Id: membershipID})
 	if err != nil {
 		return nil, apperrors.ErrDataNotFound.Extend("membership")
 	}
-	membership := memResp.Msg.GetData()
+	membership := memResp.GetData()
 
 	if membership.GetState() != commonv1.STATE_ACTIVE {
 		return ineligible(membershipID, "the membership is not active"), nil
@@ -65,13 +62,11 @@ func (b *loanOfferBusiness) CheckEligibility(
 		return ineligible(membershipID, "the member does not belong to this group"), nil
 	}
 
-	grpResp, err := b.identityCli.ClientGroupGet(ctx, connect.NewRequest(
-		&identityv1.ClientGroupGetRequest{Id: membership.GetGroupId()},
-	))
+	grpResp, err := b.identityCli.ClientGroupGet(ctx, &identityv1.ClientGroupGetRequest{Id: membership.GetGroupId()})
 	if err != nil {
 		return nil, apperrors.ErrDataNotFound.Extend("client group")
 	}
-	currency := grpResp.Msg.GetData().GetCurrencyCode()
+	currency := grpResp.GetData().GetCurrencyCode()
 
 	if b.clients == nil || b.clients.LedgerClient == nil {
 		return nil, apperrors.NewError(apperrors.ServiceUnavailable,
@@ -137,14 +132,15 @@ func (b *loanOfferBusiness) EnsureSchedule(
 			"loan management service is required to read a repayment schedule")
 	}
 
-	resp, err := b.clients.LenderLoanMgmt.RepaymentScheduleGet(ctx, connect.NewRequest(
+	resp, err := b.clients.LenderLoanMgmt.RepaymentScheduleGet(
+		ctx,
 		&loansv1.RepaymentScheduleGetRequest{LoanAccountId: loanAccountID},
-	))
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not read repayment schedule: %w", err)
 	}
 
-	schedule := resp.Msg.GetData()
+	schedule := resp.GetData()
 	if schedule == nil || len(schedule.GetEntries()) == 0 {
 		return nil, apperrors.NewError(apperrors.Unprocessable,
 			"the loans service has not generated a repayment schedule for this loan")
@@ -175,17 +171,15 @@ func (b *loanOfferBusiness) Disburse(
 			"loan management service is required to disburse a loan")
 	}
 
-	resp, err := b.clients.LenderLoanMgmt.DisbursementCreate(ctx, connect.NewRequest(
-		&loansv1.DisbursementCreateRequest{
-			LoanAccountId:  loanAccountID,
-			IdempotencyKey: "stawi:" + loanAccountID,
-		},
-	))
+	resp, err := b.clients.LenderLoanMgmt.DisbursementCreate(ctx, &loansv1.DisbursementCreateRequest{
+		LoanAccountId:  loanAccountID,
+		IdempotencyKey: "stawi:" + loanAccountID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not disburse loan: %w", err)
 	}
 
-	disbursement := resp.Msg.GetData()
+	disbursement := resp.GetData()
 	if disbursement == nil {
 		return nil, apperrors.NewError(apperrors.ServiceUnavailable,
 			"the loans service returned no disbursement")

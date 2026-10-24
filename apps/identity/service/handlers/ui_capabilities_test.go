@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/stretchr/testify/require"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/handlers"

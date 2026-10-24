@@ -16,11 +16,12 @@ package business
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
-	"connectrpc.com/connect"
 	moneyx "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
@@ -65,33 +66,38 @@ func (s *platformSourceBalances) GroupSavings(ctx context.Context, groupID, curr
 	}
 
 	stream, err := s.clients.LenderSavings.SavingsAccountSearch(ctx,
-		connect.NewRequest(&savingsv1.SavingsAccountSearchRequest{
+		&savingsv1.SavingsAccountSearchRequest{
 			OwnerId: groupID,
 			Status:  savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE,
 			Cursor:  &commonv1.PageCursor{Limit: maxPageLimit},
-		}))
+		})
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrSourceBalanceUnverifiable, err)
 	}
 	defer func() { _ = stream.Close() }()
 
 	var total int64
-	for stream.Receive() {
-		for _, account := range stream.Msg().GetData() {
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return 0, fmt.Errorf("%w: %w", ErrSourceBalanceUnverifiable, recvErr)
+		}
+		for _, account := range msg.GetData() {
 			if account.GetCurrencyCode() != currency {
 				continue
 			}
 			balance, balErr := s.clients.LenderSavings.SavingsBalanceGet(ctx,
-				connect.NewRequest(&savingsv1.SavingsBalanceGetRequest{SavingsAccountId: account.GetId()}))
+				&savingsv1.SavingsBalanceGetRequest{SavingsAccountId: account.GetId()})
 			if balErr != nil {
 				return 0, fmt.Errorf("%w: %w", ErrSourceBalanceUnverifiable, balErr)
 			}
-			total += moneyx.ToSmallestUnit(balance.Msg.GetData().GetAvailableBalance(), moneyx.Decimals(currency))
+			total += moneyx.ToSmallestUnit(balance.GetData().GetAvailableBalance(), moneyx.Decimals(currency))
 		}
 	}
-	if err = stream.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %w", ErrSourceBalanceUnverifiable, err)
-	}
+
 	return total, nil
 }
 
@@ -102,26 +108,31 @@ func (s *platformSourceBalances) PlatformReserve(ctx context.Context, productTyp
 
 	accountRef := constants.PlatformFirstLossAccount(productType)
 	stream, err := s.clients.LedgerClient.SearchAccounts(ctx,
-		connect.NewRequest(&commonv1.SearchRequest{
+		&commonv1.SearchRequest{
 			IdQuery: accountRef,
 			Cursor:  &commonv1.PageCursor{Limit: 1},
-		}))
+		})
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrSourceBalanceUnverifiable, err)
 	}
 	defer func() { _ = stream.Close() }()
 
 	var balance *commonv1.Money
-	for stream.Receive() {
-		for _, account := range stream.Msg().GetData() {
+	for {
+		msg, recvErr := stream.Receive()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			return 0, fmt.Errorf("%w: %w", ErrSourceBalanceUnverifiable, recvErr)
+		}
+		for _, account := range msg.GetData() {
 			if account.GetId() == accountRef {
 				balance = account.GetBalance()
 			}
 		}
 	}
-	if err = stream.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %w", ErrSourceBalanceUnverifiable, err)
-	}
+
 	if balance == nil {
 		return 0, fmt.Errorf("%w: no ledger account %s", ErrSourceBalanceUnverifiable, accountRef)
 	}

@@ -16,17 +16,16 @@ package business
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/pitabwire/frame/v2/security"
+	"github.com/pitabwire/frame/v3/security"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 )
@@ -42,21 +41,21 @@ type fakeProfileService struct {
 
 func (f *fakeProfileService) GetByContact(
 	_ context.Context,
-	req *connect.Request[profilev1.GetByContactRequest],
-) (*connect.Response[profilev1.GetByContactResponse], error) {
+	req *profilev1.GetByContactRequest,
+) (*profilev1.GetByContactResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	id, ok := f.byContact[req.Msg.GetContact()]
+	id, ok := f.byContact[req.GetContact()]
 	if !ok {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("no profile for contact"))
+		return nil, connect.NewError(connect.CodeNotFound, "no profile for contact")
 	}
-	return connect.NewResponse(&profilev1.GetByContactResponse{Data: &profilev1.ProfileObject{Id: id}}), nil
+	return &profilev1.GetByContactResponse{Data: &profilev1.ProfileObject{Id: id}}, nil
 }
 
 func (f *fakeProfileService) Create(
 	_ context.Context,
-	req *connect.Request[profilev1.CreateRequest],
-) (*connect.Response[profilev1.CreateResponse], error) {
+	req *profilev1.CreateRequest,
+) (*profilev1.CreateResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.byContact == nil {
@@ -64,8 +63,8 @@ func (f *fakeProfileService) Create(
 	}
 	f.created++
 	id := fmt.Sprintf("profile-created-%d", f.created)
-	f.byContact[req.Msg.GetContact()] = id
-	return connect.NewResponse(&profilev1.CreateResponse{Data: &profilev1.ProfileObject{Id: id}}), nil
+	f.byContact[req.GetContact()] = id
+	return &profilev1.CreateResponse{Data: &profilev1.ProfileObject{Id: id}}, nil
 }
 
 // asRole builds claims for profileID holding one platform role.

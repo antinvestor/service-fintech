@@ -19,12 +19,11 @@ package business
 
 import (
 	"context"
-	"errors"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/security"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/security"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -116,14 +115,14 @@ func (b *auditSearchBusiness) Search(
 func auditTenantPredicate(ctx context.Context) (string, error) {
 	claims := security.ClaimsFromContext(ctx)
 	if claims == nil {
-		return "", connect.NewError(connect.CodeUnauthenticated, errors.New("missing caller identity"))
+		return "", connect.NewError(connect.CodeUnauthenticated, "missing caller identity")
 	}
 	if claims.IsInternalSystem() {
 		return "", nil
 	}
 	tenant := claims.GetTenantID()
 	if tenant == "" {
-		return "", connect.NewError(connect.CodeUnauthenticated, errors.New("caller claims carry no tenant"))
+		return "", connect.NewError(connect.CodeUnauthenticated, "caller claims carry no tenant")
 	}
 	return tenant, nil
 }

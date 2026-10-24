@@ -16,12 +16,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"text/tabwriter"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -87,17 +88,21 @@ func policiesListCmd() *cobra.Command {
 				req.Mode = limitsv1.PolicyMode(v)
 			}
 
-			stream, err := client.PolicySearch(cmd.Context(), connect.NewRequest(req))
+			stream, err := client.PolicySearch(cmd.Context(), req)
 			if err != nil {
 				return fmt.Errorf("PolicySearch: %w", err)
 			}
 
 			var policies []*limitsv1.PolicyObject
-			for stream.Receive() {
-				policies = append(policies, stream.Msg().GetData()...)
-			}
-			if streamErr := stream.Err(); streamErr != nil {
-				return fmt.Errorf("stream error: %w", streamErr)
+			for {
+				msg, streamErr := stream.Receive()
+				if streamErr != nil {
+					if errors.Is(streamErr, io.EOF) {
+						break
+					}
+					return fmt.Errorf("stream error: %w", streamErr)
+				}
+				policies = append(policies, msg.GetData()...)
 			}
 
 			if flagJSON {
@@ -145,14 +150,14 @@ func policiesShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("build client: %w", err)
 			}
-			resp, err := client.PolicyGet(cmd.Context(), connect.NewRequest(&limitsv1.PolicyGetRequest{
+			resp, err := client.PolicyGet(cmd.Context(), &limitsv1.PolicyGetRequest{
 				Id: args[0],
-			}))
+			})
 			if err != nil {
 				return fmt.Errorf("PolicyGet: %w", err)
 			}
 
-			p := resp.Msg.GetData()
+			p := resp.GetData()
 			if flagJSON {
 				out, marshalErr := protojson.MarshalOptions{Indent: "  "}.Marshal(p)
 				if marshalErr != nil {
@@ -225,25 +230,25 @@ func togglePolicyMode(ctx context.Context, id string, mode limitsv1.PolicyMode) 
 		return fmt.Errorf("build client: %w", err)
 	}
 
-	getResp, err := client.PolicyGet(ctx, connect.NewRequest(&limitsv1.PolicyGetRequest{Id: id}))
+	getResp, err := client.PolicyGet(ctx, &limitsv1.PolicyGetRequest{Id: id})
 	if err != nil {
 		return fmt.Errorf("PolicyGet: %w", err)
 	}
 
-	p := getResp.Msg.GetData()
+	p := getResp.GetData()
 	if p == nil {
 		return fmt.Errorf("policy %q not found", id)
 	}
 	p.Mode = mode
 
-	saveResp, err := client.PolicySave(ctx, connect.NewRequest(&limitsv1.PolicySaveRequest{
+	saveResp, err := client.PolicySave(ctx, &limitsv1.PolicySaveRequest{
 		Data: p,
-	}))
+	})
 	if err != nil {
 		return fmt.Errorf("PolicySave: %w", err)
 	}
 
-	saved := saveResp.Msg.GetData()
+	saved := saveResp.GetData()
 	fmt.Fprintf(
 		os.Stdout,
 		"policy %s mode set to %s (version %d)\n",

@@ -18,9 +18,8 @@ import (
 	"context"
 	"time"
 
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
@@ -188,13 +187,11 @@ func (b *loanWindowBusiness) getGroup(
 	if b.identityCli == nil {
 		return nil, apperrors.NewError(apperrors.ServiceUnavailable, "identity service is not available")
 	}
-	resp, err := b.identityCli.ClientGroupGet(ctx, connect.NewRequest(
-		&identityv1.ClientGroupGetRequest{Id: groupID},
-	))
+	resp, err := b.identityCli.ClientGroupGet(ctx, &identityv1.ClientGroupGetRequest{Id: groupID})
 	if err != nil {
 		return nil, apperrors.ErrDataNotFound.Extend("client group")
 	}
-	return resp.Msg.GetData(), nil
+	return resp.GetData(), nil
 }
 
 // groupInt32Property reads a numeric group property, falling back to the

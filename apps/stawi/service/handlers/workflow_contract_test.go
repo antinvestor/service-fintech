@@ -27,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/handlers"
@@ -224,28 +224,28 @@ func TestWorkflowCallbackStatusCodes(t *testing.T) {
 		},
 		{
 			name:       "peer not-found is 404 without the peer message",
-			err:        fmt.Errorf("group not found: %w", connect.NewError(connect.CodeNotFound, errors.New(leaked))),
+			err:        fmt.Errorf("group not found: %w", connect.NewError(connect.CodeNotFound, leaked)),
 			wantStatus: http.StatusNotFound,
 			wantCode:   "not_found",
 			wantBody:   "the requested record was not found",
 		},
 		{
 			name:       "peer failed precondition is 422",
-			err:        connect.NewError(connect.CodeFailedPrecondition, errors.New(leaked)),
+			err:        connect.NewError(connect.CodeFailedPrecondition, leaked),
 			wantStatus: http.StatusUnprocessableEntity,
 			wantCode:   "unprocessable",
 			wantBody:   "the operation is not allowed in the record's current state",
 		},
 		{
 			name:       "peer already-exists is 409",
-			err:        connect.NewError(connect.CodeAlreadyExists, errors.New(leaked)),
+			err:        connect.NewError(connect.CodeAlreadyExists, leaked),
 			wantStatus: http.StatusConflict,
 			wantCode:   "conflict",
 			wantBody:   "the record was changed by another request",
 		},
 		{
 			name:       "peer unavailable is retriable 503",
-			err:        connect.NewError(connect.CodeUnavailable, errors.New(leaked)),
+			err:        connect.NewError(connect.CodeUnavailable, leaked),
 			wantStatus: http.StatusServiceUnavailable,
 			wantCode:   "unavailable",
 			wantBody:   "a dependency is temporarily unavailable",

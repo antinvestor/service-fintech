@@ -21,9 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -150,11 +149,11 @@ func Gate(
 	// keeps the caller's own tenancy.
 	limitsCtx := applyGateOptions(ctx, opts)
 
-	res, err := rpc.Reserve(limitsCtx, connect.NewRequest(&limitsv1.ReserveRequest{
+	res, err := rpc.Reserve(limitsCtx, &limitsv1.ReserveRequest{
 		Intent:         intent,
 		IdempotencyKey: idempotencyKey,
 		Ttl:            durationpb.New(reserveTTLFor(ctx)),
-	}))
+	})
 	if err != nil {
 		if mode == ModeShadow {
 			util.Log(ctx).WithError(err).
@@ -166,7 +165,7 @@ func Gate(
 		return err
 	}
 
-	reservation := res.Msg.GetReservation()
+	reservation := res.GetReservation()
 	if reservation == nil {
 		return errors.New("limits.Gate: Reserve returned no reservation")
 	}
@@ -205,7 +204,7 @@ func Gate(
 			return handler(ctx, "")
 		}
 		var verdicts []*limitsv1.PolicyVerdict
-		if check := res.Msg.GetCheck(); check != nil {
+		if check := res.GetCheck(); check != nil {
 			verdicts = check.GetVerdicts()
 		}
 		return &PendingApprovalError{ReservationID: reservation.GetId(), Verdicts: verdicts}
@@ -222,7 +221,7 @@ func Gate(
 			go shadowRelease(limitsCtx, rpc, reservation.GetId(), "shadow_mode_would_block")
 			return handler(ctx, "")
 		}
-		return &LimitBreachedError{Verdicts: res.Msg.GetCheck().GetVerdicts()}
+		return &LimitBreachedError{Verdicts: res.GetCheck().GetVerdicts()}
 	}
 
 	if handlerErr := handler(ctx, reservation.GetId()); handlerErr != nil {
@@ -232,10 +231,10 @@ func Gate(
 		// would hold cap-space for the full TTL (default 5 min).
 		relCtx, relCancel := context.WithTimeout(context.WithoutCancel(limitsCtx), releaseTimeout)
 		defer relCancel()
-		if _, relErr := rpc.Release(relCtx, connect.NewRequest(&limitsv1.ReleaseRequest{
+		if _, relErr := rpc.Release(relCtx, &limitsv1.ReleaseRequest{
 			ReservationId: reservation.GetId(),
 			Reason:        "handler_error",
-		})); relErr != nil {
+		}); relErr != nil {
 			util.Log(ctx).WithError(relErr).
 				With("reservation_id", reservation.GetId()).
 				Error("limits release after handler error failed")
@@ -243,9 +242,9 @@ func Gate(
 		return handlerErr
 	}
 
-	if _, commitErr := rpc.Commit(limitsCtx, connect.NewRequest(&limitsv1.CommitRequest{
+	if _, commitErr := rpc.Commit(limitsCtx, &limitsv1.CommitRequest{
 		ReservationId: reservation.GetId(),
-	})); commitErr != nil {
+	}); commitErr != nil {
 		util.Log(ctx).WithError(commitErr).
 			With("reservation_id", reservation.GetId()).
 			Error("limits.Gate: Commit failed after handler success — reconciliation gap")
@@ -260,10 +259,10 @@ func Gate(
 func shadowRelease(ctx context.Context, rpc limitsv1connect.LimitsServiceClient, reservationID, reason string) {
 	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
 	defer cancel()
-	if _, releaseErr := rpc.Release(releaseCtx, connect.NewRequest(&limitsv1.ReleaseRequest{
+	if _, releaseErr := rpc.Release(releaseCtx, &limitsv1.ReleaseRequest{
 		ReservationId: reservationID,
 		Reason:        reason,
-	})); releaseErr != nil {
+	}); releaseErr != nil {
 		util.Log(ctx).WithError(releaseErr).
 			With("reservation_id", reservationID).
 			Warn("limits.Gate: shadow Release failed; reservation will expire via TTL")

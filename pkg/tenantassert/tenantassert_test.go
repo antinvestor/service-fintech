@@ -17,16 +17,19 @@ package tenantassert_test
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/tenancy"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/tenancy"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
@@ -121,6 +124,90 @@ func TestProtoTenantField(t *testing.T) {
 	})
 }
 
+// probe is a server method the interceptor fronts in tests. It records the
+// context the handler ran with and reads every request message it is given.
+type probe struct {
+	ran     bool
+	bound   *tenancy.Claims
+	inspect func(ctx context.Context, stream connect.ServerStream) error
+}
+
+func method(t *testing.T, service, name string) protoreflect.MethodDescriptor {
+	t.Helper()
+	md := limitsv1.File_limits_v1_limits_proto.Services().ByName(protoreflect.Name(service)).
+		Methods().ByName(protoreflect.Name(name))
+	require.NotNil(t, md)
+	return md
+}
+
+// call runs one RPC through a real connect.Server with the interceptor, the
+// way the transport would: request headers on the server CallInfo and the
+// request messages on the stream.
+func call(
+	ctx context.Context,
+	t *testing.T,
+	interceptor connect.ServerInterceptor,
+	md protoreflect.MethodDescriptor,
+	streamType connect.StreamType,
+	header string,
+	p *probe,
+	msgs ...proto.Message,
+) error {
+	t.Helper()
+	spec := connect.Spec{StreamType: streamType, Schema: md, Procedure: "/test/" + string(md.Name())}
+	server := connect.NewServer(interceptor)
+	server.Register(
+		connect.Method{
+			Spec: spec,
+			Handler: func(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+				p.ran = true
+				p.bound = tenancy.ClaimsFromContext(ctx)
+				if p.inspect != nil {
+					return p.inspect(ctx, stream)
+				}
+				return nil
+			},
+		},
+	)
+	info := &connect.CallInfo{Spec: spec}
+	if header != "" {
+		info.RequestHeader().Set(tenantassert.HeaderTenantID, header)
+	}
+	return server.Call(ctx, spec.Procedure, info, &fakeStream{queue: msgs})
+}
+
+// fakeStream feeds scripted request messages and discards responses.
+type fakeStream struct {
+	queue []proto.Message
+}
+
+func (f *fakeStream) Receive(msg any) error {
+	if len(f.queue) == 0 {
+		return io.EOF
+	}
+	dst, ok := msg.(proto.Message)
+	if !ok {
+		return errors.New("unexpected message type")
+	}
+	proto.Merge(dst, f.queue[0])
+	f.queue = f.queue[1:]
+	return nil
+}
+
+func (f *fakeStream) SendHeaders() error { return nil }
+func (f *fakeStream) Send(any) error     { return nil }
+
+func receivePolicySearch(got **limitsv1.PolicySearchRequest) func(context.Context, connect.ServerStream) error {
+	return func(_ context.Context, stream connect.ServerStream) error {
+		msg := &limitsv1.PolicySearchRequest{}
+		if err := stream.Receive(msg); err != nil {
+			return err
+		}
+		*got = msg
+		return nil
+	}
+}
+
 func TestInterceptor_Unary(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -150,153 +237,127 @@ func TestInterceptor_Unary(t *testing.T) {
 		{name: "internal with claims tenant is rebound without skip", claims: internalClaims("t1"),
 			msg: &limitsv1.PolicySearchRequest{}, wantTenant: "t1", wantBound: "t1"},
 	}
+	md := method(t, "LimitsAdminService", "PolicySearch")
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var ran bool
-			var bound *tenancy.Claims
-			next := func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-				ran = true
-				bound = tenancy.ClaimsFromContext(ctx)
-				return connect.NewResponse(&emptypb.Empty{}), nil
-			}
-			req := connect.NewRequest(tc.msg)
-			if tc.header != "" {
-				req.Header().Set(tenantassert.HeaderTenantID, tc.header)
-			}
+			var got *limitsv1.PolicySearchRequest
+			p := &probe{inspect: receivePolicySearch(&got)}
 
-			_, err := tenantassert.Interceptor().WrapUnary(next)(ctxWith(t, tc.claims), req)
+			err := call(ctxWith(t, tc.claims), t, tenantassert.Interceptor(), md,
+				connect.StreamTypeUnary, tc.header, p, tc.msg)
 
 			if tc.wantCode != 0 {
 				require.Error(t, err)
 				require.Equal(t, tc.wantCode, connect.CodeOf(err))
-				require.False(t, ran, "handler must not run on a refused request")
+				require.False(t, p.ran, "handler must not run on a refused request")
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.wantTenant, tc.msg.GetTenantId(), "field must be stamped with the resolved tenant")
-			require.NotNil(t, bound)
+			require.NotNil(t, got)
+			require.Equal(t, tc.wantTenant, got.GetTenantId(), "field must be stamped with the resolved tenant")
+			require.NotNil(t, p.bound)
 			if tc.wantBound != "" {
-				require.Equal(t, tc.wantBound, bound.TenantID)
-				require.False(t, bound.Skip, "internal principal must not keep the tenancy skip")
-				require.Empty(t, bound.PartitionIDs, "tenant-only binding keeps every partition of the tenant visible")
+				require.Equal(t, tc.wantBound, p.bound.TenantID)
+				require.False(t, p.bound.Skip, "internal principal must not keep the tenancy skip")
+				require.Empty(
+					t,
+					p.bound.PartitionIDs,
+					"tenant-only binding keeps every partition of the tenant visible",
+				)
 			}
 		})
 	}
 }
 
-func TestInterceptor_UnaryWithoutTenantField_UsesHeaderOnly(t *testing.T) {
-	var ran bool
-	next := func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
-		ran = true
-		return connect.NewResponse(&emptypb.Empty{}), nil
-	}
-	wrap := tenantassert.Interceptor().WrapUnary(next)
+func TestInterceptor_ServerStreamResolvesFromTheRequestLikeUnary(t *testing.T) {
+	var got *limitsv1.PolicySearchRequest
+	p := &probe{inspect: receivePolicySearch(&got)}
 
-	_, err := wrap(ctxWith(t, internalClaims("")), connect.NewRequest(&emptypb.Empty{}))
-	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
-	require.False(t, ran)
-
-	req := connect.NewRequest(&emptypb.Empty{})
-	req.Header().Set(tenantassert.HeaderTenantID, "t3")
-	_, err = wrap(ctxWith(t, internalClaims("")), req)
+	err := call(ctxWith(t, internalClaims("")), t, tenantassert.Interceptor(),
+		method(t, "LimitsAdminService", "PolicySearch"), connect.StreamTypeServer, "", p,
+		&limitsv1.PolicySearchRequest{TenantId: "t9"})
 	require.NoError(t, err)
-	require.True(t, ran)
+	require.Equal(t, "t9", got.GetTenantId())
+	require.Equal(t, "t9", p.bound.TenantID)
+}
+
+func TestInterceptor_UnaryWithoutTenantField_UsesHeaderOnly(t *testing.T) {
+	md := method(t, "LimitsService", "Commit")
+
+	p := &probe{}
+	err := call(ctxWith(t, internalClaims("")), t, tenantassert.Interceptor(), md,
+		connect.StreamTypeUnary, "", p, &limitsv1.CommitRequest{ReservationId: "r1"})
+	require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	require.False(t, p.ran)
+
+	p = &probe{}
+	err = call(ctxWith(t, internalClaims("")), t, tenantassert.Interceptor(), md,
+		connect.StreamTypeUnary, "t3", p, &limitsv1.CommitRequest{ReservationId: "r1"})
+	require.NoError(t, err)
+	require.True(t, p.ran)
+	require.Equal(t, "t3", p.bound.TenantID)
 }
 
 func TestInterceptor_CustomFieldFunc(t *testing.T) {
 	var stamped string
 	custom := func(msg any) *tenantassert.Field {
-		if _, ok := msg.(*emptypb.Empty); !ok {
+		if _, ok := msg.(*limitsv1.CommitRequest); !ok {
 			return nil
 		}
 		return &tenantassert.Field{Get: func() string { return "" }, Set: func(v string) { stamped = v }}
 	}
-	next := func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
-		return connect.NewResponse(&emptypb.Empty{}), nil
-	}
-	_, err := tenantassert.Interceptor(tenantassert.WithTenantField(custom)).
-		WrapUnary(next)(ctxWith(t, tenantClaims("t1")), connect.NewRequest(&emptypb.Empty{}))
+	err := call(ctxWith(t, tenantClaims("t1")), t, tenantassert.Interceptor(tenantassert.WithTenantField(custom)),
+		method(t, "LimitsService", "Commit"), connect.StreamTypeUnary, "", &probe{}, &limitsv1.CommitRequest{})
 	require.NoError(t, err)
 	require.Equal(t, "t1", stamped)
 }
 
-// fakeStream is a minimal StreamingHandlerConn feeding scripted messages.
-type fakeStream struct {
-	connect.StreamingHandlerConn
-	header http.Header
-	queue  []*limitsv1.PolicySearchRequest
-}
-
-func (f *fakeStream) RequestHeader() http.Header { return f.header }
-
-func (f *fakeStream) Receive(msg any) error {
-	if len(f.queue) == 0 {
-		return errors.New("eof")
-	}
-	target, ok := msg.(*limitsv1.PolicySearchRequest)
-	if !ok {
-		return errors.New("unexpected message type")
-	}
-	target.TenantId = f.queue[0].GetTenantId()
-	f.queue = f.queue[1:]
-	return nil
-}
-
 func TestInterceptor_Streaming(t *testing.T) {
+	md := method(t, "LimitsAdminService", "PolicySearch")
+
 	t.Run("internal without header is refused before the handler runs", func(t *testing.T) {
-		ran := false
-		next := func(context.Context, connect.StreamingHandlerConn) error { ran = true; return nil }
-		err := tenantassert.Interceptor().WrapStreamingHandler(next)(
-			ctxWith(t, internalClaims("")), &fakeStream{header: http.Header{}})
+		p := &probe{}
+		err := call(ctxWith(t, internalClaims("")), t, tenantassert.Interceptor(), md,
+			connect.StreamTypeBidi, "", p)
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
-		require.False(t, ran)
+		require.False(t, p.ran)
 	})
 
 	t.Run("messages are stamped and mismatches refused", func(t *testing.T) {
-		stream := &fakeStream{
-			header: http.Header{},
-			queue: []*limitsv1.PolicySearchRequest{
-				{}, {TenantId: "t1"}, {TenantId: "t2"},
-			},
-		}
-		var bound *tenancy.Claims
-		next := func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-			bound = tenancy.ClaimsFromContext(ctx)
+		p := &probe{inspect: func(_ context.Context, stream connect.ServerStream) error {
 			first := &limitsv1.PolicySearchRequest{}
-			require.NoError(t, conn.Receive(first))
+			require.NoError(t, stream.Receive(first))
 			require.Equal(t, "t1", first.GetTenantId(), "empty field stamped with resolved tenant")
 
 			second := &limitsv1.PolicySearchRequest{}
-			require.NoError(t, conn.Receive(second))
+			require.NoError(t, stream.Receive(second))
 			require.Equal(t, "t1", second.GetTenantId())
 
 			third := &limitsv1.PolicySearchRequest{}
-			err := conn.Receive(third)
+			err := stream.Receive(third)
 			require.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 			return nil
-		}
-		err := tenantassert.Interceptor().WrapStreamingHandler(next)(ctxWith(t, tenantClaims("t1")), stream)
+		}}
+		err := call(ctxWith(t, tenantClaims("t1")), t, tenantassert.Interceptor(), md, connect.StreamTypeBidi, "", p,
+			&limitsv1.PolicySearchRequest{}, &limitsv1.PolicySearchRequest{TenantId: "t1"},
+			&limitsv1.PolicySearchRequest{TenantId: "t2"})
 		require.NoError(t, err)
-		require.NotNil(t, bound)
-		require.Equal(t, "t1", bound.TenantID)
+		require.NotNil(t, p.bound)
+		require.Equal(t, "t1", p.bound.TenantID)
 	})
 
 	t.Run("internal names tenant via header", func(t *testing.T) {
-		stream := &fakeStream{
-			header: http.Header{tenantassert.HeaderTenantID: []string{"t5"}},
-			queue:  []*limitsv1.PolicySearchRequest{{}},
-		}
-		next := func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-			bound := tenancy.ClaimsFromContext(ctx)
-			require.Equal(t, "t5", bound.TenantID)
-			require.False(t, bound.Skip)
+		p := &probe{inspect: func(_ context.Context, stream connect.ServerStream) error {
 			msg := &limitsv1.PolicySearchRequest{}
-			require.NoError(t, conn.Receive(msg))
+			require.NoError(t, stream.Receive(msg))
 			require.Equal(t, "t5", msg.GetTenantId())
 			return nil
-		}
-		err := tenantassert.Interceptor().WrapStreamingHandler(next)(ctxWith(t, internalClaims("")), stream)
+		}}
+		err := call(ctxWith(t, internalClaims("")), t, tenantassert.Interceptor(), md, connect.StreamTypeBidi, "t5", p,
+			&limitsv1.PolicySearchRequest{})
 		require.NoError(t, err)
+		require.Equal(t, "t5", p.bound.TenantID)
+		require.False(t, p.bound.Skip)
 	})
 }
 

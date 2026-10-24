@@ -19,31 +19,32 @@ import (
 	"net/http"
 	"strings"
 
-	"buf.build/gen/go/antinvestor/audit/connectrpc/go/audit/v1/auditv1connect"
-	"buf.build/gen/go/antinvestor/field/connectrpc/go/field/v1/fieldv1connect"
+	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
+	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldpb "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identitypb "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v1/tenancyv1connect"
-	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/tenancy/v2/tenancyv2connect"
-	"connectrpc.com/connect"
-	"github.com/antinvestor/common/v2"
-	"github.com/antinvestor/common/v2/connection"
-	"github.com/antinvestor/common/v2/permissions"
-	"github.com/antinvestor/common/v2/servicecatalog"
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
-	"github.com/pitabwire/frame/v2/security/authorizer"
-	connectInterceptors "github.com/pitabwire/frame/v2/security/interceptors/connect"
-	"github.com/pitabwire/frame/v2/security/interceptors/httptor"
-	"github.com/pitabwire/frame/v2/setup"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/v2/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v1/tenancyv1connect"
+	"buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2/tenancy/v2/tenancyv2connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"github.com/antinvestor/common/v3"
+	"github.com/antinvestor/common/v3/connection"
+	"github.com/antinvestor/common/v3/permissions"
+	"github.com/antinvestor/common/v3/servicecatalog"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
+	"github.com/pitabwire/frame/v3/security/interceptors/httptor"
+	"github.com/pitabwire/frame/v3/setup"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/common/notification"
@@ -481,22 +482,19 @@ func setupConnectServer(
 		util.Log(ctx).WithError(err).Fatal("main -- Could not create field interceptors")
 	}
 
-	identityInterceptorOption := connect.WithInterceptors(identityInterceptorList...)
-	fieldInterceptorOption := connect.WithInterceptors(fieldInterceptorList...)
-
-	// Register both services on the same mux with their own interceptors
-	identityPath, identityServerHandler := identityv1connect.NewIdentityServiceHandler(
-		identityHandler,
-		identityInterceptorOption,
-	)
-	fieldPath, fieldServerHandler := fieldv1connect.NewFieldServiceHandler(fieldHandler, fieldInterceptorOption)
+	// Each service keeps its own interceptor chain, so each gets its own
+	// server; both mount on the same mux.
+	identityServer := connect.NewServer(identityInterceptorList...)
+	identityv1connect.RegisterIdentityServiceHandler(identityServer, identityHandler)
+	fieldServer := connect.NewServer(fieldInterceptorList...)
+	fieldv1connect.RegisterFieldServiceHandler(fieldServer, fieldHandler)
 
 	// Login targets: pre-login, so no authenticator; origin-restricted and rate limited instead.
 	loginTargetsHandler := handlers.NewLoginTargetsHandler(loginClientBusiness, loginRedirectURIs)
 
 	mux := http.NewServeMux()
-	mux.Handle(identityPath, identityServerHandler)
-	mux.Handle(fieldPath, fieldServerHandler)
+	connecthttp.Mount(mux, identityServer)
+	connecthttp.Mount(mux, fieldServer)
 	mux.Handle("/api/v1/login-targets/", loginTargetsHandler)
 	mountUICapabilities(mux, sm.GetAuthenticator(ctx), auth)
 

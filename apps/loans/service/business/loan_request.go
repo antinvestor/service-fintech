@@ -21,12 +21,12 @@ import (
 	"strconv"
 	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -401,7 +401,7 @@ func (b *loanRequestBusiness) Approve(ctx context.Context, id string) (*loansv1.
 	if errors.As(gateErr, &pendingErr) {
 		// Wrapped rather than replaced, so callers that inspect the chain for
 		// a pending reservation still find it.
-		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr)
+		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr.Error()).WithCause(gateErr)
 	}
 	if gateErr != nil {
 		return nil, gateErr

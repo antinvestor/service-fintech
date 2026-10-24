@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 	"github.com/pitabwire/util/moneyx"

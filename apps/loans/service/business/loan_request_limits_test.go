@@ -22,14 +22,14 @@ import (
 	"errors"
 	"testing"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	"github.com/pitabwire/frame/v2/datastore"
-	"github.com/pitabwire/frame/v2/datastore/pool"
-	"github.com/pitabwire/frame/v2/workerpool"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/datastore"
+	"github.com/pitabwire/frame/v3/datastore/pool"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -276,7 +276,7 @@ func TestApprove_GateDenied(t *testing.T) {
 	lrRepo := &stubLoanRequestRepo{request: lr}
 	lpRepo := &stubLoanProductRepo{}
 	limitsCli := &stubLimitsClient{
-		reserveErr: connect.NewError(connect.CodeFailedPrecondition, errors.New("lr limit breached")),
+		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "lr limit breached"),
 	}
 
 	b := buildLRBusiness(lrRepo, lpRepo, limitsCli, true)

@@ -17,8 +17,8 @@ package apperrors
 import (
 	"errors"
 
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
 )
 
 // CleanErr converts any error produced by the business or repository layers
@@ -40,20 +40,27 @@ func CleanErr(err error) *connect.Error {
 
 	var cerr *connect.Error
 	if errors.As(err, &cerr) {
+		if cerr.IsRemote() {
+			// A peer's verdict: connect v2 refuses to forward it as this
+			// handler's own (it would reach the caller as Internal with no
+			// message), so re-author it locally with the peer's code and
+			// message, as connect v1 forwarded it.
+			return connect.NewError(cerr.Code(), cerr.Message()).WithCause(err)
+		}
 		return cerr
 	}
 
 	var appErr *Error
 	if errors.As(err, &appErr) {
-		return connect.NewError(appErr.ConnectCode(), errors.New(appErr.Message()))
+		return connect.NewError(appErr.ConnectCode(), appErr.Message())
 	}
 
 	if data.ErrorIsNoRows(err) {
-		return connect.NewError(connect.CodeNotFound, errors.New(ErrDataNotFound.Message()))
+		return connect.NewError(connect.CodeNotFound, ErrDataNotFound.Message())
 	}
 
 	api := data.ErrorConvertToAPI(err)
-	return connect.NewError(api.Code(), errors.New(publicMessage(api.Code())))
+	return connect.NewError(api.Code(), publicMessage(api.Code()))
 }
 
 // ConnectCode maps the HTTP-style code carried by an Error onto a connect code.

@@ -19,266 +19,293 @@
 package seedv1connect
 
 import (
-	connect "connectrpc.com/connect"
+	connect "connectrpc.com/connect/v2"
 	context "context"
-	errors "errors"
 	v1 "github.com/antinvestor/service-fintech/gen/go/seed/protocolbuffers/go/seed/v1"
-	http "net/http"
-	strings "strings"
+	sync "sync"
 )
-
-// This is a compile-time assertion to ensure that this generated file and the connect package are
-// compatible. If you get a compiler error that this constant is not defined, this code was
-// generated with a version of connect newer than the one compiled into your binary. You can fix the
-// problem by either regenerating this code with an older version of connect or updating the connect
-// version compiled into your binary.
-const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// SeedServiceName is the fully-qualified name of the SeedService service.
 	SeedServiceName = "seed.v1.SeedService"
 )
 
-// These constants are the fully-qualified names of the RPCs defined in this package. They're
-// exposed at runtime as Spec.Procedure and as the final two segments of the HTTP route.
+// These constants are the procedure names of the RPCs defined in this package. They're exposed at
+// runtime as Spec.Procedure and as the final two segments of the HTTP route.
 //
 // Note that these are different from the fully-qualified method names used by
 // google.golang.org/protobuf/reflect/protoreflect. To convert from these constants to
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// SeedServiceLoanRequestCreateProcedure is the fully-qualified name of the SeedService's
+	// SeedServiceLoanRequestCreateProcedure is the procedure name of the SeedService's
 	// LoanRequestCreate RPC.
 	SeedServiceLoanRequestCreateProcedure = "/seed.v1.SeedService/LoanRequestCreate"
-	// SeedServiceCreditProfileGetProcedure is the fully-qualified name of the SeedService's
-	// CreditProfileGet RPC.
+	// SeedServiceCreditProfileGetProcedure is the procedure name of the SeedService's CreditProfileGet
+	// RPC.
 	SeedServiceCreditProfileGetProcedure = "/seed.v1.SeedService/CreditProfileGet"
-	// SeedServiceCreditProfileSuspendProcedure is the fully-qualified name of the SeedService's
+	// SeedServiceCreditProfileSuspendProcedure is the procedure name of the SeedService's
 	// CreditProfileSuspend RPC.
 	SeedServiceCreditProfileSuspendProcedure = "/seed.v1.SeedService/CreditProfileSuspend"
-	// SeedServiceCreditProfileBlockProcedure is the fully-qualified name of the SeedService's
+	// SeedServiceCreditProfileBlockProcedure is the procedure name of the SeedService's
 	// CreditProfileBlock RPC.
 	SeedServiceCreditProfileBlockProcedure = "/seed.v1.SeedService/CreditProfileBlock"
-	// SeedServiceCreditProfileReinstateProcedure is the fully-qualified name of the SeedService's
+	// SeedServiceCreditProfileReinstateProcedure is the procedure name of the SeedService's
 	// CreditProfileReinstate RPC.
 	SeedServiceCreditProfileReinstateProcedure = "/seed.v1.SeedService/CreditProfileReinstate"
-	// SeedServiceLoanPaidOffNotifyProcedure is the fully-qualified name of the SeedService's
+	// SeedServiceLoanPaidOffNotifyProcedure is the procedure name of the SeedService's
 	// LoanPaidOffNotify RPC.
 	SeedServiceLoanPaidOffNotifyProcedure = "/seed.v1.SeedService/LoanPaidOffNotify"
+)
+
+var (
+	seedServiceLoanRequestCreateSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("LoanRequestCreate"),
+			Procedure:  SeedServiceLoanRequestCreateProcedure,
+		}
+	})
+	seedServiceCreditProfileGetSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType:       connect.StreamTypeUnary,
+			Schema:           v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("CreditProfileGet"),
+			Procedure:        SeedServiceCreditProfileGetProcedure,
+			IdempotencyLevel: connect.IdempotencyNoSideEffects,
+		}
+	})
+	seedServiceCreditProfileSuspendSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("CreditProfileSuspend"),
+			Procedure:  SeedServiceCreditProfileSuspendProcedure,
+		}
+	})
+	seedServiceCreditProfileBlockSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("CreditProfileBlock"),
+			Procedure:  SeedServiceCreditProfileBlockProcedure,
+		}
+	})
+	seedServiceCreditProfileReinstateSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("CreditProfileReinstate"),
+			Procedure:  SeedServiceCreditProfileReinstateProcedure,
+		}
+	})
+	seedServiceLoanPaidOffNotifySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("LoanPaidOffNotify"),
+			Procedure:  SeedServiceLoanPaidOffNotifyProcedure,
+		}
+	})
 )
 
 // SeedServiceClient is a client for the seed.v1.SeedService service.
 type SeedServiceClient interface {
 	// LoanRequestCreate submits a customer-initiated loan request.
-	LoanRequestCreate(context.Context, *connect.Request[v1.LoanRequestCreateRequest]) (*connect.Response[v1.JSONResponse], error)
+	LoanRequestCreate(context.Context, *v1.LoanRequestCreateRequest) (*v1.JSONResponse, error)
 	// CreditProfileGet returns a client's credit profile in one currency.
-	CreditProfileGet(context.Context, *connect.Request[v1.CreditProfileRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileGet(context.Context, *v1.CreditProfileRequest) (*v1.JSONResponse, error)
 	// CreditProfileSuspend temporarily stops a client borrowing.
-	CreditProfileSuspend(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileSuspend(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileBlock hard-stops a client borrowing.
-	CreditProfileBlock(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileBlock(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileReinstate returns a suspended or blocked profile to active.
-	CreditProfileReinstate(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// LoanPaidOffNotify is the internal hook the loans service calls when a
 	// loan reaches PAID_OFF.
-	LoanPaidOffNotify(context.Context, *connect.Request[v1.LoanPaidOffRequest]) (*connect.Response[v1.JSONResponse], error)
+	LoanPaidOffNotify(context.Context, *v1.LoanPaidOffRequest) (*v1.JSONResponse, error)
 }
 
-// NewSeedServiceClient constructs a client for the seed.v1.SeedService service. By default, it uses
-// the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
-// uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
-// connect.WithGRPCWeb() options.
-//
-// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
-// http://api.acme.com or https://acme.com/grpc).
-func NewSeedServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) SeedServiceClient {
-	baseURL = strings.TrimRight(baseURL, "/")
-	seedServiceMethods := v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods()
-	return &seedServiceClient{
-		loanRequestCreate: connect.NewClient[v1.LoanRequestCreateRequest, v1.JSONResponse](
-			httpClient,
-			baseURL+SeedServiceLoanRequestCreateProcedure,
-			connect.WithSchema(seedServiceMethods.ByName("LoanRequestCreate")),
-			connect.WithClientOptions(opts...),
-		),
-		creditProfileGet: connect.NewClient[v1.CreditProfileRequest, v1.JSONResponse](
-			httpClient,
-			baseURL+SeedServiceCreditProfileGetProcedure,
-			connect.WithSchema(seedServiceMethods.ByName("CreditProfileGet")),
-			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
-			connect.WithClientOptions(opts...),
-		),
-		creditProfileSuspend: connect.NewClient[v1.CreditProfileStatusRequest, v1.JSONResponse](
-			httpClient,
-			baseURL+SeedServiceCreditProfileSuspendProcedure,
-			connect.WithSchema(seedServiceMethods.ByName("CreditProfileSuspend")),
-			connect.WithClientOptions(opts...),
-		),
-		creditProfileBlock: connect.NewClient[v1.CreditProfileStatusRequest, v1.JSONResponse](
-			httpClient,
-			baseURL+SeedServiceCreditProfileBlockProcedure,
-			connect.WithSchema(seedServiceMethods.ByName("CreditProfileBlock")),
-			connect.WithClientOptions(opts...),
-		),
-		creditProfileReinstate: connect.NewClient[v1.CreditProfileStatusRequest, v1.JSONResponse](
-			httpClient,
-			baseURL+SeedServiceCreditProfileReinstateProcedure,
-			connect.WithSchema(seedServiceMethods.ByName("CreditProfileReinstate")),
-			connect.WithClientOptions(opts...),
-		),
-		loanPaidOffNotify: connect.NewClient[v1.LoanPaidOffRequest, v1.JSONResponse](
-			httpClient,
-			baseURL+SeedServiceLoanPaidOffNotifyProcedure,
-			connect.WithSchema(seedServiceMethods.ByName("LoanPaidOffNotify")),
-			connect.WithClientOptions(opts...),
-		),
-	}
-}
-
-// seedServiceClient implements SeedServiceClient.
-type seedServiceClient struct {
-	loanRequestCreate      *connect.Client[v1.LoanRequestCreateRequest, v1.JSONResponse]
-	creditProfileGet       *connect.Client[v1.CreditProfileRequest, v1.JSONResponse]
-	creditProfileSuspend   *connect.Client[v1.CreditProfileStatusRequest, v1.JSONResponse]
-	creditProfileBlock     *connect.Client[v1.CreditProfileStatusRequest, v1.JSONResponse]
-	creditProfileReinstate *connect.Client[v1.CreditProfileStatusRequest, v1.JSONResponse]
-	loanPaidOffNotify      *connect.Client[v1.LoanPaidOffRequest, v1.JSONResponse]
-}
-
-// LoanRequestCreate calls seed.v1.SeedService.LoanRequestCreate.
-func (c *seedServiceClient) LoanRequestCreate(ctx context.Context, req *connect.Request[v1.LoanRequestCreateRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return c.loanRequestCreate.CallUnary(ctx, req)
-}
-
-// CreditProfileGet calls seed.v1.SeedService.CreditProfileGet.
-func (c *seedServiceClient) CreditProfileGet(ctx context.Context, req *connect.Request[v1.CreditProfileRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return c.creditProfileGet.CallUnary(ctx, req)
-}
-
-// CreditProfileSuspend calls seed.v1.SeedService.CreditProfileSuspend.
-func (c *seedServiceClient) CreditProfileSuspend(ctx context.Context, req *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return c.creditProfileSuspend.CallUnary(ctx, req)
-}
-
-// CreditProfileBlock calls seed.v1.SeedService.CreditProfileBlock.
-func (c *seedServiceClient) CreditProfileBlock(ctx context.Context, req *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return c.creditProfileBlock.CallUnary(ctx, req)
-}
-
-// CreditProfileReinstate calls seed.v1.SeedService.CreditProfileReinstate.
-func (c *seedServiceClient) CreditProfileReinstate(ctx context.Context, req *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return c.creditProfileReinstate.CallUnary(ctx, req)
-}
-
-// LoanPaidOffNotify calls seed.v1.SeedService.LoanPaidOffNotify.
-func (c *seedServiceClient) LoanPaidOffNotify(ctx context.Context, req *connect.Request[v1.LoanPaidOffRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return c.loanPaidOffNotify.CallUnary(ctx, req)
+// NewSeedServiceClient constructs a client for the seed.v1.SeedService service. Multiple service
+// clients may share a single connect.Client.
+func NewSeedServiceClient(client *connect.Client) SeedServiceClient {
+	return &seedServiceClient{client: client}
 }
 
 // SeedServiceHandler is an implementation of the seed.v1.SeedService service.
 type SeedServiceHandler interface {
 	// LoanRequestCreate submits a customer-initiated loan request.
-	LoanRequestCreate(context.Context, *connect.Request[v1.LoanRequestCreateRequest]) (*connect.Response[v1.JSONResponse], error)
+	LoanRequestCreate(context.Context, *v1.LoanRequestCreateRequest) (*v1.JSONResponse, error)
 	// CreditProfileGet returns a client's credit profile in one currency.
-	CreditProfileGet(context.Context, *connect.Request[v1.CreditProfileRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileGet(context.Context, *v1.CreditProfileRequest) (*v1.JSONResponse, error)
 	// CreditProfileSuspend temporarily stops a client borrowing.
-	CreditProfileSuspend(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileSuspend(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileBlock hard-stops a client borrowing.
-	CreditProfileBlock(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileBlock(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileReinstate returns a suspended or blocked profile to active.
-	CreditProfileReinstate(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error)
+	CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// LoanPaidOffNotify is the internal hook the loans service calls when a
 	// loan reaches PAID_OFF.
-	LoanPaidOffNotify(context.Context, *connect.Request[v1.LoanPaidOffRequest]) (*connect.Response[v1.JSONResponse], error)
+	LoanPaidOffNotify(context.Context, *v1.LoanPaidOffRequest) (*v1.JSONResponse, error)
 }
 
-// NewSeedServiceHandler builds an HTTP handler from the service implementation. It returns the path
-// on which to mount the handler and the handler itself.
-//
-// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
-// and JSON codecs. They also support gzip compression.
-func NewSeedServiceHandler(svc SeedServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	seedServiceMethods := v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods()
-	seedServiceLoanRequestCreateHandler := connect.NewUnaryHandler(
-		SeedServiceLoanRequestCreateProcedure,
-		svc.LoanRequestCreate,
-		connect.WithSchema(seedServiceMethods.ByName("LoanRequestCreate")),
-		connect.WithHandlerOptions(opts...),
+// RegisterSeedServiceHandler registers svc as the seed.v1.SeedService implementation on server.
+func RegisterSeedServiceHandler(server *connect.Server, svc SeedServiceHandler) {
+	adapter := seedServiceHandler{svc: svc}
+	server.Register(
+		connect.Method{Spec: seedServiceLoanRequestCreateSpec(), Handler: adapter.loanRequestCreate},
+		connect.Method{Spec: seedServiceCreditProfileGetSpec(), Handler: adapter.creditProfileGet},
+		connect.Method{Spec: seedServiceCreditProfileSuspendSpec(), Handler: adapter.creditProfileSuspend},
+		connect.Method{Spec: seedServiceCreditProfileBlockSpec(), Handler: adapter.creditProfileBlock},
+		connect.Method{Spec: seedServiceCreditProfileReinstateSpec(), Handler: adapter.creditProfileReinstate},
+		connect.Method{Spec: seedServiceLoanPaidOffNotifySpec(), Handler: adapter.loanPaidOffNotify},
 	)
-	seedServiceCreditProfileGetHandler := connect.NewUnaryHandler(
-		SeedServiceCreditProfileGetProcedure,
-		svc.CreditProfileGet,
-		connect.WithSchema(seedServiceMethods.ByName("CreditProfileGet")),
-		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
-		connect.WithHandlerOptions(opts...),
-	)
-	seedServiceCreditProfileSuspendHandler := connect.NewUnaryHandler(
-		SeedServiceCreditProfileSuspendProcedure,
-		svc.CreditProfileSuspend,
-		connect.WithSchema(seedServiceMethods.ByName("CreditProfileSuspend")),
-		connect.WithHandlerOptions(opts...),
-	)
-	seedServiceCreditProfileBlockHandler := connect.NewUnaryHandler(
-		SeedServiceCreditProfileBlockProcedure,
-		svc.CreditProfileBlock,
-		connect.WithSchema(seedServiceMethods.ByName("CreditProfileBlock")),
-		connect.WithHandlerOptions(opts...),
-	)
-	seedServiceCreditProfileReinstateHandler := connect.NewUnaryHandler(
-		SeedServiceCreditProfileReinstateProcedure,
-		svc.CreditProfileReinstate,
-		connect.WithSchema(seedServiceMethods.ByName("CreditProfileReinstate")),
-		connect.WithHandlerOptions(opts...),
-	)
-	seedServiceLoanPaidOffNotifyHandler := connect.NewUnaryHandler(
-		SeedServiceLoanPaidOffNotifyProcedure,
-		svc.LoanPaidOffNotify,
-		connect.WithSchema(seedServiceMethods.ByName("LoanPaidOffNotify")),
-		connect.WithHandlerOptions(opts...),
-	)
-	return "/seed.v1.SeedService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case SeedServiceLoanRequestCreateProcedure:
-			seedServiceLoanRequestCreateHandler.ServeHTTP(w, r)
-		case SeedServiceCreditProfileGetProcedure:
-			seedServiceCreditProfileGetHandler.ServeHTTP(w, r)
-		case SeedServiceCreditProfileSuspendProcedure:
-			seedServiceCreditProfileSuspendHandler.ServeHTTP(w, r)
-		case SeedServiceCreditProfileBlockProcedure:
-			seedServiceCreditProfileBlockHandler.ServeHTTP(w, r)
-		case SeedServiceCreditProfileReinstateProcedure:
-			seedServiceCreditProfileReinstateHandler.ServeHTTP(w, r)
-		case SeedServiceLoanPaidOffNotifyProcedure:
-			seedServiceLoanPaidOffNotifyHandler.ServeHTTP(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})
 }
 
 // UnimplementedSeedServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedSeedServiceHandler struct{}
 
-func (UnimplementedSeedServiceHandler) LoanRequestCreate(context.Context, *connect.Request[v1.LoanRequestCreateRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seed.v1.SeedService.LoanRequestCreate is not implemented"))
+func (UnimplementedSeedServiceHandler) LoanRequestCreate(context.Context, *v1.LoanRequestCreateRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.LoanRequestCreate is not implemented")
 }
 
-func (UnimplementedSeedServiceHandler) CreditProfileGet(context.Context, *connect.Request[v1.CreditProfileRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seed.v1.SeedService.CreditProfileGet is not implemented"))
+func (UnimplementedSeedServiceHandler) CreditProfileGet(context.Context, *v1.CreditProfileRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileGet is not implemented")
 }
 
-func (UnimplementedSeedServiceHandler) CreditProfileSuspend(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seed.v1.SeedService.CreditProfileSuspend is not implemented"))
+func (UnimplementedSeedServiceHandler) CreditProfileSuspend(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileSuspend is not implemented")
 }
 
-func (UnimplementedSeedServiceHandler) CreditProfileBlock(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seed.v1.SeedService.CreditProfileBlock is not implemented"))
+func (UnimplementedSeedServiceHandler) CreditProfileBlock(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileBlock is not implemented")
 }
 
-func (UnimplementedSeedServiceHandler) CreditProfileReinstate(context.Context, *connect.Request[v1.CreditProfileStatusRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seed.v1.SeedService.CreditProfileReinstate is not implemented"))
+func (UnimplementedSeedServiceHandler) CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileReinstate is not implemented")
 }
 
-func (UnimplementedSeedServiceHandler) LoanPaidOffNotify(context.Context, *connect.Request[v1.LoanPaidOffRequest]) (*connect.Response[v1.JSONResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("seed.v1.SeedService.LoanPaidOffNotify is not implemented"))
+func (UnimplementedSeedServiceHandler) LoanPaidOffNotify(context.Context, *v1.LoanPaidOffRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.LoanPaidOffNotify is not implemented")
+}
+
+type seedServiceClient struct {
+	client *connect.Client
+}
+
+func (c *seedServiceClient) LoanRequestCreate(ctx context.Context, req *v1.LoanRequestCreateRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceLoanRequestCreateSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) CreditProfileGet(ctx context.Context, req *v1.CreditProfileRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceCreditProfileGetSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) CreditProfileSuspend(ctx context.Context, req *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceCreditProfileSuspendSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) CreditProfileBlock(ctx context.Context, req *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceCreditProfileBlockSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) CreditProfileReinstate(ctx context.Context, req *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceCreditProfileReinstateSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) LoanPaidOffNotify(ctx context.Context, req *v1.LoanPaidOffRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceLoanPaidOffNotifySpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+type seedServiceHandler struct{ svc SeedServiceHandler }
+
+func (h seedServiceHandler) loanRequestCreate(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.LoanRequestCreateRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.LoanRequestCreate(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) creditProfileGet(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CreditProfileRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CreditProfileGet(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) creditProfileSuspend(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CreditProfileStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CreditProfileSuspend(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) creditProfileBlock(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CreditProfileStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CreditProfileBlock(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) creditProfileReinstate(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CreditProfileStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CreditProfileReinstate(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) loanPaidOffNotify(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.LoanPaidOffRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.LoanPaidOffNotify(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
 }

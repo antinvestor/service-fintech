@@ -23,15 +23,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"buf.build/gen/go/antinvestor/operations/connectrpc/go/operations/v1/operationsv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/security"
+	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/data"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -158,7 +158,7 @@ func (b *disbursementBusiness) Create(
 
 	var pendingErr *limits.PendingApprovalError
 	if errors.As(gateErr, &pendingErr) {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr)
+		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr.Error()).WithCause(gateErr)
 	}
 	if gateErr != nil {
 		return nil, gateErr
@@ -229,7 +229,7 @@ func (b *disbursementBusiness) createInner(
 	if toErr != nil {
 		return nil, b.handleTransferFailure(ctx, logger, disb, toErr)
 	}
-	order := toResp.Msg.GetData()
+	order := toResp.GetData()
 	if order.GetState() != commonv1.STATE_INACTIVE {
 		// The operations service only reports money as moved once the order
 		// is inactive. Anything else is "not yet": keep the row processing
@@ -465,30 +465,28 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 	req *loansv1.DisbursementCreateRequest,
 	la *models.LoanAccount,
 	disb *models.Disbursement,
-) (*connect.Response[operationsv1.TransferOrderExecuteResponse], error) {
+) (*operationsv1.TransferOrderExecuteResponse, error) {
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 
-	return b.operationsCli.TransferOrderExecute(ctx, connect.NewRequest(
-		&operationsv1.TransferOrderExecuteRequest{
-			Data: &operationsv1.TransferOrderObject{
-				DebitAccountRef:  la.LedgerAssetAccountID,
-				CreditAccountRef: la.PaymentAccountRef,
-				Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, la.PrincipalAmount),
-				OrderType:        constants.SafeInt32FromInt(constants.TransferTypeDisbursement),
-				Reference:        "disbursement:" + disb.IdempotencyKey,
-				Description:      "Loan disbursement for " + la.GetID(),
-				State:            commonv1.STATE_ACTIVE,
-				ExtraData: (&data.JSONMap{
-					"loan_id":             la.GetID(),
-					fieldLoanRequestID:    loanRequestID,
-					"recipient_id":        la.ClientID,
-					fieldClientID:         la.ClientID,
-					"payment_channel":     req.GetChannel(),
-					"payment_account_ref": la.PaymentAccountRef,
-				}).ToProtoStruct(),
-			},
+	return b.operationsCli.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
+		Data: &operationsv1.TransferOrderObject{
+			DebitAccountRef:  la.LedgerAssetAccountID,
+			CreditAccountRef: la.PaymentAccountRef,
+			Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, la.PrincipalAmount),
+			OrderType:        constants.SafeInt32FromInt(constants.TransferTypeDisbursement),
+			Reference:        "disbursement:" + disb.IdempotencyKey,
+			Description:      "Loan disbursement for " + la.GetID(),
+			State:            commonv1.STATE_ACTIVE,
+			ExtraData: (&data.JSONMap{
+				"loan_id":             la.GetID(),
+				fieldLoanRequestID:    loanRequestID,
+				"recipient_id":        la.ClientID,
+				fieldClientID:         la.ClientID,
+				"payment_channel":     req.GetChannel(),
+				"payment_account_ref": la.PaymentAccountRef,
+			}).ToProtoStruct(),
 		},
-	))
+	})
 }
 
 func loanFundingReady(properties data.JSONMap) bool {

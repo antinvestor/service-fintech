@@ -20,10 +20,9 @@ import (
 	"fmt"
 	"strings"
 
-	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
-	"connectrpc.com/connect"
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -233,11 +232,11 @@ func (e *OrganizationSave) fetchProfile(
 	ctx context.Context,
 	profileID string,
 ) (*profilev1.ProfileObject, error) {
-	resp, err := e.profileClient.GetById(ctx, connect.NewRequest(&profilev1.GetByIdRequest{Id: profileID}))
+	resp, err := e.profileClient.GetById(ctx, &profilev1.GetByIdRequest{Id: profileID})
 	if err != nil {
 		return nil, fmt.Errorf("reading profile: %w", err)
 	}
-	profile := resp.Msg.GetData()
+	profile := resp.GetData()
 	if profile == nil {
 		return nil, errors.New("profile service returned no profile")
 	}
@@ -266,10 +265,10 @@ func (e *OrganizationSave) resolveOrCreateProfile(
 
 	resp, err := e.profileClient.GetByContact(
 		ctx,
-		connect.NewRequest(&profilev1.GetByContactRequest{Contact: contact}),
+		&profilev1.GetByContactRequest{Contact: contact},
 	)
 	if err == nil {
-		if profileID := resp.Msg.GetData().GetId(); profileID != "" {
+		if profileID := resp.GetData().GetId(); profileID != "" {
 			logger.WithField("profile_id", profileID).
 				Info("reusing existing profile for organization")
 			if persistErr := e.persistProfileID(ctx, logger, organization, profileID); persistErr != nil {
@@ -325,16 +324,16 @@ func (e *OrganizationSave) createProfile(
 		return "", fmt.Errorf("building profile properties: %w", err)
 	}
 
-	resp, err := e.profileClient.Create(ctx, connect.NewRequest(&profilev1.CreateRequest{
+	resp, err := e.profileClient.Create(ctx, &profilev1.CreateRequest{
 		Type:       profilev1.ProfileType_INSTITUTION,
 		Contact:    contact,
 		Properties: props,
-	}))
+	})
 	if err != nil {
 		return "", fmt.Errorf("creating profile: %w", err)
 	}
 
-	profileID := resp.Msg.GetData().GetId()
+	profileID := resp.GetData().GetId()
 	if profileID == "" {
 		return "", errors.New("profile service returned empty profile ID")
 	}
@@ -358,10 +357,10 @@ func (e *OrganizationSave) updateProfile(
 	currentName := ""
 	getResp, err := e.profileClient.GetById(
 		ctx,
-		connect.NewRequest(&profilev1.GetByIdRequest{Id: profileID}),
+		&profilev1.GetByIdRequest{Id: profileID},
 	)
-	if err == nil && getResp.Msg.GetData() != nil {
-		if p := getResp.Msg.GetData().GetProperties(); p != nil {
+	if err == nil && getResp.GetData() != nil {
+		if p := getResp.GetData().GetProperties(); p != nil {
 			if v, ok := p.AsMap()["name"].(string); ok {
 				currentName = v
 			}
@@ -374,10 +373,10 @@ func (e *OrganizationSave) updateProfile(
 		return fmt.Errorf("building profile properties: %w", err)
 	}
 
-	if _, updateErr := e.profileClient.Update(ctx, connect.NewRequest(profilev1.UpdateRequest_builder{
+	if _, updateErr := e.profileClient.Update(ctx, profilev1.UpdateRequest_builder{
 		Id:         profileID,
 		Properties: props,
-	}.Build())); updateErr != nil {
+	}.Build()); updateErr != nil {
 		logger.WithError(updateErr).WithField("profile_id", profileID).
 			Warn("could not update profile")
 		return fmt.Errorf("updating profile: %w", updateErr)
@@ -401,11 +400,11 @@ func (e *OrganizationSave) addContact(
 		return fmt.Errorf("building contact extras: %w", err)
 	}
 
-	if _, addErr := e.profileClient.AddContact(ctx, connect.NewRequest(profilev1.AddContactRequest_builder{
+	if _, addErr := e.profileClient.AddContact(ctx, profilev1.AddContactRequest_builder{
 		Id:      profileID,
 		Contact: c.value,
 		Extras:  extras,
-	}.Build())); addErr != nil {
+	}.Build()); addErr != nil {
 		return fmt.Errorf("adding contact %s: %w", c.value, addErr)
 	}
 
@@ -423,7 +422,7 @@ func (e *OrganizationSave) addAddress(
 	logger *util.LogEntry,
 	profileID, street, city, country, postalCode string,
 ) error {
-	if _, err := e.profileClient.AddAddress(ctx, connect.NewRequest(profilev1.AddAddressRequest_builder{
+	if _, err := e.profileClient.AddAddress(ctx, profilev1.AddAddressRequest_builder{
 		Id: profileID,
 		Address: profilev1.AddressObject_builder{
 			Street:   street,
@@ -431,7 +430,7 @@ func (e *OrganizationSave) addAddress(
 			Country:  country,
 			Postcode: postalCode,
 		}.Build(),
-	}.Build())); err != nil {
+	}.Build()); err != nil {
 		return fmt.Errorf("adding address: %w", err)
 	}
 

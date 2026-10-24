@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pitabwire/frame/v2"
-	"github.com/pitabwire/frame/v2/config"
-	fevents "github.com/pitabwire/frame/v2/events"
-	"github.com/pitabwire/frame/v2/frametests"
+	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/config"
+	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/frametests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

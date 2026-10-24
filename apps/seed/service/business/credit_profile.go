@@ -34,10 +34,10 @@ import (
 	"errors"
 	"fmt"
 
-	fevents "github.com/pitabwire/frame/v2/events"
+	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
-	"github.com/pitabwire/frame/v2/data"
+	"github.com/pitabwire/frame/v3/data"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
 	"github.com/antinvestor/service-fintech/apps/seed/service/repository"

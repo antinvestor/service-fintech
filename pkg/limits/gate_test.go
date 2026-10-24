@@ -20,9 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/limits/v1/limitsv1connect"
+	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,57 +50,57 @@ type stubLimitsClient struct {
 
 func (s *stubLimitsClient) Check(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CheckRequest],
-) (*connect.Response[limitsv1.CheckResponse], error) {
+	_ *limitsv1.CheckRequest,
+) (*limitsv1.CheckResponse, error) {
 	s.checkCalls++
 	if s.checkErr != nil {
 		return nil, s.checkErr
 	}
-	return connect.NewResponse(s.checkResp), nil
+	return s.checkResp, nil
 }
 
 func (s *stubLimitsClient) Reserve(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
+	_ *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
 	s.reserveCalls++
 	if s.reserveErr != nil {
 		return nil, s.reserveErr
 	}
-	return connect.NewResponse(s.reserveResp), nil
+	return s.reserveResp, nil
 }
 
 func (s *stubLimitsClient) Commit(
 	_ context.Context,
-	_ *connect.Request[limitsv1.CommitRequest],
-) (*connect.Response[limitsv1.CommitResponse], error) {
+	_ *limitsv1.CommitRequest,
+) (*limitsv1.CommitResponse, error) {
 	s.commitCalls++
 	if s.commitErr != nil {
 		return nil, s.commitErr
 	}
-	return connect.NewResponse(s.commitResp), nil
+	return s.commitResp, nil
 }
 
 func (s *stubLimitsClient) Release(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReleaseRequest],
-) (*connect.Response[limitsv1.ReleaseResponse], error) {
+	_ *limitsv1.ReleaseRequest,
+) (*limitsv1.ReleaseResponse, error) {
 	s.releaseCalls++
 	if s.releaseErr != nil {
 		return nil, s.releaseErr
 	}
-	return connect.NewResponse(s.releaseResp), nil
+	return s.releaseResp, nil
 }
 
 func (s *stubLimitsClient) Reverse(
 	_ context.Context,
-	_ *connect.Request[limitsv1.ReverseRequest],
-) (*connect.Response[limitsv1.ReverseResponse], error) {
+	_ *limitsv1.ReverseRequest,
+) (*limitsv1.ReverseResponse, error) {
 	s.reverseCalls++
 	if s.reverseErr != nil {
 		return nil, s.reverseErr
 	}
-	return connect.NewResponse(s.reverseResp), nil
+	return s.reverseResp, nil
 }
 
 // SetReleaseError configures the stub to return err on the next Release call.
@@ -485,8 +484,8 @@ type ttlCapturingClient struct {
 
 func (s *ttlCapturingClient) Reserve(
 	ctx context.Context,
-	req *connect.Request[limitsv1.ReserveRequest],
-) (*connect.Response[limitsv1.ReserveResponse], error) {
-	s.ttl = req.Msg.GetTtl().AsDuration()
+	req *limitsv1.ReserveRequest,
+) (*limitsv1.ReserveResponse, error) {
+	s.ttl = req.GetTtl().AsDuration()
 	return s.stubLimitsClient.Reserve(ctx, req)
 }
