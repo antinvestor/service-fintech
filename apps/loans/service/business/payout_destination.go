@@ -17,7 +17,6 @@ package business
 import (
 	"context"
 	"strings"
-	"unicode"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
@@ -25,11 +24,8 @@ import (
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
+	"github.com/antinvestor/service-fintech/pkg/payout"
 )
-
-// minMSISDNDigits is the shortest run of trailing digits two phone numbers
-// must share to be the same subscriber (national significant number).
-const minMSISDNDigits = 9
 
 // profilePayoutChecker allows a disbursement only when the loan's payment
 // account ref is one of the borrower's own contacts (a phone number for
@@ -83,51 +79,7 @@ func (c *profilePayoutChecker) Allowed(ctx context.Context, la *models.LoanAccou
 	return ErrPayoutDestinationNotClient
 }
 
-// contactMatchesDestination compares a profile contact with a payout
-// destination of the same kind. Emails match case-insensitively, and only
-// against an email contact. Phone numbers match on the full number: exactly,
-// or a national form ("0701000000") against the contact's international form
-// ("+256701000000") when the whole national number agrees. Digits are never
-// compared across kinds or on an arbitrary suffix.
+// contactMatchesDestination applies the platform payout destination rule.
 func contactMatchesDestination(contact, destination string) bool {
-	contact = strings.TrimSpace(contact)
-	destination = strings.TrimSpace(destination)
-	if contact == "" || destination == "" {
-		return false
-	}
-	contactIsEmail, destinationIsEmail := strings.Contains(contact, "@"), strings.Contains(destination, "@")
-	if contactIsEmail || destinationIsEmail {
-		return contactIsEmail && destinationIsEmail && strings.EqualFold(contact, destination)
-	}
-
-	cd, dd := digitsOf(contact), digitsOf(destination)
-	if len(cd) < minMSISDNDigits || len(dd) < minMSISDNDigits {
-		return false
-	}
-	if cd == dd {
-		return true
-	}
-	// National form against an international contact: "0" + national number
-	// must be the whole tail of the contact after its country code.
-	if strings.HasPrefix(contact, "+") && strings.HasPrefix(dd, "0") {
-		national := dd[1:]
-		return len(national) >= minMSISDNDigits &&
-			strings.HasSuffix(cd, national) &&
-			len(cd)-len(national) <= maxCountryCodeDigits
-	}
-	return false
-}
-
-// maxCountryCodeDigits bounds how much of an international contact may be
-// country code when matching a national-form destination against it.
-const maxCountryCodeDigits = 3
-
-func digitsOf(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if unicode.IsDigit(r) {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
+	return payout.ContactMatchesDestination(contact, destination)
 }

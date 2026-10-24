@@ -16,8 +16,12 @@ buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac94
 buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac946cc1ed.1/go.mod h1:gZYz5af+z2i3QpFZkOCYbo3LmK8Sdj79CVc7eclWdk4=
 buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2 h1:qi0gxAqjoJ/uNQh/V1sGenoKTpzlgZv6KRNSR6aJMHc=
 buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2/go.mod h1:SBTRWEDRNjIEtp73vkstgPAngZ2ReBAgV1eUbsaF6ok=
+buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-00000000000000-bdd44cfa8b33.1 h1:vd6RU5dSmOBH6/l6l6FCiGr96Qe8Fid1b3Ux9M+bnE0=
+buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-00000000000000-bdd44cfa8b33.1/go.mod h1:rpLDC7w6JUqhNbL+HDn2Od+E/1ZQogxlFX7hGZyaxpQ=
 buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261013145659-7ff989496f55.1 h1:glOsCVkQzAur1tHrMBB52iqx3D9kPB+EXUxMed2e34k=
 buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261013145659-7ff989496f55.1/go.mod h1:4rysezaStwhKNeFpQl74YZe0DVSVlBcJbtmwHA/Fbhk=
+buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-00000000000000-bdd44cfa8b33.2 h1:65HW9W6I+HPIekUFJsWu0z5J8hrb9pfjSxVX70RegX8=
+buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-00000000000000-bdd44cfa8b33.2/go.mod h1:VtaQ6lVFcehjTnmNUvQmCbBstXbHV0I39QCdwGv3d+I=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261013145659-7ff989496f55.2 h1:A6y6YudlEQW+Lfz/9yAJCKpIXHjCMN323dRZjqQL1Xs=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261013145659-7ff989496f55.2/go.mod h1:VtaQ6lVFcehjTnmNUvQmCbBstXbHV0I39QCdwGv3d+I=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261013145659-208397fe6d4a.1 h1:JIlzgQ61O5C+AH0w4FLQy7R+uaGYlMxEcTOqOeMbYmU=

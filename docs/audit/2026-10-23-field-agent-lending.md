@@ -167,3 +167,36 @@ Deliberately not done: the deprecated Agent RPCs stay in the proto (they fail
 closed with `Gone`) because removing them breaks published Dart SDK clients;
 `WorkforceMemberSelf` is unnecessary because `ClientAccessScope` returns the
 caller's member id for `WorkforceMemberGet`.
+
+## 13. Addendum 2026-10-24 — money leaving the platform
+
+Findings:
+
+- Savings withdrawals posted the ledger leg with a transfer type whose
+  operations handler only logs. The member's balance dropped and nothing
+  was paid.
+- Loan disbursements named the client id as the payout recipient, and
+  operations sent it to the rail as a profile id. The destination phone
+  never reached the rail.
+- A payout the rail rejected left its ledger leg posted. The loan or
+  savings account looked paid out with no money sent and no reversal.
+- A written-off loan's principal was expensed but never absorbed by the
+  funding tranches, so investor balances never carried the loss.
+
+Fixes:
+
+- Operations resolves every payout recipient before the ledger leg posts:
+  `recipient_profile_id`, else the profile of `recipient_client_id`
+  (through the field service), else the legacy id. `payment_account_ref`
+  must be one of that profile's live contacts (shared rule in
+  `pkg/payout`) and is sent to the rail as the contact detail.
+- A rail rejection automatically posts a mirrored
+  `DISBURSEMENT_REVERSAL` order (`payout-reversal:<reference>`) and closes
+  the original order.
+- Savings withdrawals are `DISBURSEMENT` orders addressed to the owner's
+  client with the withdrawal's recipient reference as destination. A
+  permanent rejection rejects the withdrawal and releases the hold. Group
+  accounts are refused for rail payouts.
+- Loans disbursements send `recipient_client_id`.
+- Write-off calls funding `AbsorbLoss` for the outstanding principal after
+  the bad-debt posting. Funding absorbs once per loan.

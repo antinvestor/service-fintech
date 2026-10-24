@@ -83,14 +83,19 @@ func (m *TransferOrder) PayoutFailed() bool { return m.PayoutStatus == PayoutSta
 type payoutTarget struct {
 	recipientID string
 	route       string
+	destination string
 }
 
-func (m *TransferOrder) SetPayoutTarget(recipientID, route string) {
-	m.payout = payoutTarget{recipientID: recipientID, route: route}
+// SetPayoutTarget records who the payout goes to (a profile id), the rail
+// route, and the verified destination contact ("" lets the rail choose the
+// recipient's default).
+func (m *TransferOrder) SetPayoutTarget(recipientID, route, destination string) {
+	m.payout = payoutTarget{recipientID: recipientID, route: route, destination: destination}
 }
 
-func (m *TransferOrder) PayoutRecipient() string { return m.payout.recipientID }
-func (m *TransferOrder) PayoutRoute() string     { return m.payout.route }
+func (m *TransferOrder) PayoutRecipient() string   { return m.payout.recipientID }
+func (m *TransferOrder) PayoutRoute() string       { return m.payout.route }
+func (m *TransferOrder) PayoutDestination() string { return m.payout.destination }
 
 // Obligation represents a financial obligation for a member.
 type Obligation struct {

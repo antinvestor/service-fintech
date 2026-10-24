@@ -488,6 +488,12 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 
 	logger.Info("executing transfer order")
 
+	// A payout is addressed before any money moves: an order whose
+	// recipient or destination does not check out never posts its ledger leg.
+	if err = b.checkPayoutRecipient(ctx, logger, order); err != nil {
+		return err
+	}
+
 	ledgerTxnID, err := b.postLedgerOnce(ctx, logger, order)
 	if err != nil {
 		return err
@@ -495,8 +501,7 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 
 	if sideEffectErr := b.dispatchSideEffect(ctx, logger, orderType, order); sideEffectErr != nil {
 		logger.WithError(sideEffectErr).Error("side effect failed")
-		b.releaseExecution(ctx, logger, orderID, "side effect: "+sideEffectErr.Error())
-		return sideEffectErr
+		return b.failSideEffect(ctx, logger, order, "side effect: "+sideEffectErr.Error(), sideEffectErr)
 	}
 
 	// Step 5: Log CBS sync record for external reconciliation. The ledger
@@ -510,8 +515,7 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	// Step 6: Mark the transfer order as completed. An order whose payout
 	// the rail rejected never completes; it is released for a reversal.
 	if order.PayoutFailed() {
-		b.releaseExecution(ctx, logger, orderID, "payout failed at the payment rail")
-		return ErrPayoutFailed
+		return b.failSideEffect(ctx, logger, order, "payout failed at the payment rail", ErrPayoutFailed)
 	}
 	done, doneErr := b.toRepo.ClaimState(
 		ctx,
@@ -805,7 +809,11 @@ func (b *transferOrderBusiness) sendPayment(
 		return errPaymentClientUnavailable
 	}
 
-	order.SetPayoutTarget(recipientID, route)
+	profileID, destination, err := b.payoutRecipient(ctx, order, recipientID)
+	if err != nil {
+		return err
+	}
+	order.SetPayoutTarget(profileID, route, destination)
 
 	// Claim the payout exactly once. The payment service does not dedupe on
 	// our reference, so a resumed execution that finds the claim taken must
@@ -833,6 +841,7 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 			Route:       route,
 			Recipient: (&commonv1.ContactLink_builder{
 				ProfileId: recipientID,
+				Detail:    order.PayoutDestination(),
 			}).Build(),
 			Amount:   minorToMoney(order.Currency, order.Amount),
 			Outbound: true,

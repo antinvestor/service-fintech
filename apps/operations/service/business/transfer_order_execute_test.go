@@ -43,45 +43,72 @@ import (
 // every failure branch without a database.
 type memOrderRepo struct {
 	stubTransferOrderRepo
-	mu    sync.Mutex
-	order *models.TransferOrder
+	mu     sync.Mutex
+	order  *models.TransferOrder
+	others map[string]*models.TransferOrder
 }
 
 func newMemOrderRepo(order *models.TransferOrder) *memOrderRepo {
-	return &memOrderRepo{order: order}
+	return &memOrderRepo{order: order, others: map[string]*models.TransferOrder{}}
+}
+
+// get returns the stored order with id; callers hold mu.
+func (r *memOrderRepo) get(id string) *models.TransferOrder {
+	if r.order != nil && r.order.GetID() == id {
+		return r.order
+	}
+	return r.others[id]
+}
+
+func (r *memOrderRepo) CreateIfAbsent(_ context.Context, order *models.TransferOrder) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.get(order.GetID()) == nil {
+		cp := *order
+		r.others[order.GetID()] = &cp
+	}
+	return nil
 }
 
 func (r *memOrderRepo) GetByID(_ context.Context, id string) (*models.TransferOrder, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order == nil || r.order.GetID() != id {
+	o := r.get(id)
+	if o == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
-	cp := *r.order
+	cp := *o
 	return &cp, nil
 }
 
 func (r *memOrderRepo) GetByReference(_ context.Context, ref string) (*models.TransferOrder, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order == nil || r.order.Reference != ref {
-		return nil, gorm.ErrRecordNotFound
+	if r.order != nil && r.order.Reference == ref {
+		cp := *r.order
+		return &cp, nil
 	}
-	cp := *r.order
-	return &cp, nil
+	for _, o := range r.others {
+		if o.Reference == ref {
+			cp := *o
+			return &cp, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (r *memOrderRepo) ClaimState(_ context.Context, id string, from []int32, to int32) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order.GetID() != id {
+	o := r.get(id)
+	if o == nil {
 		return false, nil
 	}
 	for _, f := range from {
-		if r.order.State == f {
-			r.order.State = to
-			r.order.ModifiedAt = time.Now().UTC()
-			r.order.Version++
+		if o.State == f {
+			o.State = to
+			o.ModifiedAt = time.Now().UTC()
+			o.Version++
 			return true, nil
 		}
 	}
@@ -91,79 +118,89 @@ func (r *memOrderRepo) ClaimState(_ context.Context, id string, from []int32, to
 func (r *memOrderRepo) ClaimStaleExecution(_ context.Context, id string, before time.Time) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order.GetID() != id || r.order.State != int32(constants.StateCheckCreated) ||
-		!r.order.ModifiedAt.Before(before) {
+	o := r.get(id)
+	if o == nil || o.State != int32(constants.StateCheckCreated) || !o.ModifiedAt.Before(before) {
 		return false, nil
 	}
-	r.order.ModifiedAt = time.Now().UTC()
-	r.order.Version++
+	o.ModifiedAt = time.Now().UTC()
+	o.Version++
 	return true, nil
 }
 
 func (r *memOrderRepo) ReleaseExecution(_ context.Context, id, reason string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order.GetID() != id || r.order.State != int32(constants.StateCheckCreated) {
+	o := r.get(id)
+	if o == nil || o.State != int32(constants.StateCheckCreated) {
 		return false, nil
 	}
-	r.order.State = int32(constants.StateJustCreated)
-	r.order.FailureReason = reason
-	r.order.ModifiedAt = time.Now().UTC()
+	o.State = int32(constants.StateJustCreated)
+	o.FailureReason = reason
+	o.ModifiedAt = time.Now().UTC()
 	return true, nil
 }
 
-func (r *memOrderRepo) MarkLedgerPosted(_ context.Context, _ string, txnID string) error {
+func (r *memOrderRepo) MarkLedgerPosted(_ context.Context, id string, txnID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.order.LedgerTransactionID = txnID
+	if o := r.get(id); o != nil {
+		o.LedgerTransactionID = txnID
+	}
 	return nil
 }
 
-func (r *memOrderRepo) ClaimPaymentInitiation(_ context.Context, _ string) (bool, error) {
+func (r *memOrderRepo) ClaimPaymentInitiation(_ context.Context, id string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order.PaymentInitiatedAt != nil {
+	o := r.get(id)
+	if o == nil || o.PaymentInitiatedAt != nil {
 		return false, nil
 	}
 	now := time.Now().UTC()
-	r.order.PaymentInitiatedAt = &now
+	o.PaymentInitiatedAt = &now
 	return true, nil
 }
 
-func (r *memOrderRepo) RecordPaymentID(_ context.Context, _ string, paymentID string) error {
+func (r *memOrderRepo) RecordPaymentID(_ context.Context, id string, paymentID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.order.PaymentID = paymentID
+	if o := r.get(id); o != nil {
+		o.PaymentID = paymentID
+	}
 	return nil
 }
 
-func (r *memOrderRepo) MarkPayoutFailed(_ context.Context, _ string, paymentID, reason string) error {
+func (r *memOrderRepo) MarkPayoutFailed(_ context.Context, id string, paymentID, reason string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.order.PayoutStatus = models.PayoutStatusFailed
-	r.order.PaymentID = paymentID
-	r.order.FailureReason = reason
+	if o := r.get(id); o != nil {
+		o.PayoutStatus = models.PayoutStatusFailed
+		o.PaymentID = paymentID
+		o.FailureReason = reason
+	}
 	return nil
 }
 
-func (r *memOrderRepo) RetakePaymentInitiation(_ context.Context, _ string, observed time.Time) (bool, error) {
+func (r *memOrderRepo) RetakePaymentInitiation(_ context.Context, id string, observed time.Time) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order.PaymentInitiatedAt == nil || r.order.PaymentID != "" || !r.order.PaymentInitiatedAt.Equal(observed) {
+	o := r.get(id)
+	if o == nil || o.PaymentInitiatedAt == nil || o.PaymentID != "" || !o.PaymentInitiatedAt.Equal(observed) {
 		return false, nil
 	}
 	now := time.Now().UTC()
-	r.order.PaymentInitiatedAt = &now
+	o.PaymentInitiatedAt = &now
 	return true, nil
 }
 
-func (r *memOrderRepo) MarkFailedIfUnposted(_ context.Context, _ string) (bool, error) {
+func (r *memOrderRepo) MarkFailedIfUnposted(_ context.Context, id string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.order.LedgerTransactionID != "" || r.order.PaymentInitiatedAt != nil {
+	o := r.get(id)
+	if o == nil || o.LedgerTransactionID != "" || o.PaymentInitiatedAt != nil {
 		return false, nil
 	}
-	r.order.State = int32(constants.StateShutdown)
+	o.State = int32(constants.StateShutdown)
 	return true, nil
 }
 
@@ -175,6 +212,19 @@ func (r *memOrderRepo) snapshot() models.TransferOrder {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return *r.order
+}
+
+// otherByReference returns a copy of a non-primary order by reference.
+func (r *memOrderRepo) otherByReference(ref string) *models.TransferOrder {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, o := range r.others {
+		if o.Reference == ref {
+			cp := *o
+			return &cp
+		}
+	}
+	return nil
 }
 
 var _ repository.TransferOrderRepository = (*memOrderRepo)(nil)
@@ -429,18 +479,34 @@ func TestExecute_FailedPayoutAtRailIsNotSettledNorResent(t *testing.T) {
 	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
 	require.ErrorIs(t, err, ErrPayoutFailed)
 	got := f.repo.snapshot()
-	assert.Equal(t, int32(constants.StateJustCreated), got.State)
 	assert.Equal(t, "pay-failed", got.PaymentID)
 	assert.True(t, got.PayoutFailed())
 	assert.Equal(t, 0, f.payment.sends)
 
-	// The marker outlives the lookup: even with the payment gone from the
-	// service's answer, the order does not complete and nothing is resent.
+	// The ledger leg is reversed and the order closed: a retry neither
+	// completes it nor resends the payout.
+	assertPayoutReversed(t, f)
 	f.locator.found = nil
 	err = f.biz.Execute(context.Background(), f.repo.order.GetID())
-	require.ErrorIs(t, err, ErrPayoutFailed)
+	require.ErrorIs(t, err, ErrTransferOrderFailed)
 	assert.NotEqual(t, int32(constants.StateInactive), f.repo.snapshot().State)
 	assert.Equal(t, 0, f.payment.sends)
+}
+
+// assertPayoutReversed checks that a rejected payout's ledger leg was
+// mirrored by a posted reversal order and the original order closed.
+func assertPayoutReversed(t *testing.T, f *executeFixture) {
+	t.Helper()
+	original := f.repo.snapshot()
+	assert.Equal(t, int32(constants.StateShutdown), original.State, "the rejected order is closed")
+	rev := f.repo.otherByReference("payout-reversal:" + original.Reference)
+	require.NotNil(t, rev, "a reversal order was written")
+	assert.Equal(t, original.CreditAccountRef, rev.DebitAccountRef)
+	assert.Equal(t, original.DebitAccountRef, rev.CreditAccountRef)
+	assert.Equal(t, original.Amount, rev.Amount)
+	assert.Equal(t, int32(constants.TransferTypeDisbursementReversal), rev.OrderType)
+	assert.NotEmpty(t, rev.LedgerTransactionID, "the reversal posted to the ledger")
+	assert.Equal(t, int32(constants.StateInactive), rev.State, "the reversal completed")
 }
 
 // A recorded payment id is re-checked, not trusted: if the service now says
@@ -497,8 +563,9 @@ func TestExecute_SynchronousRailRejectionMarksPayoutFailed(t *testing.T) {
 	assert.True(t, got.PayoutFailed())
 	assert.NotEqual(t, int32(constants.StateInactive), got.State)
 
+	assertPayoutReversed(t, f)
 	err = f.biz.Execute(context.Background(), f.repo.order.GetID())
-	require.ErrorIs(t, err, ErrPayoutFailed)
+	require.ErrorIs(t, err, ErrTransferOrderFailed)
 	assert.Equal(t, 1, f.payment.sends)
 }
 

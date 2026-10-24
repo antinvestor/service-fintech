@@ -25,6 +25,7 @@ import (
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
+	"connectrpc.com/connect/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3"
 	"github.com/pitabwire/frame/v3/datastore"
@@ -40,6 +41,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 // errOperationsDown stands in for the operations service being unreachable.
@@ -442,6 +444,11 @@ func (s *savingsSuite) TestWithdrawalHoldsThenSettles() {
 	s.Require().NoError(err)
 	s.Equal(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED, approved.GetStatus())
 
+	// The money leaves through the payment rail, addressed to the owner.
+	order := e.ops.last()
+	s.Equal(int32(constants.TransferTypeDisbursement), order.GetOrderType())
+	s.Equal(account.OwnerID, order.GetExtraData().GetFields()["recipient_client_id"].GetStringValue())
+
 	settled, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())
 	s.Require().NoError(err)
 	s.Equal(int64(60000), settled.Balance)
@@ -520,6 +527,36 @@ func (s *savingsSuite) TestWithdrawalApproveKeepsTheHoldWhenTheLedgerRefuses() {
 	approved, err := e.wdr.Approve(e.ctx, requested.GetId())
 	s.Require().NoError(err)
 	s.Equal(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED, approved.GetStatus())
+}
+
+// A payout the rail or operations refuses for good rejects the withdrawal
+// and gives the member back the held amount.
+func (s *savingsSuite) TestWithdrawalRejectedPayoutReleasesTheHold() {
+	e := s.newEnv()
+	account := e.seedAccount(s, "KES")
+	s.fund(e, account, "1000", "dep-fund")
+
+	requested, err := e.wdr.Request(e.ctx, &savingsv1.WithdrawalRequestRequest{
+		SavingsAccountId: account.GetID(),
+		Amount:           money("KES", "400"),
+		IdempotencyKey:   "wdr-rejected",
+	})
+	s.Require().NoError(err)
+
+	e.ops.fail = connect.NewError(connect.CodeFailedPrecondition,
+		"payout destination is not a contact of the recipient")
+	_, err = e.wdr.Approve(e.ctx, requested.GetId())
+	s.Require().ErrorIs(err, business.ErrWithdrawalPayoutRejected)
+	e.ops.fail = nil
+
+	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(100000), balance.Balance)
+	s.Zero(balance.ReservedBalance, "the hold is released")
+
+	stored, err := e.wdrRepo.GetByID(e.ctx, requested.GetId())
+	s.Require().NoError(err)
+	s.Equal(int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_REJECTED), stored.Status)
 }
 
 func (s *savingsSuite) TestWithdrawalCancelReleasesTheHold() {

@@ -105,6 +105,11 @@ func NewReadScope(resolver AccessResolver, staffRoles ...string) *ReadScope {
 // callerAccess classifies the caller. It returns staff=true for callers with
 // partition-wide access, otherwise what the caller may act for.
 func (s *ReadScope) callerAccess(ctx context.Context) (*CallerAccess, bool, error) {
+	if s == nil {
+		// An unconfigured scope behaves like NewReadScope(nil): trusted
+		// in-process and staff callers pass, everyone else fails closed.
+		s = &ReadScope{staffRoles: defaultStaffRoles}
+	}
 	claims := security.ClaimsFromContext(ctx)
 	if claims == nil {
 		// No claims means the call did not come through the authenticated
@@ -143,9 +148,6 @@ func (s *ReadScope) callerAccess(ctx context.Context) (*CallerAccess, bool, erro
 // IsStaff reports whether the caller is an internal principal or holds a
 // configured staff role. It never errs: an unresolvable caller is not staff.
 func (s *ReadScope) IsStaff(ctx context.Context) bool {
-	if s == nil {
-		return false
-	}
 	_, staff, err := s.callerAccess(ctx)
 	return err == nil && staff
 }
