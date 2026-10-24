@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
@@ -187,4 +188,27 @@ func TestIsReservedReference(t *testing.T) {
 	assert.True(t, IsReservedReference("payout-reversal:disbursement:k"))
 	assert.True(t, IsReservedReference("  payout-reversal:x"))
 	assert.False(t, IsReservedReference("disbursement:k"))
+}
+
+// A payout an earlier attempt already claimed is never reversed because the
+// recipient stopped checking out: the money may have gone. The caller is
+// told to retry until the payment service settles it.
+func TestPayout_ClaimedPayoutWithBadDestinationIsNotReversed(t *testing.T) {
+	f, pay := newDisbursementFixture(t, data.JSONMap{
+		"recipient_client_id": "client-1",
+		"payment_account_ref": "+256709999999",
+	})
+	f.repo.order.LedgerTransactionID = "ledger-earlier"
+	stale := time.Now().Add(-time.Minute)
+	f.repo.order.PaymentInitiatedAt = &stale
+	f.repo.order.PaymentID = "pay-1"
+
+	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
+	require.ErrorIs(t, err, ErrPayoutPendingConfirmation)
+	assert.False(t, readsAsRefusal(err))
+	assert.Nil(t, pay.last, "nothing is resent")
+	got := f.repo.snapshot()
+	assert.False(t, got.PayoutFailed())
+	assert.NotEqual(t, int32(constants.StateShutdown), got.State)
+	assert.Nil(t, f.repo.otherByReference(payoutReversalPrefix+got.Reference), "no reversal was written")
 }

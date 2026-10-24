@@ -809,21 +809,20 @@ func (b *transferOrderBusiness) sendPayment(
 		return errPaymentClientUnavailable
 	}
 
-	profileID, destination, err := b.payoutRecipient(ctx, order, recipientID)
-	if errors.Is(err, ErrPayoutRecipientUnresolved) || errors.Is(err, ErrPayoutDestinationNotRecipient) {
-		// The ledger leg has posted and the payout can never be sent:
-		// record it as failed so the order is reversed, not retried.
-		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), "", err.Error()); markErr != nil {
-			util.Log(ctx).WithError(markErr).WithField("order_id", order.GetID()).
-				Error("could not record the unsendable payout on the transfer order")
-		}
-		order.PayoutStatus = models.PayoutStatusFailed
-		return fmt.Errorf("%w: %s", ErrPayoutFailed, err.Error())
+	// A payout already marked failed is never sent; it is reversed.
+	if order.PayoutFailed() {
+		return ErrPayoutFailed
 	}
-	if err != nil {
-		return err
+
+	profileID, destination, recipientErr := b.payoutRecipient(ctx, order, recipientID)
+	unsendable := errors.Is(recipientErr, ErrPayoutRecipientUnresolved) ||
+		errors.Is(recipientErr, ErrPayoutDestinationNotRecipient)
+	if recipientErr != nil && !unsendable {
+		return recipientErr
 	}
-	order.SetPayoutTarget(profileID, route, destination)
+	if recipientErr == nil {
+		order.SetPayoutTarget(profileID, route, destination)
+	}
 
 	// Claim the payout exactly once. The payment service does not dedupe on
 	// our reference, so a resumed execution that finds the claim taken must
@@ -834,7 +833,23 @@ func (b *transferOrderBusiness) sendPayment(
 		return fmt.Errorf("claim payment initiation: %w", err)
 	}
 	if !claimed {
+		if unsendable {
+			// An earlier attempt may already have paid out; a recipient that
+			// no longer checks out is no proof it did not. Never reverse on
+			// that basis: wait for the payment service's word.
+			return fmt.Errorf("%w: %s", ErrPayoutPendingConfirmation, recipientErr.Error())
+		}
 		return b.confirmEarlierPayout(ctx, order)
+	}
+	if unsendable {
+		// This attempt holds the first claim, so nothing was ever sent, and
+		// the claim now bars any later send. Only a durable failure mark
+		// licenses the reversal.
+		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), "", recipientErr.Error()); markErr != nil {
+			return fmt.Errorf("%w: record unsendable payout: %s", ErrPayoutPendingConfirmation, markErr.Error())
+		}
+		order.PayoutStatus = models.PayoutStatusFailed
+		return fmt.Errorf("%w: %s", ErrPayoutFailed, recipientErr.Error())
 	}
 
 	return b.sendPayoutNow(ctx, order)
