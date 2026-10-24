@@ -18,6 +18,8 @@ dependencies:
     path: ../identity
   antinvestor_ui_limits:
     path: ../limits
+  antinvestor_ui_loans:
+    path: ../loans
   antinvestor_ui_profile: ^0.2.5
   antinvestor_ui_geolocation: ^0.2.3
   antinvestor_api_common: ^1.52.0

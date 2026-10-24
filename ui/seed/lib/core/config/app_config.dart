@@ -75,6 +75,12 @@ abstract final class AppConfig {
   static String get tenancyBaseUrl =>
       _tenancyExplicit.isNotEmpty ? _tenancyExplicit : '$_apiBaseUrl/tenancy';
 
+  // ── Loans service endpoint ─────────────────────────────────────────
+
+  static const String _loansExplicit = String.fromEnvironment('LOANS_URL');
+  static String get loansBaseUrl =>
+      _loansExplicit.isNotEmpty ? _loansExplicit : '$_apiBaseUrl/loans';
+
   // ── Files service endpoint ─────────────────────────────────────────
 
   static const String _filesExplicit = String.fromEnvironment('FILES_URL');
@@ -108,6 +114,7 @@ abstract final class AppConfig {
     'identity': identityBaseUrl,
     'profile': profileBaseUrl,
     'tenancy': tenancyBaseUrl,
+    'loans': loansBaseUrl,
     'files': filesBaseUrl,
     'audit': auditBaseUrl,
     'geolocation': geolocationBaseUrl,

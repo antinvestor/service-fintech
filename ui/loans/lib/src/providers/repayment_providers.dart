@@ -61,3 +61,29 @@ final repaymentNotifierProvider =
     NotifierProvider<RepaymentNotifier, AsyncValue<void>>(
       RepaymentNotifier.new,
     );
+
+/// Repayment channel values the service accepts, as sent on the wire.
+const kRepaymentChannelCash = 'cash';
+const kRepaymentChannelMobileMoney = 'mobile_money';
+const kRepaymentChannelBank = 'bank';
+const kRepaymentChannelSavings = 'savings';
+
+const kRepaymentChannels = [
+  kRepaymentChannelCash,
+  kRepaymentChannelMobileMoney,
+  kRepaymentChannelBank,
+  kRepaymentChannelSavings,
+];
+
+/// Shown under the channel picker when cash is chosen: the collecting agent
+/// carries the cash on their own float until it is remitted.
+const kCashCollectionNote =
+    'Cash is booked against the collecting agent until it is remitted.';
+
+String repaymentChannelLabel(String channel) => switch (channel) {
+  kRepaymentChannelCash => 'Cash collected in the field',
+  kRepaymentChannelMobileMoney => 'Mobile money',
+  kRepaymentChannelBank => 'Bank transfer',
+  kRepaymentChannelSavings => 'Savings account',
+  _ => channel,
+};

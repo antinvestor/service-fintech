@@ -9,13 +9,21 @@ import 'package:go_router/go_router.dart';
 
 import '../providers/loan_request_providers.dart';
 import '../widgets/list_state_view.dart';
+import 'loan_request_form_dialog.dart';
 import '../widgets/load_more_action.dart';
 import '../widgets/loan_request_status_badge.dart';
 
 class LoanRequestsScreen extends ConsumerStatefulWidget {
-  const LoanRequestsScreen({super.key, this.pendingOnly = false});
+  const LoanRequestsScreen({
+    super.key,
+    this.pendingOnly = false,
+    this.canSubmit = false,
+  });
 
   final bool pendingOnly;
+
+  /// Whether the caller may open a new application (`loan_request_submit`).
+  final bool canSubmit;
 
   @override
   ConsumerState<LoanRequestsScreen> createState() => _LoanRequestsScreenState();
@@ -62,6 +70,18 @@ class _LoanRequestsScreenState extends ConsumerState<LoanRequestsScreen> {
     });
   }
 
+  Future<void> _showNewApplication(BuildContext context) async {
+    final saved = await showDialog<LoanRequestObject>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoanRequestFormDialog(),
+    );
+    if (saved == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Application ${saved.id} submitted')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final params = (
@@ -88,6 +108,8 @@ class _LoanRequestsScreenState extends ConsumerState<LoanRequestsScreen> {
           ],
           items: requests,
           onSearch: _onSearch,
+          addLabel: widget.canSubmit ? 'New application' : null,
+          onAdd: widget.canSubmit ? () => _showNewApplication(context) : null,
           actions: [
             DropdownButton<LoanRequestStatus?>(
               value: _statusFilter,

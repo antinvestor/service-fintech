@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
+import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
+    show LoansRouteModule;
 
 import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/logging/app_logger.dart';
@@ -220,7 +223,29 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/access-roles',
             builder: (context, state) => const AccessRolesScreen(),
           ),
+          GoRoute(
+            path: '/clients',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) => ClientsScreen(
+                canManage: ref.watch(hasPermissionProvider('client_manage')),
+              ),
+            ),
+            routes: [
+              GoRoute(
+                path: ':clientId',
+                builder: (context, state) => Consumer(
+                  builder: (context, ref, _) => ClientDetailScreen(
+                    clientId: state.pathParameters['clientId']!,
+                    canManage: ref.watch(
+                      hasPermissionProvider('client_manage'),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
           ...LimitsFeature.routes(),
+          ...LoansRouteModule().buildRoutes(),
         ],
       ),
     ],

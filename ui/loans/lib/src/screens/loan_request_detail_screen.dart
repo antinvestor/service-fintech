@@ -7,9 +7,18 @@ import '../providers/loan_request_providers.dart';
 import '../widgets/loan_request_status_badge.dart';
 
 class LoanRequestDetailScreen extends ConsumerWidget {
-  const LoanRequestDetailScreen({super.key, required this.requestId});
+  const LoanRequestDetailScreen({
+    super.key,
+    required this.requestId,
+    this.canManage = false,
+  });
 
   final String requestId;
+
+  /// Whether the caller may approve or reject the request
+  /// (`loan_request_manage`). Without it the decision buttons are not shown
+  /// at all rather than offered and refused by the service.
+  final bool canManage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,7 +93,8 @@ class LoanRequestDetailScreen extends ConsumerWidget {
             _infoRow('Loan Account', Text(request.loanAccountId)),
           ],
           const SizedBox(height: 24),
-          if (request.status == LoanRequestStatus.LOAN_REQUEST_STATUS_SUBMITTED)
+          if (canManage &&
+              request.status == LoanRequestStatus.LOAN_REQUEST_STATUS_SUBMITTED)
             _buildActions(context, ref, request),
         ],
       ),

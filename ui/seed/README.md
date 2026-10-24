@@ -1,9 +1,9 @@
 # Seed UI
 
 The Seed lending operations console: organizations, org units, workforce,
-teams, access roles, investors, limits and portfolio analytics. Composed from
-the shared `antinvestor_ui_*` libraries; `ui/identity` and `ui/limits` supply
-most of the screens.
+teams, access roles, investors, clients, loans, limits and portfolio
+analytics. Composed from the shared `antinvestor_ui_*` libraries;
+`ui/identity`, `ui/loans` and `ui/limits` supply most of the screens.
 
 ## Local setup
 
@@ -43,9 +43,19 @@ aborts startup when any of these is missing:
 | `OIDC_ISSUER`    | OIDC discovery issuer                       |
 | `API_BASE_URL`   | Gateway base URL for every backend service  |
 
-Per-service overrides (`IDENTITY_URL`, `PROFILE_URL`, `FILES_URL`,
-`AUDIT_URL`, `GEOLOCATION_URL`, `TENANCY_URL`, `THESA_BASE_URL`) are optional
-and default to a path under `API_BASE_URL`.
+Per-service overrides are optional and default to a path under
+`API_BASE_URL`:
+
+| Define            | Default                      | Serves                          |
+|-------------------|------------------------------|---------------------------------|
+| `IDENTITY_URL`    | `$API_BASE_URL/identity`     | identity + field (clients)      |
+| `LOANS_URL`       | `$API_BASE_URL/loans`        | loan products, requests, book   |
+| `PROFILE_URL`     | `$API_BASE_URL/profile`      | profiles                        |
+| `FILES_URL`       | `$API_BASE_URL/files`        | uploads                         |
+| `AUDIT_URL`       | `$API_BASE_URL/audit`        | audit trail                     |
+| `GEOLOCATION_URL` | `$API_BASE_URL/geolocation`  | areas                           |
+| `TENANCY_URL`     | `$API_BASE_URL/tenancy`      | partitions                      |
+| `THESA_BASE_URL`  | `$API_BASE_URL/thesa`        | dashboard analytics             |
 
 Build production with `make ui-build-prod` from the repo root, which requires
 `OIDC_CLIENT_ID_PROD`, `OIDC_ISSUER_PROD` and `API_BASE_URL_PROD` in the

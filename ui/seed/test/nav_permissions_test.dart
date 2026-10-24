@@ -39,6 +39,24 @@ void main() {
       expect(ids, isNot(contains('access_roles')));
     });
 
+    test('clients appear with client_view only', () {
+      expect(idsOf(navItemsFor(const {})), isNot(contains('clients')));
+      expect(idsOf(navItemsFor(const {'client_view'})), contains('clients'));
+    });
+
+    test('the loans section is hidden until a loans permit is granted', () {
+      expect(idsOf(navItemsFor(const {})), isNot(contains('loans_section')));
+
+      final ids = idsOf(navItemsFor(const {'loan_view'}));
+      expect(ids, containsAll(<String>['loans_section', 'loans']));
+      expect(ids, isNot(contains('loan_products')));
+
+      expect(
+        idsOf(navItemsFor(const {'loan_product_view'})),
+        containsAll(<String>['loans_section', 'loan_products']),
+      );
+    });
+
     test('every gated nav item is gated by a route guard too', () {
       for (final item in flatten(buildNavItems())) {
         if (item.requiredPermissions.isEmpty || item.route == null) continue;
@@ -77,6 +95,27 @@ void main() {
       expect(
         requiredPermissionsForRoute('/access-roles/role-1'),
         equals({'access_role_assignment_manage'}),
+      );
+    });
+
+    test('gates loans routes on the module permits', () {
+      expect(requiredPermissionsForRoute('/loans'), equals({'loan_view'}));
+      expect(requiredPermissionsForRoute('/loans/ln-1'), equals({'loan_view'}));
+      expect(
+        requiredPermissionsForRoute('/loans/products'),
+        equals({'loan_product_view'}),
+      );
+      expect(
+        requiredPermissionsForRoute('/loans/requests/req-1'),
+        equals({'loan_request_view'}),
+      );
+      expect(
+        requiredPermissionsForRoute('/reports/loan-book'),
+        equals({'portfolio_export'}),
+      );
+      expect(
+        requiredPermissionsForRoute('/clients/c-1'),
+        equals({'client_view'}),
       );
     });
 

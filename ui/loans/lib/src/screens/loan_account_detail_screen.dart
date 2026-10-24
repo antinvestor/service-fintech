@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import '../utils/money_compat.dart';
@@ -15,18 +13,8 @@ import '../providers/penalty_providers.dart';
 import '../providers/repayment_providers.dart';
 import '../providers/restructure_providers.dart';
 import '../providers/schedule_providers.dart';
+import '../utils/idempotency_key.dart';
 import '../widgets/loan_status_badge.dart';
-
-/// Generates a simple idempotency key.
-/// Generates the key that makes a money-moving request safe to retry. It is
-/// created once per dialog, in initState: generating it per submit means a
-/// user retrying a request that timed out sends a different key, and the
-/// service treats the retry as a second real payment.
-String _generateIdempotencyKey() {
-  final rand = Random.secure();
-  final bytes = List<int>.generate(16, (_) => rand.nextInt(256));
-  return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-}
 
 class LoanAccountDetailScreen extends ConsumerStatefulWidget {
   const LoanAccountDetailScreen({
@@ -34,7 +22,10 @@ class LoanAccountDetailScreen extends ConsumerStatefulWidget {
     required this.loanId,
     this.canManage = false,
     this.canRecordPayment = false,
+    this.canCollectPayment = false,
     this.canDisburse = false,
+    this.canWaivePenalty = false,
+    this.canDecideRestructure = false,
   });
 
   final String loanId;
@@ -43,11 +34,23 @@ class LoanAccountDetailScreen extends ConsumerStatefulWidget {
   /// Host app should set this based on its own authorization logic.
   final bool canManage;
 
-  /// Whether the current user can record repayments.
+  /// Whether the current user can record repayments (`repayment_manage`).
   final bool canRecordPayment;
+
+  /// Whether the current user can push a collection prompt to the borrower
+  /// (`collection_manage`). Distinct from recording a payment already in
+  /// hand.
+  final bool canCollectPayment;
 
   /// Whether the current user can move money out on this loan.
   final bool canDisburse;
+
+  /// Whether the current user can waive penalties (`penalty_manage`).
+  final bool canWaivePenalty;
+
+  /// Whether the current user can approve or reject restructure requests
+  /// (`restructure_manage`). Requesting one stays under [canManage].
+  final bool canDecideRestructure;
 
   @override
   ConsumerState<LoanAccountDetailScreen> createState() =>
@@ -239,23 +242,24 @@ class _LoanAccountDetailScreenState
                     icon: const Icon(Icons.send, size: 18),
                     label: const Text('Disburse'),
                   ),
-                if ((loan.status == LoanStatus.LOAN_STATUS_ACTIVE ||
-                        loan.status == LoanStatus.LOAN_STATUS_DELINQUENT) &&
-                    widget.canRecordPayment) ...[
-                  FilledButton.icon(
-                    onPressed: () => _showRecordPaymentDialog(
-                      context,
-                      loan,
-                      balanceAsync.value,
+                if (loan.status == LoanStatus.LOAN_STATUS_ACTIVE ||
+                    loan.status == LoanStatus.LOAN_STATUS_DELINQUENT) ...[
+                  if (widget.canRecordPayment)
+                    FilledButton.icon(
+                      onPressed: () => _showRecordPaymentDialog(
+                        context,
+                        loan,
+                        balanceAsync.value,
+                      ),
+                      icon: const Icon(Icons.payments, size: 18),
+                      label: const Text('Record Payment'),
                     ),
-                    icon: const Icon(Icons.payments, size: 18),
-                    label: const Text('Record Payment'),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: () => _showCollectPaymentDialog(context, loan),
-                    icon: const Icon(Icons.phone_android, size: 18),
-                    label: const Text('Collect Payment'),
-                  ),
+                  if (widget.canCollectPayment)
+                    FilledButton.tonalIcon(
+                      onPressed: () => _showCollectPaymentDialog(context, loan),
+                      icon: const Icon(Icons.phone_android, size: 18),
+                      label: const Text('Collect Payment'),
+                    ),
                 ],
               ],
             ),
@@ -284,11 +288,12 @@ class _LoanAccountDetailScreenState
                 _TransactionsTab(loanAccountId: widget.loanId),
                 _PenaltiesTab(
                   loanAccountId: widget.loanId,
-                  canManage: widget.canManage,
+                  canManage: widget.canWaivePenalty,
                 ),
                 _RestructuringTab(
                   loanAccountId: widget.loanId,
                   canManage: widget.canManage,
+                  canDecide: widget.canDecideRestructure,
                 ),
                 _HistoryTab(loanAccountId: widget.loanId),
               ],
@@ -1137,10 +1142,16 @@ class _RestructuringTab extends ConsumerWidget {
   const _RestructuringTab({
     required this.loanAccountId,
     required this.canManage,
+    required this.canDecide,
   });
 
   final String loanAccountId;
+
+  /// May request a restructure.
   final bool canManage;
+
+  /// May approve or reject a pending restructure.
+  final bool canDecide;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1200,7 +1211,7 @@ class _RestructuringTab extends ConsumerWidget {
                   final r = items[index];
                   return _RestructureCard(
                     restructure: r,
-                    canManage: canManage,
+                    canManage: canDecide,
                     onApprove: () async {
                       try {
                         await ref
@@ -1761,7 +1772,7 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
     super.initState();
     _channelCtrl = TextEditingController();
     _recipientRefCtrl = TextEditingController();
-    _idempotencyKey = _generateIdempotencyKey();
+    _idempotencyKey = generateIdempotencyKey();
   }
 
   @override
@@ -1883,9 +1894,9 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _amountCtrl;
   late final TextEditingController _paymentRefCtrl;
-  late final TextEditingController _channelCtrl;
   late final TextEditingController _payerRefCtrl;
   late final String _idempotencyKey;
+  String? _channel;
   bool _saving = false;
 
   @override
@@ -1893,16 +1904,14 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
     super.initState();
     _amountCtrl = TextEditingController();
     _paymentRefCtrl = TextEditingController();
-    _channelCtrl = TextEditingController();
     _payerRefCtrl = TextEditingController();
-    _idempotencyKey = _generateIdempotencyKey();
+    _idempotencyKey = generateIdempotencyKey();
   }
 
   @override
   void dispose() {
     _amountCtrl.dispose();
     _paymentRefCtrl.dispose();
-    _channelCtrl.dispose();
     _payerRefCtrl.dispose();
     super.dispose();
   }
@@ -1914,7 +1923,7 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
       await widget.onSave(
         _amountCtrl.text.trim(),
         _paymentRefCtrl.text.trim(),
-        _channelCtrl.text.trim(),
+        _channel!,
         _payerRefCtrl.text.trim(),
         _idempotencyKey,
       );
@@ -1975,16 +1984,42 @@ class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
               ),
               FormFieldCard(
                 label: 'Channel',
-                description:
-                    'How the payment was received (cash, mobile money, bank transfer, etc.).',
+                description: 'How the payment was received.',
                 isRequired: true,
-                child: TextFormField(
-                  controller: _channelCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. mobile_money',
-                  ),
-                  textInputAction: TextInputAction.next,
-                  validator: (v) => validateRequired(v, 'Channel'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      key: const Key('record-payment-channel'),
+                      initialValue: _channel,
+                      decoration: const InputDecoration(
+                        hintText: 'Select channel',
+                      ),
+                      items: [
+                        for (final channel in kRepaymentChannels)
+                          DropdownMenuItem(
+                            value: channel,
+                            child: Text(repaymentChannelLabel(channel)),
+                          ),
+                      ],
+                      validator: (v) => validateRequired(v, 'Channel'),
+                      onChanged: (v) => setState(() => _channel = v),
+                    ),
+                    if (_channel == kRepaymentChannelCash)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          kCashCollectionNote,
+                          key: const Key('record-payment-cash-note'),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               FormFieldCard(
@@ -2061,7 +2096,7 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
     super.initState();
     _amountCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
-    _idempotencyKey = _generateIdempotencyKey();
+    _idempotencyKey = generateIdempotencyKey();
   }
 
   @override

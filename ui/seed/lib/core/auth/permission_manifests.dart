@@ -1,5 +1,7 @@
 import 'package:antinvestor_ui_core/permissions/permission_manifest.dart';
 import 'package:antinvestor_ui_core/permissions/permission_registry.dart';
+import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
+    show LoansRouteModule;
 
 void registerPermissionManifests() {
   final registry = PermissionRegistry.instance;
@@ -41,6 +43,29 @@ void registerPermissionManifests() {
       ],
     ),
   );
+
+  // Borrowers live in the field service; the identity package only renders
+  // them. The permits are checked against that namespace.
+  registry.register(
+    const PermissionManifest(
+      namespace: 'service_field',
+      permissions: [
+        PermissionEntry(
+          key: 'client_view',
+          label: 'View Clients',
+          scope: PermissionScope.service,
+        ),
+        PermissionEntry(
+          key: 'client_manage',
+          label: 'Onboard and Manage Clients',
+          scope: PermissionScope.action,
+        ),
+      ],
+    ),
+  );
+
+  // The loans package declares every permit its screens gate on.
+  registry.register(LoansRouteModule().permissionManifest);
 
   registry.register(
     const PermissionManifest(

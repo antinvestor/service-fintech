@@ -12,6 +12,8 @@ import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart'
     show identityTransportProvider;
 import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
     show LimitsCapabilities, limitsCapabilitiesProvider;
+import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
+    show loansTransportProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -96,6 +98,11 @@ void main() {
         identityTransportProvider.overrideWith((ref) {
           final auth = ref.watch(authTokenProviderProvider);
           return createTransport(auth, baseUrl: AppConfig.identityBaseUrl);
+        }),
+
+        loansTransportProvider.overrideWith((ref) {
+          final auth = ref.watch(authTokenProviderProvider);
+          return createTransport(auth, baseUrl: AppConfig.loansBaseUrl);
         }),
 
         auditTransportProvider.overrideWith((ref) {

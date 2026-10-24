@@ -50,17 +50,34 @@ class LoansRouteModule extends RouteModule {
         ),
         GoRoute(
           path: 'requests',
-          builder: (context, state) => const LoanRequestsScreen(),
+          builder: (context, state) => Consumer(
+            builder: (context, ref, _) => LoanRequestsScreen(
+              canSubmit: ref.watch(
+                hasPermissionProvider('loan_request_submit'),
+              ),
+            ),
+          ),
           routes: [
             GoRoute(
               path: 'pending',
-              builder: (context, state) =>
-                  const LoanRequestsScreen(pendingOnly: true),
+              builder: (context, state) => Consumer(
+                builder: (context, ref, _) => LoanRequestsScreen(
+                  pendingOnly: true,
+                  canSubmit: ref.watch(
+                    hasPermissionProvider('loan_request_submit'),
+                  ),
+                ),
+              ),
             ),
             GoRoute(
               path: ':requestId',
-              builder: (context, state) => LoanRequestDetailScreen(
-                requestId: state.pathParameters['requestId']!,
+              builder: (context, state) => Consumer(
+                builder: (context, ref, _) => LoanRequestDetailScreen(
+                  requestId: state.pathParameters['requestId']!,
+                  canManage: ref.watch(
+                    hasPermissionProvider('loan_request_manage'),
+                  ),
+                ),
               ),
             ),
           ],
@@ -77,8 +94,17 @@ class LoansRouteModule extends RouteModule {
               canRecordPayment: ref.watch(
                 hasPermissionProvider('repayment_manage'),
               ),
+              canCollectPayment: ref.watch(
+                hasPermissionProvider('collection_manage'),
+              ),
               canDisburse: ref.watch(
                 hasPermissionProvider('disbursement_manage'),
+              ),
+              canWaivePenalty: ref.watch(
+                hasPermissionProvider('penalty_manage'),
+              ),
+              canDecideRestructure: ref.watch(
+                hasPermissionProvider('restructure_manage'),
               ),
             ),
           ),
@@ -155,8 +181,13 @@ class LoansRouteModule extends RouteModule {
         scope: PermissionScope.feature,
       ),
       PermissionEntry(
+        key: 'loan_request_submit',
+        label: 'Submit Loan Applications',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
         key: 'loan_request_manage',
-        label: 'Manage Loan Requests',
+        label: 'Decide Loan Requests',
         scope: PermissionScope.action,
       ),
       PermissionEntry(
@@ -165,8 +196,23 @@ class LoansRouteModule extends RouteModule {
         scope: PermissionScope.action,
       ),
       PermissionEntry(
+        key: 'collection_manage',
+        label: 'Initiate Collections',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
         key: 'disbursement_manage',
         label: 'Manage Disbursements',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
+        key: 'penalty_manage',
+        label: 'Waive Penalties',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
+        key: 'restructure_manage',
+        label: 'Decide Restructures',
         scope: PermissionScope.action,
       ),
       PermissionEntry(

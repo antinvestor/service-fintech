@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../providers/current_agent_provider.dart';
 import '../providers/loan_account_providers.dart';
 import '../widgets/list_state_view.dart';
 import '../widgets/load_more_action.dart';
@@ -19,11 +20,24 @@ class LoanAccountsScreen extends ConsumerStatefulWidget {
   ConsumerState<LoanAccountsScreen> createState() => _LoanAccountsScreenState();
 }
 
+/// Orders [loans] by days past due, worst first. Ties keep their service
+/// order so a page never reshuffles between loads.
+List<LoanAccountObject> sortByDaysPastDue(List<LoanAccountObject> loans) {
+  final indexed = loans.indexed.toList()
+    ..sort((a, b) {
+      final byDpd = b.$2.daysPastDue.compareTo(a.$2.daysPastDue);
+      return byDpd != 0 ? byDpd : a.$1.compareTo(b.$1);
+    });
+  return [for (final (_, loan) in indexed) loan];
+}
+
 class _LoanAccountsScreenState extends ConsumerState<LoanAccountsScreen> {
   Timer? _debounce;
   String _query = '';
   LoanStatus? _statusFilter;
   int _limit = kLoanListPageSize;
+  bool _myPortfolio = false;
+  bool _delinquentOnly = false;
 
   static const _filterableStatuses = [
     LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT,
@@ -56,10 +70,14 @@ class _LoanAccountsScreenState extends ConsumerState<LoanAccountsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final agentId = ref.watch(currentAgentIdProvider) ?? '';
+    final filterMine = _myPortfolio && agentId.isNotEmpty;
     final params = (
       query: _query,
-      status: _statusFilter,
-      agentId: '',
+      status: _delinquentOnly
+          ? LoanStatus.LOAN_STATUS_DELINQUENT
+          : _statusFilter,
+      agentId: filterMine ? agentId : '',
       clientId: '',
       limit: _limit,
     );
@@ -69,21 +87,57 @@ class _LoanAccountsScreenState extends ConsumerState<LoanAccountsScreen> {
       value: loansAsync,
       onRetry: () => ref.invalidate(loanAccountListProvider(params)),
       builder: (page) {
-        final loans = page.items;
+        final loans = _delinquentOnly
+            ? sortByDaysPastDue(page.items)
+            : page.items;
         return AdminEntityListPage<LoanAccountObject>(
           title: 'Loan Accounts',
           breadcrumbs: const ['Loans', 'Accounts'],
-          columns: const [
-            DataColumn(label: Text('CLIENT')),
-            DataColumn(label: Text('PRINCIPAL')),
-            DataColumn(label: Text('TERM')),
-            DataColumn(label: Text('STATUS')),
+          columns: [
+            const DataColumn(label: Text('CLIENT')),
+            const DataColumn(label: Text('PRINCIPAL')),
+            const DataColumn(label: Text('TERM')),
+            const DataColumn(label: Text('STATUS')),
+            if (_delinquentOnly)
+              const DataColumn(label: Text('DAYS PAST DUE'), numeric: true),
           ],
           items: loans,
           onSearch: _onSearch,
           actions: [
+            Tooltip(
+              message: agentId.isEmpty
+                  ? 'Your agent id is not known in this session'
+                  : 'Only loans you originated',
+              child: FilterChip(
+                key: const Key('my-portfolio-filter'),
+                label: const Text('My portfolio'),
+                selected: filterMine,
+                onSelected: agentId.isEmpty
+                    ? null
+                    : (v) => setState(() {
+                        _myPortfolio = v;
+                        _limit = kLoanListPageSize;
+                      }),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Tooltip(
+              message: 'Delinquent loans, most overdue first',
+              child: FilterChip(
+                key: const Key('delinquent-filter'),
+                label: const Text('Delinquent'),
+                selected: _delinquentOnly,
+                onSelected: (v) => setState(() {
+                  _delinquentOnly = v;
+                  _limit = kLoanListPageSize;
+                }),
+              ),
+            ),
+            const SizedBox(width: 8),
             DropdownButton<LoanStatus?>(
-              value: _statusFilter,
+              value: _delinquentOnly
+                  ? LoanStatus.LOAN_STATUS_DELINQUENT
+                  : _statusFilter,
               hint: const Text('All Statuses'),
               underline: const SizedBox.shrink(),
               items: [
@@ -98,10 +152,12 @@ class _LoanAccountsScreenState extends ConsumerState<LoanAccountsScreen> {
                   ),
                 ),
               ],
-              onChanged: (value) => setState(() {
-                _statusFilter = value;
-                _limit = kLoanListPageSize;
-              }),
+              onChanged: _delinquentOnly
+                  ? null
+                  : (value) => setState(() {
+                      _statusFilter = value;
+                      _limit = kLoanListPageSize;
+                    }),
             ),
             LoadMoreAction(
               loadedCount: loans.length,
@@ -138,6 +194,10 @@ class _LoanAccountsScreenState extends ConsumerState<LoanAccountsScreen> {
                 DataCell(Text(formatLoanMoney(loan.principalAmount))),
                 DataCell(Text('${loan.termDays} days')),
                 DataCell(LoanStatusBadge(status: loan.status)),
+                if (_delinquentOnly)
+                  DataCell(
+                    Text('${loan.daysPastDue}', key: Key('dpd-${loan.id}')),
+                  ),
               ],
             );
           },
