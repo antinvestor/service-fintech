@@ -1,0 +1,27 @@
+# seed is generated in-repo (gen/go/seed) and not published to BSR, so it is
+# its own workspace; the root proto/ workspace is what buf push publishes.
+#
+#   cd proto/seed && buf generate --template ../buf.gen.local-go.seed.yaml
+version: v2
+modules:
+  - path: .
+    name: buf.build/antinvestor/seed
+deps:
+  - buf.build/antinvestor/common
+  - buf.build/bufbuild/protovalidate
+  - buf.build/gnostic/gnostic
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+  except:
+    - FIELD_NOT_REQUIRED
+    - PACKAGE_NO_IMPORT_CYCLE
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    # A permission manifest over an HTTP mux, not a served Connect API: many
+    # routes legitimately share the same loosely typed request/response shapes.
+    - RPC_REQUEST_RESPONSE_UNIQUE
+breaking:
+  use:
+    - FILE
