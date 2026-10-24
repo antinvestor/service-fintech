@@ -12,6 +12,7 @@ export 'src/screens/loan_request_form_dialog.dart';
 export 'src/screens/portfolio_summary_screen.dart';
 export 'src/screens/loan_book_screen.dart';
 export 'src/screens/dashboard_screen.dart';
+export 'src/screens/my_collections_screen.dart';
 
 // Widgets
 export 'src/widgets/loan_status_badge.dart';

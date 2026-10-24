@@ -13,6 +13,7 @@ import '../providers/penalty_providers.dart';
 import '../providers/repayment_providers.dart';
 import '../providers/restructure_providers.dart';
 import '../providers/schedule_providers.dart';
+import '../providers/statement_providers.dart';
 import '../utils/idempotency_key.dart';
 import '../widgets/loan_status_badge.dart';
 
@@ -65,7 +66,7 @@ class _LoanAccountDetailScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -273,6 +274,7 @@ class _LoanAccountDetailScreenState
             isScrollable: true,
             tabs: const [
               Tab(text: 'Schedule'),
+              Tab(text: 'Statement'),
               Tab(text: 'Transactions'),
               Tab(text: 'Penalties'),
               Tab(text: 'Restructuring'),
@@ -285,6 +287,7 @@ class _LoanAccountDetailScreenState
               controller: _tabController,
               children: [
                 _ScheduleTab(loanAccountId: widget.loanId),
+                _StatementTab(loanAccountId: widget.loanId),
                 _TransactionsTab(loanAccountId: widget.loanId),
                 _PenaltiesTab(
                   loanAccountId: widget.loanId,
@@ -939,6 +942,83 @@ class _TransactionItem {
 // ---------------------------------------------------------------------------
 // Penalties Tab
 // ---------------------------------------------------------------------------
+
+class _StatementTab extends ConsumerWidget {
+  const _StatementTab({required this.loanAccountId});
+
+  final String loanAccountId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final statementAsync = ref.watch(loanStatementProvider(loanAccountId));
+
+    return statementAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Error: $e'),
+            const SizedBox(height: 8),
+            FilledButton.tonal(
+              onPressed: () =>
+                  ref.invalidate(loanStatementProvider(loanAccountId)),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+      data: (statement) {
+        if (statement.entries.isEmpty) {
+          return const Center(child: Text('No statement entries yet'));
+        }
+        return ListView.separated(
+          key: const Key('loan-statement'),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          itemCount: statement.entries.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final entry = statement.entries[index];
+            final isCredit =
+                entry.hasCredit() &&
+                (entry.credit.units > 0 || entry.credit.nanos > 0);
+            return ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(entry.description),
+              subtitle: Text(
+                [
+                  entry.date,
+                  if (entry.reference.isNotEmpty) entry.reference,
+                ].join(' · '),
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    isCredit
+                        ? '- ${formatLoanMoney(entry.credit)}'
+                        : formatLoanMoney(entry.debit),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: isCredit ? Colors.green.shade700 : null,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    'Balance ${formatLoanMoney(entry.balance)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
 
 class _PenaltiesTab extends ConsumerWidget {
   const _PenaltiesTab({required this.loanAccountId, required this.canManage});

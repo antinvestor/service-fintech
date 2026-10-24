@@ -21,6 +21,25 @@ final repaymentListProvider =
       );
     });
 
+/// The repayments the signed-in field agent recorded since local midnight.
+/// The service scopes a loan-less search to the caller's own collections.
+final myCollectionsTodayProvider = FutureProvider<List<RepaymentObject>>((
+  ref,
+) async {
+  final client = ref.watch(loanManagementServiceClientProvider);
+  final now = DateTime.now();
+  final midnight = DateTime(now.year, now.month, now.day).toUtc();
+  return collectStream(
+    client.repaymentSearch(
+      RepaymentSearchRequest(
+        receivedAfter: midnight.toIso8601String(),
+        cursor: PageCursor(limit: 200),
+      ),
+    ),
+    extract: (response) => response.data,
+  );
+});
+
 /// Notifier for repayment mutations.
 class RepaymentNotifier extends Notifier<AsyncValue<void>> {
   @override
@@ -49,6 +68,7 @@ class RepaymentNotifier extends Notifier<AsyncValue<void>> {
       final response = await client.repaymentRecord(req);
       state = const AsyncData(null);
       ref.invalidate(repaymentListProvider);
+      ref.invalidate(myCollectionsTodayProvider);
       return response.data;
     } catch (e, st) {
       state = AsyncError(e, st);

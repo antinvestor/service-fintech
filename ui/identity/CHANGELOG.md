@@ -10,6 +10,8 @@
 - Onboarding someone who already has a profile asks for the consent code
   sent to them (`ConsentCodeDialog`, `clientConsentPending`,
   `withConsentCode`).
+- `myClientAccessScopeProvider`: the signed-in user's client access scope
+  (own client, workforce member id, served clients).
 
 ## 0.1.0
 

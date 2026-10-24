@@ -5,6 +5,10 @@
   `connectrpc ^2.0.0`, `protobuf ^6.1.0`. Struct maps are passed as entries.
 - Collection prompts go to the borrower's profile; the dialog no longer
   takes a phone number, and `validatePhone` is removed.
+- Loan statement tab (`LoanStatement`) with running balance.
+- "My collections today" (`/loans/collections`, `MyCollectionsScreen`,
+  `myCollectionsTodayProvider`): the agent's repayments since midnight with
+  exact per-currency totals.
 
 ## 0.1.0
 

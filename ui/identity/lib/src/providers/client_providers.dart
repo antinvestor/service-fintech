@@ -121,3 +121,12 @@ class ClientNotifier extends Notifier<AsyncValue<void>> {
 
 final clientNotifierProvider =
     NotifierProvider<ClientNotifier, AsyncValue<void>>(ClientNotifier.new);
+
+/// What the signed-in user may act for as a client: their own client as a
+/// borrower and, as a field agent, their workforce member id and the clients
+/// they serve.
+final myClientAccessScopeProvider = FutureProvider<ClientAccessScopeResponse>(
+  (ref) => ref
+      .watch(fieldServiceClientProvider)
+      .clientAccessScope(ClientAccessScopeRequest()),
+);

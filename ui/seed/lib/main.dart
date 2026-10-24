@@ -9,11 +9,11 @@ import 'package:antinvestor_ui_core/api/api_base.dart';
 import 'package:antinvestor_ui_core/auth/role_provider.dart';
 import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart'
-    show identityTransportProvider;
+    show identityTransportProvider, myClientAccessScopeProvider;
 import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
     show LimitsCapabilities, limitsCapabilitiesProvider;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
-    show loansTransportProvider;
+    show currentAgentIdProvider, loansTransportProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -92,6 +92,16 @@ void main() {
           return SeedAnalyticsDataSource(
             seedAnalyticsTransport(http.Client(), auth, AppConfig.thesaBaseUrl),
           );
+        }),
+
+        // A field agent's workforce member id enables "My portfolio" on the
+        // loan book; anyone else leaves it off.
+        currentAgentIdProvider.overrideWith((ref) {
+          final memberId = ref
+              .watch(myClientAccessScopeProvider)
+              .value
+              ?.memberId;
+          return (memberId == null || memberId.isEmpty) ? null : memberId;
         }),
 
         // ── Library endpoint overrides ──────────────────────────────
