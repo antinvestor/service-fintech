@@ -20,6 +20,7 @@ const (
 	fieldAmount               = "amount"
 	fieldCurrency             = "currency"
 	fieldGroupID              = "group_id"
+	fieldLoanAccountID        = "loan_account_id"
 	fieldMembershipID         = "membership_id"
 	fieldStrategy             = "strategy"
 	fieldPayerName            = "payer_name"

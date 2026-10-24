@@ -574,7 +574,7 @@ func noErr(fn func(ctx context.Context, order *models.TransferOrder)) transferHa
 func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 	return map[int]transferHandler{
 		constants.TransferTypeLoan:                                      b.handleLoanDisbursement,
-		constants.TransferTypeLoanRepayment:                             noErr(b.handleLoanRepayment),
+		constants.TransferTypeLoanRepayment:                             b.handleLoanRepayment,
 		constants.TransferTypeLoanInterest:                              noErr(b.handleLoanInterest),
 		constants.TransferTypeLoanInterestRepayment:                     noErr(b.handleLoanInterestRepayment),
 		constants.TransferTypeLoanInsurance:                             noErr(b.handleLoanInsurance),
@@ -1274,17 +1274,18 @@ func (b *transferOrderBusiness) handleLoanDisbursement(ctx context.Context, orde
 }
 
 // recordRepaymentWithLender records an allocated group payment as a repayment
-// on the loans service. Best-effort: the ledger leg has posted; a failure
-// here is logged loudly for reconciliation and the order still completes.
+// on the loans service. The ledger leg has already posted and is retained on
+// the order, so a failure here returns an error: the claim is released and
+// the order retries the lender call alone. The order reference is the
+// idempotency key, so a retry after a late success records one repayment.
 func (b *transferOrderBusiness) recordRepaymentWithLender(
 	ctx context.Context,
 	logger *util.LogEntry,
 	order *models.TransferOrder,
 	loanID string,
-) {
+) error {
 	if b.clients == nil || b.clients.LenderLoanMgmt == nil {
-		logger.Error("loan repayment not recorded with the lender: loans client not configured")
-		return
+		return errors.New("record loan repayment with lender: loans client not configured")
 	}
 	_, err := b.clients.LenderLoanMgmt.RepaymentRecord(ctx, connect.NewRequest(&loansv1.RepaymentRecordRequest{
 		LoanAccountId:    loanID,
@@ -1294,11 +1295,10 @@ func (b *transferOrderBusiness) recordRepaymentWithLender(
 		IdempotencyKey:   order.Reference,
 	}))
 	if err != nil {
-		logger.WithError(err).WithField("loan_id", loanID).
-			Error("loan repayment posted to the ledger but not recorded with the lender; needs reconciliation")
-		return
+		return fmt.Errorf("record loan repayment with lender for loan %s: %w", loanID, err)
 	}
 	logger.WithField("loan_id", loanID).Info("loan repayment recorded with the lender")
+	return nil
 }
 
 // handleLoanRepayment processes a loan principal repayment transfer.
@@ -1307,7 +1307,7 @@ func (b *transferOrderBusiness) recordRepaymentWithLender(
 func (b *transferOrderBusiness) handleLoanRepayment(
 	ctx context.Context,
 	order *models.TransferOrder,
-) {
+) error {
 	logger := util.Log(ctx).WithField("handler", "handleLoanRepayment").
 		WithField("order_id", order.GetID())
 
@@ -1335,8 +1335,7 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 	// repayment orders, which redistribute to investors below, so a forwarded
 	// order must not redistribute as well.
 	if loanID != "" && extraDataString(order, extraKeySource) == allocationSourceMarker {
-		b.recordRepaymentWithLender(ctx, logger, order, loanID)
-		return
+		return b.recordRepaymentWithLender(ctx, logger, order, loanID)
 	}
 
 	// Loan repayment recording is handled by the loans app via its own event
@@ -1362,6 +1361,7 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 	if feesPortion > 0 {
 		b.redistributeRepayment(ctx, order, feesPortion, "fees", constants.TransferTypeServiceFee)
 	}
+	return nil
 }
 
 // handleLoanInterest processes a loan interest charge transfer.

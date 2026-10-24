@@ -974,8 +974,10 @@ func (b *paymentRoutingBusiness) allocateObligation(
 		"membership_id":    membershipID,
 		"obligation_cause": obl.CauseType,
 	}
-	if strings.HasPrefix(obl.CauseType, "loan_") && obl.CauseID != "" {
-		extra["loan_id"] = obl.CauseID
+	// A loan obligation's cause id is the schedule entry, not the loan; the
+	// loan account id was recorded on the obligation when it was raised.
+	if loanID := obligationLoanAccountID(obl); loanID != "" {
+		extra["loan_id"] = loanID
 	}
 	to := &models.TransferOrder{
 		DebitAccountRef:  constants.MemberSuspenseAccount(membershipID),
@@ -1298,4 +1300,15 @@ func leaseOf(payment *models.IncomingPayment) time.Time {
 		return time.Time{}
 	}
 	return *payment.AllocatingAt
+}
+
+// obligationLoanAccountID returns the loan account a loan obligation belongs
+// to, or "" for obligations that are not loan obligations or predate the
+// loan_account_id property (those are not fed back to the lender).
+func obligationLoanAccountID(obl *models.Obligation) string {
+	if obl == nil || !strings.HasPrefix(obl.CauseType, "loan_") || obl.Properties == nil {
+		return ""
+	}
+	loanID, _ := obl.Properties[fieldLoanAccountID].(string)
+	return strings.TrimSpace(loanID)
 }

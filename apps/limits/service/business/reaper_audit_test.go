@@ -295,7 +295,7 @@ func (s *ReaperAuditSuite) TestDecide_RacesReaper_ConvergesToOneOutcome() {
 	// on a slow machine, the narrow ones produce genuine contention.
 	offsets := []time.Duration{0, 5 * time.Millisecond, 500 * time.Millisecond, 20 * time.Millisecond, time.Second}
 	const rounds = 10
-	outcomes := map[models.ApprovalStatus]int{}
+	outcomes := make(map[models.ApprovalStatus]int)
 	for i := range rounds {
 		offset := offsets[i%len(offsets)]
 		resvID, approvalID := s.pendingApproval(e, time.Now().Add(offset).UTC())

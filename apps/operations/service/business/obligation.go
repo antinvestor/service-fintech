@@ -317,7 +317,9 @@ func (b *obligationBusiness) CreateLoanObligations(
 
 		// Build properties map carrying the group_id so that downstream routing
 		// (e.g. creditAccountForBucket) can direct funds to the correct group account.
-		oblProps := data.JSONMap{fieldGroupID: entry.GroupID}
+		// The loan account id rides along too: a payment allocated to one of
+		// these obligations is recorded with the lender against that loan.
+		oblProps := data.JSONMap{fieldGroupID: entry.GroupID, fieldLoanAccountID: loanAccountID}
 
 		// Create principal obligation
 		if entry.PrincipalDue > 0 {

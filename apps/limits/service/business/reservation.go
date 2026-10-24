@@ -846,7 +846,7 @@ func validateRequiredSubjects(intent *limitsv1.LimitIntent) error {
 	if !ok {
 		return nil // unknown action: caller already validated
 	}
-	have := map[limitsv1.SubjectType]bool{}
+	have := make(map[limitsv1.SubjectType]bool)
 	for _, s := range intent.GetSubjects() {
 		have[s.GetType()] = true
 	}
