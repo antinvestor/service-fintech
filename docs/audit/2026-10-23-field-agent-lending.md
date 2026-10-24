@@ -260,3 +260,18 @@ of the right category. When the ledger reports an account missing,
 operations creates the order's chart accounts (and their ledgers) and posts
 once more. Names not on the chart land in `fintech_unclassified` with a
 warning; a test keeps every account constructor on the chart.
+
+## 18. Addendum 2026-10-24 — field agent app
+
+- Phones get a bottom bar (Home, Clients, Loans, Collections for agents who
+  record repayments); the drawer keeps everything else.
+- Loan statement tab; "My collections today" (a loan-less repayment search
+  by a field agent is their own collections); "My portfolio" enabled from
+  the agent's member id via `ClientAccessScope`.
+- Offline outbox for repayments: queued on network failure with the
+  original idempotency key, replayed on resume or on demand, kept in device
+  storage; refusals are shown at once. Registrations stay online-only: the
+  consent code needs the person present.
+- Approval queue and maker/checker were already in place (pending filter;
+  the server refuses a decider who submitted, created or brought in the
+  request).

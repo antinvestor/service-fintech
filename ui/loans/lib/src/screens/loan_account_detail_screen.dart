@@ -370,7 +370,7 @@ class _LoanAccountDetailScreenState
               idempotencyKey,
             ) async {
               try {
-                await ref
+                final recorded = await ref
                     .read(repaymentNotifierProvider.notifier)
                     .record(
                       loanAccountId: loan.id,
@@ -385,8 +385,13 @@ class _LoanAccountDetailScreenState
                 ref.invalidate(repaymentListProvider(widget.loanId));
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Payment recorded successfully'),
+                    SnackBar(
+                      content: Text(
+                        recorded == null
+                            ? 'Saved offline; it will be sent when the '
+                                  'connection is back'
+                            : 'Payment recorded successfully',
+                      ),
                     ),
                   );
                 }

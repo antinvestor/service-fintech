@@ -31,6 +31,7 @@ export 'src/providers/loan_product_providers.dart';
 export 'src/providers/loan_request_providers.dart';
 export 'src/providers/disbursement_providers.dart';
 export 'src/providers/repayment_providers.dart';
+export 'src/providers/repayment_outbox.dart';
 export 'src/providers/penalty_providers.dart';
 export 'src/providers/schedule_providers.dart';
 export 'src/providers/restructure_providers.dart';

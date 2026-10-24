@@ -9,6 +9,10 @@
 - "My collections today" (`/loans/collections`, `MyCollectionsScreen`,
   `myCollectionsTodayProvider`): the agent's repayments since midnight with
   exact per-currency totals.
+- Offline outbox for repayments (`repaymentOutboxProvider`,
+  `OutboxStore`): a repayment that cannot reach the service is queued with
+  its idempotency key and replayed later; refusals are never queued.
+  `RepaymentNotifier.record` returns null when the repayment was queued.
 
 ## 0.1.0
 
