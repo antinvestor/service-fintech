@@ -29,6 +29,11 @@ type OperationsConfig struct {
 	IdentityServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-identity" env:"IDENTITY_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
 	// Ledger service
+	// Loans service — allocated group repayments are recorded with the lender;
+	// without it those transfer orders cannot complete.
+	LoanMgmtServiceURI                   string `envDefault:"127.0.0.1:7011"                 env:"LOAN_MGMT_SERVICE_URI"`
+	LoanMgmtServiceWorkloadAPITargetPath string `envDefault:"/ns/loans/sa/service-loan-mgmt" env:"LOAN_MGMT_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
 	LedgerServiceURI                   string `envDefault:"127.0.0.1:7020"               env:"LEDGER_SERVICE_URI"`
 	LedgerServiceWorkloadAPITargetPath string `envDefault:"/ns/ledger/sa/service-ledger" env:"LEDGER_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
@@ -61,6 +66,7 @@ type OperationsConfig struct {
 func (c *OperationsConfig) ServiceEndpoints() clients.ServiceEndpoints {
 	return clients.ServiceEndpoints{
 		IdentityURI:     c.IdentityServiceURI,
+		LoanMgmtURI:     c.LoanMgmtServiceURI,
 		LedgerURI:       c.LedgerServiceURI,
 		PaymentURI:      c.PaymentServiceURI,
 		NotificationURI: c.NotificationServiceURI,
