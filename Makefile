@@ -28,8 +28,15 @@ include $(COMMON_MK)
 # queue shutdown race that no longer reproduces on the pinned frame, see
 # docs/runbook/race-detector.md). -p 1 keeps testcontainers-backed packages
 # sequential. make warns about the override, as it does for ui-build-prod.
+# All packages in one `go test` run share one testcontainers Ryuk reaper,
+# which exits 10s after its last client disconnects; a package starting in
+# that window fails with "wait for reaper ... failed to create network".
+# Keep the reaper up across packages (same fix as common's Makefile.common).
+TESTCONTAINERS_RYUK_RECONNECTION_TIMEOUT ?= 2m
+
 .PHONY: test
 test: ## Run all tests with the race detector (sequential packages)
+	TESTCONTAINERS_RYUK_RECONNECTION_TIMEOUT=$(TESTCONTAINERS_RYUK_RECONNECTION_TIMEOUT) \
 	$(GO) test -vet=off -race -cover -count=1 -p 1 ./...
 
 # Dart proto modules — each gets its own buf.gen.dart.<module>.yaml so that
