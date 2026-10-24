@@ -238,3 +238,14 @@ Follow-up for clients: loans written before this carry a phone in
 `payment_account_ref` and will be refused at disbursement until it is reset
 to the contact id. The loans UI collection dialog must pick a contact from
 the borrower's profile instead of typing a number.
+
+## 16. Addendum 2026-10-24 — loans→seed hook and stawi offer answers
+
+- Seed serves `LoanPaidOffNotify` over Connect; loans calls it from the call
+  that won the PAID_OFF claim when `SEED_SERVICE_URI` is set. Seed completes
+  each loan request once (conditional claim) and credits the profile.
+- Stawi exposes `POST /api/v1/groups/{group_id}/loan-offers/{offer_id}/respond`
+  (`stawi_loan_offer_respond`, held by members). A member answers only their
+  own offer in its own group; owner, admin, operator and services answer any.
+- `make opl-generate` builds the seed and stawi workspaces too; their OPL
+  had silently stopped regenerating when they became separate workspaces.

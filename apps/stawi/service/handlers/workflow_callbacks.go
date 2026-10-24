@@ -80,6 +80,10 @@ func RegisterWorkflowCallbacks(mux *http.ServeMux, biz Businesses) {
 		"POST /api/v1/groups/{groupId}/members/{memberId}/expire-loan-offers",
 		handleExpireOffers(biz),
 	)
+	mux.HandleFunc(
+		"POST /api/v1/groups/{groupId}/loan-offers/{offerId}/respond",
+		handleRespondOffer(biz),
+	)
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans/source-funding", handleSourceFunding(biz))
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans", handleCreateLoanAccount(biz))
 
@@ -314,6 +318,25 @@ func handleExpireOffers(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		expired, err := biz.LoanOffer.ExpireStale(r.Context(), r.PathValue(paramMemberID))
 		respond(w, r, "expire-loan-offers", map[string]any{"expired": expired}, err)
+	}
+}
+
+// offerResponseBody is the member's answer to a loan offer.
+type offerResponseBody struct {
+	Response int32 `json:"response"`
+}
+
+func handleRespondOffer(biz Businesses) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body offerResponseBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			respond(w, r, "respond-loan-offer", nil,
+				apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON"))
+			return
+		}
+		offerID := r.PathValue("offerId")
+		err := biz.LoanOffer.Respond(r.Context(), r.PathValue(paramGroupID), offerID, body.Response)
+		respond(w, r, "respond-loan-offer", map[string]any{"offer_id": offerID, "response": body.Response}, err)
 	}
 }
 

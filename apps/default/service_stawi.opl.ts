@@ -40,6 +40,7 @@ class service_stawi implements Namespace {
     granted_stawi_obligation_manage: (profile_user | service_stawi)[]
     granted_stawi_loan_window_manage: (profile_user | service_stawi)[]
     granted_stawi_loan_offer_manage: (profile_user | service_stawi)[]
+    granted_stawi_loan_offer_respond: (profile_user | service_stawi)[]
     granted_stawi_loan_view: (profile_user | service_stawi)[]
     granted_stawi_loan_fund: (profile_user | service_stawi)[]
     granted_stawi_loan_create: (profile_user | service_stawi)[]
@@ -109,6 +110,14 @@ class service_stawi implements Namespace {
       this.related.owner.includes(ctx.subject) ||
       this.related.service.includes(ctx.subject) ||
       this.related.granted_stawi_loan_offer_manage.includes(ctx.subject),
+
+    stawi_loan_offer_respond: (ctx: Context): boolean =>
+      this.related.admin.includes(ctx.subject) ||
+      this.related.member.includes(ctx.subject) ||
+      this.related.operator.includes(ctx.subject) ||
+      this.related.owner.includes(ctx.subject) ||
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_stawi_loan_offer_respond.includes(ctx.subject),
 
     stawi_loan_view: (ctx: Context): boolean =>
       this.related.admin.includes(ctx.subject) ||

@@ -19,7 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"strings"
 	"time"
+
+	"github.com/pitabwire/frame/v3/security"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
@@ -205,16 +209,22 @@ func (b *loanOfferBusiness) GenerateForWindow(ctx context.Context, windowID stri
 	}, nil
 }
 
-func (b *loanOfferBusiness) Respond(ctx context.Context, offerID string, response int32) error {
+// Respond records the answer to an offer of the group's. A member answers
+// only their own offer; staff (owner, admin, operator) and internal
+// services may answer any.
+func (b *loanOfferBusiness) Respond(ctx context.Context, groupID, offerID string, response int32) error {
 	logger := util.Log(ctx).WithField("method", "LoanOfferBusiness.Respond")
 
-	if response < int32(models.LoanOfferResponseNone) || response > int32(models.LoanOfferResponseCustom) {
+	if response <= int32(models.LoanOfferResponseNone) || response > int32(models.LoanOfferResponseCustom) {
 		return apperrors.NewError(apperrors.BadRequest, "loan offer response is out of range")
 	}
 
 	offer, err := b.loRepo.GetByID(ctx, offerID)
 	if err != nil {
 		return apperrors.ErrDataNotFound.Extend("loan offer")
+	}
+	if err = b.authorizeOfferResponse(ctx, groupID, offer); err != nil {
+		return err
 	}
 
 	if offer.State != int32(constants.StateActive) {
@@ -241,6 +251,41 @@ func (b *loanOfferBusiness) Respond(ctx context.Context, offerID string, respons
 		Info("loan offer response recorded")
 
 	return b.eventsMan.Emit(ctx, events.LoanOfferSaveEvent, offer)
+}
+
+// offerResponderRoles may answer any member's offer.
+//
+//nolint:gochecknoglobals // immutable role list
+var offerResponderRoles = []string{"owner", "admin", "operator"}
+
+// authorizeOfferResponse checks the offer belongs to the group and that the
+// caller is its member, staff or an internal service. An offer of another
+// group is reported as not found, without revealing it.
+func (b *loanOfferBusiness) authorizeOfferResponse(ctx context.Context, groupID string, offer *models.LoanOffer) error {
+	if b.identityCli == nil {
+		return apperrors.NewError(apperrors.ServiceUnavailable, "the identity service is required to answer an offer")
+	}
+	resp, err := b.identityCli.MembershipGet(ctx, &identityv1.MembershipGetRequest{Id: offer.MembershipID})
+	if err != nil {
+		return fmt.Errorf("membership get: %w", err)
+	}
+	membership := resp.GetData()
+	if membership.GetGroupId() != groupID {
+		return apperrors.ErrDataNotFound.Extend("loan offer")
+	}
+	claims := security.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsInternalSystem() {
+		return nil
+	}
+	for _, role := range claims.GetRoles() {
+		if slices.ContainsFunc(offerResponderRoles, func(r string) bool { return strings.EqualFold(r, role) }) {
+			return nil
+		}
+	}
+	if claims.GetProfileID() == "" || membership.GetProfileId() != claims.GetProfileID() {
+		return apperrors.NewError(apperrors.Forbidden, "a member may only answer their own loan offer")
+	}
+	return nil
 }
 
 // ExpireStale retires every active offer for a member whose expiry date has
