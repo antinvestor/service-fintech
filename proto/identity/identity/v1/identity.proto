@@ -1510,6 +1510,10 @@ message FormSubmissionSearchResponse {
 // and data collection for the platform.
 // Canonical workforce, hierarchy, team, and access-control concepts live here.
 // All RPCs require authentication via Bearer token.
+// IdentityService still binds investor_account_* to its roles although the
+// investor account RPCs are served by funding: tenancy refuses to drop a
+// role binding through registration, so removing them needs a deliberate
+// tenancy-side change rather than a manifest edit.
 service IdentityService {
   option (common.v1.service_permissions) = {
     namespace: "service_identity"
@@ -1586,7 +1590,9 @@ service IdentityService {
           "form_template_view",
           "form_template_manage",
           "form_submission_view",
-          "form_submission_manage"
+          "form_submission_manage",
+          "investor_account_view",
+          "investor_account_manage"
         ]
       },
       {
@@ -1622,7 +1628,9 @@ service IdentityService {
           "form_template_view",
           "form_template_manage",
           "form_submission_view",
-          "form_submission_manage"
+          "form_submission_manage",
+          "investor_account_view",
+          "investor_account_manage"
         ]
       },
       {
@@ -1657,7 +1665,8 @@ service IdentityService {
           "form_template_view",
           "form_template_manage",
           "form_submission_view",
-          "form_submission_manage"
+          "form_submission_manage",
+          "investor_account_view"
         ]
       },
       {
@@ -1677,7 +1686,8 @@ service IdentityService {
           "membership_view",
           "client_data_view",
           "form_template_view",
-          "form_submission_view"
+          "form_submission_view",
+          "investor_account_view"
         ]
       },
       {
@@ -1697,7 +1707,8 @@ service IdentityService {
           "membership_view",
           "client_data_view",
           "form_template_view",
-          "form_submission_view"
+          "form_submission_view",
+          "investor_account_view"
         ]
       },
       {
@@ -1733,7 +1744,9 @@ service IdentityService {
           "form_template_view",
           "form_template_manage",
           "form_submission_view",
-          "form_submission_manage"
+          "form_submission_manage",
+          "investor_account_view",
+          "investor_account_manage"
         ]
       }
     ]
