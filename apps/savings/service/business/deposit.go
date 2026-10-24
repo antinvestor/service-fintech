@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
@@ -263,15 +265,14 @@ func (b *depositBusiness) postDepositTransferOrder(
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  PaymentAccountRef(sa),
 			CreditAccountRef: LedgerAccountRef(sa),
 			Amount:           moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, amountMinor),
-			OrderType:        constants.SafeInt32FromInt(constants.TransferTypePeriodicSaving),
 			Reference:        reference,
 			Description:      "Savings deposit",
 			ExtraData:        extraData.ToProtoStruct(),
-		},
+		}, constants.TransferTypePeriodicSaving),
 	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)

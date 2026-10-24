@@ -21,6 +21,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
+
 	"gorm.io/gorm"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -327,17 +329,14 @@ func (b *interestAccrualBusiness) postInterestAccrualTransferOrder(
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: &operationsv1.TransferOrderObject{
+		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.ProductSavingsInterestExpenseAccount(sa.ProductID),
 			CreditAccountRef: sa.LedgerAccountID,
 			Amount:           moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, ia.Amount),
-			OrderType: constants.SafeInt32FromInt(
-				constants.TransferTypePeriodicSavingsInterestIncomeDistribution,
-			),
-			Reference:   reference,
-			Description: "Savings interest accrual",
-			ExtraData:   extraData.ToProtoStruct(),
-		},
+			Reference:        reference,
+			Description:      "Savings interest accrual",
+			ExtraData:        extraData.ToProtoStruct(),
+		}, constants.TransferTypePeriodicSavingsInterestIncomeDistribution),
 	}
 
 	resp, execErr := b.operationsCli.TransferOrderExecute(ctx, req)
