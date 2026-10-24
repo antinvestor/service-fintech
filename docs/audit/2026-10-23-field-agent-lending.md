@@ -275,3 +275,14 @@ warning; a test keeps every account constructor on the chart.
 - Approval queue and maker/checker were already in place (pending filter;
   the server refuses a decider who submitted, created or brought in the
   request).
+
+## 19. Addendum 2026-10-25 — repayment redistribution
+
+Investor interest was split with a fixed two-decimal precision (wrong for
+UGX or three-decimal currencies), the net, fee and tax legs were rounded
+separately (they need not sum to the share), and a replayed side effect
+wrote new orders and moved tranche counters and investor balances again.
+Fee and tax now use the currency's decimals, the net leg is the share less
+fee and tax, and redistribution orders are written synchronously keyed on
+their reference; tranche and balance updates run only when the order was
+newly written.

@@ -55,8 +55,6 @@ import (
 var errUnresolvedAccountRef = errors.New("transfer order account ref could not be resolved to a ledger account")
 
 const (
-	// decimalPrecisionTO is the number of decimal places for minor unit conversions.
-	decimalPrecisionTO = 2
 	// basisPointsDenominator is the multiplier used to convert proportions to basis points.
 	basisPointsDenominator = 10000
 )
@@ -1190,26 +1188,23 @@ func (b *transferOrderBusiness) redistributeToFundingSource(
 		creditAccount = constants.InvestorCapitalAccount(funding.OwnerID)
 		if isInterest {
 			actualTransferType = constants.TransferTypeInvestorIncomeDistribution
-			shareDec := decimalx.FromMinorUnits(share, decimalPrecisionTO)
-			dist := calculation.CalculateInterestDistribution(shareDec, platformFeeBP, taxBP)
-			actualAmount = dist.NetInterest.ToMinorUnits(decimalPrecisionTO)
+			fee, tax := interestDeductions(share, sourceOrder.Currency, platformFeeBP, taxBP)
+			// The investor gets what is left, so the three legs always sum
+			// to the share whatever the rounding of fee and tax.
+			actualAmount = share - fee - tax
 
-			if dist.PlatformFee.IsPositive() {
-				b.createRedistributionOrder(ctx, sourceOrder, dist.PlatformFee.ToMinorUnits(decimalPrecisionTO),
-					constants.ProductServiceFeePayableAccount("default"),
-					constants.TransferTypeServiceFee,
-					fmt.Sprintf("platform_fee:%s:%s", sourceOrder.GetID(), funding.GetID()),
-					fmt.Sprintf("Platform fee on investor interest from %s", funding.OwnerID),
-				)
-			}
-			if dist.WithholdingTax.IsPositive() {
-				b.createRedistributionOrder(ctx, sourceOrder, dist.WithholdingTax.ToMinorUnits(decimalPrecisionTO),
-					constants.ProductServiceFeePayableAccount("tax"),
-					constants.TransferTypeCost,
-					fmt.Sprintf("wht:%s:%s", sourceOrder.GetID(), funding.GetID()),
-					fmt.Sprintf("Withholding tax on investor interest from %s", funding.OwnerID),
-				)
-			}
+			b.createRedistributionOrder(ctx, sourceOrder, fee,
+				constants.ProductServiceFeePayableAccount("default"),
+				constants.TransferTypeServiceFee,
+				fmt.Sprintf("platform_fee:%s:%s", sourceOrder.GetID(), funding.GetID()),
+				fmt.Sprintf("Platform fee on investor interest from %s", funding.OwnerID),
+			)
+			b.createRedistributionOrder(ctx, sourceOrder, tax,
+				constants.ProductServiceFeePayableAccount("tax"),
+				constants.TransferTypeCost,
+				fmt.Sprintf("wht:%s:%s", sourceOrder.GetID(), funding.GetID()),
+				fmt.Sprintf("Withholding tax on investor interest from %s", funding.OwnerID),
+			)
 		} else {
 			actualTransferType = constants.TransferTypeInvestorPrincipalReturn
 		}
@@ -1219,11 +1214,16 @@ func (b *transferOrderBusiness) redistributeToFundingSource(
 		creditAccount = constants.GroupInterestIncomeAccount(funding.OwnerID)
 	}
 
-	b.createRedistributionOrder(ctx, sourceOrder, actualAmount,
+	created := b.createRedistributionOrder(ctx, sourceOrder, actualAmount,
 		creditAccount, actualTransferType,
 		fmt.Sprintf("redist:%s:%s:%s", repaymentType, sourceOrder.GetID(), funding.GetID()),
 		fmt.Sprintf("%s redistribution to %s funding source", repaymentType, funding.OwnerID),
 	)
+	// A replayed side effect finds its order already written: the tranche
+	// and investor balance were moved the first time and must not move again.
+	if !created {
+		return
+	}
 
 	if tranche, ok := tranchesByFunding[funding.GetID()]; ok {
 		if isInterest {
@@ -1252,9 +1252,9 @@ func (b *transferOrderBusiness) createRedistributionOrder(
 	transferType int,
 	reference string,
 	description string,
-) {
+) bool {
 	if amount <= 0 {
-		return
+		return false
 	}
 
 	redistOrder := &models.TransferOrder{
@@ -1269,10 +1269,30 @@ func (b *transferOrderBusiness) createRedistributionOrder(
 		State:            int32(constants.StateJustCreated),
 	}
 	redistOrder.GenID(ctx)
+	redistOrder.CopyPartitionInfo(&sourceOrder.BaseModel)
+	freshID := redistOrder.GetID()
 
-	if emitErr := b.eventsMan.Emit(ctx, events.TransferOrderSaveEvent, redistOrder); emitErr != nil {
-		util.Log(ctx).WithError(emitErr).Error("could not create redistribution transfer order")
+	// Written synchronously and keyed on the reference: a replay converges
+	// on the order the first run wrote and reports it was not created.
+	if err := b.toRepo.CreateIfAbsent(ctx, redistOrder); err != nil {
+		util.Log(ctx).WithError(err).WithField("reference", reference).
+			Error("could not create redistribution transfer order")
+		return false
 	}
+	return redistOrder.GetID() == freshID
+}
+
+// interestDeductions splits the platform fee and withholding tax off an
+// investor's interest share, in the currency's own minor units.
+func interestDeductions(share int64, currency string, platformFeeBP, taxBP int64) (int64, int64) {
+	decimals := utilmoney.Decimals(currency)
+	dist := calculation.CalculateInterestDistribution(decimalx.FromMinorUnits(share, decimals), platformFeeBP, taxBP)
+	fee := max(dist.PlatformFee.ToMinorUnits(decimals), 0)
+	tax := max(dist.WithholdingTax.ToMinorUnits(decimals), 0)
+	if fee+tax > share {
+		tax = max(share-fee, 0)
+	}
+	return fee, tax
 }
 
 // releaseInvestorBalance decrements the reserved balance when principal is returned.
