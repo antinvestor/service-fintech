@@ -217,3 +217,14 @@ attribute such as `state`. A subject the field and identity services do not
 know is "attributes unavailable", and an enforce policy with a filter fails
 closed on it. Savings group accounts send the group as the client, so keep
 client-tier filters off the savings actions those accounts use.
+
+
+## Loans → seed paid-off hook (2026-10-24)
+
+| App | Variable | Value |
+|-----|----------|-------|
+| finance-loans | `SEED_SERVICE_URI` | the finance-seed service URL; unset disables the hook |
+
+The loans service account needs the `/seed` audience and
+`seed_loan_paid_off_notify` on `service_seed` (ROLE_SERVICE grants it);
+see the service-authentication tenancy migration of the same date.

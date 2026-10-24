@@ -45,6 +45,8 @@ type LoanManagementConfig struct {
 	OperationsServiceWorkloadAPITargetPath   string `envDefault:"/ns/fintech/sa/service-operations"        env:"OPERATIONS_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	FundingServiceURI                        string `envDefault:"127.0.0.1:7070"                           env:"FUNDING_SERVICE_URI"`
 	FundingServiceWorkloadAPITargetPath      string `envDefault:"/ns/fintech/sa/service-funding"           env:"FUNDING_SERVICE_WORKLOAD_API_TARGET_PATH"`
+	SeedServiceURI                           string `envDefault:""                                         env:"SEED_SERVICE_URI"`
+	SeedServiceWorkloadAPITargetPath         string `envDefault:""                                         env:"SEED_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LimitsServiceURI                         string `envDefault:"http://service_limits:80"                 env:"LIMITS_SERVICE_URI"`
 	LimitsServiceWorkloadAPITargetPath       string `envDefault:""                                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LimitsGateEnabledLoanDisbursement        bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_DISBURSEMENT"`

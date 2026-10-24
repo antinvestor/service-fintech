@@ -21,6 +21,11 @@ import (
 	"strings"
 	"testing"
 
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+
+	"github.com/antinvestor/service-fintech/gen/go/seed/connectrpc/go/seed/v1/seedv1connect"
+
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/security/authorizer"
 
@@ -78,9 +83,18 @@ func manifestRoutes(t *testing.T) handlers.RoutePermissions {
 
 func newServerMux() *http.ServeMux {
 	mux := http.NewServeMux()
-	handlers.NewServer(&fakeLoanRequest{}, &fakeCreditProfile{}, &fakeResolver{clientID: ownClientID}, staffRole).
+	lr := &fakeLoanRequest{}
+	handlers.NewServer(lr, &fakeCreditProfile{}, &fakeResolver{clientID: ownClientID}, staffRole).
 		Register(mux)
+	rpc := connect.NewServer()
+	seedv1connect.RegisterSeedServiceHandler(rpc, handlers.NewConnectServer(lr))
+	connecthttp.Mount(mux, rpc)
 	return mux
+}
+
+// isConnectRoute reports whether a manifest key is a Connect procedure.
+func isConnectRoute(key string) bool {
+	return strings.HasPrefix(key, "POST /seed.v1.")
 }
 
 // TestManifestRoutesResolveAgainstMux asserts every manifest route is served
@@ -97,7 +111,11 @@ func TestManifestRoutesResolveAgainstMux(t *testing.T) {
 			t.Errorf("manifest route %q is not served by the mux", key)
 			continue
 		}
-		patternMethod, patternPath, _ := strings.Cut(pattern, " ")
+		patternMethod, patternPath, hasMethod := strings.Cut(pattern, " ")
+		if !hasMethod {
+			// Connect procedures are registered without a method.
+			patternMethod, patternPath = method, pattern
+		}
 		if got := handlers.RouteKey(patternMethod, patternPath); got != key {
 			t.Errorf("mux resolves %q to %q, want the manifest key", path, got)
 		}
@@ -111,8 +129,14 @@ func TestRegisteredRoutesAreInManifest(t *testing.T) {
 
 	routes := manifestRoutes(t)
 	registered := registeredRoutes()
-	if len(routes) != len(registered) {
-		t.Errorf("manifest has %d routes, server registers %d", len(routes), len(registered))
+	httpRoutes := 0
+	for key := range routes {
+		if !isConnectRoute(key) {
+			httpRoutes++
+		}
+	}
+	if httpRoutes != len(registered) {
+		t.Errorf("manifest has %d HTTP routes, server registers %d", httpRoutes, len(registered))
 	}
 	for _, pattern := range registered {
 		method, path, _ := strings.Cut(pattern, " ")
@@ -168,6 +192,26 @@ func TestFunctionAccessMiddleware(t *testing.T) {
 			wantChecks: []string{"seed_credit_profile_view"},
 		},
 		{
+			name:       "loans service calls the paid-off hook over Connect",
+			checker:    &grantChecker{granted: map[string]bool{"seed_loan_paid_off_notify": true}},
+			claims:     staffClaims(),
+			method:     http.MethodPost,
+			path:       "/seed.v1.SeedService/LoanPaidOffNotify",
+			body:       `{"loanAccountId":"loan-1","totalRepaid":"100"}`,
+			wantStatus: http.StatusOK,
+			wantChecks: []string{"seed_loan_paid_off_notify"},
+		},
+		{
+			name:       "the Connect hook carries the same permission",
+			checker:    &grantChecker{granted: map[string]bool{"seed_credit_profile_view": true}},
+			claims:     customerClaims(),
+			method:     http.MethodPost,
+			path:       "/seed.v1.SeedService/LoanPaidOffNotify",
+			body:       `{"loanAccountId":"loan-1"}`,
+			wantStatus: http.StatusForbidden,
+			wantChecks: []string{"seed_loan_paid_off_notify"},
+		},
+		{
 			name:       "no principal is unauthenticated",
 			checker:    &grantChecker{},
 			method:     http.MethodGet,
@@ -204,6 +248,9 @@ func TestFunctionAccessMiddleware(t *testing.T) {
 			handler := handlers.FunctionAccessMiddleware(mux, tt.checker, manifestRoutes(t))
 
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if strings.HasPrefix(tt.path, "/seed.v1.") {
+				req.Header.Set("Content-Type", "application/json")
+			}
 			if tt.claims != nil {
 				req = req.WithContext(tt.claims.ClaimsToContext(req.Context()))
 			}
