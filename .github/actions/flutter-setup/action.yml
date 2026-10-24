@@ -7,7 +7,7 @@ inputs:
   flutter-version:
     description: 'Flutter version to use'
     required: false
-    default: '3.41.6'
+    default: '3.47.7'
   package-dir:
     description: 'Directory of the Flutter package to set up'
     required: false
