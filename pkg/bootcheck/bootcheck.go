@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pitabwire/frame/v3"
 	"github.com/pitabwire/util"
 )
 
@@ -43,11 +44,27 @@ const memQueueScheme = "mem://"
 
 // Violations lists every rule the configuration breaks, in a fixed order,
 // or nil when the environment is deployment-safe.
+//
+// A setup Job (frame.ShouldRunSetup: argv setup, DO_SETUP or DO_MIGRATION)
+// runs migrations and registrations and exits; it never consumes queued
+// events, and deployments give it an in-memory queue with no push auth on
+// purpose. The queue rules therefore apply only to the serving process.
 func Violations(cfg Config) []string {
 	var out []string
 	if !cfg.IsRunSecurely() {
 		out = append(out, "RUN_SERVICE_SECURELY must be true")
 	}
+	if !frame.ShouldRunSetup(cfg) {
+		out = append(out, queueViolations(cfg)...)
+	}
+	if strings.TrimSpace(cfg.GetDatabaseMigrationPath()) == "" {
+		out = append(out, "MIGRATION_PATH must be set")
+	}
+	return out
+}
+
+func queueViolations(cfg Config) []string {
+	var out []string
 	switch strings.ToLower(strings.TrimSpace(cfg.GetQueuePushAuth())) {
 	case "oidc", "bearer":
 	default:
@@ -57,9 +74,6 @@ func Violations(cfg Config) []string {
 	if url := strings.TrimSpace(cfg.GetEventsQueueURL()); url == "" || strings.HasPrefix(url, memQueueScheme) {
 		out = append(out, fmt.Sprintf(
 			"EVENTS_QUEUE_URL must point at a durable broker, got %q", cfg.GetEventsQueueURL()))
-	}
-	if strings.TrimSpace(cfg.GetDatabaseMigrationPath()) == "" {
-		out = append(out, "MIGRATION_PATH must be set")
 	}
 	return out
 }
