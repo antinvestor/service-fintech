@@ -126,9 +126,11 @@ linters:
       check-type-assertions: true
 
     exhaustive:
+      # golangci-lint 2.15's config schema accepts only "mapliteral" for map
+      # literals while its exhaustive analyzer accepts only "map", so either
+      # value fails one of the two; check switches until they agree.
       check:
         - switch
-        - map
 
     funlen:
       lines: 100

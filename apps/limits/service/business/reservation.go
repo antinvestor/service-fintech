@@ -869,7 +869,7 @@ func validateIntent(intent *limitsv1.LimitIntent) error {
 // actionSubjectRequirements declares the minimum subject set per action.
 // Reserve refuses intents missing any required subject type.
 //
-//nolint:exhaustive,gochecknoglobals // static lookup table; UNSPECIFIED is rejected by validateIntent first
+//nolint:gochecknoglobals // static lookup table; UNSPECIFIED is rejected by validateIntent first
 var actionSubjectRequirements = map[limitsv1.LimitAction][]limitsv1.SubjectType{
 	limitsv1.LimitAction_LIMIT_ACTION_LOAN_DISBURSEMENT: {
 		limitsv1.SubjectType_SUBJECT_TYPE_CLIENT,

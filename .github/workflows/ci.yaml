@@ -26,6 +26,10 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+    env:
+      # setup-go installs the go directive's version; letting `go` switch to
+      # the toolchain line mid-build mixes compiler versions in the cache.
+      GOTOOLCHAIN: local
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v5

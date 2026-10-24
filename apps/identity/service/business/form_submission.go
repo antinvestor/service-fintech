@@ -36,7 +36,6 @@ import (
 // base64 or data-URI payloads. Clients upload files directly to the files
 // service and submit only the resulting content URI.
 func fileFieldTypes() map[identityv1.FormFieldType]bool {
-	//nolint:exhaustive // only file-like types need tracking; other types are not file fields
 	return map[identityv1.FormFieldType]bool{
 		identityv1.FormFieldType_FORM_FIELD_TYPE_PHOTO:     true,
 		identityv1.FormFieldType_FORM_FIELD_TYPE_FILE:      true,
