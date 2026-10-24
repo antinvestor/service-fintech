@@ -178,7 +178,8 @@ func (s *ReadScope) AuthorizeAgent(ctx context.Context, ownerClientID string) er
 	if err != nil {
 		return err
 	}
-	if staff || access.serves(ownerClientID) {
+	// An agent who is also the borrower must not act on their own loan.
+	if staff || (access.serves(ownerClientID) && !access.owns(ownerClientID)) {
 		return nil
 	}
 	util.Log(ctx).

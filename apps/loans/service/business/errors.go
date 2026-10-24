@@ -45,6 +45,14 @@ var (
 		apperrors.BadRequest,
 		"time range bounds must be RFC3339 timestamps",
 	)
+	ErrAgentCashOnly = apperrors.NewError(
+		apperrors.Forbidden,
+		"field agents record cash repayments only; other channels are confirmed by the payment rail",
+	)
+	ErrIdempotencyKeyConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"the idempotency key was already used for a different loan",
+	)
 	ErrNotServingClient = apperrors.NewError(
 		apperrors.Forbidden,
 		"only staff or a field agent serving the client may perform this action",

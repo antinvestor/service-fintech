@@ -325,3 +325,43 @@ func TestReadScope_ClientFilterConfinesSearches(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, unrestricted)
 }
+
+func TestRepaymentRecord_LenderSideGuards(t *testing.T) {
+	loan := &loansmodels.LoanAccount{ClientID: "client-b", CurrencyCode: "KES",
+		Status: int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE)}
+	loan.ID = "loan-1"
+	otherLoanRepayment := &loansmodels.Repayment{LoanAccountID: "loan-other"}
+	otherLoanRepayment.ID = "rep-other"
+
+	scope := NewReadScope(&mapClientResolver{
+		clients: map[string]string{"profile-borrower": "client-b", "profile-agent-borrower": "client-b"},
+		served: map[string][]string{
+			"profile-agent":          {"client-b"},
+			"profile-agent-borrower": {"client-b"},
+		},
+	})
+	build := func(existing *loansmodels.Repayment) RepaymentBusiness {
+		return NewRepaymentBusiness(t.Context(), &noopEventsManager{},
+			&stubLoanAccountRepo{account: loan}, &stubRepaymentRepo{findResp: existing},
+			nil, nil, nil, nil, nil, nil, nil, nil, false, "",
+			WithReadScope(scope))
+	}
+	req := func(channel string) *loansv1.RepaymentRecordRequest {
+		return &loansv1.RepaymentRecordRequest{LoanAccountId: "loan-1", Channel: channel, IdempotencyKey: "k-1"}
+	}
+
+	_, err := build(nil).Record(claimsContext(t, "profile-borrower"), req("cash"))
+	require.ErrorIs(t, err, ErrNotServingClient, "a borrower cannot mark their own loan paid")
+
+	_, err = build(nil).Record(claimsContext(t, "profile-agent-borrower"), req("cash"))
+	require.ErrorIs(t, err, ErrNotServingClient, "an agent cannot record on a loan they owe")
+
+	_, err = build(nil).Record(claimsContext(t, "profile-agent"), req("mpesa"))
+	require.ErrorIs(t, err, ErrAgentCashOnly)
+
+	_, err = build(otherLoanRepayment).Record(claimsContext(t, "profile-agent"), req("cash"))
+	require.ErrorIs(t, err, ErrIdempotencyKeyConflict, "a key from another loan never returns its repayment")
+
+	_, err = build(otherLoanRepayment).Record(claimsContext(t, "profile-x", "operator"), req("mpesa"))
+	require.ErrorIs(t, err, ErrIdempotencyKeyConflict, "staff pass the channel rule and still hit the key check")
+}

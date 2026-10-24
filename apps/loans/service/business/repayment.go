@@ -139,11 +139,21 @@ func (b *repaymentBusiness) Record(
 	if scopeErr := b.scope.AuthorizeAgent(ctx, la.ClientID); scopeErr != nil {
 		return nil, scopeErr
 	}
+	// A field agent records cash taken in the field. Mobile money, bank and
+	// savings repayments arrive through the payment rail or staff, where the
+	// money is confirmed before the loan is credited.
+	if !b.scope.IsStaff(ctx) && NormalizeRepaymentChannel(req.GetChannel()) != RepaymentChannelCash {
+		return nil, ErrAgentCashOnly
+	}
 
 	// Idempotency short-circuit before the gate, so retries do not consume a
-	// fresh reservation.
+	// fresh reservation. A key already used on another loan is a conflict,
+	// never a way to read someone else's repayment.
 	if existing, existErr := b.repaymentRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); existErr == nil &&
 		existing != nil {
+		if existing.LoanAccountID != la.GetID() {
+			return nil, ErrIdempotencyKeyConflict
+		}
 		return existing.ToAPI(), nil
 	}
 
