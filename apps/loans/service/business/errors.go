@@ -39,7 +39,23 @@ var (
 	ErrBalanceNotFound     = apperrors.NewError(apperrors.NotFound, "loan balance not found")
 	ErrLoanNotOwned        = apperrors.NewError(
 		apperrors.Forbidden,
-		"the caller may only read loan records belonging to its own client",
+		"the caller may only act on loan records of its own client or the clients it serves",
+	)
+	ErrInvalidTimeRange = apperrors.NewError(
+		apperrors.BadRequest,
+		"time range bounds must be RFC3339 timestamps",
+	)
+	ErrAgentCashOnly = apperrors.NewError(
+		apperrors.Forbidden,
+		"field agents record cash repayments only; other channels are confirmed by the payment rail",
+	)
+	ErrIdempotencyKeyConflict = apperrors.NewError(
+		apperrors.Conflict,
+		"the idempotency key was already used for a different loan",
+	)
+	ErrNotServingClient = apperrors.NewError(
+		apperrors.Forbidden,
+		"only staff or a field agent serving the client may perform this action",
 	)
 	ErrReadScopeUnavailable = apperrors.NewError(
 		apperrors.InternalServerError,
@@ -155,9 +171,9 @@ var (
 		apperrors.BadRequest,
 		"a client product access grant must name both a client and a product",
 	)
-	ErrCollectionContactRequired = apperrors.NewError(
+	ErrCollectionRawContactRefused = apperrors.NewError(
 		apperrors.BadRequest,
-		"a contact is required to prompt a borrower for payment",
+		"phone numbers are not accepted; name the borrower's contact by contact_id",
 	)
 	ErrCollectionNothingOutstanding = apperrors.NewError(
 		apperrors.Unprocessable,

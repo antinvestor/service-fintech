@@ -42,17 +42,19 @@ func newCaptureNotifier() (*notify.Notifier, *captureSender) {
 	return notify.NewWithSender(s, messages.Registry()), s
 }
 
-func TestClientNotifier_AddressesProfileThenPhone(t *testing.T) {
+func TestClientNotifier_AddressesTheProfileOnly(t *testing.T) {
 	n, sender := newCaptureNotifier()
 	cn := NewClientNotifier(n, "Harvest Finance")
 
 	withProfile := &models.Client{ProfileID: "profile-9", Name: "Amina"}
 	cn.NotifyClientOnboarded(context.Background(), withProfile, "")
 
-	phoneOnly := &models.Client{Name: "Bosco", Properties: data.JSONMap{clientPhoneNumberKey: "+256701000000"}}
-	cn.NotifyKYCRejected(context.Background(), phoneOnly, "national_id", "Image unreadable")
+	// Contacts belong to the profile: a client without one is not messaged
+	// by phone, whatever its properties carry.
+	noProfile := &models.Client{Name: "Bosco", Properties: data.JSONMap{clientPhoneNumberKey: "+256701000000"}}
+	cn.NotifyKYCRejected(context.Background(), noProfile, "national_id", "Image unreadable")
 
-	require.Len(t, sender.got, 2)
+	require.Len(t, sender.got, 1)
 
 	onboarded := sender.got[0]
 	assert.Equal(t, messages.ClientOnboarded, onboarded.GetTemplate())
@@ -62,18 +64,6 @@ func TestClientNotifier_AddressesProfileThenPhone(t *testing.T) {
 	assert.Equal(t, "Harvest Finance", payload[messages.VarLenderName])
 	assert.Equal(t, "Amina", payload[messages.VarClientName])
 	assert.Equal(t, defaultAgentLabel, payload[messages.VarAgentName])
-
-	rejected := sender.got[1]
-	assert.Equal(t, messages.ClientKYCRejected, rejected.GetTemplate())
-	assert.Equal(
-		t,
-		"+256701000000",
-		rejected.GetRecipient().GetContactId(),
-		"no profile: the captured phone is the address",
-	)
-	assert.Equal(t, "National Id", rejected.GetPayload().AsMap()[messages.VarFieldLabel])
-	assert.Equal(t, "Image unreadable", rejected.GetPayload().AsMap()[messages.VarReason])
-	assert.Equal(t, notificationv1.PRIORITY_HIGH, rejected.GetPriority())
 }
 
 func TestClientNotifier_EveryMessageRendersFromTheCatalogue(t *testing.T) {

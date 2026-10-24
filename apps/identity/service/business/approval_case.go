@@ -393,34 +393,17 @@ func int32Value(v any) int32 {
 	}
 }
 
-func normalizeClientPhoneProperties(props map[string]any) map[string]any {
-	out := entityProperties(props)
-	phone := clientPhoneNumber(out)
+// takeClientContact removes the contact keys from client properties and
+// returns the phone, if any. Contacts belong to the borrower's profile.
+func takeClientContact(props map[string]any) string {
+	phone := strings.TrimSpace(stringValue(props[clientPhoneNumberKey]))
 	if phone == "" {
-		delete(out, clientPhoneNumberKey)
-		delete(out, clientLegacyPhoneNumberKey)
-		return out
+		phone = strings.TrimSpace(stringValue(props[clientLegacyPhoneNumberKey]))
 	}
-	out[clientPhoneNumberKey] = phone
-	delete(out, clientLegacyPhoneNumberKey)
-	return out
-}
-
-func clientPhoneNumber(props map[string]any) string {
-	if phone := strings.TrimSpace(stringValue(props[clientPhoneNumberKey])); phone != "" {
-		return phone
-	}
-	return strings.TrimSpace(stringValue(props[clientLegacyPhoneNumberKey]))
-}
-
-func setClientPhoneNumber(props map[string]any, phone string) {
-	if phone == "" {
-		delete(props, clientPhoneNumberKey)
-		delete(props, clientLegacyPhoneNumberKey)
-		return
-	}
-	props[clientPhoneNumberKey] = phone
+	delete(props, clientPhoneNumberKey)
 	delete(props, clientLegacyPhoneNumberKey)
+	delete(props, clientPendingPhoneNumberKey)
+	return phone
 }
 
 func applyApprovalCaseSnapshot(props map[string]any, approvalCase *models.ApprovalCase) map[string]any {

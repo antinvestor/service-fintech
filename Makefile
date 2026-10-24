@@ -63,7 +63,10 @@ proto-generate: proto-generate-dart
 
 .PHONY: opl-generate
 opl-generate: $(BIN)/buf $(BIN)/generate-opl $(BIN)/license-header ## Regenerate Keto OPL from proto service_permissions
-	@buf build $(PROTO_DIR) -o /dev/stdout | $(BIN)/generate-opl $(DEFAULT_APP)
+	@# seed and stawi are their own buf workspaces; each manifest is built.
+	@for ws in $(PROTO_DIR) $(PROTO_DIR)/seed $(PROTO_DIR)/stawi; do \
+		buf build $$ws -o /dev/stdout | $(BIN)/generate-opl $(DEFAULT_APP) || exit 1; \
+	done
 	@# generate-opl emits bare files; proto-generate adds the headers afterwards,
 	@# so this target must too or the drift check reports a false positive.
 	@$(BIN)/license-header \

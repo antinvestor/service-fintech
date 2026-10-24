@@ -17,10 +17,14 @@ package business
 import "github.com/antinvestor/service-fintech/pkg/apperrors"
 
 var (
-	ErrSavingsProductNotFound  = apperrors.NewError(apperrors.NotFound, "savings product not found")
-	ErrSavingsAccountNotFound  = apperrors.NewError(apperrors.NotFound, "savings account not found")
-	ErrDepositNotFound         = apperrors.NewError(apperrors.NotFound, "deposit not found")
-	ErrWithdrawalNotFound      = apperrors.NewError(apperrors.NotFound, "withdrawal not found")
+	ErrSavingsProductNotFound   = apperrors.NewError(apperrors.NotFound, "savings product not found")
+	ErrSavingsAccountNotFound   = apperrors.NewError(apperrors.NotFound, "savings account not found")
+	ErrDepositNotFound          = apperrors.NewError(apperrors.NotFound, "deposit not found")
+	ErrWithdrawalNotFound       = apperrors.NewError(apperrors.NotFound, "withdrawal not found")
+	ErrWithdrawalPayoutRejected = apperrors.NewError(apperrors.Unprocessable,
+		"the payout was rejected; the withdrawal is rejected and the held amount released")
+	ErrWithdrawalNeedsIndividualOwner = apperrors.NewError(apperrors.Unprocessable,
+		"only an individually owned savings account can be paid out through the payment rail")
 	ErrInterestAccrualNotFound = apperrors.NewError(apperrors.NotFound, "interest accrual not found")
 	ErrAccountFrozen           = apperrors.NewError(apperrors.Unprocessable, "savings account is frozen")
 	ErrAccountClosed           = apperrors.NewError(apperrors.Unprocessable, "savings account is closed")

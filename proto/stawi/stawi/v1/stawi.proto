@@ -73,6 +73,14 @@ message GroupMemberLoanOffersRequest {
 }
 
 // GroupLoanOfferRequest acts on an accepted loan offer.
+// LoanOfferRespondRequest answers a loan offer. response is 1 accept,
+// 2 reject; other answers are recorded as given and close the offer.
+message LoanOfferRespondRequest {
+  string group_id = 1;
+  string offer_id = 2;
+  int32 response = 3;
+}
+
 message GroupLoanOfferRequest {
   string group_id = 1;
   string offer_id = 2;
@@ -164,6 +172,7 @@ service StawiWorkflowService {
       "stawi_obligation_manage",
       "stawi_loan_window_manage",
       "stawi_loan_offer_manage",
+      "stawi_loan_offer_respond",
       "stawi_loan_view",
       "stawi_loan_fund",
       "stawi_loan_create",
@@ -184,6 +193,7 @@ service StawiWorkflowService {
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_manage",
+          "stawi_loan_offer_respond",
           "stawi_loan_view",
           "stawi_loan_fund",
           "stawi_loan_create",
@@ -204,6 +214,7 @@ service StawiWorkflowService {
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_manage",
+          "stawi_loan_offer_respond",
           "stawi_loan_view",
           "stawi_loan_fund",
           "stawi_loan_create",
@@ -224,6 +235,7 @@ service StawiWorkflowService {
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_manage",
+          "stawi_loan_offer_respond",
           "stawi_loan_view",
           "stawi_loan_fund",
           "stawi_loan_create",
@@ -245,6 +257,7 @@ service StawiWorkflowService {
       {
         role: ROLE_MEMBER
         permissions: [
+          "stawi_loan_offer_respond",
           "stawi_group_view",
           "stawi_obligation_view",
           "stawi_loan_view",
@@ -262,6 +275,7 @@ service StawiWorkflowService {
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_manage",
+          "stawi_loan_offer_respond",
           "stawi_loan_view",
           "stawi_loan_fund",
           "stawi_loan_create",
@@ -454,6 +468,17 @@ service StawiWorkflowService {
     };
     option (google.api.http) = {
       post: "/api/v1/groups/{group_id}/members/{member_id}/generate-loan-offers"
+      body: "*"
+    };
+  }
+  // LoanOfferRespond records a member's answer to a loan offer. A member
+  // answers only their own offers; staff and services may answer any.
+  rpc LoanOfferRespond(LoanOfferRespondRequest) returns (CallbackResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["stawi_loan_offer_respond"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/groups/{group_id}/loan-offers/{offer_id}/respond"
       body: "*"
     };
   }

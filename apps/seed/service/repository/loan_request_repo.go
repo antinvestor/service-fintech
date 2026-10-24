@@ -17,6 +17,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
@@ -45,6 +46,13 @@ type LoanRequestRepository interface {
 	// request from the loans-service loan account id that the hook
 	// carries.
 	GetByLoanAccountID(ctx context.Context, loanAccountID string) (*models.LoanRequest, error)
+
+	// ClaimCompletion stamps completed_at on a loan request that has none
+	// and reports whether this call did it, so a paid-off loan is credited
+	// once however many times the hook fires. ReleaseCompletion undoes a
+	// claim whose follow-up failed, so the next delivery can retry.
+	ClaimCompletion(ctx context.Context, id string, at time.Time) (bool, error)
+	ReleaseCompletion(ctx context.Context, id string, at time.Time) error
 
 	// GetUnconfirmedDisbursement returns the client's most recent loan
 	// request left in the DisbursementUnconfirmed state, so the next request
@@ -135,4 +143,28 @@ func (r *loanRequestRepository) GetByLoanAccountID(
 		return nil, err
 	}
 	return entity, nil
+}
+
+func (r *loanRequestRepository) ClaimCompletion(ctx context.Context, id string, at time.Time) (bool, error) {
+	res := r.dbPool.DB(ctx, false).Table(models.LoanRequest{}.TableName()).
+		Where("deleted_at IS NULL AND id = ? AND completed_at IS NULL", id).
+		Updates(map[string]any{
+			"completed_at": at,
+			"modified_at":  gorm.Expr("now()"),
+			"version":      gorm.Expr("version + 1"),
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
+}
+
+func (r *loanRequestRepository) ReleaseCompletion(ctx context.Context, id string, at time.Time) error {
+	return r.dbPool.DB(ctx, false).Table(models.LoanRequest{}.TableName()).
+		Where("deleted_at IS NULL AND id = ? AND completed_at = ?", id, at).
+		Updates(map[string]any{
+			"completed_at": nil,
+			"modified_at":  gorm.Expr("now()"),
+			"version":      gorm.Expr("version + 1"),
+		}).Error
 }

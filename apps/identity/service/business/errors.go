@@ -24,6 +24,18 @@ var (
 	ErrClientNotFound       = apperrors.NewError(apperrors.NotFound, "client not found")
 	ErrClientPhoneIsStaff   = apperrors.NewError(
 		apperrors.BadRequest, "the phone number belongs to a member of staff and cannot be registered as a client")
+	ErrClientConsentFailed = apperrors.NewError(
+		apperrors.Forbidden,
+		"the person's consent code is missing, wrong or expired",
+	)
+	ErrClientConsentUnreachable = apperrors.NewError(
+		apperrors.Unprocessable,
+		"the person has no mobile contact to confirm consent; staff must register them",
+	)
+	ErrClientContactsOnProfile = apperrors.NewError(
+		apperrors.BadRequest,
+		"a client's contacts are managed, verified and approved on their profile",
+	)
 	ErrCallerNotWorkforceMember = apperrors.NewError(
 		apperrors.Forbidden,
 		"the caller is not a registered workforce member",

@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"connectrpc.com/connect/v2"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
@@ -231,6 +233,15 @@ func (b *withdrawalBusiness) approveInner(
 
 	toID, toErr := b.postWithdrawalTransferOrder(ctx, logger, sa, wdr)
 	if toErr != nil {
+		if payoutPermanentlyRejected(toErr) {
+			// The payout will not pass on a retry (recipient or destination
+			// refused, or the rail rejected it and operations reversed the
+			// ledger leg): give the member their money back.
+			if _, relErr := b.wdrRepo.ReleaseHold(ctx, wdr, "payout rejected: "+toErr.Error()); relErr != nil {
+				logger.WithError(relErr).Error("could not release the hold after a rejected payout")
+			}
+			return nil, ErrWithdrawalPayoutRejected
+		}
 		return nil, toErr
 	}
 	wdr.LedgerTransactionID = toID
@@ -285,12 +296,23 @@ func (b *withdrawalBusiness) postWithdrawalTransferOrder(
 		return "", errors.New("operations client is not configured; cannot post withdrawal transfer order")
 	}
 
+	if sa.OwnerType == int32(savingsv1.SavingsAccountOwnerType_SAVINGS_ACCOUNT_OWNER_TYPE_GROUP) {
+		// A group account has no single person to pay; its money leaves
+		// through the group's own disbursement process.
+		return "", ErrWithdrawalNeedsIndividualOwner
+	}
+
 	reference := fmt.Sprintf("withdrawal:%s", wdr.GetID())
 	extraData := data.JSONMap{
 		fieldSavingsAccountID: sa.GetID(),
 		"withdrawal_id":       wdr.GetID(),
 		fieldOwnerID:          sa.OwnerID,
 		fieldChannel:          wdr.Channel,
+		// Operations pays the owner's profile through the rail, to the
+		// contact id the withdrawal names, which must be the owner's.
+		"recipient_client_id": sa.OwnerID,
+		"payment_channel":     wdr.Channel,
+		"payment_account_ref": wdr.RecipientReference,
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
@@ -298,7 +320,7 @@ func (b *withdrawalBusiness) postWithdrawalTransferOrder(
 			DebitAccountRef:  LedgerAccountRef(sa),
 			CreditAccountRef: PaymentAccountRef(sa),
 			Amount:           moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, wdr.Amount),
-			OrderType:        constants.SafeInt32FromInt(constants.TransferTypePeriodicSavingRecovery),
+			OrderType:        constants.SafeInt32FromInt(constants.TransferTypeDisbursement),
 			Reference:        reference,
 			Description:      "Savings withdrawal",
 			ExtraData:        extraData.ToProtoStruct(),
@@ -419,4 +441,14 @@ func (b *withdrawalBusiness) Search(
 		}
 		return consumer(ctx, apiResults)
 	})
+}
+
+// payoutPermanentlyRejected classifies an operations error. Operations
+// guarantees that, for payout orders, these codes mean no money moved: the
+// ledger leg never posted, or it posted and was reversed. Any other error
+// may leave money in flight, so the hold is kept and the approval retried.
+func payoutPermanentlyRejected(err error) bool {
+	code := connect.CodeOf(err)
+	return code == connect.CodeInvalidArgument || code == connect.CodeFailedPrecondition ||
+		code == connect.CodePermissionDenied || code == connect.CodeNotFound
 }

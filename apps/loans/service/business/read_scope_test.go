@@ -27,20 +27,23 @@ import (
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 )
 
-// mapClientResolver resolves profiles from a fixed table.
+// mapClientResolver resolves profiles from fixed tables: the client a
+// profile is, and the clients a field agent's profile serves.
 type mapClientResolver struct {
 	clients map[string]string
+	served  map[string][]string
 	err     error
 }
 
-func (r *mapClientResolver) ResolveByProfileID(_ context.Context, profileID string) (string, error) {
+func (r *mapClientResolver) ResolveAccess(_ context.Context, profileID string) (*CallerAccess, error) {
 	if r.err != nil {
-		return "", r.err
+		return nil, r.err
 	}
-	if id, ok := r.clients[profileID]; ok {
-		return id, nil
+	access := &CallerAccess{ClientID: r.clients[profileID], ServedClientIDs: r.served[profileID]}
+	if len(access.ServedClientIDs) > 0 {
+		access.MemberID = "member-" + profileID
 	}
-	return "", ErrNoClientForProfile
+	return access, nil
 }
 
 func claimsContext(t *testing.T, profileID string, roles ...string) context.Context {
@@ -264,4 +267,124 @@ func TestReadScope_ResolverFailureIsNotMistakenForDenial(t *testing.T) {
 	err := scope.AuthorizeClient(claimsContext(t, "profile-a"), "client-a")
 	require.ErrorIs(t, err, boom)
 	require.NotErrorIs(t, err, ErrLoanNotOwned)
+}
+
+func agentScope() *ReadScope {
+	return NewReadScope(&mapClientResolver{
+		clients: map[string]string{"profile-borrower": "client-b"},
+		served:  map[string][]string{"profile-agent": {"client-b", "client-c"}},
+	})
+}
+
+func TestReadScope_FieldAgentActsOnlyForServedClients(t *testing.T) {
+	scope := agentScope()
+	agent := claimsContext(t, "profile-agent")
+	borrower := claimsContext(t, "profile-borrower")
+	stranger := claimsContext(t, "profile-stranger")
+
+	require.NoError(t, scope.AuthorizeClient(agent, "client-b"))
+	require.NoError(t, scope.AuthorizeClient(agent, "client-c"))
+	require.ErrorIs(t, scope.AuthorizeClient(agent, "client-z"), ErrLoanNotOwned)
+	require.NoError(t, scope.AuthorizeClient(borrower, "client-b"))
+	require.ErrorIs(t, scope.AuthorizeClient(stranger, "client-b"), ErrLoanNotOwned)
+
+	// Lender-side actions: the serving agent and staff only, never the
+	// borrower, even on their own loan.
+	require.NoError(t, scope.AuthorizeAgent(agent, "client-b"))
+	require.ErrorIs(t, scope.AuthorizeAgent(agent, "client-z"), ErrNotServingClient)
+	require.ErrorIs(t, scope.AuthorizeAgent(borrower, "client-b"), ErrNotServingClient)
+	require.NoError(t, scope.AuthorizeAgent(claimsContext(t, "profile-x", "operator"), "client-z"))
+
+	require.Equal(t, "member-profile-agent", scope.ServingMemberID(agent, "client-b"))
+	require.Empty(t, scope.ServingMemberID(agent, "client-z"))
+	require.Empty(t, scope.ServingMemberID(borrower, "client-b"))
+	require.True(t, scope.IsBorrowerOf(borrower, "client-b"))
+	require.False(t, scope.IsBorrowerOf(agent, "client-b"))
+}
+
+func TestReadScope_ClientFilterConfinesSearches(t *testing.T) {
+	scope := agentScope()
+
+	ids, unrestricted, err := scope.ClientFilter(claimsContext(t, "profile-agent"))
+	require.NoError(t, err)
+	require.False(t, unrestricted)
+	require.ElementsMatch(t, []string{"client-b", "client-c"}, ids)
+
+	ids, unrestricted, err = scope.ClientFilter(claimsContext(t, "profile-borrower"))
+	require.NoError(t, err)
+	require.False(t, unrestricted)
+	require.Equal(t, []string{"client-b"}, ids)
+
+	// Nothing in scope still yields a valid, never-matching IN list.
+	ids, unrestricted, err = scope.ClientFilter(claimsContext(t, "profile-stranger"))
+	require.NoError(t, err)
+	require.False(t, unrestricted)
+	require.Equal(t, []string{""}, ids)
+
+	_, unrestricted, err = scope.ClientFilter(claimsContext(t, "profile-x", "admin"))
+	require.NoError(t, err)
+	require.True(t, unrestricted)
+}
+
+func TestRepaymentRecord_LenderSideGuards(t *testing.T) {
+	loan := &loansmodels.LoanAccount{ClientID: "client-b", CurrencyCode: "KES",
+		Status: int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE)}
+	loan.ID = "loan-1"
+	otherLoanRepayment := &loansmodels.Repayment{LoanAccountID: "loan-other"}
+	otherLoanRepayment.ID = "rep-other"
+
+	scope := NewReadScope(&mapClientResolver{
+		clients: map[string]string{"profile-borrower": "client-b", "profile-agent-borrower": "client-b"},
+		served: map[string][]string{
+			"profile-agent":          {"client-b"},
+			"profile-agent-borrower": {"client-b"},
+		},
+	})
+	build := func(existing *loansmodels.Repayment) RepaymentBusiness {
+		return NewRepaymentBusiness(t.Context(), &noopEventsManager{},
+			&stubLoanAccountRepo{account: loan}, &stubRepaymentRepo{findResp: existing},
+			nil, nil, nil, nil, nil, nil, nil, nil, false, "",
+			WithReadScope(scope))
+	}
+	req := func(channel string) *loansv1.RepaymentRecordRequest {
+		return &loansv1.RepaymentRecordRequest{LoanAccountId: "loan-1", Channel: channel, IdempotencyKey: "k-1"}
+	}
+
+	_, err := build(nil).Record(claimsContext(t, "profile-borrower"), req("cash"))
+	require.ErrorIs(t, err, ErrNotServingClient, "a borrower cannot mark their own loan paid")
+
+	_, err = build(nil).Record(claimsContext(t, "profile-agent-borrower"), req("cash"))
+	require.ErrorIs(t, err, ErrNotServingClient, "an agent cannot record on a loan they owe")
+
+	_, err = build(nil).Record(claimsContext(t, "profile-agent"), req("mpesa"))
+	require.ErrorIs(t, err, ErrAgentCashOnly)
+
+	_, err = build(otherLoanRepayment).Record(claimsContext(t, "profile-agent"), req("cash"))
+	require.ErrorIs(t, err, ErrIdempotencyKeyConflict, "a key from another loan never returns its repayment")
+
+	_, err = build(otherLoanRepayment).Record(claimsContext(t, "profile-x", "operator"), req("mpesa"))
+	require.ErrorIs(t, err, ErrIdempotencyKeyConflict, "staff pass the channel rule and still hit the key check")
+}
+
+// Without a loan, a field agent's repayment search is their own collections:
+// an empty collector means "mine", someone else's is refused.
+func TestRepaymentSearchScope_AgentListsOwnCollections(t *testing.T) {
+	b, ok := NewRepaymentBusiness(t.Context(), &noopEventsManager{},
+		&stubLoanAccountRepo{}, &stubRepaymentRepo{},
+		nil, nil, nil, nil, nil, nil, nil, nil, false, "",
+		WithReadScope(agentScope())).(*repaymentBusiness)
+	require.True(t, ok)
+	agent := claimsContext(t, "profile-agent")
+
+	filters, err := b.searchScope(agent, &loansv1.RepaymentSearchRequest{ReceivedAfter: "2026-10-24T00:00:00Z"})
+	require.NoError(t, err)
+	require.Equal(t, "profile-agent", filters["collected_by = ?"])
+	require.Contains(t, filters, "created_at >= ?")
+
+	_, err = b.searchScope(agent, &loansv1.RepaymentSearchRequest{CollectedBy: "profile-other"})
+	require.ErrorIs(t, err, ErrLoanNotOwned)
+
+	staffFilters, err := b.searchScope(claimsContext(t, "profile-x", "operator"), &loansv1.RepaymentSearchRequest{})
+	require.NoError(t, err)
+	require.NotContains(t, staffFilters, "collected_by = ?", "staff search the partition")
 }

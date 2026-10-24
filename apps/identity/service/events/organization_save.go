@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"connectrpc.com/connect/v2"
+
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"github.com/pitabwire/frame/v3/data"
@@ -162,7 +164,14 @@ func (e *OrganizationSave) syncProfile(
 		}
 	}
 
-	e.syncContacts(ctx, logger, organization.ProfileID, contacts)
+	if len(contacts) > 0 && e.syncContacts(ctx, logger, organization.ProfileID, contacts) {
+		// The contacts now live on the profile; the organization row keeps
+		// none of its own.
+		delete(organization.Properties, "contacts")
+		if err := upsert.ByID(ctx, e.organizationRepo, organization); err != nil {
+			logger.WithError(err).Warn("could not drop synced contacts from the organization")
+		}
+	}
 
 	// Sync address if any address field is present.
 	if addressStreet != "" || addressCity != "" || addressCountry != "" || addressPostalCode != "" {
@@ -182,70 +191,43 @@ func (e *OrganizationSave) syncProfile(
 	return nil
 }
 
-// syncContacts adds only the contacts the profile does not already carry.
-// Saves are re-emitted on every organization edit and redelivered on retry, so
-// adding every contact unconditionally accumulated duplicates on the profile.
+// syncContacts hands the organization's contacts to its profile. Whether a
+// contact is already there is the profile service's call: each one is looked
+// up there and added only when no profile holds it. Saves are re-emitted on
+// every edit and redelivered on retry, so this must converge, not duplicate.
+// It reports whether every contact is now on the profile.
 func (e *OrganizationSave) syncContacts(
 	ctx context.Context,
 	logger *util.LogEntry,
 	profileID string,
 	contacts []orgContact,
-) {
-	existing := e.existingContactDetails(ctx, logger, profileID)
+) bool {
+	synced := true
 	for _, c := range contacts {
-		key := contactKey(c.value)
-		if key == "" || existing[key] {
+		if strings.TrimSpace(c.value) == "" {
 			continue
 		}
-		if err := e.addContact(ctx, logger, profileID, c); err != nil {
+		found, err := e.profileClient.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: c.value})
+		switch {
+		case err == nil && found.GetData().GetId() == profileID:
+			continue
+		case err == nil && found.GetData().GetId() != "":
+			logger.WithField("contact_type", c.contactType).
+				Warn("contact belongs to another profile; not added to the organization")
+			continue
+		case err != nil && connect.CodeOf(err) != connect.CodeNotFound:
 			logger.WithError(err).WithField("contact_type", c.contactType).
-				Warn("could not add contact to profile")
+				Warn("could not look the contact up on the profile service")
+			synced = false
 			continue
 		}
-		existing[key] = true
-	}
-}
-
-// existingContactDetails returns the contacts already on the profile, keyed for
-// comparison. A failed read yields an empty set, which degrades to the previous
-// add-everything behaviour rather than dropping contacts silently.
-func (e *OrganizationSave) existingContactDetails(
-	ctx context.Context,
-	logger *util.LogEntry,
-	profileID string,
-) map[string]bool {
-	existing := map[string]bool{}
-	profile, err := e.fetchProfile(ctx, profileID)
-	if err != nil {
-		logger.WithError(err).Warn("could not read existing profile contacts; contact sync may duplicate")
-		return existing
-	}
-	for _, c := range profile.GetContacts() {
-		if key := contactKey(c.GetDetail()); key != "" {
-			existing[key] = true
+		if addErr := e.addContact(ctx, logger, profileID, c); addErr != nil {
+			logger.WithError(addErr).WithField("contact_type", c.contactType).
+				Warn("could not add contact to profile")
+			synced = false
 		}
 	}
-	return existing
-}
-
-func (e *OrganizationSave) fetchProfile(
-	ctx context.Context,
-	profileID string,
-) (*profilev1.ProfileObject, error) {
-	resp, err := e.profileClient.GetById(ctx, &profilev1.GetByIdRequest{Id: profileID})
-	if err != nil {
-		return nil, fmt.Errorf("reading profile: %w", err)
-	}
-	profile := resp.GetData()
-	if profile == nil {
-		return nil, errors.New("profile service returned no profile")
-	}
-	return profile, nil
-}
-
-// contactKey normalises a contact value for set comparison.
-func contactKey(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+	return synced
 }
 
 // resolveOrCreateProfile returns the organization's profile id.
@@ -405,7 +387,7 @@ func (e *OrganizationSave) addContact(
 		Contact: c.value,
 		Extras:  extras,
 	}.Build()); addErr != nil {
-		return fmt.Errorf("adding contact %s: %w", c.value, addErr)
+		return fmt.Errorf("adding %s contact: %w", c.contactType, addErr)
 	}
 
 	logger.WithFields(map[string]any{

@@ -73,6 +73,9 @@ type disbursementBusiness struct {
 // destination nobody verified.
 type PayoutDestinationChecker interface {
 	Allowed(ctx context.Context, la *models.LoanAccount) error
+	// ContactOfClient returns nil when contactID is one of the client's
+	// payable (verified mobile) contacts on their profile.
+	ContactOfClient(ctx context.Context, clientID, contactID string) error
 }
 
 func NewDisbursementBusiness(
@@ -478,9 +481,12 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 			Description:      "Loan disbursement for " + la.GetID(),
 			State:            commonv1.STATE_ACTIVE,
 			ExtraData: (&data.JSONMap{
-				"loan_id":             la.GetID(),
-				fieldLoanRequestID:    loanRequestID,
-				"recipient_id":        la.ClientID,
+				"loan_id":          la.GetID(),
+				fieldLoanRequestID: loanRequestID,
+				// Operations resolves the client to its profile and checks
+				// payment_account_ref is one of that profile's contacts
+				// before any money moves.
+				"recipient_client_id": la.ClientID,
 				fieldClientID:         la.ClientID,
 				"payment_channel":     req.GetChannel(),
 				"payment_account_ref": la.PaymentAccountRef,

@@ -55,7 +55,7 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		&models.AccessRoleAssignment{},
 		&models.ClientDataEntry{}, &models.ClientDataEntryHistory{},
 		&models.FormTemplate{}, &models.FormSubmission{},
-		&models.ClientRelationship{}); migrateErr != nil {
+		&models.ClientRelationship{}, &models.ClientConsentChallenge{}); migrateErr != nil {
 		return migrateErr
 	}
 

@@ -43,6 +43,7 @@ type options struct {
 	clientLookup       clientLookup
 	profiles           profilev1connect.ProfileServiceClient
 	relationshipRepo   repository.ClientRelationshipRepository
+	consentRepo        repository.ClientConsentChallengeRepository
 	clientRepo         repository.ClientRepository
 	workforceRepo      repository.WorkforceMemberRepository
 	teamMembershipRepo repository.TeamMembershipRepository
@@ -52,6 +53,11 @@ type options struct {
 // profile from the captured phone number.
 func WithProfiles(cli profilev1connect.ProfileServiceClient) Option {
 	return func(o *options) { o.profiles = cli }
+}
+
+// WithConsentChallenges stores the consent codes field agents ask for.
+func WithConsentChallenges(repo repository.ClientConsentChallengeRepository) Option {
+	return func(o *options) { o.consentRepo = repo }
 }
 
 // WithRelationships lets client registration attach the registering agent
@@ -173,9 +179,9 @@ func (n *ClientNotifier) clientVars(client *models.Client) map[string]any {
 	}
 }
 
-// send addresses the client's profile when it has one, else the phone
-// number captured at onboarding (a contact detail the notification service
-// resolves). A client with neither is logged and counted as dropped.
+// send addresses the client's profile; contacts are resolved by the
+// profile and notification services. A client without a profile is logged
+// and counted as dropped.
 func (n *ClientNotifier) send(
 	ctx context.Context,
 	client *models.Client,
@@ -184,9 +190,6 @@ func (n *ClientNotifier) send(
 	priority notificationv1.PRIORITY,
 ) {
 	recipient := notify.ToProfile(client.ProfileID)
-	if recipient == nil {
-		recipient = notify.ToContact(clientPhoneNumber(client.Properties))
-	}
 	n.notifier.SendOrLog(ctx, notify.Message{
 		Template:  template,
 		Kind:      notificationKindClient,

@@ -28,6 +28,7 @@ import (
 	"github.com/antinvestor/common/v3/permissions"
 	"github.com/antinvestor/common/v3/servicecatalog"
 	"github.com/antinvestor/service-trustage/client/workflows"
+	"github.com/antinvestor/service-trustage/gen/go/workflow/v1/workflowv1connect"
 	"github.com/pitabwire/frame/v3"
 	"github.com/pitabwire/frame/v3/config"
 	"github.com/pitabwire/frame/v3/datastore"
@@ -437,7 +438,7 @@ func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.StawiConfig) {
 	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  trustageURL,
 		ServiceID: servicecatalog.ServiceTrustage,
-	}, newTrustageWorkflows)
+	}, workflowv1connect.NewWorkflowServiceClient)
 	if cliErr != nil {
 		util.Log(ctx).WithError(cliErr).Warn("trustage workflow client init failed")
 		return

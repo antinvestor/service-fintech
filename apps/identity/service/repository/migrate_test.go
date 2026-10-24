@@ -117,6 +117,7 @@ func (s *migrateSuite) TestPostMigrateAddsSearchableColumnsAndSupportsSearchQuer
 		&models.FormTemplate{},
 		&models.FormSubmission{},
 		&models.ClientRelationship{},
+		&models.ClientConsentChallenge{},
 	}
 
 	superDB := dbPool.DB(ctx, false)

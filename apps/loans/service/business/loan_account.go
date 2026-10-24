@@ -545,6 +545,16 @@ func (b *loanAccountBusiness) Search(
 	if req.GetClientId() != "" {
 		andQueryVal["client_id = ?"] = req.GetClientId()
 	}
+	// Borrowers see their own records and field agents those of the clients
+	// they serve. The scope is AND-ed with every other filter, so neither a
+	// client_id nor a text query can widen it.
+	scopedIDs, unrestricted, scopeErr := b.scope.ClientFilter(ctx)
+	if scopeErr != nil {
+		return scopeErr
+	}
+	if !unrestricted {
+		andQueryVal["client_id IN ?"] = scopedIDs
+	}
 	if req.GetAgentId() != "" {
 		andQueryVal["agent_id = ?"] = req.GetAgentId()
 	}
@@ -904,12 +914,8 @@ func (b *loanAccountBusiness) TransitionStatus(
 	// first would strand it in WRITTEN_OFF — a status that only leads to
 	// CLOSED — with no bad-debt posting and no way to make one.
 	//
-	// Per-investor tranche loss absorption is intentionally deferred: it
-	// requires the funding service to enumerate tranches and post an
-	// investor_loss_absorption order per tranche. That's the natural next
-	// step once funding has an operations client wired; for now the loan's
-	// own ledger balance is settled correctly and reconciliation will
-	// surface the residual investor exposure.
+	// The unrecovered principal is then absorbed by the funding tranches,
+	// first-loss first, so investor balances carry the loss.
 	if newStatus == loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF {
 		if writeOffErr := b.postWriteOffLedgerCascade(ctx, logger, la); writeOffErr != nil {
 			return nil, writeOffErr
@@ -1049,9 +1055,46 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 			Error("could not execute write-off transfer order")
 		return fmt.Errorf("write-off transfer order %s failed: %w", reference, execErr)
 	}
+	if absorbErr := b.absorbWriteOffLoss(ctx, logger, la, balance.PrincipalOutstanding, reference); absorbErr != nil {
+		return absorbErr
+	}
 	logger.WithField("loan_id", la.GetID()).
 		WithField("amount", outstanding).
 		Info("loan written off")
+	return nil
+}
+
+// absorbWriteOffLoss charges the unrecovered principal to the investors who
+// funded the loan, first-loss tranche first. Interest and fees were never
+// theirs, so only principal is absorbed. Funding records the absorption once
+// per loan, so a retried write-off does not absorb twice. A failure leaves
+// the loan in its current status so the write-off is retried whole.
+func (b *loanAccountBusiness) absorbWriteOffLoss(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+	principalOutstanding int64,
+	reference string,
+) error {
+	if principalOutstanding <= 0 {
+		return nil
+	}
+	if b.fundingCli == nil {
+		return ErrFundingServiceUnavailable
+	}
+	req := fundingcompat.NewAbsorbLossRequest(loanRequestIDFromProperties(la.Properties, la.LoanRequestID))
+	req.Amount = moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, principalOutstanding)
+	req.LossReference = reference
+	resp, err := b.fundingCli.AbsorbLoss(ctx, req)
+	if err != nil {
+		logger.WithError(err).WithField("loan_id", la.GetID()).
+			Error("could not absorb the written-off principal across funding tranches")
+		return fmt.Errorf("absorb write-off loss for loan %s: %w", la.GetID(), err)
+	}
+	logger.WithField("loan_id", la.GetID()).
+		WithField("absorbed", resp.GetAbsorbed()).
+		WithField("unrecoverable", resp.GetUnrecoverable()).
+		Info("write-off loss absorbed by funding tranches")
 	return nil
 }
 

@@ -98,6 +98,9 @@ const (
 	// StawiWorkflowServiceLoanOffersGenerateProcedure is the procedure name of the
 	// StawiWorkflowService's LoanOffersGenerate RPC.
 	StawiWorkflowServiceLoanOffersGenerateProcedure = "/stawi.v1.StawiWorkflowService/LoanOffersGenerate"
+	// StawiWorkflowServiceLoanOfferRespondProcedure is the procedure name of the StawiWorkflowService's
+	// LoanOfferRespond RPC.
+	StawiWorkflowServiceLoanOfferRespondProcedure = "/stawi.v1.StawiWorkflowService/LoanOfferRespond"
 	// StawiWorkflowServiceLoanOffersExpireProcedure is the procedure name of the StawiWorkflowService's
 	// LoanOffersExpire RPC.
 	StawiWorkflowServiceLoanOffersExpireProcedure = "/stawi.v1.StawiWorkflowService/LoanOffersExpire"
@@ -287,6 +290,13 @@ var (
 			Procedure:  StawiWorkflowServiceLoanOffersGenerateProcedure,
 		}
 	})
+	stawiWorkflowServiceLoanOfferRespondSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("LoanOfferRespond"),
+			Procedure:  StawiWorkflowServiceLoanOfferRespondProcedure,
+		}
+	})
 	stawiWorkflowServiceLoanOffersExpireSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -411,6 +421,9 @@ type StawiWorkflowServiceClient interface {
 	LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	LoanWindowOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	LoanOffersGenerate(context.Context, *v1.GroupMemberLoanOffersRequest) (*v1.CallbackResponse, error)
+	// LoanOfferRespond records a member's answer to a loan offer. A member
+	// answers only their own offers; staff and services may answer any.
+	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error)
 	LoanOffersExpire(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error)
 	LoanEligibilityCheck(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error)
 	LoanFundingSource(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error)
@@ -455,6 +468,9 @@ type StawiWorkflowServiceHandler interface {
 	LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	LoanWindowOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	LoanOffersGenerate(context.Context, *v1.GroupMemberLoanOffersRequest) (*v1.CallbackResponse, error)
+	// LoanOfferRespond records a member's answer to a loan offer. A member
+	// answers only their own offers; staff and services may answer any.
+	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error)
 	LoanOffersExpire(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error)
 	LoanEligibilityCheck(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error)
 	LoanFundingSource(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error)
@@ -496,6 +512,7 @@ func RegisterStawiWorkflowServiceHandler(server *connect.Server, svc StawiWorkfl
 		connect.Method{Spec: stawiWorkflowServiceLoanWindowEvaluateSpec(), Handler: adapter.loanWindowEvaluate},
 		connect.Method{Spec: stawiWorkflowServiceLoanWindowOpenSpec(), Handler: adapter.loanWindowOpen},
 		connect.Method{Spec: stawiWorkflowServiceLoanOffersGenerateSpec(), Handler: adapter.loanOffersGenerate},
+		connect.Method{Spec: stawiWorkflowServiceLoanOfferRespondSpec(), Handler: adapter.loanOfferRespond},
 		connect.Method{Spec: stawiWorkflowServiceLoanOffersExpireSpec(), Handler: adapter.loanOffersExpire},
 		connect.Method{Spec: stawiWorkflowServiceLoanEligibilityCheckSpec(), Handler: adapter.loanEligibilityCheck},
 		connect.Method{Spec: stawiWorkflowServiceLoanFundingSourceSpec(), Handler: adapter.loanFundingSource},
@@ -594,6 +611,10 @@ func (UnimplementedStawiWorkflowServiceHandler) LoanWindowOpen(context.Context, 
 
 func (UnimplementedStawiWorkflowServiceHandler) LoanOffersGenerate(context.Context, *v1.GroupMemberLoanOffersRequest) (*v1.CallbackResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.LoanOffersGenerate is not implemented")
+}
+
+func (UnimplementedStawiWorkflowServiceHandler) LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.LoanOfferRespond is not implemented")
 }
 
 func (UnimplementedStawiWorkflowServiceHandler) LoanOffersExpire(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error) {
@@ -811,6 +832,14 @@ func (c *stawiWorkflowServiceClient) LoanWindowOpen(ctx context.Context, req *v1
 func (c *stawiWorkflowServiceClient) LoanOffersGenerate(ctx context.Context, req *v1.GroupMemberLoanOffersRequest) (*v1.CallbackResponse, error) {
 	var res v1.CallbackResponse
 	if err := c.client.CallUnary(ctx, stawiWorkflowServiceLoanOffersGenerateSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *stawiWorkflowServiceClient) LoanOfferRespond(ctx context.Context, req *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error) {
+	var res v1.CallbackResponse
+	if err := c.client.CallUnary(ctx, stawiWorkflowServiceLoanOfferRespondSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1164,6 +1193,18 @@ func (h stawiWorkflowServiceHandler) loanOffersGenerate(ctx context.Context, _ c
 		return err
 	}
 	res, err := h.svc.LoanOffersGenerate(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h stawiWorkflowServiceHandler) loanOfferRespond(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.LoanOfferRespondRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.LoanOfferRespond(ctx, &req)
 	if err != nil {
 		return err
 	}

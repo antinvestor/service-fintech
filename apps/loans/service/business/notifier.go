@@ -224,13 +224,13 @@ func (n *LoanNotifier) NotifyLoanFullyPaid(ctx context.Context, la *models.LoanA
 }
 
 // NotifyCollectionRequested asks the borrower to pay an amount now. When a
-// contact is supplied it is addressed directly (a phone number is a contact
-// detail the notification service resolves); otherwise the client's profile.
+// contact id (already checked to be the borrower's) is supplied it is
+// addressed directly; otherwise the client's profile.
 func (n *LoanNotifier) NotifyCollectionRequested(
 	ctx context.Context,
 	la *models.LoanAccount,
 	amountMinor int64,
-	contact, reference string,
+	contactID, reference string,
 ) {
 	if !n.Enabled() || la == nil {
 		return
@@ -238,8 +238,8 @@ func (n *LoanNotifier) NotifyCollectionRequested(
 	vars := n.loanVars(la)
 	vars[messages.VarAmount] = messages.FormatAmount(la.CurrencyCode, amountMinor)
 	vars[messages.VarReference] = reference
-	if strings.TrimSpace(contact) != "" {
-		n.send(ctx, notify.ToContact(contact), messages.LoanCollectionRequested, vars, notificationv1.PRIORITY_HIGH)
+	if strings.TrimSpace(contactID) != "" {
+		n.send(ctx, notify.ToContact(contactID), messages.LoanCollectionRequested, vars, notificationv1.PRIORITY_HIGH)
 		return
 	}
 	n.toClient(ctx, la.ClientID, messages.LoanCollectionRequested, vars, notificationv1.PRIORITY_HIGH)

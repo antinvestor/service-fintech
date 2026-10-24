@@ -16,7 +16,6 @@ package business
 
 import (
 	"context"
-	"fmt"
 
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
@@ -58,6 +57,7 @@ type ClientBusiness interface {
 	ApproveSystemCreditLimitChange(ctx context.Context, requestID string, reviewedBy, notes string) error
 	RejectSystemCreditLimitChange(ctx context.Context, requestID string, reviewedBy, notes string) error
 	GetEffectiveCreditLimit(ctx context.Context, clientID string) (int64, string, error)
+	AccessScope(ctx context.Context, profileID string) (*fieldv1.ClientAccessScopeResponse, error)
 }
 
 type clientBusiness struct {
@@ -72,6 +72,7 @@ type clientBusiness struct {
 	notifier           *ClientNotifier
 	profiles           profilev1connect.ProfileServiceClient
 	crRepo             repository.ClientRelationshipRepository
+	consentRepo        repository.ClientConsentChallengeRepository
 }
 
 func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -89,6 +90,7 @@ func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
 		notifier:           o.clientNotifier,
 		profiles:           o.profiles,
 		crRepo:             o.relationshipRepo,
+		consentRepo:        o.consentRepo,
 		eventsMan:          eventsMan,
 		clientRepo:         clientRepo,
 		clientHistoryRepo:  clientHistoryRepo,
@@ -106,10 +108,12 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 
 	isNew := obj.GetId() == ""
 	client := models.ClientFromAPI(ctx, obj)
-	client.Properties = normalizeClientPhoneProperties(entityProperties(client.Properties))
-	if phone := clientPhoneNumber(client.Properties); phone != "" && !validPhoneNumber(phone) {
-		return nil, ErrClientPhoneInvalid
-	}
+	// A contact (phone) in the payload is only ever handed to the profile
+	// service to find or create the borrower's profile. It is never stored
+	// on the client row: contacts belong to the profile.
+	props := entityProperties(client.Properties)
+	contact := takeClientContact(props)
+	client.Properties = props
 
 	// A field agent (member role) works inside their own teams: the client
 	// they register is owned by one of those teams (their primary team when
@@ -133,20 +137,16 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 		client.State = int32(commonv1.STATE_CREATED.Number())
 	}
 
-	if action := caseAction(client.Properties); action != "" {
-		if scope != nil {
-			// Verifying and approving are staff acts; a field agent cannot
-			// progress a case, least of all one they raised.
-			return nil, ErrClientOutsideCallerScope
-		}
-		return b.handleApprovalAction(ctx, logger, client, action)
-	}
-
 	if !isNew {
+		if contact != "" || caseAction(client.Properties) != "" {
+			// Contact changes are made, verified and approved on the
+			// borrower's profile, never through the client row.
+			return nil, ErrClientContactsOnProfile
+		}
 		return b.saveExisting(ctx, logger, client, scope)
 	}
 
-	return b.registerNew(ctx, logger, client, scope)
+	return b.registerNew(ctx, logger, client, scope, contact)
 }
 
 // registerNew creates a client for a borrower: profile first, then the row,
@@ -156,6 +156,7 @@ func (b *clientBusiness) registerNew(
 	logger *util.LogEntry,
 	client *models.Client,
 	scope *callerScope,
+	contact string,
 ) (*fieldv1.ClientObject, error) {
 	// Profile first: a borrower is a person on the profile service, found by
 	// the phone they gave or created from it. Only then does a client row
@@ -164,12 +165,22 @@ func (b *clientBusiness) registerNew(
 	if scope != nil {
 		client.ProfileID = ""
 	}
+	consentProps := takeConsentProperties(client.Properties)
 	if client.ProfileID == "" {
-		profileID, profileErr := b.ensureProfile(ctx, client)
+		profileID, existing, profileErr := b.ensureProfile(ctx, client, contact)
 		if profileErr != nil {
 			return nil, profileErr
 		}
 		client.ProfileID = profileID
+		// A field agent binding a person who already has a profile needs
+		// that person's consent: a code is sent to their verified mobile
+		// contact, and only a correct code binds them.
+		if scope != nil && existing != nil {
+			pending, consentErr := b.requireConsent(ctx, client, existing, scope, consentProps)
+			if consentErr != nil || pending != nil {
+				return pending, consentErr
+			}
+		}
 	}
 
 	stored, created, createErr := b.clientRepo.CreateIfAbsent(ctx, client)
@@ -217,6 +228,13 @@ func (b *clientBusiness) scopedClientIDs(ctx context.Context) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+	return b.servedClientIDs(ctx, scope)
+}
+
+// servedClientIDs lists the clients scope's teams own plus those its member
+// holds a relationship with. The sentinel keeps "IN ?" valid when there are
+// none.
+func (b *clientBusiness) servedClientIDs(ctx context.Context, scope *callerScope) ([]string, error) {
 	owned, err := b.clientRepo.IDsOwnedByTeams(ctx, scope.teamIDs)
 	if err != nil {
 		return nil, err
@@ -285,8 +303,7 @@ func (b *clientBusiness) scopeForSave(ctx context.Context, client *models.Client
 }
 
 // saveExisting applies an edit to a stored client synchronously, carrying
-// the stored tenancy, limits and currency, and routing a phone change
-// through its approval case.
+// the stored tenancy, limits and currency.
 func (b *clientBusiness) saveExisting(
 	ctx context.Context,
 	logger *util.LogEntry,
@@ -299,14 +316,6 @@ func (b *clientBusiness) saveExisting(
 	}
 	if scope != nil && !b.clientInScope(ctx, existing, scope) {
 		return nil, ErrClientOutsideCallerScope
-	}
-
-	if desiredPhone, currentPhone := clientPhoneNumber(
-		client.Properties,
-	), clientPhoneNumber(
-		existing.Properties,
-	); desiredPhone != currentPhone {
-		return b.submitPhoneChangeCase(ctx, logger, existing, client, desiredPhone)
 	}
 
 	applyStoredTenancy(client, existing)
@@ -328,7 +337,9 @@ func (b *clientBusiness) saveExisting(
 		mergedProps[k] = v
 	}
 	stripCaseCommand(mergedProps)
-	client.Properties = normalizeClientPhoneProperties(mergedProps)
+	// Rows written before contacts moved to the profile shed them here.
+	takeClientContact(mergedProps)
+	client.Properties = mergedProps
 	client.Version = existing.Version
 
 	rows, err := b.clientRepo.Update(ctx, client)
@@ -342,15 +353,21 @@ func (b *clientBusiness) saveExisting(
 	return client.ToAPI(), nil
 }
 
-// ensureProfile finds the borrower's profile by the captured phone or creates
-// one. Without a phone there is nothing to find a person by.
-func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Client) (string, error) {
-	phone := clientPhoneNumber(client.Properties)
+// ensureProfile asks the profile service for the borrower's profile by the
+// contact they gave, or has it create one. The contact is passed through,
+// never inspected: the profile service validates and owns it. Without a
+// contact there is nothing to find a person by.
+// It returns the found profile when the person already existed.
+func (b *clientBusiness) ensureProfile(
+	ctx context.Context,
+	client *models.Client,
+	phone string,
+) (string, *profilev1.ProfileObject, error) {
 	if phone == "" {
-		return "", ErrClientPhoneInvalid
+		return "", nil, ErrClientPhoneInvalid
 	}
 	if b.profiles == nil {
-		return "", ErrClientProfileUnavailable
+		return "", nil, ErrClientProfileUnavailable
 	}
 	found, err := b.profiles.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: phone})
 	if err == nil && found.GetData().GetId() != "" {
@@ -359,33 +376,39 @@ func (b *clientBusiness) ensureProfile(ctx context.Context, client *models.Clien
 		// workforce member's profile (the registering agent's own, say) is
 		// refused rather than bound to a client.
 		if profileID == actorFromClaims(ctx) {
-			return "", ErrClientPhoneIsStaff
+			return "", nil, ErrClientPhoneIsStaff
 		}
 		if b.workforceRepo != nil {
 			if member, memberErr := b.workforceRepo.GetByProfileID(ctx, profileID); memberErr == nil && member != nil {
-				return "", ErrClientPhoneIsStaff
+				return "", nil, ErrClientPhoneIsStaff
 			}
 		}
-		return profileID, nil
+		return profileID, found.GetData(), nil
+	}
+	if connect.CodeOf(err) == connect.CodeInvalidArgument {
+		return "", nil, ErrClientPhoneInvalid
 	}
 	if err != nil && connect.CodeOf(err) != connect.CodeNotFound {
 		util.Log(ctx).WithError(err).Warn("could not look up the borrower's profile by contact")
-		return "", ErrClientProfileUnavailable
+		return "", nil, ErrClientProfileUnavailable
 	}
 	props, propErr := structpb.NewStruct(map[string]any{"name": client.Name})
 	if propErr != nil {
-		return "", propErr
+		return "", nil, propErr
 	}
 	created, err := b.profiles.Create(ctx, &profilev1.CreateRequest{
 		Type:       profilev1.ProfileType_PERSON,
 		Contact:    phone,
 		Properties: props,
 	})
+	if connect.CodeOf(err) == connect.CodeInvalidArgument {
+		return "", nil, ErrClientPhoneInvalid
+	}
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("could not create the borrower's profile")
-		return "", ErrClientProfileUnavailable
+		return "", nil, ErrClientProfileUnavailable
 	}
-	return created.GetData().GetId(), nil
+	return created.GetData().GetId(), nil, nil
 }
 
 // attachCaller makes the registering field agent the client's primary
@@ -423,133 +446,6 @@ func (b *clientBusiness) attachCaller(
 // clientInScope reports whether a non-staff caller may act on the client.
 func (b *clientBusiness) clientInScope(ctx context.Context, client *models.Client, scope *callerScope) bool {
 	return clientInCallerScope(ctx, client, scope, b.crRepo)
-}
-
-// validPhoneNumber accepts an international or national number: optional
-// "+", 8 to 15 digits, with spaces or dashes tolerated.
-func validPhoneNumber(phone string) bool {
-	digits := 0
-	for i, r := range phone {
-		switch {
-		case r >= '0' && r <= '9':
-			digits++
-		case r == '+' && i == 0, r == ' ', r == '-':
-		default:
-			return false
-		}
-	}
-	return digits >= 8 && digits <= 15
-}
-
-func (b *clientBusiness) submitPhoneChangeCase(
-	ctx context.Context,
-	logger *util.LogEntry,
-	existing *models.Client,
-	incoming *models.Client,
-	requestedPhone string,
-) (*fieldv1.ClientObject, error) {
-	if _, err := b.approvalCases.GetOpenBySubject(
-		ctx, approvalCaseSubjectClient, existing.GetID(), approvalCaseTypeClientPhoneChange,
-	); err == nil {
-		return nil, ErrClientPhoneChangePending
-	}
-
-	approvalCase, err := b.approvalCases.Submit(ctx, ApprovalCaseSubmission{
-		SubjectType: approvalCaseSubjectClient,
-		SubjectID:   existing.GetID(),
-		CaseType:    approvalCaseTypeClientPhoneChange,
-		Summary: fmt.Sprintf(
-			"Client %s phone number change requires verification and approval",
-			existing.Name,
-		),
-		Comment:             caseComment(incoming.Properties),
-		RequireVerification: true,
-		Payload: map[string]any{
-			approvalCaseRequestedValueKey: requestedPhone,
-		},
-	})
-	if err != nil {
-		logger.WithError(err).Error("could not create phone change approval case")
-		return nil, err
-	}
-
-	mergedProps := entityProperties(existing.Properties)
-	for k, v := range incoming.Properties {
-		mergedProps[k] = v
-	}
-	setClientPhoneNumber(mergedProps, clientPhoneNumber(existing.Properties))
-	if requestedPhone != "" {
-		mergedProps[clientPendingPhoneNumberKey] = requestedPhone
-	} else {
-		delete(mergedProps, clientPendingPhoneNumberKey)
-	}
-	stripCaseCommand(mergedProps)
-	existing.Name = incoming.Name
-	existing.Properties = applyApprovalCaseSnapshot(normalizeClientPhoneProperties(mergedProps), approvalCase)
-
-	if err = b.eventsMan.Emit(ctx, events.ClientSaveEvent, existing); err != nil {
-		logger.WithError(err).Error("could not persist phone change request")
-		return nil, err
-	}
-
-	return existing.ToAPI(), nil
-}
-
-func (b *clientBusiness) handleApprovalAction(
-	ctx context.Context,
-	logger *util.LogEntry,
-	client *models.Client,
-	action string,
-) (*fieldv1.ClientObject, error) {
-	if client.GetID() == "" {
-		return nil, ErrClientNotFound
-	}
-
-	existing, err := b.clientRepo.GetByID(ctx, client.GetID())
-	if err != nil {
-		return nil, ErrClientNotFound
-	}
-
-	props := entityProperties(existing.Properties)
-	approvalCase, err := b.approvalCases.GetOpenBySubject(
-		ctx, approvalCaseSubjectClient, existing.GetID(), approvalCaseTypeClientPhoneChange,
-	)
-	if err != nil {
-		return nil, ErrApprovalCaseNotFound
-	}
-
-	comment := caseComment(client.Properties)
-
-	switch action {
-	case approvalCaseActionVerify:
-		approvalCase, err = b.approvalCases.Verify(ctx, approvalCase.GetID(), comment)
-	case approvalCaseActionApprove:
-		approvalCase, err = b.approvalCases.Approve(ctx, approvalCase.GetID(), comment)
-		if err == nil {
-			setClientPhoneNumber(props, stringValue(approvalCase.Payload[approvalCaseRequestedValueKey]))
-			delete(props, clientPendingPhoneNumberKey)
-		}
-	case approvalCaseActionReject:
-		approvalCase, err = b.approvalCases.Reject(ctx, approvalCase.GetID(), comment)
-		if err == nil {
-			delete(props, clientPendingPhoneNumberKey)
-		}
-	default:
-		return nil, ErrApprovalCaseNotPending.Extend("unsupported case action")
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	stripCaseCommand(props)
-	existing.Properties = applyApprovalCaseSnapshot(normalizeClientPhoneProperties(props), approvalCase)
-	if err = b.eventsMan.Emit(ctx, events.ClientSaveEvent, existing); err != nil {
-		logger.WithError(err).Error("could not persist client approval action")
-		return nil, err
-	}
-
-	logApprovalCaseTransition(ctx, action, approvalCase)
-	return existing.ToAPI(), nil
 }
 
 func (b *clientBusiness) Get(ctx context.Context, id string) (*fieldv1.ClientObject, error) {
@@ -590,6 +486,9 @@ func (b *clientBusiness) Search(
 	}
 	if req.GetOwningTeamId() != "" {
 		andQueryVal["owning_team_id = ?"] = req.GetOwningTeamId()
+	}
+	if req.GetProfileId() != "" {
+		andQueryVal["profile_id = ?"] = req.GetProfileId()
 	}
 	if req.GetMemberId() != "" {
 		// Relationships live in their own table, so a member filter is

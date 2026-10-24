@@ -493,6 +493,7 @@ func (m *Repayment) ToAPI() *loansv1.RepaymentObject {
 		ExcessAmount:        MinorUnitsToMoney(m.ExcessAmount, cc),
 		IdempotencyKey:      m.IdempotencyKey,
 		Properties:          m.apiPropertiesStruct(),
+		CollectedBy:         m.CollectedBy,
 	}
 }
 

@@ -92,6 +92,7 @@ type repaymentScheduleBusiness struct {
 	loanProductRepo   repository.LoanProductRepository
 	scheduleRepo      repository.RepaymentScheduleRepository
 	scheduleEntryRepo repository.ScheduleEntryRepository
+	scope             *ReadScope
 }
 
 func NewRepaymentScheduleBusiness(
@@ -101,8 +102,10 @@ func NewRepaymentScheduleBusiness(
 	loanProductRepo repository.LoanProductRepository,
 	scheduleRepo repository.RepaymentScheduleRepository,
 	scheduleEntryRepo repository.ScheduleEntryRepository,
+	opts ...Option,
 ) RepaymentScheduleBusiness {
 	return &repaymentScheduleBusiness{
+		scope:             applyOptions(opts).scope,
 		eventsMan:         eventsMan,
 		loanAccountRepo:   loanAccountRepo,
 		loanProductRepo:   loanProductRepo,
@@ -193,6 +196,9 @@ func (b *repaymentScheduleBusiness) GetActive(
 	ctx context.Context,
 	loanAccountID string,
 ) (*loansv1.RepaymentScheduleObject, error) {
+	if scopeErr := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, loanAccountID); scopeErr != nil {
+		return nil, scopeErr
+	}
 	schedule, err := b.scheduleRepo.GetActivByLoanAccountID(ctx, loanAccountID)
 	if err != nil {
 		return nil, ErrScheduleNotFound

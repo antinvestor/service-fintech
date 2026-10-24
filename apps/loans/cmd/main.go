@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antinvestor/service-fintech/gen/go/seed/connectrpc/go/seed/v1/seedv1connect"
+
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
@@ -170,6 +172,7 @@ func main() {
 		cfg.DelinquencyThresholdDays,
 		cfg.DefaultThresholdDays,
 		peers.agentProfiles,
+		peers.paidOffHook,
 		backgroundJobs{
 			dbManager:               svc.DatastoreManager(),
 			delinquencyScanInterval: cfg.DelinquencyScanInterval,
@@ -209,6 +212,7 @@ func setupServiceOptions(
 	delinquencyThresholdDays int,
 	defaultThresholdDays int,
 	agentProfiles business.AgentProfileResolver,
+	paidOffHook business.PaidOffHook,
 	jobs backgroundJobs,
 	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
@@ -241,7 +245,8 @@ func setupServiceOptions(
 		business.WithNotifier(loanNotifier),
 		business.WithAuditWriter(auditWriter),
 	)
-	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo)
+	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo,
+		business.WithReadScope(readScope))
 	laBusiness := business.NewLoanAccountBusiness(
 		ctx, evtsMan, lpRepo, laRepo, lbRepo, lscRepo, repRepo, penRepo,
 		loanRequestRepo, fundingCli, scheduleBusiness, operationsCli, auditWriter,
@@ -249,11 +254,6 @@ func setupServiceOptions(
 		business.WithStatementSources(disbRepo, seRepo),
 		business.WithNotifier(loanNotifier),
 	)
-	// paidOffHook is currently nil here. A deployment that runs seed
-	// inside the loans process (or wires an RPC client for a seed
-	// service) can pass an implementation here to get credit profile
-	// updates on loan pay-off.
-	var paidOffHook business.PaidOffHook
 	repBusiness := business.NewRepaymentBusiness(
 		ctx,
 		evtsMan,
@@ -272,10 +272,12 @@ func setupServiceOptions(
 		business.WithReadScope(readScope),
 	)
 	penaltyBusiness := business.NewPenaltyBusiness(ctx, penRepo, laRepo, lbRepo, operationsCli, auditWriter,
-		business.WithNotifier(loanNotifier), business.WithScheduleEntries(seRepo))
+		business.WithNotifier(loanNotifier), business.WithScheduleEntries(seRepo),
+		business.WithReadScope(readScope))
 	restructBusiness := business.NewLoanRestructureBusiness(
 		ctx, evtsMan, lrRepo, laRepo, lbRepo, rsRepo, laBusiness, scheduleBusiness,
 		business.WithNotifier(loanNotifier),
+		business.WithReadScope(readScope),
 	)
 	reconBusiness := business.NewReconciliationBusiness(ctx, evtsMan, reconRepo)
 	disbBusiness := business.NewDisbursementBusiness(
@@ -297,7 +299,10 @@ func setupServiceOptions(
 
 	portfolioBusiness := business.NewPortfolioBusiness(ctx, dbPool)
 	cpaBusiness := business.NewClientProductAccessBusiness(ctx, evtsMan, cpaRepo, lpRepo)
-	collectionBusiness := business.NewCollectionBusiness(ctx, laRepo, lbRepo, loanNotifier)
+	collectionBusiness := business.NewCollectionBusiness(
+		ctx, laRepo, lbRepo, loanNotifier, business.WithReadScope(readScope),
+		business.WithPayoutDestinationChecker(payoutChecker),
+	)
 
 	// Delinquency is a background obligation, not a request: without a job
 	// running it no loan ever becomes delinquent, no late penalty is charged,
@@ -376,6 +381,10 @@ type peerClients struct {
 	funding       fundingv1connect.FundingServiceClient
 	limits        limitsv1connect.LimitsServiceClient
 	readScope     *business.ReadScope
+	// paidOffHook tells seed a loan was repaid in full, so it can complete
+	// its loan request and credit the borrower's profile. Nil when
+	// SEED_SERVICE_URI is unset.
+	paidOffHook business.PaidOffHook
 }
 
 // setupPeerClients builds every peer client. Optional peers degrade with a
@@ -432,7 +441,22 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 		log.WithError(identityErr).Warn("main -- Could not setup identity client, agent notifications will be disabled")
 	}
 
+	var paidOffHook business.PaidOffHook
+	if cfg.SeedServiceURI != "" {
+		seedCli, seedErr := connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+			Endpoint:              cfg.SeedServiceURI,
+			WorkloadAPITargetPath: cfg.SeedServiceWorkloadAPITargetPath,
+			ServiceID:             servicecatalog.ServiceSeed,
+		}, seedv1connect.NewSeedServiceClient)
+		if seedErr != nil {
+			log.WithError(seedErr).Warn("main -- Could not setup seed client, paid-off loans will not reach seed")
+		} else {
+			paidOffHook = business.NewSeedPaidOffHook(seedCli)
+		}
+	}
+
 	return peerClients{
+		paidOffHook:   paidOffHook,
 		payoutChecker: business.NewProfilePayoutChecker(clientProfiles, profileCli),
 		agentProfiles: business.NewIdentityAgentProfileResolver(identityCli),
 		loanNotifier: business.NewLoanNotifier(
@@ -444,7 +468,7 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 		funding:    fundingCli,
 		limits:     limitsCli,
 		readScope: business.NewReadScope(
-			business.NewFieldClientResolver(fieldCli), splitCSV(cfg.LoansStaffRoles)...,
+			business.NewFieldAccessResolver(fieldCli), splitCSV(cfg.LoansStaffRoles)...,
 		),
 	}
 }

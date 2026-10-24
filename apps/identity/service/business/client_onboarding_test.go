@@ -37,6 +37,33 @@ type fakeProfileService struct {
 	mu        sync.Mutex
 	byContact map[string]string
 	created   int
+	// sentCodes maps verification id -> code the person received.
+	sentCodes map[string]string
+	sentTo    map[string]string // verification id -> contact id
+}
+
+func (f *fakeProfileService) CreateContactVerification(
+	_ context.Context,
+	req *profilev1.CreateContactVerificationRequest,
+) (*profilev1.CreateContactVerificationResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sentCodes == nil {
+		f.sentCodes, f.sentTo = map[string]string{}, map[string]string{}
+	}
+	f.sentCodes[req.GetId()] = "123456"
+	f.sentTo[req.GetId()] = req.GetContactId()
+	return &profilev1.CreateContactVerificationResponse{Id: req.GetId(), Success: true}, nil
+}
+
+func (f *fakeProfileService) CheckVerification(
+	_ context.Context,
+	req *profilev1.CheckVerificationRequest,
+) (*profilev1.CheckVerificationResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	code, ok := f.sentCodes[req.GetId()]
+	return &profilev1.CheckVerificationResponse{Id: req.GetId(), Success: ok && code == req.GetCode()}, nil
 }
 
 func (f *fakeProfileService) GetByContact(
@@ -45,11 +72,17 @@ func (f *fakeProfileService) GetByContact(
 ) (*profilev1.GetByContactResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	// The profile service validates contacts; fintech only passes them on.
+	if len(req.GetContact()) < 5 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "contact is not a valid phone or email")
+	}
 	id, ok := f.byContact[req.GetContact()]
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, "no profile for contact")
 	}
-	return &profilev1.GetByContactResponse{Data: &profilev1.ProfileObject{Id: id}}, nil
+	return &profilev1.GetByContactResponse{Data: &profilev1.ProfileObject{Id: id, Contacts: []*profilev1.ContactObject{
+		{Id: "contact-of-" + id, Type: profilev1.ContactType_MSISDN, Verified: true},
+	}}}, nil
 }
 
 func (f *fakeProfileService) Create(
@@ -199,7 +232,6 @@ func (s *approvalWorkflowSuite) TestFieldAgentRegistersClientInOwnScope() {
 	// An agent cannot move a client to another team through an edit.
 	edited, err := env.clientBusiness.Save(asAmina, &fieldv1.ClientObject{
 		Id: created.GetId(), OwningTeamId: "some-other-team", Name: "Grace Borrower",
-		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000111"}),
 	})
 	s.Require().NoError(err)
 	s.Require().Equal(team.GetID(), edited.GetOwningTeamId(), "ownership moves only through TransferOwnership")
@@ -211,6 +243,7 @@ func (s *approvalWorkflowSuite) TestFieldAgentRegistersClientInOwnScope() {
 	s.Require().ErrorIs(err, ErrClientPhoneIsStaff)
 
 	// A borrower with no phone cannot be registered: there is nobody to find.
+	// A malformed one is refused by the profile service and reported as such.
 	_, err = env.clientBusiness.Save(asAmina, &fieldv1.ClientObject{Name: "No Phone"})
 	s.Require().ErrorIs(err, ErrClientPhoneInvalid)
 	_, err = env.clientBusiness.Save(asAmina, &fieldv1.ClientObject{Name: "Bad Phone",
@@ -246,4 +279,114 @@ func (s *approvalWorkflowSuite) TestRelationshipSaveValidatesMembership() {
 		ClientId: created.GetId(), MemberId: agent.GetID(), Name: "duplicate of the auto-attached one",
 	})
 	s.Require().Error(err, "the (client, member) pair already exists")
+}
+
+// ClientAccessScope tells a peer service what a profile may act for: its own
+// client as a borrower, the clients it serves as a field agent. Only an
+// internal caller may name another profile.
+func (s *approvalWorkflowSuite) TestClientAccessScopeResolvesBorrowerAndAgent() {
+	env := s.newEnv()
+	org := env.createOrganization("Scope SACCO", "scope-sacco")
+	agent, _ := env.fieldAgent(org, "agent-scope", "scope-team")
+	_, _ = env.fieldAgent(org, "agent-other", "other-team")
+	asAgent := env.asRole("agent-scope", "member")
+	asOther := env.asRole("agent-other", "member")
+	asService := env.asRole("service-loans", security.ConstantSystemInternalRole)
+
+	created, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{
+		Name:       "Scoped Borrower",
+		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000222"}),
+	})
+	s.Require().NoError(err)
+
+	got, err := env.clientBusiness.AccessScope(asService, "agent-scope")
+	s.Require().NoError(err)
+	s.Require().Equal(agent.GetID(), got.GetMemberId())
+	s.Require().Equal([]string{created.GetId()}, got.GetServedClientIds())
+	s.Require().Empty(got.GetClientId())
+
+	got, err = env.clientBusiness.AccessScope(asService, created.GetProfileId())
+	s.Require().NoError(err)
+	s.Require().Equal(created.GetId(), got.GetClientId(), "the borrower resolves to their own client")
+	s.Require().Empty(got.GetMemberId())
+	s.Require().Empty(got.GetServedClientIds())
+
+	// A non-internal caller cannot read someone else's scope by naming them.
+	got, err = env.clientBusiness.AccessScope(asOther, "agent-scope")
+	s.Require().NoError(err)
+	s.Require().Empty(got.GetServedClientIds(), "the other agent gets only their own (empty) scope")
+	s.Require().NotEqual(agent.GetID(), got.GetMemberId())
+
+	// The exact profile filter finds the borrower's client for staff.
+	s.Require().Len(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: created.GetProfileId()}), 1)
+	s.Require().Empty(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: "nobody"}))
+}
+
+// A field agent binding someone who already has a profile needs that
+// person's consent code; a wrong code or a verification of another person
+// binds nobody.
+func (s *approvalWorkflowSuite) TestAgentBindingAnExistingPersonNeedsTheirConsent() {
+	env := s.newEnv()
+	org := env.createOrganization("Consent SACCO", "consent-sacco")
+	agent, _ := env.fieldAgent(org, "agent-consent", "consent-team")
+	asAgent := env.asRole("agent-consent", "member")
+	env.profiles.byContact = map[string]string{"+256701000555": "profile-existing"}
+
+	register := func(props map[string]any) (*fieldv1.ClientObject, error) {
+		props[clientPhoneNumberKey] = "+256701000555"
+		return env.clientBusiness.Save(
+			asAgent,
+			&fieldv1.ClientObject{Name: "Esther", Properties: propertiesStruct(props)},
+		)
+	}
+
+	pending, err := register(map[string]any{})
+	s.Require().NoError(err)
+	s.Require().Empty(pending.GetId(), "nothing is bound before consent")
+	s.Require().Empty(pending.GetProfileId(), "the pending answer reveals nobody")
+	vid := pending.GetProperties().AsMap()[consentVerificationIDKey].(string)
+	s.Require().NotEmpty(vid)
+	s.Equal("contact-of-profile-existing", env.profiles.sentTo[vid], "the code goes to the person's own contact")
+
+	_, err = register(map[string]any{consentVerificationIDKey: vid, consentCodeKey: "000000"})
+	s.Require().ErrorIs(err, ErrClientConsentFailed)
+	_, err = register(
+		map[string]any{consentVerificationIDKey: "client-consent-someone-else-x", consentCodeKey: "123456"},
+	)
+	s.Require().ErrorIs(err, ErrClientConsentFailed)
+
+	// Another agent cannot use this agent's challenge.
+	_, _ = env.fieldAgent(org, "agent-intruder", "intruder-team")
+	_, err = env.clientBusiness.Save(env.asRole("agent-intruder", "member"), &fieldv1.ClientObject{
+		Name: "Esther", Properties: propertiesStruct(map[string]any{
+			clientPhoneNumberKey: "+256701000555", consentVerificationIDKey: vid, consentCodeKey: "123456",
+		}),
+	})
+	s.Require().ErrorIs(err, ErrClientConsentFailed)
+
+	bound, err := register(map[string]any{consentVerificationIDKey: vid, consentCodeKey: "123456"})
+	s.Require().NoError(err)
+	s.Require().NotEmpty(bound.GetId())
+	s.Equal("profile-existing", bound.GetProfileId())
+	s.NotContains(bound.GetProperties().AsMap(), consentCodeKey, "the code is never stored")
+	_ = agent
+
+	// A challenge runs out of attempts.
+	env.profiles.byContact["+256701000666"] = "profile-guarded"
+	first, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
+		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000666"})})
+	s.Require().NoError(err)
+	guarded := first.GetProperties().AsMap()[consentVerificationIDKey].(string)
+	for range 5 {
+		_, err = env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
+			Properties: propertiesStruct(map[string]any{
+				clientPhoneNumberKey: "+256701000666", consentVerificationIDKey: guarded, consentCodeKey: "999999",
+			})})
+		s.Require().ErrorIs(err, ErrClientConsentFailed)
+	}
+	_, err = env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
+		Properties: propertiesStruct(map[string]any{
+			clientPhoneNumberKey: "+256701000666", consentVerificationIDKey: guarded, consentCodeKey: "123456",
+		})})
+	s.Require().ErrorIs(err, ErrClientConsentFailed, "the right code after the budget is spent binds nobody")
 }

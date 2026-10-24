@@ -318,6 +318,28 @@ message ClientSearchResponse {
   repeated ClientObject data = 1;
 }
 
+// ClientAccessScopeRequest asks which clients a profile may act for.
+message ClientAccessScopeRequest {
+  // profile_id is honoured only for internal service callers, which resolve
+  // the scope of the end user they are serving. Any other caller always gets
+  // their own scope and the field is ignored.
+  string profile_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ];
+}
+
+// ClientAccessScopeResponse describes the clients a profile may act for.
+message ClientAccessScopeResponse {
+  // client_id is the client the profile is, when the profile is a borrower.
+  string client_id = 1;
+  // member_id is the active workforce member the profile is, when any.
+  string member_id = 2;
+  // served_client_ids are the clients the member's teams own or the member
+  // holds an active relationship with. Empty for a borrower.
+  repeated string served_client_ids = 3;
+}
+
 // ClientReassignRequest moves a client to a different agent.
 message ClientReassignRequest {
   string client_id = 1 [
@@ -622,6 +644,22 @@ service FieldService {
       operation_id: "clientSearch"
       summary: "Search clients"
       description: "Searches for clients matching specified criteria. Supports filtering by owning team and relationship member. Returns a stream of matching client records."
+      tags: "Clients"
+    };
+  }
+
+  // ClientAccessScope reports the clients a profile may act for: its own
+  // client as a borrower and the clients it serves as a field agent. Peer
+  // services use it to scope their own records to the end user they serve.
+  rpc ClientAccessScope(ClientAccessScopeRequest) returns (ClientAccessScopeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.method_permissions) = {
+      permissions: ["client_view"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "clientAccessScope"
+      summary: "Resolve the clients a profile may act for"
+      description: "Returns the caller's own client, workforce member and served clients. Internal service callers may name the end-user profile to resolve."
       tags: "Clients"
     };
   }

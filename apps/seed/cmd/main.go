@@ -39,6 +39,11 @@ import (
 	"net/http"
 	"strings"
 
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+
+	"github.com/antinvestor/service-fintech/gen/go/seed/connectrpc/go/seed/v1/seedv1connect"
+
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
@@ -288,6 +293,11 @@ func buildHandler(
 ) http.Handler {
 	mux := http.NewServeMux()
 	seedhandlers.NewServer(lrBusiness, cpBusiness, clientResolver, staffRole).Register(mux)
+	// Peer services (loans' paid-off hook) call seed over Connect, behind
+	// the same authentication and function-access chain as the HTTP routes.
+	rpc := connect.NewServer()
+	seedv1connect.RegisterSeedServiceHandler(rpc, seedhandlers.NewConnectServer(lrBusiness, staffRole))
+	connecthttp.Mount(mux, rpc)
 
 	routes, routesErr := seedhandlers.BuildRoutePermissions(manifestSD)
 	if routesErr != nil {

@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect/v2"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -488,6 +490,12 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 
 	logger.Info("executing transfer order")
 
+	// A payout is addressed before any money moves: an order whose
+	// recipient or destination does not check out never posts its ledger leg.
+	if err = b.checkPayoutRecipient(ctx, logger, order); err != nil {
+		return err
+	}
+
 	ledgerTxnID, err := b.postLedgerOnce(ctx, logger, order)
 	if err != nil {
 		return err
@@ -495,8 +503,7 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 
 	if sideEffectErr := b.dispatchSideEffect(ctx, logger, orderType, order); sideEffectErr != nil {
 		logger.WithError(sideEffectErr).Error("side effect failed")
-		b.releaseExecution(ctx, logger, orderID, "side effect: "+sideEffectErr.Error())
-		return sideEffectErr
+		return b.failSideEffect(ctx, logger, order, "side effect: "+sideEffectErr.Error(), sideEffectErr)
 	}
 
 	// Step 5: Log CBS sync record for external reconciliation. The ledger
@@ -510,8 +517,7 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	// Step 6: Mark the transfer order as completed. An order whose payout
 	// the rail rejected never completes; it is released for a reversal.
 	if order.PayoutFailed() {
-		b.releaseExecution(ctx, logger, orderID, "payout failed at the payment rail")
-		return ErrPayoutFailed
+		return b.failSideEffect(ctx, logger, order, "payout failed at the payment rail", ErrPayoutFailed)
 	}
 	done, doneErr := b.toRepo.ClaimState(
 		ctx,
@@ -739,6 +745,12 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 	}).Build()
 
 	resp, err := b.clients.LedgerClient.CreateTransaction(ctx, req)
+	if connect.CodeOf(err) == connect.CodeNotFound {
+		// A platform account is posted to for the first time: create the
+		// chart accounts the ledger lacks and post once more.
+		b.ensureChartAccounts(ctx, order, debitRef, creditRef)
+		resp, err = b.clients.LedgerClient.CreateTransaction(ctx, req)
+	}
 	if err != nil {
 		return "", fmt.Errorf("ledger CreateTransaction failed: %w", err)
 	}
@@ -805,7 +817,20 @@ func (b *transferOrderBusiness) sendPayment(
 		return errPaymentClientUnavailable
 	}
 
-	order.SetPayoutTarget(recipientID, route)
+	// A payout already marked failed is never sent; it is reversed.
+	if order.PayoutFailed() {
+		return ErrPayoutFailed
+	}
+
+	profileID, destination, recipientErr := b.payoutRecipient(ctx, order, recipientID)
+	unsendable := errors.Is(recipientErr, ErrPayoutRecipientUnresolved) ||
+		errors.Is(recipientErr, ErrPayoutDestinationNotRecipient)
+	if recipientErr != nil && !unsendable {
+		return recipientErr
+	}
+	if recipientErr == nil {
+		order.SetPayoutTarget(profileID, route, destination)
+	}
 
 	// Claim the payout exactly once. The payment service does not dedupe on
 	// our reference, so a resumed execution that finds the claim taken must
@@ -816,7 +841,23 @@ func (b *transferOrderBusiness) sendPayment(
 		return fmt.Errorf("claim payment initiation: %w", err)
 	}
 	if !claimed {
+		if unsendable {
+			// An earlier attempt may already have paid out; a recipient that
+			// no longer checks out is no proof it did not. Never reverse on
+			// that basis: wait for the payment service's word.
+			return fmt.Errorf("%w: %s", ErrPayoutPendingConfirmation, recipientErr.Error())
+		}
 		return b.confirmEarlierPayout(ctx, order)
+	}
+	if unsendable {
+		// This attempt holds the first claim, so nothing was ever sent, and
+		// the claim now bars any later send. Only a durable failure mark
+		// licenses the reversal.
+		if markErr := b.toRepo.MarkPayoutFailed(ctx, order.GetID(), "", recipientErr.Error()); markErr != nil {
+			return fmt.Errorf("%w: record unsendable payout: %s", ErrPayoutPendingConfirmation, markErr.Error())
+		}
+		order.PayoutStatus = models.PayoutStatusFailed
+		return fmt.Errorf("%w: %s", ErrPayoutFailed, recipientErr.Error())
 	}
 
 	return b.sendPayoutNow(ctx, order)
@@ -833,6 +874,7 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 			Route:       route,
 			Recipient: (&commonv1.ContactLink_builder{
 				ProfileId: recipientID,
+				ContactId: order.PayoutDestination(),
 			}).Build(),
 			Amount:   minorToMoney(order.Currency, order.Amount),
 			Outbound: true,
@@ -844,7 +886,9 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 		// The claim stays: we cannot tell whether the rail accepted the
 		// request before the error. Reconciliation against the payment
 		// service by reference settles it; a blind resend could pay twice.
-		return fmt.Errorf("payment send failed: %w", err)
+		// The rail's own code is not passed on: whatever it said, money
+		// may be in flight, so the caller only ever sees a retryable error.
+		return fmt.Errorf("%w: payment send failed: %s", ErrPayoutPendingConfirmation, err.Error())
 	}
 	status := resp.GetData()
 	if status == nil {
@@ -1267,10 +1311,10 @@ func (b *transferOrderBusiness) handleLoanDisbursement(ctx context.Context, orde
 		WithField("order_id", order.GetID())
 
 	memberID := extraDataString(order, "member_id")
-	loanID := extraDataString(order, "loan_id")
+	loanID := extraDataString(order, fieldLoanID)
 
 	logger.WithField("member_id", memberID).
-		WithField("loan_id", loanID).
+		WithField(fieldLoanID, loanID).
 		Info("loan disbursement: creating payment initiation for member payout")
 
 	if err := b.sendPayment(ctx, order, memberID, "loan_disbursement"); err != nil {
@@ -1294,17 +1338,24 @@ func (b *transferOrderBusiness) recordRepaymentWithLender(
 	if b.clients == nil || b.clients.LenderLoanMgmt == nil {
 		return errors.New("record loan repayment with lender: loans client not configured")
 	}
+	// Group allocations come out of the member's savings; a matched
+	// borrower payment says how it arrived.
+	channel := extraDataString(order, extraRepaymentChannel)
+	if channel == "" {
+		channel = "savings"
+	}
 	_, err := b.clients.LenderLoanMgmt.RepaymentRecord(ctx, &loansv1.RepaymentRecordRequest{
 		LoanAccountId:    loanID,
 		Amount:           minorToMoney(order.Currency, order.Amount),
 		PaymentReference: order.Reference,
-		Channel:          "savings",
+		Channel:          channel,
+		PayerReference:   extraDataString(order, fieldPayerReference),
 		IdempotencyKey:   order.Reference,
 	})
 	if err != nil {
 		return fmt.Errorf("record loan repayment with lender for loan %s: %w", loanID, err)
 	}
-	logger.WithField("loan_id", loanID).Info("loan repayment recorded with the lender")
+	logger.WithField(fieldLoanID, loanID).Info("loan repayment recorded with the lender")
 	return nil
 }
 
@@ -1318,16 +1369,16 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 	logger := util.Log(ctx).WithField("handler", "handleLoanRepayment").
 		WithField("order_id", order.GetID())
 
-	loanID := extraDataString(order, "loan_id")
-	clientID := extraDataString(order, "client_id")
+	loanID := extraDataString(order, fieldLoanID)
+	clientID := extraDataString(order, fieldClientID)
 
 	// Extract repayment breakdown from ExtraData
 	interestPortion := extraDataInt64(order.ExtraData, "interest_applied")
 	feesPortion := extraDataInt64(order.ExtraData, "fees_applied")
 	principalPortion := order.Amount - interestPortion - feesPortion
 
-	logger.WithField("loan_id", loanID).
-		WithField("client_id", clientID).
+	logger.WithField(fieldLoanID, loanID).
+		WithField(fieldClientID, clientID).
 		WithField("amount", order.Amount).
 		WithField("principal", principalPortion).
 		WithField("interest", interestPortion).
@@ -1393,9 +1444,9 @@ func (b *transferOrderBusiness) handleLoanInterestRepayment(
 	logger := util.Log(ctx).WithField("handler", "handleLoanInterestRepayment").
 		WithField("order_id", order.GetID())
 
-	loanID := extraDataString(order, "loan_id")
+	loanID := extraDataString(order, fieldLoanID)
 
-	logger.WithField("loan_id", loanID).
+	logger.WithField(fieldLoanID, loanID).
 		Info("recording loan interest repayment in lender system")
 
 	b.redistributeRepayment(ctx, order, order.Amount, "interest", constants.TransferTypeLoanInterestIncomeDistribution)
@@ -1801,10 +1852,10 @@ func (b *transferOrderBusiness) handleShutdownLoanRecovery(
 		WithField("order_id", order.GetID())
 
 	memberID := extraDataString(order, "member_id")
-	loanID := extraDataString(order, "loan_id")
+	loanID := extraDataString(order, fieldLoanID)
 
 	logger.WithField("member_id", memberID).
-		WithField("loan_id", loanID).
+		WithField(fieldLoanID, loanID).
 		Info("shutdown loan recovery processed")
 }
 

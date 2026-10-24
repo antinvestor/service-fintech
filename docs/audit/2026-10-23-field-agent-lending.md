@@ -126,3 +126,137 @@ The limits service already evaluates every matching policy and requires all of t
 - **Defaults.** Gates default to enabled in enforce mode, and a service refuses to start when a gate is on without a limits client.
 
 Not gated, by design: allocation of an incoming payment already received, because rejecting money that has arrived would strand it. The `STAWI_CONTRIBUTION` and `STAWI_PAYOUT` actions are unused. Stawi contributions arrive as payment allocations, and its outgoing movements execute as transfer orders, which are now gated.
+
+## 12. Addendum 2026-10-24 — field-agent scope in loans
+
+Finding: the loans service treated every non-staff caller as a borrower. A
+field agent (platform role `member`) could not read or act on the loans of
+the clients they serve, and the member role lacked `loan_request_submit`,
+`repayment_manage` and `collection_manage`. Worse, loan account, loan
+request, penalty and restructure searches and the active-schedule read
+applied no caller scope at all, so any `member` could list every loan in the
+partition, and `InitiateCollection` had no ownership check, so a caller could
+send payment prompts to any phone number against any loan.
+
+Fix:
+
+- Field service `ClientAccessScope` (gated on `client_view`, which every peer
+  service account already holds): returns the profile's own client, its
+  workforce member and the clients its teams own or it has a relationship
+  with. Only internal callers may name another profile.
+- `ClientSearchRequest.profile_id` is now an exact filter in identity.
+- Loans `ReadScope` resolves the caller through `ClientAccessScope` (cached
+  30 s per tenancy and profile). Borrowers act on their own client, agents on
+  their served clients, staff partition-wide. Every search is AND-ed with the
+  caller's client set; penalty and restructure searches without a loan, and
+  repayment searches without a loan or the caller's own `collected_by`, are
+  staff-only. The schedule read is scoped through the loan.
+- `RepaymentRecord` and `InitiateCollection` require staff, the payment rail
+  or the serving agent (`AuthorizeAgent`); a borrower cannot mark their own
+  loan paid or raise prompts.
+- `LoanRequestSave` is gated on `loan_request_submit`. A non-staff caller's
+  `agent_id` is stamped from their workforce member (empty for a borrower).
+- Proto: `RepaymentObject.collected_by`, `RepaymentSearchRequest.collected_by`
+  / `received_after` / `received_before` (agent collections-today report),
+  `LoanRequestObject.submitted_by` / `decided_by`,
+  `InitiateCollectionRequest.collection_amount` wired with a currency check.
+- OPL: member gains `loan_request_submit`, `repayment_manage`,
+  `collection_manage` on `service_loans`.
+
+Deliberately not done: the deprecated Agent RPCs stay in the proto (they fail
+closed with `Gone`) because removing them breaks published Dart SDK clients;
+`WorkforceMemberSelf` is unnecessary because `ClientAccessScope` returns the
+caller's member id for `WorkforceMemberGet`.
+
+## 13. Addendum 2026-10-24 — money leaving the platform
+
+Findings:
+
+- Savings withdrawals posted the ledger leg with a transfer type whose
+  operations handler only logs. The member's balance dropped and nothing
+  was paid.
+- Loan disbursements named the client id as the payout recipient, and
+  operations sent it to the rail as a profile id. The destination phone
+  never reached the rail.
+- A payout the rail rejected left its ledger leg posted. The loan or
+  savings account looked paid out with no money sent and no reversal.
+- A written-off loan's principal was expensed but never absorbed by the
+  funding tranches, so investor balances never carried the loss.
+
+Fixes:
+
+- Operations resolves every payout recipient before the ledger leg posts:
+  `recipient_profile_id`, else the profile of `recipient_client_id`
+  (through the field service), else the legacy id. `payment_account_ref`
+  must be one of that profile's live contacts (shared rule in
+  `pkg/payout`) and is sent to the rail as the contact detail.
+- A rail rejection automatically posts a mirrored
+  `DISBURSEMENT_REVERSAL` order (`payout-reversal:<reference>`) and closes
+  the original order.
+- Savings withdrawals are `DISBURSEMENT` orders addressed to the owner's
+  client with the withdrawal's recipient reference as destination. A
+  permanent rejection rejects the withdrawal and releases the hold. Group
+  accounts are refused for rail payouts.
+- Loans disbursements send `recipient_client_id`.
+- Write-off calls funding `AbsorbLoss` for the outstanding principal after
+  the bad-debt posting. Funding absorbs once per loan.
+
+## 14. Addendum 2026-10-24 — individual borrower mobile money
+
+Incoming payments were only matched to group memberships, so an individual
+borrower's mobile-money repayment always ended up unidentified. Payments
+with no group are now matched first to a loan: by the loan account id quoted
+as the payment reference, else by the payer's phone through profile and
+client to the client's single repayable loan (two or more loans without a
+reference are not guessed). Allocation writes one `LOAN_REPAYMENT` order,
+external cash of the loan's product to the borrower's loans account, keyed
+`payment:<id>:loan:<loan>`; its side effect records the repayment with loans
+on the `mobile_money` channel. Operations needs `loan_view` on
+`service_loans` (service-authentication migration).
+
+## 15. Addendum 2026-10-24 — contacts by id only
+
+Rule: fintech identifies people by profile id. Where a specific phone or
+email is needed it names the profile contact by its contact id. A raw phone
+or email is only ever passed to the profile service, to find or create a
+profile, and is never stored, validated, compared or logged in fintech.
+
+- Payout destinations (`LoanAccount.payment_account_ref`, seed/stawi offers,
+  savings `recipient_reference`, operations `payment_account_ref`) are
+  contact ids. They must be an active, verified mobile contact of the
+  recipient's own profile (`pkg/payout.PayableContact`). The rail receives
+  `ContactLink{profile_id, contact_id}`.
+- Collections take `contact_id`; `phone_number` is deprecated and refused.
+- Identity no longer stores the client's phone, validates it, or runs
+  phone-change cases; contacts are changed on the profile. Migration 005
+  drops stored phones from clients with a profile. Organization contacts are
+  deduplicated by the profile service and dropped from the row once synced.
+- Incoming payments match the payer as a profile id first; only otherwise is
+  the payer reference handed to the profile service to resolve.
+
+Follow-up for clients: loans written before this carry a phone in
+`payment_account_ref` and will be refused at disbursement until it is reset
+to the contact id. The loans UI collection dialog must pick a contact from
+the borrower's profile instead of typing a number.
+
+## 16. Addendum 2026-10-24 — loans→seed hook and stawi offer answers
+
+- Seed serves `LoanPaidOffNotify` over Connect; loans calls it from the call
+  that won the PAID_OFF claim when `SEED_SERVICE_URI` is set. Seed completes
+  each loan request once (conditional claim) and credits the profile.
+- Stawi exposes `POST /api/v1/groups/{group_id}/loan-offers/{offer_id}/respond`
+  (`stawi_loan_offer_respond`, held by members). A member answers only their
+  own offer in its own group; owner, admin, operator and services answer any.
+- `make opl-generate` builds the seed and stawi workspaces too; their OPL
+  had silently stopped regenerating when they became separate workspaces.
+
+## 17. Addendum 2026-10-24 — chart of accounts
+
+The ledger refuses postings to accounts it does not hold, and nothing in
+fintech created the named accounts (`member:<id>:loans`,
+`agent:<id>:cash_in_hand`, `product:<id>:external_cash`, ...). Every such
+name is now on a chart (`pkg/constants/chart.go`) that maps it to a ledger
+of the right category. When the ledger reports an account missing,
+operations creates the order's chart accounts (and their ledgers) and posts
+once more. Names not on the chart land in `fintech_unclassified` with a
+warning; a test keeps every account constructor on the chart.

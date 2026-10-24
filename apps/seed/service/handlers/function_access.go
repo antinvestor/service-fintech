@@ -78,8 +78,16 @@ func BuildRoutePermissions(sd protoreflect.ServiceDescriptor) (RoutePermissions,
 			return nil, fmt.Errorf("manifest method %s duplicates route %q", md.FullName(), key)
 		}
 		routes[key] = perms
+		// The same method served over Connect (peer services) carries the
+		// same permissions.
+		routes[RouteKey(http.MethodPost, ConnectProcedure(sd, md))] = perms
 	}
 	return routes, nil
+}
+
+// ConnectProcedure is the Connect path of a manifest method.
+func ConnectProcedure(sd protoreflect.ServiceDescriptor, md protoreflect.MethodDescriptor) string {
+	return "/" + string(sd.FullName()) + "/" + string(md.Name())
 }
 
 func httpBinding(md protoreflect.MethodDescriptor) (string, string, error) {

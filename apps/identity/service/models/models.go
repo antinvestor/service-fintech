@@ -353,12 +353,10 @@ func (m *Client) ToAPI() *fieldv1.ClientObject {
 	for k, v := range m.Properties {
 		props[k] = v
 	}
-	if phone, ok := props["phone"].(string); ok && phone != "" {
-		if _, hasCanonical := props["phone_number"]; !hasCanonical {
-			props["phone_number"] = phone
-		}
-		delete(props, "phone")
-	}
+	// Contacts belong to the profile, never to the client row.
+	delete(props, "phone")
+	delete(props, "phone_number")
+	delete(props, "pending_phone_number")
 	// Ensure credit limits are visible in properties for downstream consumers
 	props["system_credit_limit"] = float64(m.SystemCreditLimit)
 	props["agent_credit_limit"] = float64(m.AgentCreditLimit)
@@ -390,12 +388,6 @@ func ClientFromAPI(ctx context.Context, obj *fieldv1.ClientObject) *Client {
 
 	if obj.GetProperties() != nil {
 		model.Properties = (&data.JSONMap{}).FromProtoStruct(obj.GetProperties())
-	}
-	if phone, ok := model.Properties["phone"].(string); ok && phone != "" {
-		if _, hasCanonical := model.Properties["phone_number"]; !hasCanonical {
-			model.Properties["phone_number"] = phone
-		}
-		delete(model.Properties, "phone")
 	}
 
 	model.GenID(ctx)
@@ -1214,3 +1206,19 @@ func ClientDataEntryHistoryFromAPI(
 
 	return model
 }
+
+// ClientConsentChallenge is a consent code sent to a person a field agent
+// wants to register: it binds the code to that person's profile and
+// contact, the agent who asked, an expiry and an attempt budget. Its id is
+// the opaque verification id the profile service holds.
+type ClientConsentChallenge struct {
+	data.BaseModel
+	ProfileID string    `gorm:"type:varchar(50);not null"`
+	ContactID string    `gorm:"type:varchar(50);not null"`
+	MemberID  string    `gorm:"type:varchar(50);not null"`
+	ExpiresAt time.Time `gorm:"not null"`
+	Attempts  int       `gorm:"not null;default:0"`
+	UsedAt    *time.Time
+}
+
+func (ClientConsentChallenge) TableName() string { return "client_consent_challenges" }

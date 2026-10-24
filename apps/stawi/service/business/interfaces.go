@@ -76,7 +76,7 @@ type LoanOfferBusiness interface {
 	CheckEligibility(ctx context.Context, groupID, membershipID string) (map[string]interface{}, error)
 	EnsureSchedule(ctx context.Context, loanAccountID string) (map[string]interface{}, error)
 	Disburse(ctx context.Context, loanAccountID string) (map[string]interface{}, error)
-	Respond(ctx context.Context, offerID string, response int32) error
+	Respond(ctx context.Context, groupID, offerID string, response int32) error
 	CreateLoanAccount(ctx context.Context, offerID string) (map[string]interface{}, error)
 	ExpireStale(ctx context.Context, membershipID string) (int, error)
 }

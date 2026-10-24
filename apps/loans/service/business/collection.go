@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"strings"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"github.com/pitabwire/util"
@@ -39,6 +40,8 @@ type collectionBusiness struct {
 	loanAccountRepo repository.LoanAccountRepository
 	loanBalanceRepo repository.LoanBalanceRepository
 	notifier        *LoanNotifier
+	scope           *ReadScope
+	contacts        PayoutDestinationChecker
 }
 
 func NewCollectionBusiness(
@@ -46,8 +49,12 @@ func NewCollectionBusiness(
 	loanAccountRepo repository.LoanAccountRepository,
 	loanBalanceRepo repository.LoanBalanceRepository,
 	notifier *LoanNotifier,
+	opts ...Option,
 ) CollectionBusiness {
+	o := applyOptions(opts)
 	return &collectionBusiness{
+		scope:           o.scope,
+		contacts:        o.payoutChecker,
 		loanAccountRepo: loanAccountRepo,
 		loanBalanceRepo: loanBalanceRepo,
 		notifier:        notifier,
@@ -63,19 +70,39 @@ func (b *collectionBusiness) Initiate(
 	if req.GetIdempotencyKey() == "" {
 		return nil, ErrIdempotencyKeyRequired
 	}
-	if req.GetPhoneNumber() == "" {
-		return nil, ErrCollectionContactRequired
+	if req.GetPhoneNumber() != "" { //nolint:staticcheck // refusing the deprecated field
+		// Fintech never takes a raw number: the borrower's contact is named
+		// by its id on their profile.
+		return nil, ErrCollectionRawContactRefused
 	}
 
 	la, err := b.loanAccountRepo.GetByID(ctx, req.GetLoanAccountId())
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
 	}
+	// Prompting a borrower to pay is a lender-side action: staff, or the
+	// field agent serving the client. The phone number is caller-supplied,
+	// so letting anyone else raise prompts would let them message strangers.
+	if scopeErr := b.scope.AuthorizeAgent(ctx, la.ClientID); scopeErr != nil {
+		return nil, scopeErr
+	}
 	if !isRepayableStatus(la.Status) {
 		return nil, ErrLoanNotRepayable
 	}
+	contactID := strings.TrimSpace(req.GetContactId())
+	if contactID != "" {
+		if b.contacts == nil {
+			return nil, ErrPayoutDestinationUnverifiable
+		}
+		if err = b.contacts.ContactOfClient(ctx, la.ClientID, contactID); err != nil {
+			return nil, err
+		}
+	}
 
-	amount := models.StringToMinorUnits(req.GetAmount())
+	amount, err := collectionAmount(req, la.CurrencyCode)
+	if err != nil {
+		return nil, err
+	}
 	if amount <= 0 {
 		// An unspecified amount means "whatever is still owed", which is the
 		// natural ask when a collections officer prompts a delinquent loan.
@@ -93,7 +120,7 @@ func (b *collectionBusiness) Initiate(
 	// the request identifies the same prompt instead of raising a second one.
 	promptID := "collection:" + la.GetID() + ":" + req.GetIdempotencyKey()
 
-	b.notifier.NotifyCollectionRequested(ctx, la, amount, req.GetPhoneNumber(), promptID)
+	b.notifier.NotifyCollectionRequested(ctx, la, amount, contactID, promptID)
 
 	logger.WithField("loan_id", la.GetID()).Info("collection prompt raised")
 
@@ -101,4 +128,18 @@ func (b *collectionBusiness) Initiate(
 		PaymentPromptId: promptID,
 		Status:          collectionPromptStatus,
 	}, nil
+}
+
+// collectionAmount reads the amount to collect: collection_amount when set
+// (it must be in the loan's currency), otherwise the deprecated bare decimal.
+// Zero means "whatever is still owed".
+func collectionAmount(req *loansv1.InitiateCollectionRequest, loanCurrency string) (int64, error) {
+	if m := req.GetCollectionAmount(); m != nil {
+		amount, currency := models.MoneyToMinorUnits(m)
+		if currency != "" && !strings.EqualFold(currency, loanCurrency) {
+			return 0, ErrRepaymentCurrencyMismatch
+		}
+		return amount, nil
+	}
+	return models.StringToMinorUnits(req.GetAmount()), nil //nolint:staticcheck // legacy callers still send amount
 }

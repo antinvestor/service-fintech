@@ -189,6 +189,8 @@ func validateTransferOrderInput(obj *operationsv1.TransferOrderObject) error {
 		return apperrors.NewError(apperrors.BadRequest, "amount must be positive")
 	case obj.GetOrderType() == 0:
 		return apperrors.NewError(apperrors.BadRequest, "order type is required")
+	case business.IsReservedReference(obj.GetReference()):
+		return apperrors.NewError(apperrors.BadRequest, "the reference prefix is reserved for system orders")
 	}
 	return nil
 }
