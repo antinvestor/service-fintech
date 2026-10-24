@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect/v2"
+
 	"go.opentelemetry.io/otel/attribute"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -743,6 +745,12 @@ func (b *transferOrderBusiness) executeBaseLedgerTransfer(
 	}).Build()
 
 	resp, err := b.clients.LedgerClient.CreateTransaction(ctx, req)
+	if connect.CodeOf(err) == connect.CodeNotFound {
+		// A platform account is posted to for the first time: create the
+		// chart accounts the ledger lacks and post once more.
+		b.ensureChartAccounts(ctx, order, debitRef, creditRef)
+		resp, err = b.clients.LedgerClient.CreateTransaction(ctx, req)
+	}
 	if err != nil {
 		return "", fmt.Errorf("ledger CreateTransaction failed: %w", err)
 	}

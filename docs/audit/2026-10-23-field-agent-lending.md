@@ -249,3 +249,14 @@ the borrower's profile instead of typing a number.
   own offer in its own group; owner, admin, operator and services answer any.
 - `make opl-generate` builds the seed and stawi workspaces too; their OPL
   had silently stopped regenerating when they became separate workspaces.
+
+## 17. Addendum 2026-10-24 — chart of accounts
+
+The ledger refuses postings to accounts it does not hold, and nothing in
+fintech created the named accounts (`member:<id>:loans`,
+`agent:<id>:cash_in_hand`, `product:<id>:external_cash`, ...). Every such
+name is now on a chart (`pkg/constants/chart.go`) that maps it to a ledger
+of the right category. When the ledger reports an account missing,
+operations creates the order's chart accounts (and their ledgers) and posts
+once more. Names not on the chart land in `fintech_unclassified` with a
+warning; a test keeps every account constructor on the chart.
