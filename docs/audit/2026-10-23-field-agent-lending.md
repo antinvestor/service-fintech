@@ -85,7 +85,22 @@ UI follow-ups: phone-width list layouts and bottom navigation; offline outbox fo
 
 ## 9. Verification log
 
-See the final section of this document, appended after the full gate ran on the finished tree.
+Run on 2026-10-24 on the finished tree (branch `audit/field-agent-lending`, head `6b38bed` plus this document).
+
+| Check | Command | Result |
+|---|---|---|
+| Go build | `go build ./...` | ok |
+| Go tests, race detector, whole module | `go test -count=1 -race -p 2 ./...` | 33 packages ok, exit 0 (longest: limits business 199s, identity business 161s) |
+| Go lint | `golangci-lint run ./...` (v2.15.0, the pre-commit hook's version) | 0 issues |
+| Proto | `buf lint`; `buf breaking --against main` | clean; no breaking changes |
+| OPL | `make opl-check` | generated files match the proto role bindings |
+| Flutter `ui/loans` | `flutter analyze`; `dart format --set-exit-if-changed .`; `flutter test` | no issues; 0 changed; 44 passed |
+| Flutter `ui/identity` | same | no issues; 0 changed; 31 passed |
+| Flutter `ui/seed` | same | no issues; 0 changed; 53 passed |
+
+Late finding closed during the gate: the payment-allocation path forwarded a loan obligation's `cause_id` (the schedule entry) to the loans service as the loan account, and completed the order even when the lender call failed. The loan account id is now recorded on each loan obligation when it is raised and read from there, and a failed lender call releases the order for a retry with the ledger leg retained (commit `e128447`, covered by `loan_repayment_feedback_test.go`). Loan obligations raised before this change carry no loan account id and are not fed back; they need the reconciliation described in §4.
+
+Not verified here: a deployed end-to-end run against the real notification and payment services (their contracts were verified by reading their source, not by calling them), and the migrations against production data volumes.
 
 ## 10. Verdict
 
