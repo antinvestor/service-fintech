@@ -497,17 +497,30 @@ func (b *loanRequestBusiness) HandlePaidOff(
 	if lr.CompletedAt != nil {
 		return nil
 	}
-
-	now := time.Now().UTC()
-	lr.CompletedAt = &now
-	if saveErr := upsert.ByID(ctx, b.lrRepo, lr); saveErr != nil {
-		return fmt.Errorf("mark loan request completed: %w", saveErr)
+	if totalRepaid < 0 {
+		return fmt.Errorf("paid-off total for loan %s is negative", loanAccountID)
 	}
+
+	// Completion is claimed with a conditional write, so concurrent or
+	// repeated deliveries credit the profile once. A failed credit releases
+	// the claim for the next delivery to retry.
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	claimed, err := b.lrRepo.ClaimCompletion(ctx, lr.GetID(), now)
+	if err != nil {
+		return fmt.Errorf("mark loan request completed: %w", err)
+	}
+	if !claimed {
+		return nil
+	}
+	lr.CompletedAt = &now
 
 	if _, err = b.cpBusiness.RecordSuccessfulRepayment(
 		ctx, lr.ClientID, lr.CurrencyCode, totalRepaid,
 		fmt.Sprintf("loan %s paid off", loanAccountID),
 	); err != nil {
+		if relErr := b.lrRepo.ReleaseCompletion(ctx, lr.GetID(), now); relErr != nil {
+			logger.WithError(relErr).Error("could not release the completion claim after a failed credit")
+		}
 		return fmt.Errorf("record successful repayment: %w", err)
 	}
 

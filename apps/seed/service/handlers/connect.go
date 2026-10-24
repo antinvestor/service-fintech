@@ -16,9 +16,11 @@ package handlers
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/security"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/business"
@@ -35,11 +37,14 @@ import (
 type ConnectServer struct {
 	seedv1connect.UnimplementedSeedServiceHandler
 	loanRequest business.LoanRequestBusiness
+	staffRole   string
 }
 
-// NewConnectServer builds the Connect handler.
-func NewConnectServer(loanRequest business.LoanRequestBusiness) *ConnectServer {
-	return &ConnectServer{loanRequest: loanRequest}
+// NewConnectServer builds the Connect handler. staffRole is the role that,
+// besides internal service principals, may call the paid-off hook, exactly
+// as on the HTTP route.
+func NewConnectServer(loanRequest business.LoanRequestBusiness, staffRole string) *ConnectServer {
+	return &ConnectServer{loanRequest: loanRequest, staffRole: staffRole}
 }
 
 // LoanPaidOffNotify marks the seed loan request behind a paid-off loan as
@@ -48,9 +53,23 @@ func (s *ConnectServer) LoanPaidOffNotify(
 	ctx context.Context,
 	req *seedv1.LoanPaidOffRequest,
 ) (*seedv1.JSONResponse, error) {
+	// This hook promotes credit tiers off claimed repayments. Only the loans
+	// service (or an operator tool running as one) may call it, whatever
+	// the transport.
+	claims := security.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "an authenticated caller is required")
+	}
+	if !claims.IsInternalSystem() && (s.staffRole == "" || !slices.Contains(claims.GetRoles(), s.staffRole)) {
+		return nil, connect.NewError(connect.CodePermissionDenied,
+			"the paid-off hook is restricted to internal callers")
+	}
 	loanAccountID := strings.TrimSpace(req.GetLoanAccountId())
 	if loanAccountID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "loan_account_id is required")
+	}
+	if req.GetTotalRepaid() < 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "total_repaid cannot be negative")
 	}
 	if err := s.loanRequest.HandlePaidOff(ctx, loanAccountID, req.GetTotalRepaid()); err != nil {
 		return nil, apperrors.CleanErr(err)

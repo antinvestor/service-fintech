@@ -87,7 +87,7 @@ func newServerMux() *http.ServeMux {
 	handlers.NewServer(lr, &fakeCreditProfile{}, &fakeResolver{clientID: ownClientID}, staffRole).
 		Register(mux)
 	rpc := connect.NewServer()
-	seedv1connect.RegisterSeedServiceHandler(rpc, handlers.NewConnectServer(lr))
+	seedv1connect.RegisterSeedServiceHandler(rpc, handlers.NewConnectServer(lr, staffRole))
 	connecthttp.Mount(mux, rpc)
 	return mux
 }

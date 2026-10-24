@@ -296,7 +296,7 @@ func buildHandler(
 	// Peer services (loans' paid-off hook) call seed over Connect, behind
 	// the same authentication and function-access chain as the HTTP routes.
 	rpc := connect.NewServer()
-	seedv1connect.RegisterSeedServiceHandler(rpc, seedhandlers.NewConnectServer(lrBusiness))
+	seedv1connect.RegisterSeedServiceHandler(rpc, seedhandlers.NewConnectServer(lrBusiness, staffRole))
 	connecthttp.Mount(mux, rpc)
 
 	routes, routesErr := seedhandlers.BuildRoutePermissions(manifestSD)

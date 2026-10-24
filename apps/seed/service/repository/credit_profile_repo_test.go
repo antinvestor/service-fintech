@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3"
@@ -242,4 +243,26 @@ func (s *seedRepoSuite) TestParseTierLadderRejectsMalformedEntries() {
 		_, err := repository.ParseTierLadder(spec, "seed", "KES")
 		s.Require().Error(err, "spec %q should be rejected", spec)
 	}
+}
+
+// A paid-off loan request is completed exactly once; a released claim can be
+// taken again.
+func (s *seedRepoSuite) TestClaimCompletionIsExclusive() {
+	e := s.newEnv()
+	lr := &models.LoanRequest{ClientID: "client-done", CurrencyCode: "KES", Amount: 1, LoanAccountID: "loan-done"}
+	lr.GenID(e.ctx)
+	s.Require().NoError(e.requests.Create(e.ctx, lr))
+
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	first, err := e.requests.ClaimCompletion(e.ctx, lr.GetID(), at)
+	s.Require().NoError(err)
+	s.True(first)
+	second, err := e.requests.ClaimCompletion(e.ctx, lr.GetID(), at.Add(time.Second))
+	s.Require().NoError(err)
+	s.False(second, "a second delivery does not complete it again")
+
+	s.Require().NoError(e.requests.ReleaseCompletion(e.ctx, lr.GetID(), at))
+	again, err := e.requests.ClaimCompletion(e.ctx, lr.GetID(), at)
+	s.Require().NoError(err)
+	s.True(again, "a released claim is retried")
 }

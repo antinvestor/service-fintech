@@ -430,24 +430,30 @@ func (b *repaymentBusiness) applyRepaymentToBalance(
 				b.recordPaidOffStatusChange(ctx, logger, la, fromStatus)
 				la.Status = int32(loansv1.LoanStatus_LOAN_STATUS_PAID_OFF)
 				logger.WithField("loan_id", la.GetID()).Info("loan fully paid off")
+				// Only the call that won the PAID_OFF claim tells
+				// downstream products (seed's credit profile). Hook errors
+				// are logged: the money has moved and the loan is settled.
+				b.firePaidOffHook(ctx, logger, la, fresh.TotalPaid)
 			}
 		}
 
 		b.notifier.NotifyLoanFullyPaid(ctx, la)
-
-		// Fire the paid-off hook so downstream products (seed credit
-		// profile, for instance) can react to a fully settled loan.
-		// Hook errors are logged but do not fail the repayment: the
-		// money has moved and the loan is settled regardless.
-		if b.paidOffHook != nil {
-			if hookErr := b.paidOffHook.HandlePaidOff(ctx, la.GetID(), fresh.TotalPaid); hookErr != nil {
-				logger.WithError(hookErr).
-					WithField("loan_id", la.GetID()).
-					Warn("paid-off hook failed")
-			}
-		}
 	}
 	return nil
+}
+
+func (b *repaymentBusiness) firePaidOffHook(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+	totalPaid int64,
+) {
+	if b.paidOffHook == nil {
+		return
+	}
+	if hookErr := b.paidOffHook.HandlePaidOff(ctx, la.GetID(), totalPaid); hookErr != nil {
+		logger.WithError(hookErr).WithField("loan_id", la.GetID()).Warn("paid-off hook failed")
+	}
 }
 
 // recordPaidOffStatusChange writes the audit row for an automatic pay-off, so
