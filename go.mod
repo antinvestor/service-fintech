@@ -32,12 +32,11 @@ require (
 	buf.build/gen/go/antinvestor/savings/protocolbuffers/go v1.36.12-20261013145659-3e8c2b1e8728.2
 	buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2 v2.0.2-20260831112830-2b2240b00a45.1
 	buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go v1.36.12-20260831112830-2b2240b00a45.2
-	connectrpc.com/connect v1.21.1
 	connectrpc.com/connect/v2 v2.0.2
 	github.com/antinvestor/common/audit v0.1.0
 	github.com/antinvestor/common/notification v0.2.0
 	github.com/antinvestor/common/v3 v3.0.1
-	github.com/antinvestor/service-trustage v0.5.1
+	github.com/antinvestor/service-trustage v0.6.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/pitabwire/frame/v3 v3.0.0
@@ -71,6 +70,7 @@ require (
 	cloud.google.com/go/iam v1.14.0 // indirect
 	cloud.google.com/go/pubsub v1.51.1 // indirect
 	cloud.google.com/go/pubsub/v2 v2.7.0 // indirect
+	connectrpc.com/connect v1.21.1 // indirect
 	connectrpc.com/otelconnect v0.12.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
