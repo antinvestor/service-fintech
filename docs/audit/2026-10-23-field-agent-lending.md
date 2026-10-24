@@ -200,3 +200,16 @@ Fixes:
 - Loans disbursements send `recipient_client_id`.
 - Write-off calls funding `AbsorbLoss` for the outstanding principal after
   the bad-debt posting. Funding absorbs once per loan.
+
+## 14. Addendum 2026-10-24 — individual borrower mobile money
+
+Incoming payments were only matched to group memberships, so an individual
+borrower's mobile-money repayment always ended up unidentified. Payments
+with no group are now matched first to a loan: by the loan account id quoted
+as the payment reference, else by the payer's phone through profile and
+client to the client's single repayable loan (two or more loans without a
+reference are not guessed). Allocation writes one `LOAN_REPAYMENT` order,
+external cash of the loan's product to the borrower's loans account, keyed
+`payment:<id>:loan:<loan>`; its side effect records the repayment with loans
+on the `mobile_money` channel. Operations needs `loan_view` on
+`service_loans` (service-authentication migration).

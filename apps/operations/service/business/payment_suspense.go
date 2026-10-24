@@ -183,12 +183,12 @@ func (b *paymentRoutingBusiness) RecordSuspenseDeposit(
 	}
 
 	payment, err := b.loadOrCreateIncomingPayment(ctx, map[string]interface{}{
-		fieldTransactionID: strings.TrimSpace(deposit.TransactionID),
-		fieldAmount:        deposit.Amount,
-		fieldCurrency:      strings.TrimSpace(deposit.Currency),
-		fieldGroupID:       strings.TrimSpace(deposit.GroupID),
-		"payer_reference":  strings.TrimSpace(deposit.SenderIdentifier),
-		fieldReference:     strings.TrimSpace(deposit.Reference),
+		fieldTransactionID:  strings.TrimSpace(deposit.TransactionID),
+		fieldAmount:         deposit.Amount,
+		fieldCurrency:       strings.TrimSpace(deposit.Currency),
+		fieldGroupID:        strings.TrimSpace(deposit.GroupID),
+		fieldPayerReference: strings.TrimSpace(deposit.SenderIdentifier),
+		fieldReference:      strings.TrimSpace(deposit.Reference),
 	})
 	if err != nil {
 		return nil, err

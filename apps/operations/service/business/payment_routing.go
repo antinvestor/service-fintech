@@ -100,6 +100,11 @@ type identificationResult struct {
 	MembershipID string
 	GroupID      string
 	ProfileID    string
+	// ClientID, LoanID and ProductID are set when an individual borrower's
+	// payment was matched straight to their loan.
+	ClientID  string
+	LoanID    string
+	ProductID string
 }
 
 // identificationStrategy defines one step in the payment identification pipeline.
@@ -134,8 +139,8 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 
 	paymentRef := extractPaymentReference(paymentData, payment)
 	payerRef := firstNonEmptyString(
-		extractString(paymentData, "payer_reference"),
-		payment.Properties.GetString("payer_reference"),
+		extractString(paymentData, fieldPayerReference),
+		payment.Properties.GetString(fieldPayerReference),
 	)
 	payerName := firstNonEmptyString(
 		extractString(paymentData, "payer_name"),
@@ -150,6 +155,18 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 	paymentRef = strings.TrimSpace(paymentRef)
 	payerRef = strings.TrimSpace(payerRef)
 	payerName = strings.TrimSpace(payerName)
+
+	// An individual borrower's payment (no group) is matched to their loan
+	// first; group payments keep the membership strategies.
+	if groupID == "" && b.borrowerLoanMatching() {
+		if result, matchErr := b.identifyBorrowerLoan(ctx, paymentRef, payerRef); matchErr == nil {
+			if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
+				return nil, saveErr
+			}
+			recordPaymentIdentified(ctx, payment)
+			return b.buildIdentificationResult(payment, result), nil
+		}
+	}
 
 	if result := b.runIdentificationStrategies(ctx, logger, paymentRef, payerRef, payerName, groupID); result != nil {
 		if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
@@ -618,6 +635,8 @@ func (b *paymentRoutingBusiness) buildIdentificationResult(
 		fieldMembershipID: r.MembershipID,
 		fieldGroupID:      r.GroupID,
 		fieldProfileID:    r.ProfileID,
+		fieldClientID:     r.ClientID,
+		fieldLoanID:       r.LoanID,
 	}
 }
 
@@ -655,11 +674,21 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 		payment.PayableID = result.GroupID
 		payment.PayableType = "group"
 	}
-	payment.Properties = mergeJSONMaps(payment.Properties, data.JSONMap{
+	extra := data.JSONMap{
 		"identification_strategy": result.Strategy,
 		fieldGroupID:              result.GroupID,
 		fieldProfileID:            result.ProfileID,
-	})
+	}
+	if result.LoanID != "" {
+		payment.OwnerID = result.ClientID
+		payment.OwnerType = ownerTypeClientLoan
+		payment.PayableID = result.LoanID
+		payment.PayableType = "loan"
+		extra[fieldClientID] = result.ClientID
+		extra[fieldLoanID] = result.LoanID
+		extra[fieldProductID] = result.ProductID
+	}
+	payment.Properties = mergeJSONMaps(payment.Properties, extra)
 
 	if emitErr := b.eventsMan.Emit(ctx, events.IncomingPaymentSaveEvent, payment); emitErr != nil {
 		return fmt.Errorf("persist payment identification: %w", emitErr)
@@ -723,6 +752,10 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	if payment.Amount <= 0 {
 		b.releaseAllocationLease(ctx, logger, paymentID, lease)
 		return nil, fmt.Errorf("payment %s has non-positive amount %d", paymentID, payment.Amount)
+	}
+
+	if isBorrowerLoanPayment(payment) {
+		return b.allocateToBorrowerLoan(ctx, logger, payment, lease)
 	}
 
 	membershipID := payment.OwnerID
@@ -975,7 +1008,7 @@ func (b *paymentRoutingBusiness) allocateObligation(
 	// A loan obligation's cause id is the schedule entry, not the loan; the
 	// loan account id was recorded on the obligation when it was raised.
 	if loanID := obligationLoanAccountID(obl); loanID != "" {
-		extra["loan_id"] = loanID
+		extra[fieldLoanID] = loanID
 	}
 	to := &models.TransferOrder{
 		DebitAccountRef:  constants.MemberSuspenseAccount(membershipID),
@@ -1142,14 +1175,14 @@ func extractPaymentReference(paymentData map[string]interface{}, payment *models
 	}
 
 	return firstNonEmptyString(
-		strings.TrimSpace(extractString(paymentData, "payer_reference")),
-		strings.TrimSpace(payment.Properties.GetString("payer_reference")),
+		strings.TrimSpace(extractString(paymentData, fieldPayerReference)),
+		strings.TrimSpace(payment.Properties.GetString(fieldPayerReference)),
 	)
 }
 
 func incomingPaymentProperties(paymentData map[string]interface{}) data.JSONMap {
 	properties := jsonMapFromValue(paymentData["properties"])
-	for _, key := range []string{"payer_reference", fieldPayerName, fieldProductID, fieldGroupID, fieldReference} {
+	for _, key := range []string{fieldPayerReference, fieldPayerName, fieldProductID, fieldGroupID, fieldReference} {
 		if value := strings.TrimSpace(extractString(paymentData, key)); value != "" {
 			properties[key] = value
 		}

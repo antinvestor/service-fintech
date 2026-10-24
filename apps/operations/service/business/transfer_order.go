@@ -1303,10 +1303,10 @@ func (b *transferOrderBusiness) handleLoanDisbursement(ctx context.Context, orde
 		WithField("order_id", order.GetID())
 
 	memberID := extraDataString(order, "member_id")
-	loanID := extraDataString(order, "loan_id")
+	loanID := extraDataString(order, fieldLoanID)
 
 	logger.WithField("member_id", memberID).
-		WithField("loan_id", loanID).
+		WithField(fieldLoanID, loanID).
 		Info("loan disbursement: creating payment initiation for member payout")
 
 	if err := b.sendPayment(ctx, order, memberID, "loan_disbursement"); err != nil {
@@ -1330,17 +1330,24 @@ func (b *transferOrderBusiness) recordRepaymentWithLender(
 	if b.clients == nil || b.clients.LenderLoanMgmt == nil {
 		return errors.New("record loan repayment with lender: loans client not configured")
 	}
+	// Group allocations come out of the member's savings; a matched
+	// borrower payment says how it arrived.
+	channel := extraDataString(order, extraRepaymentChannel)
+	if channel == "" {
+		channel = "savings"
+	}
 	_, err := b.clients.LenderLoanMgmt.RepaymentRecord(ctx, &loansv1.RepaymentRecordRequest{
 		LoanAccountId:    loanID,
 		Amount:           minorToMoney(order.Currency, order.Amount),
 		PaymentReference: order.Reference,
-		Channel:          "savings",
+		Channel:          channel,
+		PayerReference:   extraDataString(order, fieldPayerReference),
 		IdempotencyKey:   order.Reference,
 	})
 	if err != nil {
 		return fmt.Errorf("record loan repayment with lender for loan %s: %w", loanID, err)
 	}
-	logger.WithField("loan_id", loanID).Info("loan repayment recorded with the lender")
+	logger.WithField(fieldLoanID, loanID).Info("loan repayment recorded with the lender")
 	return nil
 }
 
@@ -1354,16 +1361,16 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 	logger := util.Log(ctx).WithField("handler", "handleLoanRepayment").
 		WithField("order_id", order.GetID())
 
-	loanID := extraDataString(order, "loan_id")
-	clientID := extraDataString(order, "client_id")
+	loanID := extraDataString(order, fieldLoanID)
+	clientID := extraDataString(order, fieldClientID)
 
 	// Extract repayment breakdown from ExtraData
 	interestPortion := extraDataInt64(order.ExtraData, "interest_applied")
 	feesPortion := extraDataInt64(order.ExtraData, "fees_applied")
 	principalPortion := order.Amount - interestPortion - feesPortion
 
-	logger.WithField("loan_id", loanID).
-		WithField("client_id", clientID).
+	logger.WithField(fieldLoanID, loanID).
+		WithField(fieldClientID, clientID).
 		WithField("amount", order.Amount).
 		WithField("principal", principalPortion).
 		WithField("interest", interestPortion).
@@ -1429,9 +1436,9 @@ func (b *transferOrderBusiness) handleLoanInterestRepayment(
 	logger := util.Log(ctx).WithField("handler", "handleLoanInterestRepayment").
 		WithField("order_id", order.GetID())
 
-	loanID := extraDataString(order, "loan_id")
+	loanID := extraDataString(order, fieldLoanID)
 
-	logger.WithField("loan_id", loanID).
+	logger.WithField(fieldLoanID, loanID).
 		Info("recording loan interest repayment in lender system")
 
 	b.redistributeRepayment(ctx, order, order.Amount, "interest", constants.TransferTypeLoanInterestIncomeDistribution)
@@ -1837,10 +1844,10 @@ func (b *transferOrderBusiness) handleShutdownLoanRecovery(
 		WithField("order_id", order.GetID())
 
 	memberID := extraDataString(order, "member_id")
-	loanID := extraDataString(order, "loan_id")
+	loanID := extraDataString(order, fieldLoanID)
 
 	logger.WithField("member_id", memberID).
-		WithField("loan_id", loanID).
+		WithField(fieldLoanID, loanID).
 		Info("shutdown loan recovery processed")
 }
 
