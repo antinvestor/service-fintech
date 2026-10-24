@@ -10,7 +10,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: antinvestor/common/.github/workflows/go-test.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/go-test.yml@2187bd378641cd1521dd700324df48571657b78f # antinvestor/common main
   go-lint:
     permissions:
       contents: read
