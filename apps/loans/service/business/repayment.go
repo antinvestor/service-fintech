@@ -894,11 +894,14 @@ func (b *repaymentBusiness) searchScope(
 	if b.scope.IsStaff(ctx) {
 		return filters, nil
 	}
-	// Without a loan, a non-staff caller may list only what they collected.
+	// Without a loan, a non-staff caller lists only what they collected: an
+	// empty collector means "mine", any other collector is refused.
 	subject := callerSubject(ctx)
-	if subject == "" || strings.TrimSpace(req.GetCollectedBy()) != subject {
+	collector := strings.TrimSpace(req.GetCollectedBy())
+	if subject == "" || (collector != "" && collector != subject) {
 		return nil, ErrLoanNotOwned
 	}
+	filters["collected_by = ?"] = subject
 	return filters, nil
 }
 

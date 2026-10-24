@@ -365,3 +365,26 @@ func TestRepaymentRecord_LenderSideGuards(t *testing.T) {
 	_, err = build(otherLoanRepayment).Record(claimsContext(t, "profile-x", "operator"), req("mpesa"))
 	require.ErrorIs(t, err, ErrIdempotencyKeyConflict, "staff pass the channel rule and still hit the key check")
 }
+
+// Without a loan, a field agent's repayment search is their own collections:
+// an empty collector means "mine", someone else's is refused.
+func TestRepaymentSearchScope_AgentListsOwnCollections(t *testing.T) {
+	b, ok := NewRepaymentBusiness(t.Context(), &noopEventsManager{},
+		&stubLoanAccountRepo{}, &stubRepaymentRepo{},
+		nil, nil, nil, nil, nil, nil, nil, nil, false, "",
+		WithReadScope(agentScope())).(*repaymentBusiness)
+	require.True(t, ok)
+	agent := claimsContext(t, "profile-agent")
+
+	filters, err := b.searchScope(agent, &loansv1.RepaymentSearchRequest{ReceivedAfter: "2026-10-24T00:00:00Z"})
+	require.NoError(t, err)
+	require.Equal(t, "profile-agent", filters["collected_by = ?"])
+	require.Contains(t, filters, "created_at >= ?")
+
+	_, err = b.searchScope(agent, &loansv1.RepaymentSearchRequest{CollectedBy: "profile-other"})
+	require.ErrorIs(t, err, ErrLoanNotOwned)
+
+	staffFilters, err := b.searchScope(claimsContext(t, "profile-x", "operator"), &loansv1.RepaymentSearchRequest{})
+	require.NoError(t, err)
+	require.NotContains(t, staffFilters, "collected_by = ?", "staff search the partition")
+}
