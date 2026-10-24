@@ -104,3 +104,28 @@ func TestValidate(t *testing.T) {
 		require.NoError(t, bootcheck.Validate(t.Context(), cfg))
 	})
 }
+
+// setupConfig is a fakeConfig that frame reports as a setup Job.
+type setupConfig struct{ fakeConfig }
+
+func (setupConfig) IsSetupMode() bool                   { return true }
+func (setupConfig) GetSetupTasks() []string             { return nil }
+func (setupConfig) GetPermissionsRegisterOnStart() bool { return false }
+
+// TestViolations_SetupJobSkipsQueueRules: a setup Job is given an in-memory
+// queue and no push auth on purpose (it never consumes events), so only the
+// rules it can break still apply.
+func TestViolations_SetupJobSkipsQueueRules(t *testing.T) {
+	job := setupConfig{with(func(c *fakeConfig) {
+		c.pushAuth = "none"
+		c.queueURL = "mem://frame.events.migrate"
+	})}
+	require.Empty(t, bootcheck.Violations(job))
+	require.NoError(t, bootcheck.Validate(t.Context(), job))
+
+	job.migration = ""
+	require.Equal(t, []string{"MIGRATION_PATH must be set"}, bootcheck.Violations(job))
+
+	serving := with(func(c *fakeConfig) { c.queueURL = "mem://frame.events.migrate" })
+	require.Error(t, bootcheck.Validate(t.Context(), serving), "the serving process still refuses an in-memory queue")
+}

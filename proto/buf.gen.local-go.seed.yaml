@@ -12,7 +12,7 @@ managed:
   enabled: true
   disable:
     - file_option: go_package
-      module: buf.build/antinvestor/seed
+      path: seed
     - file_option: go_package
       module: buf.build/googleapis/googleapis
   override:
