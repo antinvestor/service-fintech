@@ -35,7 +35,12 @@ const (
 	actionVerified  = "verified"
 	actionRejected  = "rejected"
 	actionMoreInfo  = "more_info"
+	actionReview    = "review_started"
 )
+
+// reviewClaimTTL is how long a reviewer's hold on an entry under review
+// lasts without activity before another reviewer may take it over.
+const reviewClaimTTL = 24 * time.Hour
 
 // ClientDataBusiness defines the operations for managing client KYC data entries.
 type ClientDataBusiness interface {
@@ -45,6 +50,8 @@ type ClientDataBusiness interface {
 	Verify(ctx context.Context, entryID, comment string) (*models.ClientDataEntry, error)
 	Reject(ctx context.Context, entryID, reason string) (*models.ClientDataEntry, error)
 	RequestInfo(ctx context.Context, entryID, comment string) (*models.ClientDataEntry, error)
+	// StartReview takes an entry for review by the caller.
+	StartReview(ctx context.Context, entryID string) (*models.ClientDataEntry, error)
 	History(ctx context.Context, entryID string) ([]*models.ClientDataEntryHistory, error)
 	// Requirements reports what the client's organization requires; with no
 	// client, what a borrower registered into teamID will need.
@@ -205,6 +212,64 @@ func (b *clientDataBusiness) RequestInfo(
 	)
 }
 
+// StartReview moves an entry to UNDER_REVIEW, held by the calling reviewer,
+// so two reviewers never work the same entry. A reviewer who already holds
+// it gets it back unchanged; one whose hold has lapsed loses it.
+func (b *clientDataBusiness) StartReview(ctx context.Context, entryID string) (*models.ClientDataEntry, error) {
+	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.StartReview")
+
+	reviewerID := actorFromClaims(ctx)
+	if reviewerID == "" {
+		return nil, ErrReviewerUnidentified
+	}
+	entry, err := b.entryRepo.GetByID(ctx, entryID)
+	if err != nil {
+		return nil, ErrClientDataEntryNotFound
+	}
+	if _, err = b.guard.authorize(ctx, entry.ClientID); err != nil {
+		return nil, err
+	}
+	if checkErr := reviewable(entry, reviewerID, time.Now().UTC()); checkErr != nil &&
+		!errors.Is(checkErr, ErrClientDataEntryHeldByAnotherReviewer) {
+		return nil, checkErr
+	}
+
+	claimed, err := b.entryRepo.StartReview(ctx, entryID, reviewerID, time.Now().UTC().Add(-reviewClaimTTL))
+	switch {
+	case err == nil:
+	case errors.Is(err, repository.ErrClientDataEntryReviewConflict):
+		return nil, ErrClientDataEntryHeldByAnotherReviewer
+	default:
+		logger.WithError(err).Error("could not start the client data review")
+		return nil, fmt.Errorf("start client data review: %w", err)
+	}
+
+	if historyErr := b.recordHistory(ctx, claimed, actionReview, reviewerID, ""); historyErr != nil {
+		logger.WithError(historyErr).Error("could not record client data review history")
+		return nil, historyErr
+	}
+	return claimed, nil
+}
+
+// reviewable reports why reviewerID may not act on the entry now, or nil.
+func reviewable(entry *models.ClientDataEntry, reviewerID string, now time.Time) error {
+	status := entry.EffectiveStatus(now)
+	if status == identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_EXPIRED {
+		return ErrClientDataEntryExpired
+	}
+	if !isReviewableStatus(int32(status)) {
+		return ErrClientDataEntryNotReviewable
+	}
+	if reviewerID == entry.CreatedBy || reviewerID == entry.ModifiedBy {
+		return ErrReviewerIsSubmitter
+	}
+	if status == identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNDER_REVIEW &&
+		entry.ReviewerID != reviewerID {
+		return ErrClientDataEntryHeldByAnotherReviewer
+	}
+	return nil
+}
+
 // review applies a reviewer decision to an entry. The reviewer is always the
 // caller in the request claims, never a value from the request body, and an
 // entry that already reached a terminal status cannot be reviewed again.
@@ -229,15 +294,12 @@ func (b *clientDataBusiness) review(
 		return nil, err
 	}
 
-	if !isReviewableStatus(entry.VerificationStatus) {
-		return nil, ErrClientDataEntryNotReviewable
-	}
-
-	if reviewerID == entry.CreatedBy || reviewerID == entry.ModifiedBy {
-		return nil, ErrReviewerIsSubmitter
+	if checkErr := reviewable(entry, reviewerID, time.Now().UTC()); checkErr != nil {
+		return nil, checkErr
 	}
 
 	fromStatus := entry.VerificationStatus
+	fromReviewer := entry.ReviewerID
 	entry.VerificationStatus = int32(target)
 	entry.ReviewerID = reviewerID
 	entry.ReviewerComment = comment
@@ -246,10 +308,10 @@ func (b *clientDataBusiness) review(
 		entry.VerifiedAt = &now
 	}
 
-	// The decision is a conditional write on the status that was read, so a
-	// concurrent verify and reject converge on exactly one outcome; the
-	// event below is emitted for projection only, never as the write.
-	err = b.entryRepo.Review(ctx, entry, fromStatus)
+	// The decision is a conditional write on the status (and, under review,
+	// the reviewer) that was read, so a concurrent verify and reject converge
+	// on exactly one outcome.
+	err = b.entryRepo.Review(ctx, entry, fromStatus, fromReviewer)
 	switch {
 	case err == nil:
 	case errors.Is(err, repository.ErrClientDataEntryReviewConflict):
@@ -257,11 +319,6 @@ func (b *clientDataBusiness) review(
 	default:
 		logger.WithError(err).Error("could not persist client data review")
 		return nil, fmt.Errorf("review client data entry: %w", err)
-	}
-
-	if emitErr := b.eventsMan.Emit(ctx, events.ClientDataEntrySaveEvent, entry); emitErr != nil {
-		logger.WithError(emitErr).Error("could not emit client data entry save event")
-		return nil, emitErr
 	}
 
 	if historyErr := b.recordHistory(ctx, entry, action, reviewerID, comment); historyErr != nil {

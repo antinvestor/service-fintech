@@ -12,8 +12,8 @@ require (
 	buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac946cc1ed.1
 	buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261025114649-9da866114f22.1
 	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261025114649-9da866114f22.2
-	buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261025064321-d1427d24dff2.1
-	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261025064321-d1427d24dff2.2
+	buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261025174803-fa22ccd6a975.1
+	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261025174803-fa22ccd6a975.2
 	buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2 v2.0.2-20261011184341-460358e58550.1
 	buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.12-20261011184341-460358e58550.2
 	buf.build/gen/go/antinvestor/limits/connectrpc/go/v2 v2.0.2-20261024205209-e1c773bb733d.1
@@ -37,6 +37,7 @@ require (
 	github.com/antinvestor/common/notification v0.2.0
 	github.com/antinvestor/common/v3 v3.0.1
 	github.com/antinvestor/service-trustage v0.6.0
+	github.com/cockroachdb/apd/v3 v3.2.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/pitabwire/frame/v3 v3.0.0
@@ -83,7 +84,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.2.0 // indirect

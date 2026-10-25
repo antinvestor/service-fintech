@@ -27,9 +27,12 @@ import (
 const (
 	methodFlat            = 1
 	methodReducingBalance = 2
+	methodCompound        = 3
 	periodWeekly          = 1
 	periodBiweekly        = 2
 	periodMonthly         = 3
+	periodDaily           = 4
+	periodQuarterly       = 5
 )
 
 // TestMinorScheduleSumsToPrincipal is the invariant the loan book depends on:
@@ -54,6 +57,8 @@ func TestMinorScheduleSumsToPrincipal(t *testing.T) {
 		{"JPY 100000 biweekly", 100000, 1250, 50, 0, 0, periodBiweekly},
 		{"KWD 1000.000 monthly", 1000000, 3300, 125, 333, 3, periodMonthly},
 		{"KES 1.00 monthly", 100, 1800, 100, 250, 2, periodMonthly},
+		{"KES 5000.00 daily", 500000, 3650, 0, 100, 2, periodDaily},
+		{"KES 250000.00 quarterly", 25000000, 2000, 50, 150, 2, periodQuarterly},
 	}
 
 	methods := []struct {
@@ -62,6 +67,7 @@ func TestMinorScheduleSumsToPrincipal(t *testing.T) {
 	}{
 		{"flat", methodFlat},
 		{"reducing", methodReducingBalance},
+		{"compound", methodCompound},
 	}
 
 	for _, tc := range cases {
@@ -110,6 +116,68 @@ func TestMinorScheduleDueDatesAdvance(t *testing.T) {
 	for i := 1; i < len(entries); i++ {
 		require.True(t, entries[i].DueDate.After(entries[i-1].DueDate))
 	}
+}
+
+// A loan due at the end of the month stays due at the end of the month: it
+// never slides into the next month, and never drifts to the 3rd.
+func TestDueDatesHoldTheEndOfTheMonth(t *testing.T) {
+	t.Parallel()
+
+	day := func(y int, m time.Month, d int) time.Time { return time.Date(y, m, d, 9, 0, 0, 0, time.UTC) }
+	cases := []struct {
+		name   string
+		first  time.Time
+		period int32
+		want   []time.Time
+	}{
+		{"monthly from 31 Jan", day(2026, 1, 31), periodMonthly,
+			[]time.Time{day(2026, 1, 31), day(2026, 2, 28), day(2026, 3, 31), day(2026, 4, 30)}},
+		{"monthly from 31 Jan in a leap year", day(2028, 1, 31), periodMonthly,
+			[]time.Time{day(2028, 1, 31), day(2028, 2, 29), day(2028, 3, 31)}},
+		{"monthly across the year end", day(2026, 11, 30), periodMonthly,
+			[]time.Time{day(2026, 11, 30), day(2026, 12, 30), day(2027, 1, 30), day(2027, 2, 28)}},
+		{"quarterly from 30 Nov", day(2026, 11, 30), periodQuarterly,
+			[]time.Time{day(2026, 11, 30), day(2027, 2, 28), day(2027, 5, 30), day(2027, 8, 30)}},
+		{"daily across a month", day(2026, 2, 27), periodDaily,
+			[]time.Time{day(2026, 2, 27), day(2026, 2, 28), day(2026, 3, 1)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for n, want := range tc.want {
+				require.Equal(t, want, calculation.DueDateAt(tc.first, tc.period, int32(n)), "installment %d", n+1)
+			}
+		})
+	}
+}
+
+// Compound interest grows on the principal once per period and is collected
+// in equal parts. On one period it equals simple interest; on more it is
+// strictly more than flat interest and matches the closed form.
+func TestCompoundInterestSchedule(t *testing.T) {
+	t.Parallel()
+
+	firstDue := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	interestOf := func(method int32, n int32, period int32) int64 {
+		var total int64
+		for _, e := range calculation.GenerateMinorScheduleFromProduct(
+			1_000_000, 2400, 0, 0, method, n, firstDue, period, 2,
+		) {
+			total += e.InterestDue
+		}
+		return total
+	}
+
+	require.Equal(t, interestOf(methodFlat, 1, periodMonthly), interestOf(methodCompound, 1, periodMonthly))
+	// 10,000.00 at 24% a year, compounded monthly for 12 months:
+	// 10000 * (1.02^12 - 1) = 2682.42.
+	require.Equal(t, int64(268_242), interestOf(methodCompound, 12, periodMonthly))
+	require.Equal(t, int64(240_000), interestOf(methodFlat, 12, periodMonthly))
+	// 10,000.00 at 24% a year, compounded daily for 30 days:
+	// 10000 * ((1 + 0.24/365)^30 - 1) = 199.15.
+	require.Equal(t, int64(19_915), interestOf(methodCompound, 30, periodDaily))
+	// Four quarters at 24%: 10000 * (1.06^4 - 1) = 2624.77.
+	require.Equal(t, int64(262_477), interestOf(methodCompound, 4, periodQuarterly))
 }
 
 func TestMinorScheduleZeroInstallments(t *testing.T) {

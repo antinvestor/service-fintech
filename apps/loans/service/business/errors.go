@@ -227,7 +227,7 @@ var (
 	)
 	ErrUnsupportedRepaymentFrequency = apperrors.NewError(
 		apperrors.Unprocessable,
-		"repayment frequency is not supported: use weekly, biweekly or monthly",
+		"repayment frequency is not supported: use daily, weekly, biweekly, monthly or quarterly",
 	)
 	ErrLoanRequestClientImmutable = apperrors.NewError(
 		apperrors.Conflict,
@@ -295,5 +295,9 @@ var (
 	ErrLoanProductRatesInvalid = apperrors.NewError(
 		apperrors.BadRequest,
 		"loan product rates must not be negative",
+	)
+	ErrLoanProductGracePeriodInvalid = apperrors.NewError(
+		apperrors.BadRequest,
+		"loan product grace period must be between 0 and 365 days",
 	)
 )

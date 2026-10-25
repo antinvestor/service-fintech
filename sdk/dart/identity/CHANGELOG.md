@@ -1,3 +1,10 @@
+## 0.8.1
+
+- `IdentityService.ClientDataStartReview`: a reviewer takes a client data
+  entry for review (`UNDER_REVIEW`), so no other reviewer decides it at the
+  same time (`ClientDataStartReviewRequest`, `ClientDataStartReviewResponse`).
+- A client data entry past its `expires_at` now reads as `EXPIRED`.
+
 ## 0.8.0
 
 - `IdentityService.ClientKYCRequirements`: an organization's published client

@@ -242,6 +242,14 @@ var (
 		apperrors.Conflict,
 		"another decision was recorded on this client data entry first",
 	)
+	ErrClientDataEntryExpired = apperrors.NewError(
+		apperrors.Unprocessable,
+		"client data entry has passed its expiry date; the client must submit it again",
+	)
+	ErrClientDataEntryHeldByAnotherReviewer = apperrors.NewError(
+		apperrors.Conflict,
+		"another reviewer is reviewing this client data entry",
+	)
 	ErrReviewerIsSubmitter = apperrors.NewError(
 		apperrors.Forbidden,
 		"the submitter of a client data entry cannot review it",

@@ -597,6 +597,19 @@ class _KycEntryCard extends ConsumerWidget {
               Wrap(
                 spacing: 8,
                 children: [
+                  if (verificationAwaitsReviewer(entry.verificationStatus))
+                    OutlinedButton.icon(
+                      key: Key('kyc-start-review-${entry.id}'),
+                      onPressed: () => _run(
+                        context,
+                        () => ref
+                            .read(clientDataNotifierProvider.notifier)
+                            .startReview(entry.id),
+                        'You are reviewing this entry',
+                      ),
+                      icon: const Icon(Icons.assignment_ind_outlined, size: 18),
+                      label: const Text('Start review'),
+                    ),
                   FilledButton.tonalIcon(
                     key: Key('kyc-verify-${entry.id}'),
                     onPressed: () => _run(

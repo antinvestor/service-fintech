@@ -716,6 +716,20 @@ func pageBounds(cursor *commonv1.PageCursor) (int, int, error) {
 	return offset, limit, nil
 }
 
+func (s *IdentityServer) ClientDataStartReview(
+	ctx context.Context,
+	req *identityv1.ClientDataStartReviewRequest,
+) (*identityv1.ClientDataStartReviewResponse, error) {
+	result, err := s.clientDataBusiness.StartReview(ctx, req.GetEntryId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, auditResourceClientDataEntry, result.GetID())
+	audit.WithAction(ctx, audit.ActionUpdate)
+	audit.WithDetail(ctx, "reviewer_id", result.ReviewerID)
+	return &identityv1.ClientDataStartReviewResponse{Data: result.ToAPI()}, nil
+}
+
 func (s *IdentityServer) ClientDataVerify(
 	ctx context.Context,
 	req *identityv1.ClientDataVerifyRequest,

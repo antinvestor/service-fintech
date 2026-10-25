@@ -30,4 +30,8 @@ const (
 	colModifiedBy = "modified_by"
 	colVerifiedAt = "verified_at"
 	colVersion    = "version"
+
+	// Client data review columns.
+	colVerificationStatus = "verification_status"
+	colReviewerID         = "reviewer_id"
 )

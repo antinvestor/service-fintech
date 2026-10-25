@@ -40,3 +40,9 @@ bool verificationIsOpen(DataVerificationStatus status) =>
     status == DataVerificationStatus.DATA_VERIFICATION_STATUS_COLLECTED ||
     status == DataVerificationStatus.DATA_VERIFICATION_STATUS_UNDER_REVIEW ||
     status == DataVerificationStatus.DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED;
+
+/// Whether an entry is waiting for a reviewer to take it: collected, or back
+/// from the client with more information.
+bool verificationAwaitsReviewer(DataVerificationStatus status) =>
+    status == DataVerificationStatus.DATA_VERIFICATION_STATUS_COLLECTED ||
+    status == DataVerificationStatus.DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED;

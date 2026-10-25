@@ -9674,6 +9674,138 @@ class ClientDataVerifyResponse extends $pb.GeneratedMessage {
   ClientDataEntryObject ensureData() => $_ensure(0);
 }
 
+/// A reviewer takes a data entry for review. While it is under review only
+/// that reviewer can decide it; a claim left untouched for a day can be taken
+/// over by another reviewer.
+class ClientDataStartReviewRequest extends $pb.GeneratedMessage {
+  factory ClientDataStartReviewRequest({
+    $core.String? entryId,
+  }) {
+    final result = ClientDataStartReviewRequest._();
+    if (entryId != null) result.entryId = entryId;
+    return result;
+  }
+
+  ClientDataStartReviewRequest._();
+
+  factory ClientDataStartReviewRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDataStartReviewRequest()..mergeFromBuffer(data, registry);
+  factory ClientDataStartReviewRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDataStartReviewRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDataStartReviewRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientDataStartReviewRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'entryId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDataStartReviewRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDataStartReviewRequest copyWith(
+          void Function(ClientDataStartReviewRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientDataStartReviewRequest))
+          as ClientDataStartReviewRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDataStartReviewRequest() / ClientDataStartReviewRequest.new instead')
+  static ClientDataStartReviewRequest create() =>
+      ClientDataStartReviewRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientDataStartReviewRequest._();
+  @$core.override
+  ClientDataStartReviewRequest createEmptyInstance() =>
+      ClientDataStartReviewRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDataStartReviewRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDataStartReviewRequest>(
+          ClientDataStartReviewRequest.$_createMessage);
+  static ClientDataStartReviewRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get entryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set entryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEntryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEntryId() => $_clearField(1);
+}
+
+class ClientDataStartReviewResponse extends $pb.GeneratedMessage {
+  factory ClientDataStartReviewResponse({
+    ClientDataEntryObject? data,
+  }) {
+    final result = ClientDataStartReviewResponse._();
+    if (data != null) result.data = data;
+    return result;
+  }
+
+  ClientDataStartReviewResponse._();
+
+  factory ClientDataStartReviewResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDataStartReviewResponse()..mergeFromBuffer(data, registry);
+  factory ClientDataStartReviewResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDataStartReviewResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDataStartReviewResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientDataStartReviewResponse.$_createMessage)
+    ..aOM<ClientDataEntryObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: ClientDataEntryObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDataStartReviewResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDataStartReviewResponse copyWith(
+          void Function(ClientDataStartReviewResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientDataStartReviewResponse))
+          as ClientDataStartReviewResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDataStartReviewResponse() / ClientDataStartReviewResponse.new instead')
+  static ClientDataStartReviewResponse create() =>
+      ClientDataStartReviewResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientDataStartReviewResponse._();
+  @$core.override
+  ClientDataStartReviewResponse createEmptyInstance() =>
+      ClientDataStartReviewResponse._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDataStartReviewResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDataStartReviewResponse>(
+          ClientDataStartReviewResponse.$_createMessage);
+  static ClientDataStartReviewResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  ClientDataEntryObject get data => $_getN(0);
+  @$pb.TagNumber(1)
+  set data(ClientDataEntryObject value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasData() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearData() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ClientDataEntryObject ensureData() => $_ensure(0);
+}
+
 /// Verifier rejects a data entry
 class ClientDataRejectRequest extends $pb.GeneratedMessage {
   factory ClientDataRejectRequest({
@@ -11331,6 +11463,12 @@ class IdentityServiceApi {
           $pb.ClientContext? ctx, ClientKYCRequirementsRequest request) =>
       _client.invoke<ClientKYCRequirementsResponse>(ctx, 'IdentityService',
           'ClientKYCRequirements', request, ClientKYCRequirementsResponse());
+
+  /// ClientDataStartReview takes a data entry for review.
+  $async.Future<ClientDataStartReviewResponse> clientDataStartReview(
+          $pb.ClientContext? ctx, ClientDataStartReviewRequest request) =>
+      _client.invoke<ClientDataStartReviewResponse>(ctx, 'IdentityService',
+          'ClientDataStartReview', request, ClientDataStartReviewResponse());
 
   /// ClientDataVerify marks a data entry as verified.
   $async.Future<ClientDataVerifyResponse> clientDataVerify(

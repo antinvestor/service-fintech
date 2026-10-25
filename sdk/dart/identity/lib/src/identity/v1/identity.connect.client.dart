@@ -819,6 +819,24 @@ extension type IdentityServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// ClientDataStartReview takes a data entry for review.
+  Future<identityv1identity.ClientDataStartReviewResponse> clientDataStartReview(
+    identityv1identity.ClientDataStartReviewRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.IdentityService.clientDataStartReview,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// ClientDataVerify marks a data entry as verified.
   Future<identityv1identity.ClientDataVerifyResponse> clientDataVerify(
     identityv1identity.ClientDataVerifyRequest input, {

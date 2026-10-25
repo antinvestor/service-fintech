@@ -1,3 +1,9 @@
+## 0.5.1
+
+- KYC entries waiting for a reviewer show "Start review", which takes the
+  entry for the signed-in reviewer (`ClientDataNotifier.startReview`).
+- Requires `antinvestor_api_identity ^0.8.1`.
+
 ## 0.5.0
 
 - KYC requirements come from each organization's published client form

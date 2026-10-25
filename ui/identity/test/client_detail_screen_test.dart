@@ -27,6 +27,11 @@ class _RecordingClientDataNotifier extends ClientDataNotifier {
   final List<String> log;
 
   @override
+  Future<void> startReview(String entryId) async {
+    log.add('review:$entryId');
+  }
+
+  @override
   Future<void> verify(String entryId, {String comment = ''}) async {
     log.add('verify:$entryId');
   }
@@ -229,6 +234,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(log, ['verify:e1']);
     expect(find.text('Entry verified'), findsOneWidget);
+  });
+
+  testWidgets('a reviewer can take a collected entry, not one under review', (
+    tester,
+  ) async {
+    _wide(tester);
+    final log = <String>[];
+    await tester.pumpWidget(
+      _host(
+        entries: [
+          _entry(
+            'e1',
+            DataVerificationStatus.DATA_VERIFICATION_STATUS_COLLECTED,
+          ),
+          _entry(
+            'e2',
+            DataVerificationStatus.DATA_VERIFICATION_STATUS_UNDER_REVIEW,
+          ),
+        ],
+        log: log,
+        canManage: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openKyc(tester);
+
+    expect(find.byKey(const Key('kyc-start-review-e1')), findsOneWidget);
+    expect(find.byKey(const Key('kyc-start-review-e2')), findsNothing);
+    expect(find.byKey(const Key('kyc-verify-e2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('kyc-start-review-e1')));
+    await tester.pumpAndSettle();
+    expect(log, ['review:e1']);
+    expect(find.text('You are reviewing this entry'), findsOneWidget);
   });
 
   testWidgets('rejecting asks for a reason and sends it', (tester) async {

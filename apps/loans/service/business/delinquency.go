@@ -342,7 +342,10 @@ func (s *DelinquencyScanner) daysPastDue(ctx context.Context, la *models.LoanAcc
 	return days, nil
 }
 
-// applyLatePenalties charges one late penalty per overdue installment.
+// applyLatePenalties charges one late penalty per overdue installment once
+// the product's grace period after its due date has passed. The grace period
+// only defers the penalty: days past due, and so arrears and portfolio at
+// risk, still count from the due date.
 //
 // The mark is claimed in the database before the penalty is raised, so a scan
 // that runs every day does not charge the same installment every day.
@@ -363,51 +366,70 @@ func (s *DelinquencyScanner) applyLatePenalties(
 	}
 
 	for _, entry := range entries {
-		if alreadyPenalised(entry) {
+		if alreadyPenalised(entry) || withinGracePeriod(entry, product.GracePeriodDays, now) {
 			continue
 		}
+		s.chargeLatePenalty(ctx, logger, la, entry, product.LatePenaltyRate)
+	}
+}
 
-		penaltyAmount := (entry.Outstanding * product.LatePenaltyRate) / basisPointsPenaltyDivisor
-		if penaltyAmount <= 0 {
-			continue
-		}
+// chargeLatePenalty claims the installment's penalty mark and raises the
+// penalty, giving the mark back if the penalty could not be saved.
+func (s *DelinquencyScanner) chargeLatePenalty(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+	entry *models.ScheduleEntry,
+	rateBP int64,
+) {
+	penaltyAmount := (entry.Outstanding * rateBP) / basisPointsPenaltyDivisor
+	if penaltyAmount <= 0 {
+		return
+	}
+	claimed, claimErr := s.scheduleRepo.MarkPenaltyApplied(ctx, entry.GetID())
+	if claimErr != nil {
+		logger.WithError(claimErr).WithField("entry_id", entry.GetID()).
+			Warn("could not claim the late penalty for an installment")
+		return
+	}
+	if !claimed {
+		return
+	}
 
-		claimed, claimErr := s.scheduleRepo.MarkPenaltyApplied(ctx, entry.GetID())
-		if claimErr != nil {
-			logger.WithError(claimErr).WithField("entry_id", entry.GetID()).
-				Warn("could not claim the late penalty for an installment")
-			continue
+	_, penErr := s.penaltyBusiness.Save(ctx, &loansv1.PenaltyObject{
+		LoanAccountId:   la.GetID(),
+		PenaltyType:     loansv1.PenaltyType_PENALTY_TYPE_LATE_PAYMENT,
+		Amount:          models.MinorUnitsToMoney(penaltyAmount, la.CurrencyCode),
+		Reason:          "late payment penalty for installment " + strconv.Itoa(int(entry.InstallmentNumber)),
+		ScheduleEntryId: entry.GetID(),
+	})
+	if penErr != nil {
+		logger.WithError(penErr).WithField("entry_id", entry.GetID()).
+			Warn("could not apply late penalty")
+		if errors.Is(penErr, ErrPenaltyEntryConflict) {
+			// Another penalty owns this installment; retrying would not
+			// change that. Leave the mark and let the error be seen.
+			logger.WithField("entry_id", entry.GetID()).
+				Error("late penalty conflicts with an existing penalty; needs review")
+			return
 		}
-		if !claimed {
-			continue
-		}
-
-		_, penErr := s.penaltyBusiness.Save(ctx, &loansv1.PenaltyObject{
-			LoanAccountId:   la.GetID(),
-			PenaltyType:     loansv1.PenaltyType_PENALTY_TYPE_LATE_PAYMENT,
-			Amount:          models.MinorUnitsToMoney(penaltyAmount, la.CurrencyCode),
-			Reason:          "late payment penalty for installment " + strconv.Itoa(int(entry.InstallmentNumber)),
-			ScheduleEntryId: entry.GetID(),
-		})
-		if penErr != nil {
-			logger.WithError(penErr).WithField("entry_id", entry.GetID()).
-				Warn("could not apply late penalty")
-			if errors.Is(penErr, ErrPenaltyEntryConflict) {
-				// Another penalty owns this installment; retrying would not
-				// change that. Leave the mark and let the error be seen.
-				logger.WithField("entry_id", entry.GetID()).
-					Error("late penalty conflicts with an existing penalty; needs review")
-				continue
-			}
-			// Give the installment back to the next scan: a penalty that
-			// failed to save must not count as applied. Save is idempotent
-			// per installment, so a partial save is resumed, not repeated.
-			if clearErr := s.scheduleRepo.ClearPenaltyApplied(ctx, entry.GetID()); clearErr != nil {
-				logger.WithError(clearErr).WithField("entry_id", entry.GetID()).
-					Error("could not clear the penalty mark after a failed save")
-			}
+		// Give the installment back to the next scan: a penalty that
+		// failed to save must not count as applied. Save is idempotent
+		// per installment, so a partial save is resumed, not repeated.
+		if clearErr := s.scheduleRepo.ClearPenaltyApplied(ctx, entry.GetID()); clearErr != nil {
+			logger.WithError(clearErr).WithField("entry_id", entry.GetID()).
+				Error("could not clear the penalty mark after a failed save")
 		}
 	}
+}
+
+// withinGracePeriod reports whether an overdue installment is still inside
+// the grace period, during which no late penalty is charged.
+func withinGracePeriod(entry *models.ScheduleEntry, graceDays int32, now time.Time) bool {
+	if graceDays <= 0 || entry.DueDate == nil {
+		return false
+	}
+	return now.Before(entry.DueDate.AddDate(0, 0, int(graceDays)))
 }
 
 // alreadyPenalised reads the mark this scanner writes onto an installment.
