@@ -55,7 +55,15 @@ type ClientDataEntryRepository interface {
 	// Review persists a reviewer decision with
 	// `UPDATE ... WHERE id = ? AND verification_status = ?`, so of two
 	// concurrent decisions on the same entry exactly one lands.
-	Review(ctx context.Context, entry *models.ClientDataEntry, fromStatus int32) error
+	//
+	// An entry under review is decided only by the reviewer holding it, and
+	// an expired entry is not decided at all.
+	Review(ctx context.Context, entry *models.ClientDataEntry, fromStatus int32, fromReviewer string) error
+	// StartReview hands the entry to reviewerID as UNDER_REVIEW. It takes a
+	// collected entry, one waiting on more information, or one under review
+	// whose claim was last touched before staleBefore; it reports
+	// ErrClientDataEntryReviewConflict when the entry is in none of those.
+	StartReview(ctx context.Context, entryID, reviewerID string, staleBefore time.Time) (*models.ClientDataEntry, error)
 	GetByClientID(
 		ctx context.Context,
 		clientID string,
@@ -156,8 +164,8 @@ func updateLockedRevision(
 			"value_type":          existing.ValueType,
 			"source_entity_id":    existing.SourceEntityID,
 			"revision":            existing.Revision,
-			"verification_status": existing.VerificationStatus,
-			"reviewer_id":         existing.ReviewerID,
+			colVerificationStatus: existing.VerificationStatus,
+			colReviewerID:         existing.ReviewerID,
 			"reviewer_comment":    existing.ReviewerComment,
 			colVerifiedAt:         existing.VerifiedAt,
 			"expires_at":          existing.ExpiresAt,
@@ -181,21 +189,26 @@ func (repo *clientDataEntryRepository) Review(
 	ctx context.Context,
 	entry *models.ClientDataEntry,
 	fromStatus int32,
+	fromReviewer string,
 ) error {
 	now := time.Now().UTC()
 	return repo.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
-		result := tx.WithContext(ctx).
+		q := tx.WithContext(ctx).
 			Table((&models.ClientDataEntry{}).TableName()).
 			Where("id = ? AND verification_status = ? AND deleted_at IS NULL", entry.GetID(), fromStatus).
-			Updates(map[string]any{
-				"verification_status": entry.VerificationStatus,
-				"reviewer_id":         entry.ReviewerID,
-				"reviewer_comment":    entry.ReviewerComment,
-				colVerifiedAt:         entry.VerifiedAt,
-				colModifiedAt:         now,
-				colModifiedBy:         entry.ReviewerID,
-				colVersion:            gorm.Expr("version + 1"),
-			})
+			Where(notExpiredClause, now)
+		if fromStatus == statusUnderReview {
+			q = q.Where("reviewer_id = ?", fromReviewer)
+		}
+		result := q.Updates(map[string]any{
+			colVerificationStatus: entry.VerificationStatus,
+			colReviewerID:         entry.ReviewerID,
+			"reviewer_comment":    entry.ReviewerComment,
+			colVerifiedAt:         entry.VerifiedAt,
+			colModifiedAt:         now,
+			colModifiedBy:         entry.ReviewerID,
+			colVersion:            gorm.Expr("version + 1"),
+		})
 		if result.Error != nil {
 			return result.Error
 		}
@@ -209,6 +222,53 @@ func (repo *clientDataEntryRepository) Review(
 	})
 }
 
+// Verification status codes the queries below filter on; they mirror
+// identityv1.DataVerificationStatus.
+const (
+	statusCollected      = 1
+	statusUnderReview    = 2
+	statusRejected       = 4
+	statusMoreInfoNeeded = 5
+	statusExpired        = 6
+)
+
+// notExpiredClause holds for an entry whose document has not passed its
+// expiry date at the bound time.
+const notExpiredClause = "(expires_at IS NULL OR expires_at > ?)"
+
+func (repo *clientDataEntryRepository) StartReview(
+	ctx context.Context,
+	entryID, reviewerID string,
+	staleBefore time.Time,
+) (*models.ClientDataEntry, error) {
+	now := time.Now().UTC()
+	result := repo.Pool().DB(ctx, false).
+		Table((&models.ClientDataEntry{}).TableName()).
+		Where("id = ? AND deleted_at IS NULL", entryID).
+		Where(notExpiredClause, now).
+		Where("(verification_status IN (?, ?) OR (verification_status = ? AND (reviewer_id = ? OR modified_at < ?)))",
+			statusCollected, statusMoreInfoNeeded, statusUnderReview, reviewerID, staleBefore).
+		Updates(map[string]any{
+			colVerificationStatus: statusUnderReview,
+			colReviewerID:         reviewerID,
+			colModifiedAt:         now,
+			// modified_by stays the submitter's: the reviewer is recorded
+			// in reviewer_id, and the separation-of-duties check reads
+			// modified_by as who last submitted the value.
+			colVersion: gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrClientDataEntryReviewConflict
+	}
+	return repo.GetByID(ctx, entryID)
+}
+
+// GetByClientID lists a client's entries, filtered by the status each holds
+// now: an entry past its expiry date is listed as EXPIRED, not as what it
+// was reviewed as.
 func (repo *clientDataEntryRepository) GetByClientID(
 	ctx context.Context,
 	clientID string,
@@ -216,11 +276,18 @@ func (repo *clientDataEntryRepository) GetByClientID(
 	offset, limit int,
 ) ([]*models.ClientDataEntry, error) {
 	var entries []*models.ClientDataEntry
+	now := time.Now().UTC()
 	q := repo.Pool().DB(ctx, true).Where("client_id = ?", clientID)
-	if verificationStatus > 0 {
+	switch {
+	case verificationStatus == statusExpired:
+		q = q.Where("(verification_status = ? OR (verification_status <> ? AND expires_at <= ?))",
+			statusExpired, statusRejected, now)
+	case verificationStatus == statusRejected:
 		q = q.Where("verification_status = ?", verificationStatus)
+	case verificationStatus > 0:
+		q = q.Where("verification_status = ?", verificationStatus).Where(notExpiredClause, now)
 	}
-	err := q.Offset(offset).Limit(limit).Find(&entries).Error
+	err := q.Order("field_key ASC, id ASC").Offset(offset).Limit(limit).Find(&entries).Error
 	if err != nil {
 		return nil, err
 	}

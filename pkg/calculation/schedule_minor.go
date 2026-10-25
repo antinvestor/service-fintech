@@ -69,7 +69,7 @@ func GenerateMinorScheduleFromProduct(
 	}
 	return flatMinorSchedule(
 		principalMinor, annualInterestRateBP, insuranceFeePercentBP, processingFeePercentBP,
-		installments, firstDueDate, periodType, decimals,
+		installments, firstDueDate, periodType, decimals, interestMethod == interestMethodCompound,
 	)
 }
 
@@ -80,27 +80,34 @@ func flatMinorSchedule(
 	firstDueDate time.Time,
 	periodType int32,
 	decimals int32,
+	compound bool,
 ) []MinorScheduleEntry {
 	principal := decimalx.FromMinorUnits(principalMinor, decimals)
 	periodsPerYear := PeriodsPerYear(periodType)
+
+	// Compound interest grows on the principal once per period over the
+	// term and, like flat interest, is collected in equal parts.
+	interest := FlatRateInterest(principal, annualInterestRateBP, installments, periodsPerYear)
+	if compound {
+		interest = CompoundInterest(principal, annualInterestRateBP, installments, periodsPerYear)
+	}
 
 	// Fees are a one-off percentage of the principal spread over the
 	// installments, not an annual rate: a 2% processing fee on a three-month
 	// loan collects 2%, not 0.5%.
 	totals := [4]int64{
 		principalMinor,
-		FlatRateInterest(principal, annualInterestRateBP, installments, periodsPerYear).ToMinorUnits(decimals),
+		interest.ToMinorUnits(decimals),
 		decimalx.ApplyBasisPoints(principal, insuranceFeePercentBP).ToMinorUnits(decimals),
 		decimalx.ApplyBasisPoints(principal, processingFeePercentBP).ToMinorUnits(decimals),
 	}
 
 	entries := make([]MinorScheduleEntry, installments)
-	dueDate := firstDueDate
 	for i := range installments {
 		last := i == installments-1
 		entries[i] = MinorScheduleEntry{
 			InstallmentNumber: i + 1,
-			DueDate:           dueDate,
+			DueDate:           DueDateAt(firstDueDate, periodType, i),
 			PrincipalDue:      installmentShare(totals[0], installments, last),
 			InterestDue:       installmentShare(totals[1], installments, last),
 			InsuranceDue:      installmentShare(totals[2], installments, last),
@@ -108,7 +115,6 @@ func flatMinorSchedule(
 		}
 		entries[i].TotalDue = entries[i].PrincipalDue + entries[i].InterestDue +
 			entries[i].InsuranceDue + entries[i].FeesDue
-		dueDate = advanceByPeriod(dueDate, periodType)
 	}
 	return entries
 }
@@ -124,7 +130,6 @@ func reducingBalanceMinorSchedule(
 	ppy := decimalx.NewFromInt64(int64(PeriodsPerYear(periodType)))
 	entries := make([]MinorScheduleEntry, installments)
 	remaining := principalMinor
-	dueDate := firstDueDate
 
 	// Fees are a one-off percentage of the principal spread over the
 	// installments, the same as on a flat schedule.
@@ -143,7 +148,7 @@ func reducingBalanceMinorSchedule(
 
 		entries[i] = MinorScheduleEntry{
 			InstallmentNumber: i + 1,
-			DueDate:           dueDate,
+			DueDate:           DueDateAt(firstDueDate, periodType, i),
 			PrincipalDue:      principalDue,
 			InterestDue: decimalx.ApplyBasisPoints(outstanding, annualInterestRateBP).
 				Div(ppy).ToMinorUnits(decimals),
@@ -154,7 +159,6 @@ func reducingBalanceMinorSchedule(
 			entries[i].InsuranceDue + entries[i].FeesDue
 
 		remaining -= principalDue
-		dueDate = advanceByPeriod(dueDate, periodType)
 	}
 	return entries
 }

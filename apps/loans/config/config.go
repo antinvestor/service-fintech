@@ -67,7 +67,6 @@ type LoanManagementConfig struct {
 	// calls LoanJobRun.
 	DueReminderDays int `envDefault:"2" env:"DUE_REMINDER_DAYS"`
 
-	DefaultGracePeriodDays   int `envDefault:"3"  env:"DEFAULT_GRACE_PERIOD_DAYS"`
 	DelinquencyThresholdDays int `envDefault:"7"  env:"DELINQUENCY_THRESHOLD_DAYS"`
 	DefaultThresholdDays     int `envDefault:"90" env:"DEFAULT_THRESHOLD_DAYS"`
 }

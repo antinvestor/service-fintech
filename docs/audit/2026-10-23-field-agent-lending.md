@@ -415,3 +415,41 @@ current DSL validation and so were never registered (`return`/`noop` step
 types, missing `signal_name`, `foreach.items`); stawi embeds a second funding
 allocation in its own database; limits' reapers and savings' interest accrual
 still run in-process.
+
+## 24. Addendum 2026-10-25 — loan terms and KYC review stages
+
+Loan products could name terms the schedule could not produce:
+
+- **Compound interest** was accepted on a product and billed as flat. It now
+  grows on the principal once per period over the term,
+  `P × ((1 + r/n)^k − 1)`, worked at 34 significant digits and collected in
+  equal parts.
+- **Daily and quarterly repayment** were refused when the schedule was
+  generated. Both are supported now (365 and 4 periods a year).
+- **Monthly due dates drifted.** Each installment was the previous one plus a
+  month, so a loan due on 31 January was next due on 3 March and stayed on
+  the 3rd. Due dates are now counted from the first one and held to the last
+  day of a shorter month: 31 Jan, 28 Feb, 31 Mar.
+- **The grace period was stored and ignored.** A product's
+  `grace_period_days` now defers the late penalty by that many days after the
+  due date. Days past due, arrears and portfolio at risk still count from the
+  due date. It is validated to 0–365 days. The unused
+  `DEFAULT_GRACE_PERIOD_DAYS` setting is removed.
+
+KYC entries had two of their six stages in use:
+
+- **Under review.** `ClientDataStartReview` hands an entry that is collected,
+  or back with more information, to the calling reviewer. While it is under
+  review only that reviewer can verify it, reject it or ask for more; a hold
+  untouched for a day can be taken over. The hold is a conditional update, so
+  of two reviewers opening the entry at once exactly one gets it. Deciding
+  straight from collected still works.
+- **Expired.** An entry past its `expires_at` reads as `EXPIRED` the moment
+  it expires: on the entry, in status-filtered lists, in the KYC
+  requirements that gate activation, and to reviewers, who can no longer
+  decide it. Nothing has to restamp the row, so no scheduled job is needed.
+  Submitting the document again starts it over at collected. A rejection
+  stands even after the date passes.
+- A review used to emit an asynchronous full upsert of the entry after its
+  conditional write had already landed. That upsert could overwrite a
+  resubmission made in between; it is removed.

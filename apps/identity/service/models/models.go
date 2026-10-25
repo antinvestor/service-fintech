@@ -1097,6 +1097,19 @@ type ClientDataEntry struct {
 
 func (m *ClientDataEntry) TableName() string { return "client_data_entries" }
 
+// EffectiveStatus is the entry's verification status at now. An entry whose
+// document has passed its expiry date is EXPIRED whatever it was reviewed
+// as, the moment it expires and without waiting for any job to restamp the
+// row; a rejection stands.
+func (m *ClientDataEntry) EffectiveStatus(now time.Time) identityv1.DataVerificationStatus {
+	status := identityv1.DataVerificationStatus(m.VerificationStatus)
+	if m.ExpiresAt != nil && !now.Before(*m.ExpiresAt) &&
+		status != identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_REJECTED {
+		return identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_EXPIRED
+	}
+	return status
+}
+
 func (m *ClientDataEntry) ToAPI() *identityv1.ClientDataEntryObject {
 	obj := &identityv1.ClientDataEntryObject{
 		Id:                 m.GetID(),
@@ -1104,7 +1117,7 @@ func (m *ClientDataEntry) ToAPI() *identityv1.ClientDataEntryObject {
 		FieldKey:           m.FieldKey,
 		Value:              m.Value,
 		ValueType:          m.ValueType,
-		VerificationStatus: identityv1.DataVerificationStatus(m.VerificationStatus),
+		VerificationStatus: m.EffectiveStatus(time.Now().UTC()),
 		ReviewerId:         m.ReviewerID,
 		ReviewerComment:    m.ReviewerComment,
 		SourceEntityId:     m.SourceEntityID,

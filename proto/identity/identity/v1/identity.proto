@@ -1388,6 +1388,19 @@ message ClientDataVerifyResponse {
   ClientDataEntryObject data = 1;
 }
 
+// A reviewer takes a data entry for review. While it is under review only
+// that reviewer can decide it; a claim left untouched for a day can be taken
+// over by another reviewer.
+message ClientDataStartReviewRequest {
+  string entry_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+}
+message ClientDataStartReviewResponse {
+  ClientDataEntryObject data = 1;
+}
+
 // Verifier rejects a data entry
 message ClientDataRejectRequest {
   string entry_id = 1 [
@@ -2271,6 +2284,19 @@ service IdentityService {
       operation_id: "clientKYCRequirements"
       summary: "Get a client's KYC requirements"
       description: "Returns the organization's client form template and, for a client, the verification status of each required field."
+      tags: "ClientData"
+    };
+  }
+
+  // ClientDataStartReview takes a data entry for review.
+  rpc ClientDataStartReview(ClientDataStartReviewRequest) returns (ClientDataStartReviewResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["client_data_verify"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "clientDataStartReview"
+      summary: "Start reviewing a client data entry"
+      description: "Moves a collected client data entry to under review, assigned to the calling reviewer, so no other reviewer decides it at the same time."
       tags: "ClientData"
     };
   }

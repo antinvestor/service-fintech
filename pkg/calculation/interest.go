@@ -14,7 +14,10 @@
 
 package calculation
 
-import "github.com/pitabwire/util/decimalx"
+import (
+	"github.com/cockroachdb/apd/v3"
+	"github.com/pitabwire/util/decimalx"
+)
 
 const (
 	// weeksPerYear is the number of weeks in a year.
@@ -23,6 +26,12 @@ const (
 	biweeksPerYear = 26
 	// monthsPerYear is the number of months in a year.
 	monthsPerYear = 12
+	// daysPerYear is the number of days in a year for daily periods.
+	daysPerYear = 365
+	// quartersPerYear is the number of quarters in a year.
+	quartersPerYear = 4
+	// basisPointsPerOne is the number of basis points in a whole.
+	basisPointsPerOne = 10000
 )
 
 // FlatRateInterest calculates interest using flat-rate method.
@@ -63,7 +72,8 @@ func ReducingBalanceInterestForPeriod(
 }
 
 // PeriodsPerYear returns the number of periods in a year for a given period type.
-// periodType: 1=WEEKLY(52), 2=BIWEEKLY(26), 3=MONTHLY(12).
+// periodType: 1=WEEKLY(52), 2=BIWEEKLY(26), 3=MONTHLY(12), 4=DAILY(365),
+// 5=QUARTERLY(4).
 func PeriodsPerYear(periodType int32) int32 {
 	switch periodType {
 	case periodTypeWeekly:
@@ -72,7 +82,45 @@ func PeriodsPerYear(periodType int32) int32 {
 		return biweeksPerYear
 	case periodTypeMonthly:
 		return monthsPerYear
+	case periodTypeDaily:
+		return daysPerYear
+	case periodTypeQuarterly:
+		return quartersPerYear
 	default:
 		return weeksPerYear
 	}
+}
+
+// compoundPrecision is the working precision for the compounding factor. The
+// shared decimal context keeps nine significant digits, which a daily rate
+// raised to a few hundred periods would visibly erode.
+const compoundPrecision = 34
+
+// CompoundInterest calculates the interest on principal compounded once per
+// period over termPeriods: principal * ((1 + rate/periodsPerYear)^termPeriods - 1).
+// annualRateBP is in basis points.
+func CompoundInterest(
+	principal decimalx.Decimal,
+	annualRateBP int64,
+	termPeriods int32,
+	periodsPerYear int32,
+) decimalx.Decimal {
+	if !principal.IsPositive() || annualRateBP <= 0 || termPeriods <= 0 || periodsPerYear <= 0 {
+		return decimalx.Zero()
+	}
+	ctx := apd.BaseContext.WithPrecision(compoundPrecision)
+	periodRate := new(apd.Decimal)
+	_, _ = ctx.Quo(periodRate, apd.New(annualRateBP, 0), apd.New(int64(periodsPerYear)*basisPointsPerOne, 0))
+	growth := new(apd.Decimal)
+	_, _ = ctx.Add(growth, periodRate, apd.New(1, 0))
+	factor := new(apd.Decimal)
+	_, _ = ctx.Pow(factor, growth, apd.New(int64(termPeriods), 0))
+	_, _ = ctx.Sub(factor, factor, apd.New(1, 0))
+	interest := new(apd.Decimal)
+	_, _ = ctx.Mul(interest, principal.Inner(), factor)
+	out, err := decimalx.NewFromString(interest.Text('f'))
+	if err != nil {
+		return decimalx.Zero()
+	}
+	return out
 }

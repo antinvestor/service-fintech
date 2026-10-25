@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"time"
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 
@@ -92,7 +93,8 @@ func (p *KYCPolicy) TemplateForTeam(ctx context.Context, teamID string) (*models
 }
 
 // ForClient is the client's organization's requirements and the status of
-// each required field. Complete means every required field is VERIFIED.
+// each required field. Complete means every required field is VERIFIED and
+// none has passed its expiry date.
 func (p *KYCPolicy) ForClient(ctx context.Context, client *models.Client) (*KYCRequirements, error) {
 	tmpl, err := p.TemplateForTeam(ctx, client.OwningTeamID)
 	if err != nil {
@@ -126,13 +128,14 @@ func (p *KYCPolicy) entryStatuses(
 ) (map[string]identityv1.DataVerificationStatus, error) {
 	const pageSize = 200
 	statuses := map[string]identityv1.DataVerificationStatus{}
+	now := time.Now().UTC()
 	for offset := 0; ; offset += pageSize {
 		entries, err := p.entries.GetByClientID(ctx, clientID, 0, offset, pageSize)
 		if err != nil {
 			return nil, fmt.Errorf("list client data: %w", err)
 		}
 		for _, e := range entries {
-			statuses[e.FieldKey] = identityv1.DataVerificationStatus(e.VerificationStatus)
+			statuses[e.FieldKey] = e.EffectiveStatus(now)
 		}
 		if len(entries) < pageSize {
 			return statuses, nil

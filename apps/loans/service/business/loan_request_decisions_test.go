@@ -148,18 +148,14 @@ func TestSave_ReservedPropertiesStrippedForClients(t *testing.T) {
 	assert.Equal(t, "contact-999", staffProps["payment_account_ref"])
 }
 
-// Only weekly, biweekly and monthly schedules exist; anything else is refused
-// rather than silently billed as monthly.
+// A loan with no frequency is refused rather than silently billed on some
+// default period; every named frequency has a schedule.
 func TestFrequencyToPeriodTypeRefusesUnsupported(t *testing.T) {
+	_, err := frequencyToPeriodType(loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_UNSPECIFIED)
+	require.ErrorIs(t, err, ErrUnsupportedRepaymentFrequency)
 	for _, freq := range []loansv1.RepaymentFrequency{
 		loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_DAILY,
 		loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_QUARTERLY,
-		loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_UNSPECIFIED,
-	} {
-		_, err := frequencyToPeriodType(freq)
-		require.ErrorIs(t, err, ErrUnsupportedRepaymentFrequency, freq.String())
-	}
-	for _, freq := range []loansv1.RepaymentFrequency{
 		loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_WEEKLY,
 		loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_BIWEEKLY,
 		loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_MONTHLY,

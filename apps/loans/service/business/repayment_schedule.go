@@ -30,15 +30,6 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/calculation"
 )
 
-const (
-	// daysPerWeekRS is the number of days in a weekly period.
-	daysPerWeekRS = 7
-	// daysPerBiweekRS is the number of days in a biweekly period.
-	daysPerBiweekRS = 14
-	// daysPerMonthRS is the approximate number of days in a monthly period.
-	daysPerMonthRS = 30
-)
-
 // ScheduleResult carries the freshly generated schedule alongside its
 // entries, so callers that have to derive further state from the schedule
 // (the opening loan balance, for instance) can read it in memory instead of
@@ -297,11 +288,11 @@ func scheduleFirstDueDate(la *models.LoanAccount) (time.Time, error) {
 	case la.FirstRepaymentDate != nil:
 		return *la.FirstRepaymentDate, nil
 	case la.DisbursedAt != nil:
-		return advanceByFrequency(
-			*la.DisbursedAt,
-			loansv1.RepaymentFrequency(la.RepaymentFrequency),
-			1,
-		), nil
+		periodType, err := frequencyToPeriodType(loansv1.RepaymentFrequency(la.RepaymentFrequency))
+		if err != nil {
+			return time.Time{}, err
+		}
+		return calculation.DueDateAt(*la.DisbursedAt, periodType, 1), nil
 	default:
 		return time.Time{}, apperrors.NewError(apperrors.Unprocessable,
 			"cannot generate a repayment schedule: the loan has no disbursement date "+
@@ -326,54 +317,50 @@ func validateScheduleInvariant(entries []*models.ScheduleEntry, principalMinor i
 }
 
 const (
-	periodTypeWeeklyRS   = 1
-	periodTypeBiweeklyRS = 2
-	periodTypeMonthlyRS  = 3
+	periodTypeWeeklyRS    = 1
+	periodTypeBiweeklyRS  = 2
+	periodTypeMonthlyRS   = 3
+	periodTypeDailyRS     = 4
+	periodTypeQuarterlyRS = 5
 )
 
 // frequencyToPeriodType maps RepaymentFrequency enum to the period type int
-// used by the calculation package (1=WEEKLY, 2=BIWEEKLY, 3=MONTHLY). The
-// calculation package has no daily or quarterly period, so those are refused
-// rather than silently billed as monthly.
+// used by the calculation package. A loan with no frequency is refused rather
+// than silently billed on some default period.
 func frequencyToPeriodType(freq loansv1.RepaymentFrequency) (int32, error) {
-	switch freq { //nolint:exhaustive // every other frequency is unsupported
+	switch freq {
+	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_DAILY:
+		return periodTypeDailyRS, nil
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_WEEKLY:
 		return periodTypeWeeklyRS, nil
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_BIWEEKLY:
 		return periodTypeBiweeklyRS, nil
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_MONTHLY:
 		return periodTypeMonthlyRS, nil
+	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_QUARTERLY:
+		return periodTypeQuarterlyRS, nil
+	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_UNSPECIFIED:
+		return 0, ErrUnsupportedRepaymentFrequency
 	default:
 		return 0, ErrUnsupportedRepaymentFrequency
 	}
 }
 
 func computeInstallmentCount(termDays int32, freq loansv1.RepaymentFrequency) int32 {
-	switch freq { //nolint:exhaustive // unspecified and quarterly fall through to default
+	switch freq {
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_DAILY:
 		return termDays
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_WEEKLY:
-		return termDays / daysPerWeekRS
+		return termDays / daysPerWeek
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_BIWEEKLY:
-		return termDays / daysPerBiweekRS
+		return termDays / daysPerBiweek
 	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_MONTHLY:
-		return termDays / daysPerMonthRS
+		return termDays / daysPerMonth
+	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_QUARTERLY:
+		return termDays / daysPerQuarter
+	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_UNSPECIFIED:
+		return 1
 	default:
 		return 1
-	}
-}
-
-func advanceByFrequency(start time.Time, freq loansv1.RepaymentFrequency, periods int) time.Time {
-	switch freq { //nolint:exhaustive // unspecified and quarterly fall through to default
-	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_DAILY:
-		return start.AddDate(0, 0, periods)
-	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_WEEKLY:
-		return start.AddDate(0, 0, periods*daysPerWeekRS)
-	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_BIWEEKLY:
-		return start.AddDate(0, 0, periods*daysPerBiweekRS)
-	case loansv1.RepaymentFrequency_REPAYMENT_FREQUENCY_MONTHLY:
-		return start.AddDate(0, periods, 0)
-	default:
-		return start.AddDate(0, 0, periods*daysPerMonthRS)
 	}
 }

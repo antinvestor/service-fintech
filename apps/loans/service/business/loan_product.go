@@ -160,7 +160,12 @@ func validateLoanProduct(lp *models.LoanProduct) error {
 	case lp.AnnualInterestRate < 0 || lp.ProcessingFeePercent < 0 ||
 		lp.InsuranceFeePercent < 0 || lp.LatePenaltyRate < 0:
 		return ErrLoanProductRatesInvalid
+	case lp.GracePeriodDays < 0 || lp.GracePeriodDays > maxGracePeriodDays:
+		return ErrLoanProductGracePeriodInvalid
 	default:
 		return nil
 	}
 }
+
+// maxGracePeriodDays bounds how long a late installment can go unpenalised.
+const maxGracePeriodDays = 365

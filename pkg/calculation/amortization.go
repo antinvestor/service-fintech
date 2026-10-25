@@ -27,12 +27,20 @@ const (
 	periodTypeBiweekly = 2
 	// periodTypeMonthly is the period type code for monthly periods.
 	periodTypeMonthly = 3
+	// periodTypeDaily is the period type code for daily periods.
+	periodTypeDaily = 4
+	// periodTypeQuarterly is the period type code for quarterly periods.
+	periodTypeQuarterly = 5
+	// monthsPerQuarter is the number of months in a quarterly period.
+	monthsPerQuarter = 3
 	// daysPerWeek is the number of days in a weekly period.
 	daysPerWeek = 7
 	// daysPerBiweek is the number of days in a biweekly period.
 	daysPerBiweek = 14
 	// interestMethodReducingBalance is the code for reducing-balance interest calculation.
 	interestMethodReducingBalance = 2
+	// interestMethodCompound is the code for compound interest calculation.
+	interestMethodCompound = 3
 )
 
 // ScheduleEntry represents a single installment in an amortization schedule.
@@ -77,11 +85,10 @@ func GenerateFlatSchedule(
 	insuranceRemainder := totalInsurance.Sub(insurancePerPeriod.Mul(n))
 	feesRemainder := totalFees.Sub(feesPerPeriod.Mul(n))
 
-	dueDate := firstDueDate
 	for i := range installments {
 		entry := ScheduleEntry{
 			InstallmentNumber: i + 1,
-			DueDate:           dueDate,
+			DueDate:           DueDateAt(firstDueDate, periodType, i),
 			PrincipalDue:      principalPerPeriod,
 			InterestDue:       interestPerPeriod,
 			InsuranceDue:      insurancePerPeriod,
@@ -98,8 +105,6 @@ func GenerateFlatSchedule(
 
 		entry.TotalDue = entry.PrincipalDue.Add(entry.InterestDue).Add(entry.InsuranceDue).Add(entry.FeesDue)
 		entries[i] = entry
-
-		dueDate = advanceByPeriod(dueDate, periodType)
 	}
 
 	return entries
@@ -124,7 +129,6 @@ func GenerateReducingBalanceSchedule(
 	remaining := principal
 	n := decimalx.NewFromInt64(int64(installments))
 	principalPerPeriod := principal.Div(n)
-	dueDate := firstDueDate
 
 	for i := range installments {
 		pDue := principalPerPeriod
@@ -138,7 +142,7 @@ func GenerateReducingBalanceSchedule(
 
 		entries[i] = ScheduleEntry{
 			InstallmentNumber: i + 1,
-			DueDate:           dueDate,
+			DueDate:           DueDateAt(firstDueDate, periodType, i),
 			PrincipalDue:      pDue,
 			InterestDue:       iDue,
 			InsuranceDue:      insDue,
@@ -147,7 +151,6 @@ func GenerateReducingBalanceSchedule(
 		}
 
 		remaining = remaining.Sub(pDue)
-		dueDate = advanceByPeriod(dueDate, periodType)
 	}
 
 	return entries
@@ -159,7 +162,7 @@ func GenerateScheduleFromProduct(
 	annualInterestRateBP int64,
 	insuranceFeePercentBP int64,
 	processingFeePercentBP int64,
-	interestMethod int32, // 1=FLAT, 2=REDUCING_BALANCE
+	interestMethod int32, // 1=FLAT, 2=REDUCING_BALANCE, 3=COMPOUND
 	installments int32,
 	firstDueDate time.Time,
 	periodType int32,
@@ -173,8 +176,11 @@ func GenerateScheduleFromProduct(
 		)
 	}
 
-	// FLAT (default)
+	// FLAT (default) and COMPOUND collect their interest in equal parts.
 	totalInterest := FlatRateInterest(principal, annualInterestRateBP, installments, periodsPerYear)
+	if interestMethod == interestMethodCompound {
+		totalInterest = CompoundInterest(principal, annualInterestRateBP, installments, periodsPerYear)
+	}
 	totalInsurance := FlatRateInterest(principal, insuranceFeePercentBP, installments, periodsPerYear)
 	totalFees := FlatRateInterest(principal, processingFeePercentBP, installments, periodsPerYear)
 	return GenerateFlatSchedule(
@@ -188,16 +194,37 @@ func GenerateScheduleFromProduct(
 	)
 }
 
-// advanceByPeriod advances a date by one period.
-func advanceByPeriod(t time.Time, periodType int32) time.Time {
+// DueDateAt is the due date of the installment n periods after first.
+// Monthly and quarterly dates are counted from the first due date and held
+// to the last day of a shorter month, so a loan first due on 31 January is
+// next due on 28 or 29 February and then on 31 March, never drifting to the
+// 3rd of the month.
+func DueDateAt(first time.Time, periodType int32, n int32) time.Time {
 	switch periodType {
+	case periodTypeDaily:
+		return first.AddDate(0, 0, int(n))
 	case periodTypeWeekly:
-		return t.AddDate(0, 0, daysPerWeek)
+		return first.AddDate(0, 0, int(n)*daysPerWeek)
 	case periodTypeBiweekly:
-		return t.AddDate(0, 0, daysPerBiweek)
+		return first.AddDate(0, 0, int(n)*daysPerBiweek)
 	case periodTypeMonthly:
-		return t.AddDate(0, 1, 0)
+		return addMonthsClamped(first, int(n))
+	case periodTypeQuarterly:
+		return addMonthsClamped(first, int(n)*monthsPerQuarter)
 	default:
-		return t.AddDate(0, 0, daysPerWeek)
+		return first.AddDate(0, 0, int(n)*daysPerWeek)
 	}
+}
+
+// addMonthsClamped adds months to t, keeping the day of the month unless the
+// target month is shorter, in which case it is the target month's last day.
+func addMonthsClamped(t time.Time, months int) time.Time {
+	year, month, day := t.Date()
+	firstOfTarget := time.Date(year, month+time.Month(months), 1,
+		t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+	lastDay := firstOfTarget.AddDate(0, 1, -1).Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return firstOfTarget.AddDate(0, 0, day-1)
 }

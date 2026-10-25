@@ -47,6 +47,24 @@ class ClientDataNotifier extends Notifier<AsyncValue<void>> {
   }
 
   /// The reviewer is derived from the caller's claims server-side.
+  /// Takes the entry for review by the signed-in reviewer, so no one else
+  /// decides it at the same time.
+  Future<void> startReview(String entryId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _client.clientDataStartReview(
+        ClientDataStartReviewRequest(entryId: entryId),
+      );
+      ref.invalidate(clientDataListProvider);
+      ref.invalidate(clientDataPagedListProvider);
+      ref.invalidate(clientKycRequirementsProvider);
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
   Future<void> verify(String entryId, {String comment = ''}) async {
     state = const AsyncValue.loading();
     try {

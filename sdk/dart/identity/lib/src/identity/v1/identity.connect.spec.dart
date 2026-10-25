@@ -395,6 +395,14 @@ abstract final class IdentityService {
     idempotency: connect.Idempotency.noSideEffects,
   );
 
+  /// ClientDataStartReview takes a data entry for review.
+  static const clientDataStartReview = connect.Spec(
+    '/$name/ClientDataStartReview',
+    connect.StreamType.unary,
+    identityv1identity.ClientDataStartReviewRequest.new,
+    identityv1identity.ClientDataStartReviewResponse.new,
+  );
+
   /// ClientDataVerify marks a data entry as verified.
   static const clientDataVerify = connect.Spec(
     '/$name/ClientDataVerify',
