@@ -24,6 +24,10 @@ type FundingConfig struct {
 	config.ConfigurationDefault
 	clients.AuditConfig
 
+	// Platform fee and withholding tax on funders' interest, in basis points.
+	PlatformFeeBP    int64 `envDefault:"500"  env:"FUNDING_PLATFORM_FEE_BP"`
+	WithholdingTaxBP int64 `envDefault:"1500" env:"FUNDING_WITHHOLDING_TAX_BP"`
+
 	// Identity service
 	IdentityServiceURI                   string `envDefault:"127.0.0.1:7001"                  env:"IDENTITY_SERVICE_URI"`
 	IdentityServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-identity" env:"IDENTITY_SERVICE_WORKLOAD_API_TARGET_PATH"`

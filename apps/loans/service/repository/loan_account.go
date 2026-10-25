@@ -43,6 +43,19 @@ type LoanAccountRepository interface {
 	// changes the status it is iterating over would otherwise shift rows
 	// under the offset and skip loans entirely.
 	PageByStatus(ctx context.Context, status int32, afterID string, limit int) ([]*models.LoanAccount, error)
+	// ClaimForAssessment leases up to limit loans due for a delinquency
+	// assessment and pushes each one's next assessment a day ahead.
+	// Concurrent callers never receive the same loan.
+	ClaimForAssessment(ctx context.Context, limit int) ([]*models.LoanAccount, error)
+	// AssessSoon brings a loan's next delinquency assessment forward to now,
+	// so a repayment that clears arrears is reflected on the next run.
+	AssessSoon(ctx context.Context, loanAccountID string) error
+	// ClaimRepaymentLock takes the loan's repayment lease, so repayments on
+	// one loan are allocated one at a time. A lease older than the timeout is
+	// taken over, so a crashed holder never blocks the loan for long.
+	ClaimRepaymentLock(ctx context.Context, loanAccountID string) (bool, error)
+	// ReleaseRepaymentLock gives the lease back.
+	ReleaseRepaymentLock(ctx context.Context, loanAccountID string) error
 }
 
 type loanAccountRepository struct {
@@ -117,4 +130,45 @@ func (repo *loanAccountRepository) PageByStatus(
 		return nil, err
 	}
 	return accounts, nil
+}
+
+// ClaimForAssessment claims through FOR UPDATE SKIP LOCKED on the
+// idx_la_assessment_due index. The claim is the schedule: a loan whose
+// assessment fails is looked at again the next day.
+func (repo *loanAccountRepository) ClaimForAssessment(ctx context.Context, limit int) ([]*models.LoanAccount, error) {
+	var rows []*models.LoanAccount
+	err := repo.Pool().DB(ctx, false).Raw(`
+UPDATE loan_accounts SET next_assessment_at = now() + interval '1 day'
+WHERE id IN (
+    SELECT id FROM loan_accounts
+    WHERE status IN (2, 3, 6) AND deleted_at IS NULL AND next_assessment_at <= now()
+    ORDER BY next_assessment_at
+    LIMIT ?
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING *`, limit).Scan(&rows).Error
+	return rows, err
+}
+
+func (repo *loanAccountRepository) AssessSoon(ctx context.Context, loanAccountID string) error {
+	return repo.Pool().DB(ctx, false).
+		Table("loan_accounts").
+		Where("id = ? AND deleted_at IS NULL", loanAccountID).
+		Update("next_assessment_at", gorm.Expr("now()")).Error
+}
+
+// repaymentLockLease bounds how long a repayment may hold its loan.
+const repaymentLockLeaseSeconds = 120
+
+func (repo *loanAccountRepository) ClaimRepaymentLock(ctx context.Context, loanAccountID string) (bool, error) {
+	result := repo.Pool().DB(ctx, false).Exec(`UPDATE loan_accounts SET repayment_locked_at = now()
+WHERE id = ? AND deleted_at IS NULL
+  AND (repayment_locked_at IS NULL OR repayment_locked_at < now() - make_interval(secs => ?))`,
+		loanAccountID, repaymentLockLeaseSeconds)
+	return result.RowsAffected > 0, result.Error
+}
+
+func (repo *loanAccountRepository) ReleaseRepaymentLock(ctx context.Context, loanAccountID string) error {
+	return repo.Pool().DB(ctx, false).Exec(
+		`UPDATE loan_accounts SET repayment_locked_at = NULL WHERE id = ?`, loanAccountID).Error
 }

@@ -32,6 +32,7 @@ const (
 	LoanApplicationApproved  = "template.fintech.loan.application_approved"
 	LoanApplicationRejected  = "template.fintech.loan.application_rejected"
 	LoanApplicationCancelled = "template.fintech.loan.application_cancelled"
+	LoanApplicationExpired   = "template.fintech.loan.application_expired"
 	LoanDisbursed            = "template.fintech.loan.disbursed"
 	LoanRepaymentReceived    = "template.fintech.loan.repayment_received"
 	LoanPaidOff              = "template.fintech.loan.paid_off"
@@ -157,6 +158,16 @@ func loanOriginationTemplates() []notification.Template {
 			VarClientName,
 			VarLoanRef,
 			VarReason,
+		),
+		notification.New(
+			LoanApplicationExpired,
+			"Loan application {{.loan_ref}} expired",
+			"{{.lender_name}}: your loan offer {{.loan_ref}} expired before it was taken up. You can apply again.",
+			"Dear {{.client_name}},\n\nThe offer on your loan application {{.loan_ref}} expired before it was taken up.\n\n"+
+				"You are welcome to apply again.\n",
+			VarLenderName,
+			VarClientName,
+			VarLoanRef,
 		),
 		notification.New(
 			LoanDisbursed,

@@ -403,5 +403,44 @@ class RepaymentFrequency extends $pb.ProtobufEnum {
   const RepaymentFrequency._(super.value, super.name);
 }
 
+/// LoanJob names a piece of periodic work. Each run processes one bounded
+/// batch; the scheduler calls again while more remains.
+class LoanJob extends $pb.ProtobufEnum {
+  static const LoanJob LOAN_JOB_UNSPECIFIED =
+      LoanJob._(0, _omitEnumNames ? '' : 'LOAN_JOB_UNSPECIFIED');
+
+  /// Moves overdue loans into arrears and default, charges late penalties,
+  /// and cures loans that caught up.
+  static const LoanJob LOAN_JOB_DELINQUENCY_SCAN =
+      LoanJob._(1, _omitEnumNames ? '' : 'LOAN_JOB_DELINQUENCY_SCAN');
+
+  /// Sends payment-due and overdue reminders, once per instalment.
+  static const LoanJob LOAN_JOB_DUE_REMINDERS =
+      LoanJob._(2, _omitEnumNames ? '' : 'LOAN_JOB_DUE_REMINDERS');
+
+  /// Finishes sharing recorded repayments out to the loans' funders.
+  static const LoanJob LOAN_JOB_FUNDING_SETTLEMENT =
+      LoanJob._(3, _omitEnumNames ? '' : 'LOAN_JOB_FUNDING_SETTLEMENT');
+
+  /// Expires submitted loan requests whose offer lapsed.
+  static const LoanJob LOAN_JOB_REQUEST_EXPIRY =
+      LoanJob._(4, _omitEnumNames ? '' : 'LOAN_JOB_REQUEST_EXPIRY');
+
+  static const $core.List<LoanJob> values = <LoanJob>[
+    LOAN_JOB_UNSPECIFIED,
+    LOAN_JOB_DELINQUENCY_SCAN,
+    LOAN_JOB_DUE_REMINDERS,
+    LOAN_JOB_FUNDING_SETTLEMENT,
+    LOAN_JOB_REQUEST_EXPIRY,
+  ];
+
+  static final $core.List<LoanJob?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 4);
+  static LoanJob? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const LoanJob._(super.value, super.name);
+}
+
 const $core.bool _omitEnumNames =
     $core.bool.fromEnvironment('protobuf.omit_enum_names');

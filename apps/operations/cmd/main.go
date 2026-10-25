@@ -52,9 +52,6 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
-	fundingmodels "github.com/antinvestor/service-fintech/apps/funding/service/models"
-	fundingrepo "github.com/antinvestor/service-fintech/apps/funding/service/repository"
-
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
@@ -172,16 +169,6 @@ func setupServiceOptions(
 	auditRepo := audit.NewRepository(ctx, dbPool, workMan)
 	auditWriter := audit.NewWriter(evtsMan)
 
-	// Funding repositories (shared database, adapted to local interfaces)
-	lfRepo := fundingrepo.NewLoanFundingRepository(ctx, dbPool, workMan)
-	ftRepo := fundingrepo.NewFundingTrancheRepository(ctx, dbPool, workMan)
-	iaRepo := fundingrepo.NewInvestorAccountRepository(ctx, dbPool, workMan)
-
-	// Wrap cross-domain repos in adapters for the business layer.
-	lfAdapter := &loanFundingAdapter{repo: lfRepo}
-	ftAdapter := &fundingTrancheAdapter{repo: ftRepo, eventsMan: evtsMan}
-	iaAdapter := &investorAccountAdapter{repo: iaRepo, eventsMan: evtsMan}
-
 	// Business logic (identity lookups use SDK client directly)
 	prBiz := business.NewPaymentRoutingBusiness(
 		ctx,
@@ -199,9 +186,6 @@ func setupServiceOptions(
 		toRepo,
 		csRepo,
 		arRepo,
-		lfAdapter,
-		ftAdapter,
-		iaAdapter,
 		platformClients,
 		auditWriter,
 		limitsCli,
@@ -338,96 +322,4 @@ func setupLimitsClient(
 		WorkloadAPITargetPath: cfg.LimitsServiceWorkloadAPITargetPath,
 		ServiceID:             servicecatalog.ServiceLimits,
 	})
-}
-
-// ---------------------------------------------------------------------------
-// Cross-domain adapters (stawi period, funding repos)
-// ---------------------------------------------------------------------------
-
-type loanFundingAdapter struct {
-	repo fundingrepo.LoanFundingRepository
-}
-
-func (a *loanFundingAdapter) GetByLoanRequestID(
-	ctx context.Context,
-	loanRequestID string,
-) ([]*business.LoanFundingInfo, error) {
-	fundings, err := a.repo.GetByLoanRequestID(ctx, loanRequestID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*business.LoanFundingInfo, len(fundings))
-	for i, f := range fundings {
-		info := &business.LoanFundingInfo{
-			OwnerID:     f.OwnerID,
-			FundingType: f.FundingType,
-			Proportion:  f.Proportion,
-		}
-		info.BaseModel = f.BaseModel
-		result[i] = info
-	}
-	return result, nil
-}
-
-type fundingTrancheAdapter struct {
-	repo      fundingrepo.FundingTrancheRepository
-	eventsMan fevents.Manager
-}
-
-func (a *fundingTrancheAdapter) GetByLoanFundingID(
-	ctx context.Context,
-	loanFundingID string,
-) ([]*business.FundingTrancheInfo, error) {
-	tranches, err := a.repo.GetByLoanFundingID(ctx, loanFundingID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*business.FundingTrancheInfo, len(tranches))
-	for i, t := range tranches {
-		info := &business.FundingTrancheInfo{
-			PrincipalRepaid: t.PrincipalRepaid,
-			InterestEarned:  t.InterestEarned,
-		}
-		info.BaseModel = t.BaseModel
-		result[i] = info
-	}
-	return result, nil
-}
-
-func (a *fundingTrancheAdapter) Save(ctx context.Context, tranche *business.FundingTrancheInfo) error {
-	model := &fundingmodels.FundingTranche{
-		PrincipalRepaid: tranche.PrincipalRepaid,
-		InterestEarned:  tranche.InterestEarned,
-	}
-	model.BaseModel = tranche.BaseModel
-	return a.eventsMan.Emit(ctx, "funding_tranche.save", model)
-}
-
-type investorAccountAdapter struct {
-	repo      fundingrepo.InvestorAccountRepository
-	eventsMan fevents.Manager
-}
-
-func (a *investorAccountAdapter) GetByID(ctx context.Context, id string) (*business.InvestorAccountInfo, error) {
-	acct, err := a.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	info := &business.InvestorAccountInfo{
-		ReservedBalance:  acct.ReservedBalance,
-		AvailableBalance: acct.AvailableBalance,
-		TotalReturned:    acct.TotalReturned,
-	}
-	info.BaseModel = acct.BaseModel
-	return info, nil
-}
-
-func (a *investorAccountAdapter) Save(ctx context.Context, account *business.InvestorAccountInfo) error {
-	model := &fundingmodels.InvestorAccount{
-		ReservedBalance:  account.ReservedBalance,
-		AvailableBalance: account.AvailableBalance,
-		TotalReturned:    account.TotalReturned,
-	}
-	model.BaseModel = account.BaseModel
-	return a.eventsMan.Emit(ctx, "investor_account.save", model)
 }

@@ -14,8 +14,12 @@ buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44
 buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2/go.mod h1:SBTRWEDRNjIEtp73vkstgPAngZ2ReBAgV1eUbsaF6ok=
 buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261024205209-46ef2ece0d2e.1 h1:wIy8tpAieJVGvjSKkJeHMptzve+nvQ0pKzqasJT12Hs=
 buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261024205209-46ef2ece0d2e.1/go.mod h1:DY3f51AagTCxnnLImT99NSZ0BgJFgpXkm6hbzBdsH1U=
+buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261025114649-9da866114f22.1 h1:OVJ3L7KV616L/oGt9z4LG3NZNjtAJRH4DXAM2fTN4P0=
+buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261025114649-9da866114f22.1/go.mod h1:uVcXsdYVL3HKskRG+EaI5Gb2bZJGN4umieDf2IFJzX8=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261024205209-46ef2ece0d2e.2 h1:u3G8kxqiGlxWUjPpDae8p44sg19IefDBgdFJJmhfmqg=
 buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261024205209-46ef2ece0d2e.2/go.mod h1:VtaQ6lVFcehjTnmNUvQmCbBstXbHV0I39QCdwGv3d+I=
+buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261025114649-9da866114f22.2 h1:egJ5UFsVqKypXYD7jzHxocfODUwo4UWJTpQTRaiPRFc=
+buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261025114649-9da866114f22.2/go.mod h1:VtaQ6lVFcehjTnmNUvQmCbBstXbHV0I39QCdwGv3d+I=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-00000000000000-3fce51e3ad89.1 h1:ojL+xvCgMX3UjSiJ/uEJgwj+J8hS1KfK+MXPsd/iPWQ=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-00000000000000-3fce51e3ad89.1/go.mod h1:bJCbfgqLYhI5fdz7uw5EuhZ/MVf1h4MvgLUC+2PTEtc=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261024205209-78c676364f26.1 h1:SW1nWEYm+ZetTflr4CGDQvxYrhFNr2xDezENMQEXNNE=
@@ -50,8 +54,16 @@ buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.12-20261024205209-e
 buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.12-20261024205209-e1c773bb733d.2/go.mod h1:/qX70gi1IyCKkSPYzQkJVyG/jIPcIBvaP2ccd4JU15s=
 buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261024205209-5cba0ca1181c.1 h1:Hx/xTaBy6y8yKXh8T43XzqnAw7xA4F8s767gh/7VbAE=
 buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261024205209-5cba0ca1181c.1/go.mod h1:NC6aFk4Ic31PJRb9z5IrR4IbwJkWkE/DJ9ZfgOr2fuI=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025114649-e0a1eb6644f8.1 h1:kFEG5t5CwAk24T/e/2PvD48ZUQtRkX0UspWDsBk9bw8=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025114649-e0a1eb6644f8.1/go.mod h1:gl/wLZFYadCS9d/imJCy0MIjcrCoQmaSGhxj8mkhKW4=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025121205-399271319c1b.1 h1:7LosbxlJP9byCqvdrSGGFHIEWrNZaMe93OZK/qsYDhg=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025121205-399271319c1b.1/go.mod h1:cM5jpgtpFY+pXP5vGBUBcJd9hipTx88FyHqnRT2Ml8w=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261024205209-5cba0ca1181c.2 h1:ViXublkpanKf6Gr4OYBSvJ27FvrArfb7kmykSsAEY8c=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261024205209-5cba0ca1181c.2/go.mod h1:S0ESWwia6HXIhZFWOBFGyuP3nj9fJcA7uJ2K1h8/wiQ=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025114649-e0a1eb6644f8.2 h1:61TSowunHp28SBmNpmxJgwwSQ14C89ShH5YLrm7J0YM=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025114649-e0a1eb6644f8.2/go.mod h1:S0ESWwia6HXIhZFWOBFGyuP3nj9fJcA7uJ2K1h8/wiQ=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025121205-399271319c1b.2 h1:Tx+pjKECfI9R/Fsth3UQtb460rMGNpxqYQzrntuxbOs=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025121205-399271319c1b.2/go.mod h1:S0ESWwia6HXIhZFWOBFGyuP3nj9fJcA7uJ2K1h8/wiQ=
 buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1 h1:rv4s5SZd4NT02LcoqbqgQgmqnNgaxMCxVSc9HkmHOoE=
 buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1/go.mod h1:nDN9duwYKB0jZw4HZMQFgRFY5RIy3YiiA6ULdT2vJKk=
 buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.12-20260831182621-e7d71a2bcc5d.2 h1:a5U+LKghcVsN0YdHmbh3S6h2PRyUclqW6V/30nY0ijw=
@@ -229,6 +241,8 @@ github.com/golang-sql/sqlexp v0.1.0 h1:ZCD6MBpcuOVfGVqsEmY5/4FtYiKz6tSyUv9LPEDei
 github.com/golang-sql/sqlexp v0.1.0/go.mod h1:J4ad9Vo8ZCWQ2GMrC4UCQy1JpCbwU9m3EOqtpKwwwHI=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
+github.com/google/cel-go v0.30.0 h1:ll54AkzKunWkBn9wSoiUXbFZXYZTkdJGNXTBXUoolGo=
+github.com/google/cel-go v0.30.0/go.mod h1:X0bD6iVNR8pkROSOoHVdgTkzmRcosof7WQqCD6wcMc8=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
@@ -369,6 +383,8 @@ github.com/prometheus/procfs v0.22.0 h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0o
 github.com/prometheus/procfs v0.22.0/go.mod h1:CvmFr/GVhIjIvWJZW3tgkODBQMRIf0EyWMQLHCHab58=
 github.com/redis/go-redis/v9 v9.23.0 h1:/TTVdJa8BRNsybwwGGnmiYktHNlUXtbOQxlWpHBPL3s=
 github.com/redis/go-redis/v9 v9.23.0/go.mod h1:EWP2UUk+XDaI1s5nQB5mablZN6vccXlmBQTyfnF87D0=
+github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=
+github.com/robfig/cron/v3 v3.0.1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/rodaine/protogofakeit v0.1.1 h1:ZKouljuRM3A+TArppfBqnH8tGZHOwM/pjvtXe9DaXH8=
 github.com/rodaine/protogofakeit v0.1.1/go.mod h1:pXn/AstBYMaSfc1/RqH3N82pBuxtWgejz1AlYpY1mI0=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=

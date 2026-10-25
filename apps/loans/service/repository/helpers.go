@@ -28,6 +28,7 @@ import (
 // Column names the repositories write directly rather than through an entity.
 const (
 	colStatus     = "status"
+	colState      = "state"
 	colModifiedAt = "modified_at"
 	colVersion    = "version"
 	// bookkeepingColumns is how many columns applyColumnUpdate adds of its own.

@@ -17,14 +17,15 @@ package business
 // Shared string constants for repeated metadata keys, SQL fragments, and
 // label values used across this package (extracted to satisfy goconst).
 const (
-	metricTypeCounter     = "counter"
-	fieldAmount           = "amount"
-	fieldAvailableBalance = "available_balance"
-	fieldCurrency         = "currency"
-	fieldInvestorID       = "investor_id"
-	fieldLoanRequestID    = "loan_request_id"
-	metricUnitCount       = "count"
-	metricUnitCurrency    = "currency_unit"
+	metricTypeCounter      = "counter"
+	fieldAmount            = "amount"
+	fieldAvailableBalance  = "available_balance"
+	fieldCurrency          = "currency"
+	fieldInvestorID        = "investor_id"
+	fieldInvestorAccountID = "investor_account_id"
+	fieldLoanRequestID     = "loan_request_id"
+	metricUnitCount        = "count"
+	metricUnitCurrency     = "currency_unit"
 
 	// defaultPageLimit and maxPageLimit bound a single search page.
 	defaultPageLimit = 50

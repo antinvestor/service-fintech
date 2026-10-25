@@ -101,10 +101,14 @@ func (c *loansLoanCreator) CreateApplication(
 			RequestedTermDays: req.TermDays,
 			ApprovedTermDays:  req.TermDays,
 			CurrencyCode:      req.CurrencyCode,
-			Purpose:           req.Purpose,
-			SourceService:     sourceServiceSeed,
-			SourceRequestId:   strings.TrimPrefix(req.IdempotencyKey, "seed:"),
-			IdempotencyKey:    req.IdempotencyKey,
+			// The tier's rate, as a decimal percentage ("22.00"). Without it
+			// the loan would be priced at the product's base rate and the
+			// credit ladder's discount would never reach the borrower.
+			InterestRate:    basisPointsToPercent(req.InterestRateBP),
+			Purpose:         req.Purpose,
+			SourceService:   sourceServiceSeed,
+			SourceRequestId: strings.TrimPrefix(req.IdempotencyKey, "seed:"),
+			IdempotencyKey:  req.IdempotencyKey,
 		},
 	})
 	if err != nil {
@@ -235,4 +239,13 @@ func (r *identityClientResolver) ResolveByProfileID(ctx context.Context, profile
 	}
 
 	return "", ErrNoClientForProfile
+}
+
+// basisPointsToPercent renders basis points as the decimal percentage the
+// loans API takes; zero leaves the product's rate in force.
+func basisPointsToPercent(bp int64) string {
+	if bp <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d.%02d", bp/100, bp%100) //nolint:mnd // basis points per percent
 }

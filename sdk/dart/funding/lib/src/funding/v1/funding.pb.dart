@@ -1311,11 +1311,13 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
     $core.String? loanRequestId,
     $0.Money? amount,
     $core.String? lossReference,
+    $core.String? productId,
   }) {
     final result = AbsorbLossRequest._();
     if (loanRequestId != null) result.loanRequestId = loanRequestId;
     if (amount != null) result.amount = amount;
     if (lossReference != null) result.lossReference = lossReference;
+    if (productId != null) result.productId = productId;
     return result;
   }
 
@@ -1336,6 +1338,7 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
     ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'amount',
         subBuilder: $0.Money.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'lossReference')
+    ..aOS(4, _omitFieldNames ? '' : 'productId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1391,16 +1394,30 @@ class AbsorbLossRequest extends $pb.GeneratedMessage {
   $core.bool hasLossReference() => $_has(2);
   @$pb.TagNumber(3)
   void clearLossReference() => $_clearField(3);
+
+  /// Product the loan belongs to. When set, the absorbed loss is also posted
+  /// to the ledger: each investor's capital and the platform's first-loss
+  /// reserve take their share of the product's bad-debt expense.
+  @$pb.TagNumber(4)
+  $core.String get productId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set productId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasProductId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearProductId() => $_clearField(4);
 }
 
 class AbsorbLossResponse extends $pb.GeneratedMessage {
   factory AbsorbLossResponse({
     $0.Money? absorbed,
     $0.Money? unrecoverable,
+    $core.bool? settled,
   }) {
     final result = AbsorbLossResponse._();
     if (absorbed != null) result.absorbed = absorbed;
     if (unrecoverable != null) result.unrecoverable = unrecoverable;
+    if (settled != null) result.settled = settled;
     return result;
   }
 
@@ -1421,6 +1438,7 @@ class AbsorbLossResponse extends $pb.GeneratedMessage {
         subBuilder: $0.Money.$_createMessage)
     ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'unrecoverable',
         subBuilder: $0.Money.$_createMessage)
+    ..aOB(3, _omitFieldNames ? '' : 'settled')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1466,6 +1484,369 @@ class AbsorbLossResponse extends $pb.GeneratedMessage {
   void clearUnrecoverable() => $_clearField(2);
   @$pb.TagNumber(2)
   $0.Money ensureUnrecoverable() => $_ensure(1);
+
+  /// True once the ledger postings for the absorbed loss are done (always
+  /// true when no product_id was given). False means call again with the
+  /// same loss reference.
+  @$pb.TagNumber(3)
+  $core.bool get settled => $_getBF(2);
+  @$pb.TagNumber(3)
+  set settled($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSettled() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSettled() => $_clearField(3);
+}
+
+/// One repayment of a funded loan, to be shared out to the sources that
+/// funded it in proportion to what each put in.
+class LoanRepaymentApplyRequest extends $pb.GeneratedMessage {
+  factory LoanRepaymentApplyRequest({
+    $core.String? loanRequestId,
+    $core.String? loanAccountId,
+    $core.String? productId,
+    $core.String? repaymentReference,
+    $0.Money? principal,
+    $0.Money? interest,
+  }) {
+    final result = LoanRepaymentApplyRequest._();
+    if (loanRequestId != null) result.loanRequestId = loanRequestId;
+    if (loanAccountId != null) result.loanAccountId = loanAccountId;
+    if (productId != null) result.productId = productId;
+    if (repaymentReference != null)
+      result.repaymentReference = repaymentReference;
+    if (principal != null) result.principal = principal;
+    if (interest != null) result.interest = interest;
+    return result;
+  }
+
+  LoanRepaymentApplyRequest._();
+
+  factory LoanRepaymentApplyRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRepaymentApplyRequest()..mergeFromBuffer(data, registry);
+  factory LoanRepaymentApplyRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRepaymentApplyRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanRepaymentApplyRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: LoanRepaymentApplyRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'loanRequestId')
+    ..aOS(2, _omitFieldNames ? '' : 'loanAccountId')
+    ..aOS(3, _omitFieldNames ? '' : 'productId')
+    ..aOS(4, _omitFieldNames ? '' : 'repaymentReference')
+    ..aOM<$0.Money>(5, _omitFieldNames ? '' : 'principal',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(6, _omitFieldNames ? '' : 'interest',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRepaymentApplyRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRepaymentApplyRequest copyWith(
+          void Function(LoanRepaymentApplyRequest) updates) =>
+      super.copyWith((message) => updates(message as LoanRepaymentApplyRequest))
+          as LoanRepaymentApplyRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanRepaymentApplyRequest() / LoanRepaymentApplyRequest.new instead')
+  static LoanRepaymentApplyRequest create() => LoanRepaymentApplyRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      LoanRepaymentApplyRequest._();
+  @$core.override
+  LoanRepaymentApplyRequest createEmptyInstance() =>
+      LoanRepaymentApplyRequest._();
+  @$core.pragma('dart2js:noInline')
+  static LoanRepaymentApplyRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanRepaymentApplyRequest>(
+          LoanRepaymentApplyRequest.$_createMessage);
+  static LoanRepaymentApplyRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get loanRequestId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set loanRequestId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasLoanRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearLoanRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get loanAccountId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set loanAccountId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLoanAccountId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLoanAccountId() => $_clearField(2);
+
+  /// Product whose income account received the interest.
+  @$pb.TagNumber(3)
+  $core.String get productId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set productId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasProductId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearProductId() => $_clearField(3);
+
+  /// Identifies the repayment. A repeated call with the same reference applies
+  /// once and finishes any ledger posting an earlier call left undone.
+  @$pb.TagNumber(4)
+  $core.String get repaymentReference => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set repaymentReference($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRepaymentReference() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRepaymentReference() => $_clearField(4);
+
+  /// Principal the repayment cleared. Returned to each funder's capital.
+  @$pb.TagNumber(5)
+  $0.Money get principal => $_getN(4);
+  @$pb.TagNumber(5)
+  set principal($0.Money value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPrincipal() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPrincipal() => $_clearField(5);
+  @$pb.TagNumber(5)
+  $0.Money ensurePrincipal() => $_ensure(4);
+
+  /// Interest the repayment paid. Shared to funders net of the platform fee
+  /// and withholding tax.
+  @$pb.TagNumber(6)
+  $0.Money get interest => $_getN(5);
+  @$pb.TagNumber(6)
+  set interest($0.Money value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasInterest() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearInterest() => $_clearField(6);
+  @$pb.TagNumber(6)
+  $0.Money ensureInterest() => $_ensure(5);
+}
+
+/// One funding source's share of a repayment.
+class RepaymentShareObject extends $pb.GeneratedMessage {
+  factory RepaymentShareObject({
+    $core.String? sourceId,
+    $core.String? sourceType,
+    $core.int? trancheLevel,
+    $0.Money? principal,
+    $0.Money? interest,
+    $0.Money? platformFee,
+    $0.Money? withholdingTax,
+  }) {
+    final result = RepaymentShareObject._();
+    if (sourceId != null) result.sourceId = sourceId;
+    if (sourceType != null) result.sourceType = sourceType;
+    if (trancheLevel != null) result.trancheLevel = trancheLevel;
+    if (principal != null) result.principal = principal;
+    if (interest != null) result.interest = interest;
+    if (platformFee != null) result.platformFee = platformFee;
+    if (withholdingTax != null) result.withholdingTax = withholdingTax;
+    return result;
+  }
+
+  RepaymentShareObject._();
+
+  factory RepaymentShareObject.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      RepaymentShareObject()..mergeFromBuffer(data, registry);
+  factory RepaymentShareObject.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      RepaymentShareObject()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RepaymentShareObject',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: RepaymentShareObject.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'sourceId')
+    ..aOS(2, _omitFieldNames ? '' : 'sourceType')
+    ..aI(3, _omitFieldNames ? '' : 'trancheLevel')
+    ..aOM<$0.Money>(4, _omitFieldNames ? '' : 'principal',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(5, _omitFieldNames ? '' : 'interest',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(6, _omitFieldNames ? '' : 'platformFee',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(7, _omitFieldNames ? '' : 'withholdingTax',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RepaymentShareObject clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RepaymentShareObject copyWith(void Function(RepaymentShareObject) updates) =>
+      super.copyWith((message) => updates(message as RepaymentShareObject))
+          as RepaymentShareObject;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RepaymentShareObject() / RepaymentShareObject.new instead')
+  static RepaymentShareObject create() => RepaymentShareObject._();
+  static $pb.GeneratedMessage $_createMessage() => RepaymentShareObject._();
+  @$core.override
+  RepaymentShareObject createEmptyInstance() => RepaymentShareObject._();
+  @$core.pragma('dart2js:noInline')
+  static RepaymentShareObject getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RepaymentShareObject>(
+          RepaymentShareObject.$_createMessage);
+  static RepaymentShareObject? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get sourceId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set sourceId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSourceId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSourceId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get sourceType => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set sourceType($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSourceType() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSourceType() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get trancheLevel => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set trancheLevel($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTrancheLevel() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTrancheLevel() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $0.Money get principal => $_getN(3);
+  @$pb.TagNumber(4)
+  set principal($0.Money value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPrincipal() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPrincipal() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $0.Money ensurePrincipal() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  $0.Money get interest => $_getN(4);
+  @$pb.TagNumber(5)
+  set interest($0.Money value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasInterest() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearInterest() => $_clearField(5);
+  @$pb.TagNumber(5)
+  $0.Money ensureInterest() => $_ensure(4);
+
+  @$pb.TagNumber(6)
+  $0.Money get platformFee => $_getN(5);
+  @$pb.TagNumber(6)
+  set platformFee($0.Money value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasPlatformFee() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearPlatformFee() => $_clearField(6);
+  @$pb.TagNumber(6)
+  $0.Money ensurePlatformFee() => $_ensure(5);
+
+  @$pb.TagNumber(7)
+  $0.Money get withholdingTax => $_getN(6);
+  @$pb.TagNumber(7)
+  set withholdingTax($0.Money value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasWithholdingTax() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearWithholdingTax() => $_clearField(7);
+  @$pb.TagNumber(7)
+  $0.Money ensureWithholdingTax() => $_ensure(6);
+}
+
+class LoanRepaymentApplyResponse extends $pb.GeneratedMessage {
+  factory LoanRepaymentApplyResponse({
+    $core.Iterable<RepaymentShareObject>? shares,
+    $core.bool? settled,
+  }) {
+    final result = LoanRepaymentApplyResponse._();
+    if (shares != null) result.shares.addAll(shares);
+    if (settled != null) result.settled = settled;
+    return result;
+  }
+
+  LoanRepaymentApplyResponse._();
+
+  factory LoanRepaymentApplyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRepaymentApplyResponse()..mergeFromBuffer(data, registry);
+  factory LoanRepaymentApplyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRepaymentApplyResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanRepaymentApplyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: LoanRepaymentApplyResponse.$_createMessage)
+    ..pPM<RepaymentShareObject>(1, _omitFieldNames ? '' : 'shares',
+        subBuilder: RepaymentShareObject.$_createMessage)
+    ..aOB(2, _omitFieldNames ? '' : 'settled')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRepaymentApplyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRepaymentApplyResponse copyWith(
+          void Function(LoanRepaymentApplyResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as LoanRepaymentApplyResponse))
+          as LoanRepaymentApplyResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanRepaymentApplyResponse() / LoanRepaymentApplyResponse.new instead')
+  static LoanRepaymentApplyResponse create() => LoanRepaymentApplyResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      LoanRepaymentApplyResponse._();
+  @$core.override
+  LoanRepaymentApplyResponse createEmptyInstance() =>
+      LoanRepaymentApplyResponse._();
+  @$core.pragma('dart2js:noInline')
+  static LoanRepaymentApplyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanRepaymentApplyResponse>(
+          LoanRepaymentApplyResponse.$_createMessage);
+  static LoanRepaymentApplyResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<RepaymentShareObject> get shares => $_getList(0);
+
+  /// True once every ledger posting for this repayment is done. False means
+  /// the shares are recorded but a posting is still owed: call again with the
+  /// same reference.
+  @$pb.TagNumber(2)
+  $core.bool get settled => $_getBF(1);
+  @$pb.TagNumber(2)
+  set settled($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSettled() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSettled() => $_clearField(2);
 }
 
 class FundingServiceApi {
@@ -1501,6 +1882,13 @@ class FundingServiceApi {
           $pb.ClientContext? ctx, AbsorbLossRequest request) =>
       _client.invoke<AbsorbLossResponse>(
           ctx, 'FundingService', 'AbsorbLoss', request, AbsorbLossResponse());
+
+  /// LoanRepaymentApply shares a loan repayment out to the loan's funders:
+  /// principal back to their capital, interest net of fee and tax as income.
+  $async.Future<LoanRepaymentApplyResponse> loanRepaymentApply(
+          $pb.ClientContext? ctx, LoanRepaymentApplyRequest request) =>
+      _client.invoke<LoanRepaymentApplyResponse>(ctx, 'FundingService',
+          'LoanRepaymentApply', request, LoanRepaymentApplyResponse());
 }
 
 const $core.bool _omitFieldNames =

@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"time"
@@ -30,11 +31,6 @@ import (
 )
 
 const (
-	// delinquencyPageSize bounds how many loans one page of the scan holds.
-	delinquencyPageSize = 200
-	// delinquencyMaxPages bounds a single scan so a runaway portfolio cannot
-	// keep one pass running indefinitely; the next tick resumes the work.
-	delinquencyMaxPages       = 500
 	hoursPerDay               = 24
 	basisPointsPenaltyDivisor = 10000
 	defaultDelinquencyDays    = 7
@@ -46,8 +42,9 @@ const (
 // penalties for overdue schedule entries and keeps days_past_due current, which
 // is what portfolio-at-risk reporting reads.
 //
-// Run it from a scheduled job; it is safe to run concurrently with normal
-// traffic because every write it makes is conditional.
+// The scheduler calls RunBatch through LoanJobRun. Each loan is claimed for
+// assessment once a day, so any number of runs can work in parallel, and
+// every write an assessment makes is conditional.
 type DelinquencyScanner struct {
 	loanAccountRepo repository.LoanAccountRepository
 	scheduleRepo    repository.ScheduleEntryRepository
@@ -111,107 +108,50 @@ func NewDelinquencyScanner(
 	return s
 }
 
-// Run adapts ScanAndTransition to the signature a scheduled job expects.
-func (s *DelinquencyScanner) Run(ctx context.Context) error {
-	_, err := s.ScanAndTransition(ctx)
-	return err
-}
-
-// ScanAndTransition pages through active and delinquent loans, records how
-// overdue each one is, charges late penalties for installments that have not
-// been penalised yet, and moves loans across the delinquency thresholds.
-// Returns the number of loans whose status changed.
-func (s *DelinquencyScanner) ScanAndTransition(ctx context.Context) (int, error) {
-	logger := util.Log(ctx).WithField("method", "DelinquencyScanner.ScanAndTransition")
+// RunBatch claims up to batch loans due for assessment and assesses each:
+// days past due recorded, late penalties charged, and the loan moved into
+// arrears, into default, or cured. It reports how many loans it looked at
+// and whether the batch was full.
+func (s *DelinquencyScanner) RunBatch(ctx context.Context, batch int) (int, bool, error) {
+	loans, err := s.loanAccountRepo.ClaimForAssessment(ctx, batch)
+	if err != nil {
+		return 0, false, fmt.Errorf("claim loans for assessment: %w", err)
+	}
+	logger := util.Log(ctx).WithField("job", "delinquency_scan")
 	now := time.Now().UTC()
-	transitioned := 0
-
-	// Every status a borrower can still owe from is scanned, and late
-	// penalties apply in all of them: a loan does not stop accruing penalties
-	// because it was already marked delinquent or was restructured.
-	active, err := s.scanStatus(ctx, logger, now,
-		loansv1.LoanStatus_LOAN_STATUS_ACTIVE,
-		loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
-		s.delinquencyDays, true)
-	transitioned += active
-	if err != nil {
-		return transitioned, err
+	for _, la := range loans {
+		if ctx.Err() != nil {
+			return 0, true, ctx.Err()
+		}
+		s.assess(ctx, logger, la, now)
 	}
+	return len(loans), len(loans) == batch, nil
+}
 
-	restructured, err := s.scanStatus(ctx, logger, now,
-		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
-		loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
-		s.delinquencyDays, true)
-	transitioned += restructured
-	if err != nil {
-		return transitioned, err
-	}
-
-	delinquent, err := s.scanStatus(ctx, logger, now,
-		loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
+// assess applies the delinquency rules for one loan in its current status.
+// Late penalties apply in every status a borrower can still owe from: a loan
+// does not stop accruing them because it is already delinquent.
+func (s *DelinquencyScanner) assess(ctx context.Context, logger *util.LogEntry, la *models.LoanAccount, now time.Time) {
+	switch loansv1.LoanStatus(la.Status) {
+	case loansv1.LoanStatus_LOAN_STATUS_ACTIVE, loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:
+		s.assessLoan(ctx, logger, la, now, loansv1.LoanStatus_LOAN_STATUS_DELINQUENT, s.delinquencyDays)
+	case loansv1.LoanStatus_LOAN_STATUS_DELINQUENT:
+		if s.cureIfCaughtUp(ctx, logger, la, now) {
+			return
+		}
+		s.assessLoan(ctx, logger, la, now, loansv1.LoanStatus_LOAN_STATUS_DEFAULT, s.defaultDays)
+	case loansv1.LoanStatus_LOAN_STATUS_UNSPECIFIED,
+		loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT,
 		loansv1.LoanStatus_LOAN_STATUS_DEFAULT,
-		s.defaultDays, true)
-	transitioned += delinquent
-	if err != nil {
-		return transitioned, err
+		loansv1.LoanStatus_LOAN_STATUS_PAID_OFF,
+		loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF,
+		loansv1.LoanStatus_LOAN_STATUS_CLOSED:
+		// Claimed before its status moved on; nothing to assess.
 	}
-
-	cured, err := s.scanCures(ctx, logger, now)
-	transitioned += cured
-	if err != nil {
-		return transitioned, err
-	}
-
-	logger.WithField("transitioned", transitioned).Info("delinquency scan completed")
-	return transitioned, nil
 }
 
-// scanStatus walks every loan in fromStatus one page at a time. Paging matters:
-// a single capped query silently ignores everything past the cap, which for a
-// delinquency scan means loans that quietly never default.
-func (s *DelinquencyScanner) scanStatus(
-	ctx context.Context,
-	logger *util.LogEntry,
-	now time.Time,
-	fromStatus, toStatus loansv1.LoanStatus,
-	thresholdDays int,
-	applyPenalties bool,
-) (int, error) {
-	transitioned := 0
-	afterID := ""
-
-	for range delinquencyMaxPages {
-		batch, err := s.loanAccountRepo.PageByStatus(
-			ctx, int32(fromStatus), afterID, delinquencyPageSize,
-		)
-		if err != nil {
-			logger.WithError(err).WithField("status", fromStatus.String()).
-				Error("could not page loans for the delinquency scan")
-			return transitioned, err
-		}
-		if len(batch) == 0 {
-			return transitioned, nil
-		}
-
-		afterID = batch[len(batch)-1].GetID()
-
-		for _, la := range batch {
-			if s.assessLoan(ctx, logger, la, now, toStatus, thresholdDays, applyPenalties) {
-				transitioned++
-			}
-		}
-
-		if len(batch) < delinquencyPageSize {
-			return transitioned, nil
-		}
-	}
-
-	return transitioned, nil
-}
-
-// assessLoan records how overdue one loan is, charges late penalties when
-// asked, and moves the loan to toStatus once it is thresholdDays past due.
-// It reports whether the loan was transitioned.
+// assessLoan records how overdue one loan is, charges late penalties, and
+// moves the loan to toStatus once it is thresholdDays past due.
 func (s *DelinquencyScanner) assessLoan(
 	ctx context.Context,
 	logger *util.LogEntry,
@@ -219,17 +159,14 @@ func (s *DelinquencyScanner) assessLoan(
 	now time.Time,
 	toStatus loansv1.LoanStatus,
 	thresholdDays int,
-	applyPenalties bool,
-) bool {
+) {
 	daysPastDue := s.computeDaysPastDue(ctx, la, now)
 	s.recordDaysPastDue(ctx, logger, la, daysPastDue)
 
-	if applyPenalties {
-		s.applyLatePenalties(ctx, logger, la, now)
-	}
+	s.applyLatePenalties(ctx, logger, la, now)
 
 	if daysPastDue < thresholdDays {
-		return false
+		return
 	}
 	if toStatus == loansv1.LoanStatus_LOAN_STATUS_DELINQUENT {
 		// Remember where the loan came from, so a cure returns it there (a
@@ -243,56 +180,39 @@ func (s *DelinquencyScanner) assessLoan(
 	); transErr != nil {
 		logger.WithError(transErr).WithField("loan_id", la.GetID()).
 			Warn("could not transition loan on the delinquency scan")
-		return false
+		return
 	}
 	if toStatus == loansv1.LoanStatus_LOAN_STATUS_DELINQUENT {
 		s.notifyArrears(ctx, logger, la, daysPastDue)
 	}
-	return true
 }
 
-// scanCures returns delinquent loans that are no longer overdue to ACTIVE.
-// A borrower who catches up must not stay marked delinquent for ever.
-func (s *DelinquencyScanner) scanCures(ctx context.Context, logger *util.LogEntry, now time.Time) (int, error) {
-	cured := 0
-	afterID := ""
-	for range delinquencyMaxPages {
-		batch, err := s.loanAccountRepo.PageByStatus(
-			ctx, int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT), afterID, delinquencyPageSize,
-		)
-		if err != nil {
-			return cured, err
-		}
-		if len(batch) == 0 {
-			return cured, nil
-		}
-		afterID = batch[len(batch)-1].GetID()
-		for _, la := range batch {
-			// A cure is a positive statement: the active schedule exists and
-			// has nothing past due. A read error or a loan with no active
-			// schedule is left alone.
-			days, dpdErr := s.daysPastDue(ctx, la, now)
-			if dpdErr != nil || days > 0 {
-				continue
-			}
-			activeEntries, countErr := s.scheduleRepo.CountActiveEntries(ctx, la.GetID())
-			if countErr != nil || activeEntries == 0 {
-				continue
-			}
-			s.recordDaysPastDue(ctx, logger, la, 0)
-			if _, transErr := s.laBusiness.TransitionStatus(
-				ctx, la.GetID(), cureTarget(la), "system", "arrears cleared",
-			); transErr != nil {
-				logger.WithError(transErr).WithField("loan_id", la.GetID()).Warn("could not cure delinquent loan")
-				continue
-			}
-			cured++
-		}
-		if len(batch) < delinquencyPageSize {
-			return cured, nil
-		}
+// cureIfCaughtUp returns a delinquent loan that is no longer overdue to the
+// status it held before arrears. A cure is a positive statement: the active
+// schedule exists and has nothing past due. A read error or a loan with no
+// active schedule is left alone. It reports whether the loan was cured.
+func (s *DelinquencyScanner) cureIfCaughtUp(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+	now time.Time,
+) bool {
+	days, dpdErr := s.daysPastDue(ctx, la, now)
+	if dpdErr != nil || days > 0 {
+		return false
 	}
-	return cured, nil
+	activeEntries, countErr := s.scheduleRepo.CountActiveEntries(ctx, la.GetID())
+	if countErr != nil || activeEntries == 0 {
+		return false
+	}
+	s.recordDaysPastDue(ctx, logger, la, 0)
+	if _, transErr := s.laBusiness.TransitionStatus(
+		ctx, la.GetID(), cureTarget(la), "system", "arrears cleared",
+	); transErr != nil {
+		logger.WithError(transErr).WithField("loan_id", la.GetID()).Warn("could not cure delinquent loan")
+		return false
+	}
+	return true
 }
 
 // preArrearsStatusKey records, on the loan, the status it held before it

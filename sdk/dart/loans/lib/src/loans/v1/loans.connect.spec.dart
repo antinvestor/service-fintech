@@ -304,6 +304,15 @@ abstract final class LoanManagementService {
     loansv1loans.InitiateCollectionResponse.new,
   );
 
+  /// LoanJobRun runs one batch of a periodic job. Called by the platform
+  /// scheduler (trustage); only service accounts hold the permission.
+  static const loanJobRun = connect.Spec(
+    '/$name/LoanJobRun',
+    connect.StreamType.unary,
+    loansv1loans.LoanJobRunRequest.new,
+    loansv1loans.LoanJobRunResponse.new,
+  );
+
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.
   static const loanStatusChangeSearch = connect.Spec(
     '/$name/LoanStatusChangeSearch',

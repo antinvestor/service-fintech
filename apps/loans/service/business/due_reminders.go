@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pitabwire/util"
@@ -25,13 +26,6 @@ import (
 )
 
 const (
-	// reminderKeyDue and reminderKeyOverdue are the entry property keys that
-	// record each reminder was sent, so a borrower hears each once.
-	reminderKeyDue     = "reminder_due_sent_at"
-	reminderKeyOverdue = "reminder_overdue_sent_at"
-
-	reminderPageSize = 200
-	reminderMaxPages = 500
 	// overdueLookback bounds how far back the overdue pass looks for
 	// installments never reminded, so a fresh deployment does not message
 	// borrowers about ancient arrears all at once.
@@ -69,97 +63,72 @@ func NewDueReminderJob(
 	}
 }
 
-// Run sends the reminders that are due. It is safe to run on a schedule and
-// from several replicas: each reminder is claimed on its installment.
-func (j *DueReminderJob) Run(ctx context.Context) error {
+// RunBatch sends up to batch reminders: first those for installments about
+// to fall due, then those for installments just missed. Each reminder is
+// claimed on its installment before it is sent, so concurrent runs never
+// send it twice. It reports how many it sent and whether the batch was full.
+func (j *DueReminderJob) RunBatch(ctx context.Context, batch int) (int, bool, error) {
 	if !j.notifier.Enabled() {
-		return nil
+		return 0, false, nil
 	}
 	now := j.now().UTC()
-	logger := util.Log(ctx).WithField("method", "DueReminderJob.Run")
+	logger := util.Log(ctx).WithField("job", "due_reminders")
 
-	sentDue, err := j.remind(ctx, logger, now, now.Add(time.Duration(j.daysAhead)*24*time.Hour), reminderKeyDue)
+	due, err := j.scheduleRepo.ClaimReminders(ctx, repository.ReminderDue,
+		now, now.Add(time.Duration(j.daysAhead)*hoursPerDay*time.Hour), batch)
 	if err != nil {
-		return err
+		return 0, false, fmt.Errorf("claim due reminders: %w", err)
 	}
-	sentOverdue, err := j.remind(ctx, logger, now.Add(-overdueLookback), now, reminderKeyOverdue)
-	if err != nil {
-		return err
-	}
-	logger.WithField("due_reminders", sentDue).WithField("overdue_reminders", sentOverdue).
-		Info("payment reminders sent")
-	return nil
-}
-
-func (j *DueReminderJob) remind(
-	ctx context.Context,
-	logger *util.LogEntry,
-	from, to time.Time,
-	key string,
-) (int, error) {
-	sent := 0
-	afterID := ""
 	loans := map[string]*models.LoanAccount{}
-	for range reminderMaxPages {
-		entries, err := j.scheduleRepo.ListDueBetween(ctx, from, to, afterID, reminderPageSize)
-		if err != nil {
-			return sent, err
-		}
-		if len(entries) == 0 {
-			return sent, nil
-		}
-		afterID = entries[len(entries)-1].GetID()
-
-		for _, entry := range entries {
-			if j.remindEntry(ctx, logger, entry, key, loans) {
-				sent++
-			}
-		}
-		if len(entries) < reminderPageSize {
-			return sent, nil
-		}
+	for _, entry := range due {
+		j.remindEntry(ctx, logger, entry, repository.ReminderDue, loans)
 	}
-	return sent, nil
+	if len(due) == batch {
+		return len(due), true, nil
+	}
+
+	overdue, err := j.scheduleRepo.ClaimReminders(ctx, repository.ReminderOverdue,
+		now.Add(-overdueLookback), now, batch-len(due))
+	if err != nil {
+		return len(due), false, fmt.Errorf("claim overdue reminders: %w", err)
+	}
+	for _, entry := range overdue {
+		j.remindEntry(ctx, logger, entry, repository.ReminderOverdue, loans)
+	}
+	processed := len(due) + len(overdue)
+	return processed, processed == batch, nil
 }
 
-// remindEntry sends one reminder for one installment if its loan is still
-// repayable and the reminder has not been sent. It reports whether it sent.
+// remindEntry sends one claimed reminder if the installment's loan is still
+// repayable.
 func (j *DueReminderJob) remindEntry(
 	ctx context.Context,
 	logger *util.LogEntry,
 	entry *models.ScheduleEntry,
-	key string,
+	kind repository.ReminderKind,
 	loans map[string]*models.LoanAccount,
-) bool {
+) {
 	la, ok := loans[entry.LoanAccountID]
 	if !ok {
 		loaded, loadErr := j.loanAccountRepo.GetByID(ctx, entry.LoanAccountID)
 		if loadErr != nil || loaded == nil {
-			return false
+			logger.WithError(loadErr).WithField("entry_id", entry.GetID()).Warn("loan of reminder not found")
+			return
 		}
 		loans[entry.LoanAccountID] = loaded
 		la = loaded
 	}
 	if !isRepayableStatus(la.Status) {
-		return false
+		return
 	}
-	claimed, claimErr := j.scheduleRepo.MarkReminded(ctx, entry.GetID(), key)
-	if claimErr != nil {
-		logger.WithError(claimErr).WithField("entry_id", entry.GetID()).Warn("could not claim reminder")
-		return false
-	}
-	if !claimed {
-		return false
-	}
-	switch key {
-	case reminderKeyDue:
+	switch kind {
+	case repository.ReminderDue:
 		j.notifier.NotifyPaymentDue(ctx, la, entry.Outstanding, entry.DueDate)
-	case reminderKeyOverdue:
+	case repository.ReminderOverdue:
 		days := 0
 		if entry.DueDate != nil {
 			days = int(j.now().UTC().Sub(*entry.DueDate).Hours() / hoursPerDay)
 		}
 		j.notifier.NotifyPaymentOverdue(ctx, la, entry.Outstanding, entry.DueDate, days)
 	}
-	return true
 }

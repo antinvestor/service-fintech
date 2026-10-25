@@ -126,4 +126,23 @@ extension type FundingServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// LoanRepaymentApply shares a loan repayment out to the loan's funders:
+  /// principal back to their capital, interest net of fee and tax as income.
+  Future<fundingv1funding.LoanRepaymentApplyResponse> loanRepaymentApply(
+    fundingv1funding.LoanRepaymentApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.loanRepaymentApply,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

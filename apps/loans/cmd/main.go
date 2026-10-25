@@ -18,7 +18,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/antinvestor/service-fintech/gen/go/seed/connectrpc/go/seed/v1/seedv1connect"
 
@@ -65,18 +64,10 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/messages"
 	"github.com/antinvestor/service-fintech/pkg/notify"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
+	"github.com/antinvestor/service-fintech/pkg/trustage"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
 )
-
-// backgroundJobs carries what the periodic loan jobs need beyond the
-// businesses: their cadence and the database manager for the advisory lock.
-type backgroundJobs struct {
-	dbManager               datastore.Manager
-	delinquencyScanInterval time.Duration
-	dueReminderInterval     time.Duration
-	dueReminderDays         int
-}
 
 func main() {
 	tmpCtx := context.Background()
@@ -109,6 +100,12 @@ func main() {
 		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
 			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
+	})
+	// The loans jobs (delinquency, reminders, funder settlement, offer
+	// expiry) run only when trustage fires their schedules, so a deploy that
+	// cannot register them fails rather than ship a loan book nothing ages.
+	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
+		return trustage.SyncWorkflows(ctx, &cfg, cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -174,12 +171,7 @@ func main() {
 		cfg.DefaultThresholdDays,
 		peers.agentProfiles,
 		peers.paidOffHook,
-		backgroundJobs{
-			dbManager:               svc.DatastoreManager(),
-			delinquencyScanInterval: cfg.DelinquencyScanInterval,
-			dueReminderInterval:     cfg.DueReminderInterval,
-			dueReminderDays:         cfg.DueReminderDays,
-		},
+		cfg.DueReminderDays,
 		auditCli,
 	)
 
@@ -215,7 +207,7 @@ func setupServiceOptions(
 	defaultThresholdDays int,
 	agentProfiles business.AgentProfileResolver,
 	paidOffHook business.PaidOffHook,
-	jobs backgroundJobs,
+	dueReminderDays int,
 	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	lpRepo := repository.NewLoanProductRepository(ctx, dbPool, workMan)
@@ -257,6 +249,7 @@ func setupServiceOptions(
 		business.WithStatementSources(disbRepo, seRepo),
 		business.WithNotifier(loanNotifier),
 	)
+	fundingSettlement := business.NewFundingSettlement(repRepo, laRepo, fundingCli)
 	repBusiness := business.NewRepaymentBusiness(
 		ctx,
 		evtsMan,
@@ -273,6 +266,8 @@ func setupServiceOptions(
 		limitsGateEnabledLoanRepayment,
 		limitsGateModeLoanRepayment,
 		business.WithReadScope(readScope),
+		business.WithFundingSettlement(fundingSettlement),
+		business.WithRepaymentApplier(repository.NewRepaymentApplier(dbPool, lbRepo)),
 	)
 	penaltyBusiness := business.NewPenaltyBusiness(ctx, penRepo, laRepo, lbRepo, operationsCli, auditWriter,
 		business.WithNotifier(loanNotifier), business.WithScheduleEntries(seRepo),
@@ -307,29 +302,22 @@ func setupServiceOptions(
 		business.WithPayoutDestinationChecker(payoutChecker),
 	)
 
-	// Delinquency is a background obligation, not a request: without a job
-	// running it no loan ever becomes delinquent, no late penalty is charged,
-	// and portfolio-at-risk reports a clean book for ever.
+	// Periodic work runs only when the platform scheduler (trustage) calls
+	// LoanJobRun; nothing here runs on a timer. Without those calls no loan
+	// becomes delinquent, no reminder goes out and no funder is paid, so the
+	// schedules ship with the service (products/loans/workflows).
 	scanner := business.NewDelinquencyScanner(
 		laRepo, seRepo, penaltyBusiness, laBusiness, lpRepo,
 		delinquencyThresholdDays, defaultThresholdDays,
 		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
 	)
-	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, jobs.dueReminderDays)
-	// Both jobs run on every replica but under a database advisory lock, so
-	// a scan is never duplicated and each reminder is claimed on its own
-	// installment regardless.
-	go runPeriodically(ctx, jobs.delinquencyScanInterval, func(ctx context.Context) error {
-		return dbmigrate.Locked(ctx, jobs.dbManager, "loans:delinquency-scan", scanner.Run)
-	})
-	go runPeriodically(ctx, jobs.dueReminderInterval, func(ctx context.Context) error {
-		return dbmigrate.Locked(ctx, jobs.dbManager, "loans:due-reminders", reminders.Run)
-	})
+	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, dueReminderDays)
+	loanJobs := business.NewLoanJobs(scanner, reminders, fundingSettlement, loanRequestRepo, loanNotifier)
 
 	connectHandler := setupConnectServer(ctx, sm,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
 		penaltyBusiness, restructBusiness, reconBusiness, portfolioBusiness, disbBusiness,
-		cpaBusiness, collectionBusiness, lscRepo, auditCli)
+		cpaBusiness, collectionBusiness, lscRepo, loanJobs, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -562,6 +550,7 @@ func setupConnectServer(
 	cpaBusiness business.ClientProductAccessBusiness,
 	collectionBusiness business.CollectionBusiness,
 	statusChangeRepo repository.LoanStatusChangeRepository,
+	loanJobs *business.LoanJobs,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	// Create handler with injected dependencies
@@ -579,6 +568,7 @@ func setupConnectServer(
 		cpaBusiness,
 		collectionBusiness,
 		statusChangeRepo,
+		loanJobs,
 	)
 
 	auth := sm.GetAuthorizer(ctx)
@@ -610,20 +600,4 @@ func setupConnectServer(
 	connecthttp.Mount(mux, server)
 
 	return mux
-}
-
-// runPeriodically calls fn on the given interval until ctx is cancelled.
-func runPeriodically(ctx context.Context, interval time.Duration, fn func(context.Context) error) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := fn(ctx); err != nil {
-				util.Log(ctx).WithError(err).Error("delinquency scan failed")
-			}
-		}
-	}
 }

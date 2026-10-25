@@ -525,6 +525,7 @@ const AbsorbLossRequest$json = {
       '8': {},
       '10': 'lossReference'
     },
+    {'1': 'product_id', '3': 4, '4': 1, '5': 9, '8': {}, '10': 'productId'},
   ],
 };
 
@@ -533,7 +534,7 @@ final $typed_data.Uint8List absorbLossRequestDescriptor = $convert.base64Decode(
     'ChFBYnNvcmJMb3NzUmVxdWVzdBIxCg9sb2FuX3JlcXVlc3RfaWQYASABKAlCCbpIBnIEEAMYKF'
     'INbG9hblJlcXVlc3RJZBIwCgZhbW91bnQYAiABKAsyEC5jb21tb24udjEuTW9uZXlCBrpIA8gB'
     'AVIGYW1vdW50EjQKDmxvc3NfcmVmZXJlbmNlGAMgASgJQg26SArYAQFyBRADGIABUg1sb3NzUm'
-    'VmZXJlbmNl');
+    'VmZXJlbmNlEisKCnByb2R1Y3RfaWQYBCABKAlCDLpICdgBAXIEEAMYKFIJcHJvZHVjdElk');
 
 @$core.Deprecated('Use absorbLossResponseDescriptor instead')
 const AbsorbLossResponse$json = {
@@ -555,6 +556,7 @@ const AbsorbLossResponse$json = {
       '6': '.common.v1.Money',
       '10': 'unrecoverable'
     },
+    {'1': 'settled', '3': 3, '4': 1, '5': 8, '10': 'settled'},
   ],
 };
 
@@ -562,7 +564,141 @@ const AbsorbLossResponse$json = {
 final $typed_data.Uint8List absorbLossResponseDescriptor = $convert.base64Decode(
     'ChJBYnNvcmJMb3NzUmVzcG9uc2USLAoIYWJzb3JiZWQYASABKAsyEC5jb21tb24udjEuTW9uZX'
     'lSCGFic29yYmVkEjYKDXVucmVjb3ZlcmFibGUYAiABKAsyEC5jb21tb24udjEuTW9uZXlSDXVu'
-    'cmVjb3ZlcmFibGU=');
+    'cmVjb3ZlcmFibGUSGAoHc2V0dGxlZBgDIAEoCFIHc2V0dGxlZA==');
+
+@$core.Deprecated('Use loanRepaymentApplyRequestDescriptor instead')
+const LoanRepaymentApplyRequest$json = {
+  '1': 'LoanRepaymentApplyRequest',
+  '2': [
+    {
+      '1': 'loan_request_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanRequestId'
+    },
+    {
+      '1': 'loan_account_id',
+      '3': 2,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanAccountId'
+    },
+    {'1': 'product_id', '3': 3, '4': 1, '5': 9, '8': {}, '10': 'productId'},
+    {
+      '1': 'repayment_reference',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'repaymentReference'
+    },
+    {
+      '1': 'principal',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '8': {},
+      '10': 'principal'
+    },
+    {
+      '1': 'interest',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '8': {},
+      '10': 'interest'
+    },
+  ],
+};
+
+/// Descriptor for `LoanRepaymentApplyRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List loanRepaymentApplyRequestDescriptor = $convert.base64Decode(
+    'ChlMb2FuUmVwYXltZW50QXBwbHlSZXF1ZXN0EjEKD2xvYW5fcmVxdWVzdF9pZBgBIAEoCUIJuk'
+    'gGcgQQAxgoUg1sb2FuUmVxdWVzdElkEjEKD2xvYW5fYWNjb3VudF9pZBgCIAEoCUIJukgGcgQQ'
+    'AxgoUg1sb2FuQWNjb3VudElkEigKCnByb2R1Y3RfaWQYAyABKAlCCbpIBnIEEAMYKFIJcHJvZH'
+    'VjdElkEjsKE3JlcGF5bWVudF9yZWZlcmVuY2UYBCABKAlCCrpIB3IFEAMYgAFSEnJlcGF5bWVu'
+    'dFJlZmVyZW5jZRI2CglwcmluY2lwYWwYBSABKAsyEC5jb21tb24udjEuTW9uZXlCBrpIA8gBAV'
+    'IJcHJpbmNpcGFsEjQKCGludGVyZXN0GAYgASgLMhAuY29tbW9uLnYxLk1vbmV5Qga6SAPIAQFS'
+    'CGludGVyZXN0');
+
+@$core.Deprecated('Use repaymentShareObjectDescriptor instead')
+const RepaymentShareObject$json = {
+  '1': 'RepaymentShareObject',
+  '2': [
+    {'1': 'source_id', '3': 1, '4': 1, '5': 9, '10': 'sourceId'},
+    {'1': 'source_type', '3': 2, '4': 1, '5': 9, '10': 'sourceType'},
+    {'1': 'tranche_level', '3': 3, '4': 1, '5': 5, '10': 'trancheLevel'},
+    {
+      '1': 'principal',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'principal'
+    },
+    {
+      '1': 'interest',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'interest'
+    },
+    {
+      '1': 'platform_fee',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'platformFee'
+    },
+    {
+      '1': 'withholding_tax',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'withholdingTax'
+    },
+  ],
+};
+
+/// Descriptor for `RepaymentShareObject`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List repaymentShareObjectDescriptor = $convert.base64Decode(
+    'ChRSZXBheW1lbnRTaGFyZU9iamVjdBIbCglzb3VyY2VfaWQYASABKAlSCHNvdXJjZUlkEh8KC3'
+    'NvdXJjZV90eXBlGAIgASgJUgpzb3VyY2VUeXBlEiMKDXRyYW5jaGVfbGV2ZWwYAyABKAVSDHRy'
+    'YW5jaGVMZXZlbBIuCglwcmluY2lwYWwYBCABKAsyEC5jb21tb24udjEuTW9uZXlSCXByaW5jaX'
+    'BhbBIsCghpbnRlcmVzdBgFIAEoCzIQLmNvbW1vbi52MS5Nb25leVIIaW50ZXJlc3QSMwoMcGxh'
+    'dGZvcm1fZmVlGAYgASgLMhAuY29tbW9uLnYxLk1vbmV5UgtwbGF0Zm9ybUZlZRI5Cg93aXRoaG'
+    '9sZGluZ190YXgYByABKAsyEC5jb21tb24udjEuTW9uZXlSDndpdGhob2xkaW5nVGF4');
+
+@$core.Deprecated('Use loanRepaymentApplyResponseDescriptor instead')
+const LoanRepaymentApplyResponse$json = {
+  '1': 'LoanRepaymentApplyResponse',
+  '2': [
+    {
+      '1': 'shares',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.funding.v1.RepaymentShareObject',
+      '10': 'shares'
+    },
+    {'1': 'settled', '3': 2, '4': 1, '5': 8, '10': 'settled'},
+  ],
+};
+
+/// Descriptor for `LoanRepaymentApplyResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List loanRepaymentApplyResponseDescriptor =
+    $convert.base64Decode(
+        'ChpMb2FuUmVwYXltZW50QXBwbHlSZXNwb25zZRI4CgZzaGFyZXMYASADKAsyIC5mdW5kaW5nLn'
+        'YxLlJlcGF5bWVudFNoYXJlT2JqZWN0UgZzaGFyZXMSGAoHc2V0dGxlZBgCIAEoCFIHc2V0dGxl'
+        'ZA==');
 
 const $core.Map<$core.String, $core.dynamic> FundingServiceBase$json = {
   '1': 'FundingService',
@@ -610,6 +746,12 @@ const $core.Map<$core.String, $core.dynamic> FundingServiceBase$json = {
       '3': '.funding.v1.AbsorbLossResponse',
       '4': {}
     },
+    {
+      '1': 'LoanRepaymentApply',
+      '2': '.funding.v1.LoanRepaymentApplyRequest',
+      '3': '.funding.v1.LoanRepaymentApplyResponse',
+      '4': {}
+    },
   ],
   '3': {},
 };
@@ -640,6 +782,9 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.funding.v1.FundingAllocationObject': FundingAllocationObject$json,
   '.funding.v1.AbsorbLossRequest': AbsorbLossRequest$json,
   '.funding.v1.AbsorbLossResponse': AbsorbLossResponse$json,
+  '.funding.v1.LoanRepaymentApplyRequest': LoanRepaymentApplyRequest$json,
+  '.funding.v1.LoanRepaymentApplyResponse': LoanRepaymentApplyResponse$json,
+  '.funding.v1.RepaymentShareObject': RepaymentShareObject$json,
 };
 
 /// Descriptor for `FundingService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -659,11 +804,13 @@ final $typed_data.Uint8List fundingServiceDescriptor = $convert.base64Decode(
     'dF9tYW5hZ2USWAoIRnVuZExvYW4SGy5mdW5kaW5nLnYxLkZ1bmRMb2FuUmVxdWVzdBocLmZ1bm'
     'RpbmcudjEuRnVuZExvYW5SZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2USXgoKQWJzb3JiTG9z'
     'cxIdLmZ1bmRpbmcudjEuQWJzb3JiTG9zc1JlcXVlc3QaHi5mdW5kaW5nLnYxLkFic29yYkxvc3'
-    'NSZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2Ua9AKCtRjvAgoPc2VydmljZV9mdW5kaW5nEhVp'
-    'bnZlc3Rvcl9hY2NvdW50X3ZpZXcSF2ludmVzdG9yX2FjY291bnRfbWFuYWdlEgtmdW5kX21hbm'
-    'FnZRo/CAESFWludmVzdG9yX2FjY291bnRfdmlldxIXaW52ZXN0b3JfYWNjb3VudF9tYW5hZ2US'
-    'C2Z1bmRfbWFuYWdlGj8IAhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3Rvcl9hY2NvdW'
-    '50X21hbmFnZRILZnVuZF9tYW5hZ2UaJggDEhVpbnZlc3Rvcl9hY2NvdW50X3ZpZXcSC2Z1bmRf'
-    'bWFuYWdlGhkIBBIVaW52ZXN0b3JfYWNjb3VudF92aWV3GhkIBRIVaW52ZXN0b3JfYWNjb3VudF'
-    '92aWV3Gj8IBhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3Rvcl9hY2NvdW50X21hbmFn'
-    'ZRILZnVuZF9tYW5hZ2U=');
+    'NSZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2USdgoSTG9hblJlcGF5bWVudEFwcGx5EiUuZnVu'
+    'ZGluZy52MS5Mb2FuUmVwYXltZW50QXBwbHlSZXF1ZXN0GiYuZnVuZGluZy52MS5Mb2FuUmVwYX'
+    'ltZW50QXBwbHlSZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2Ua9AKCtRjvAgoPc2VydmljZV9m'
+    'dW5kaW5nEhVpbnZlc3Rvcl9hY2NvdW50X3ZpZXcSF2ludmVzdG9yX2FjY291bnRfbWFuYWdlEg'
+    'tmdW5kX21hbmFnZRo/CAESFWludmVzdG9yX2FjY291bnRfdmlldxIXaW52ZXN0b3JfYWNjb3Vu'
+    'dF9tYW5hZ2USC2Z1bmRfbWFuYWdlGj8IAhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3'
+    'Rvcl9hY2NvdW50X21hbmFnZRILZnVuZF9tYW5hZ2UaJggDEhVpbnZlc3Rvcl9hY2NvdW50X3Zp'
+    'ZXcSC2Z1bmRfbWFuYWdlGhkIBBIVaW52ZXN0b3JfYWNjb3VudF92aWV3GhkIBRIVaW52ZXN0b3'
+    'JfYWNjb3VudF92aWV3Gj8IBhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3Rvcl9hY2Nv'
+    'dW50X21hbmFnZRILZnVuZF9tYW5hZ2U=');

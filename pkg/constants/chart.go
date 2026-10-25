@@ -73,6 +73,7 @@ var chartByKind = map[string]string{
 	"investor:reserved":                LedgerMemberFunds,
 	"product:service_fee_payable":      LedgerPayables,
 	"product:insurance":                LedgerPayables,
+	"platform:withholding_tax_payable": LedgerPayables,
 	"platform:income":                  LedgerIncome,
 	"group:interest_income":            LedgerIncome,
 	"group:penalty_income":             LedgerIncome,

@@ -16,11 +16,13 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/workerpool"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 )
@@ -39,6 +41,12 @@ type RepaymentRepository interface {
 	// ListByLoanAccountID returns up to limit repayments of a loan in
 	// posting order.
 	ListByLoanAccountID(ctx context.Context, loanAccountID string, limit int) ([]*models.Repayment, error)
+	// ClaimFundingUnsettled leases up to limit repayments that are still to
+	// be shared out to funders and whose lease is free or older than
+	// leaseSeconds. Concurrent callers never receive the same repayment.
+	ClaimFundingUnsettled(ctx context.Context, limit, leaseSeconds int) ([]*models.Repayment, error)
+	// MarkFundingSettled records that the repayment's funder shares are done.
+	MarkFundingSettled(ctx context.Context, id string, note string) error
 }
 
 type repaymentRepository struct {
@@ -111,4 +119,35 @@ func (repo *repaymentRepository) ListByLoanAccountID(
 		return nil, err
 	}
 	return rows, nil
+}
+
+// ClaimFundingUnsettled leases a batch through FOR UPDATE SKIP LOCKED, so
+// any number of job runs can work the backlog at once.
+func (repo *repaymentRepository) ClaimFundingUnsettled(
+	ctx context.Context,
+	limit, leaseSeconds int,
+) ([]*models.Repayment, error) {
+	var rows []*models.Repayment
+	err := repo.Pool().DB(ctx, false).Raw(`
+UPDATE repayments SET funding_claimed_at = now()
+WHERE id IN (
+    SELECT id FROM repayments
+    WHERE funding_settled_at IS NULL AND applied_at IS NOT NULL AND status IN (2, 3, 4) AND deleted_at IS NULL
+      AND (funding_claimed_at IS NULL OR funding_claimed_at < now() - make_interval(secs => ?))
+    ORDER BY created_at
+    LIMIT ?
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING *`, leaseSeconds, limit).Scan(&rows).Error
+	return rows, err
+}
+
+func (repo *repaymentRepository) MarkFundingSettled(ctx context.Context, id string, note string) error {
+	values := map[string]any{"funding_settled_at": time.Now().UTC()}
+	if note != "" {
+		values["properties"] = gorm.Expr(
+			"COALESCE(properties, '{}'::jsonb) || jsonb_build_object('funding_note', ?::text)", note)
+	}
+	_, err := repo.UpdateColumns(ctx, id, values)
+	return err
 }

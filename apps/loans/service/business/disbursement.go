@@ -475,8 +475,11 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 
 	return b.operationsCli.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
 		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
+			// The loan asset grows and the product's cash goes out. The
+			// destination is not a ledger account: operations pays it to the
+			// payment_account_ref contact below.
 			DebitAccountRef:  la.LedgerAssetAccountID,
-			CreditAccountRef: la.PaymentAccountRef,
+			CreditAccountRef: constants.ProductExternalCashAccount(la.ProductID),
 			Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, la.PrincipalAmount),
 			Reference:        "disbursement:" + disb.IdempotencyKey,
 			Description:      "Loan disbursement for " + la.GetID(),

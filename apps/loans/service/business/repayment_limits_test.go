@@ -390,7 +390,7 @@ func buildRepBusiness(
 	limitsCli limitsv1connect.LimitsServiceClient,
 	limitsEnabled bool,
 ) *repaymentBusiness {
-	return &repaymentBusiness{
+	b := &repaymentBusiness{
 		eventsMan:         &noopEventsManager{},
 		loanAccountRepo:   laRepo,
 		repaymentRepo:     repRepo,
@@ -404,6 +404,33 @@ func buildRepBusiness(
 		limitsCli:         limitsCli,
 		limitsGateEnabled: limitsEnabled,
 	}
+	b.applier = &stubRepaymentApplier{b: b}
+	return b
+}
+
+// stubRepaymentApplier applies a repayment once per id through whatever
+// balance repository the business holds when it is called.
+type stubRepaymentApplier struct {
+	b       *repaymentBusiness
+	applied map[string]bool
+}
+
+func (a *stubRepaymentApplier) Apply(
+	ctx context.Context,
+	repaymentID, loanAccountID string,
+	_ []repository.EntryAllocation,
+	delta repository.LoanBalanceDelta,
+) (bool, *loansmodels.LoanBalance, error) {
+	if a.applied == nil {
+		a.applied = map[string]bool{}
+	}
+	if a.applied[repaymentID] {
+		balance, err := a.b.loanBalanceRepo.GetByLoanAccountID(ctx, loanAccountID)
+		return false, balance, err
+	}
+	a.applied[repaymentID] = true
+	balance, err := a.b.loanBalanceRepo.ApplyRepaymentDelta(ctx, loanAccountID, delta)
+	return true, balance, err
 }
 
 // ---------------------------------------------------------------------------
@@ -549,4 +576,16 @@ func TestRecord_GatePending(t *testing.T) {
 	assert.Equal(t, 1, limitsCli.reserveCalls)
 	assert.Equal(t, 0, limitsCli.commitCalls)
 	assert.Equal(t, 0, limitsCli.releaseCalls)
+}
+
+func (r *stubRepaymentRepo) ClaimFundingUnsettled(context.Context, int, int) ([]*loansmodels.Repayment, error) {
+	return nil, nil
+}
+
+func (r *stubRepaymentRepo) MarkFundingSettled(context.Context, string, string) error { return nil }
+
+func (r *stubScheduleEntryRepo) ClaimReminders(
+	context.Context, repository.ReminderKind, time.Time, time.Time, int,
+) ([]*loansmodels.ScheduleEntry, error) {
+	return nil, nil
 }

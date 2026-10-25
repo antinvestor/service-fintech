@@ -143,6 +143,12 @@ func PlatformFirstLossAccount(productID string) string {
 	return fmt.Sprintf("platform:%s:first_loss", productID)
 }
 
+// PlatformWithholdingTaxPayableAccount holds the tax withheld from funders'
+// interest until it is remitted to the revenue authority.
+func PlatformWithholdingTaxPayableAccount(productID string) string {
+	return fmt.Sprintf("platform:%s:withholding_tax_payable", productID)
+}
+
 func PlatformIncomeAccount(productID string) string {
 	return fmt.Sprintf("platform:%s:income", productID)
 }

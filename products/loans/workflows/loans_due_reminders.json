@@ -1,0 +1,93 @@
+{
+  "version": "1.2",
+  "name": "loans_due_reminders",
+  "description": "Every 15 minutes in waking hours (07:00-19:59 East Africa Time): LoanJobRun(DUE_REMINDERS) sends payment-due and overdue reminders. Each reminder is claimed on its instalment, so a borrower hears each once.",
+  "input": {
+    "schedule_name": "loans_due_reminders"
+  },
+  "config": {
+    "process_commands": [
+      "loans.v1.LoanManagementService/LoanJobRun"
+    ],
+    "terminal_states": [
+      "stalled"
+    ],
+    "owner": "fintech"
+  },
+  "schedules": [
+    {
+      "name": "loans_due_reminders",
+      "cron_expr": "*/15 7-19 * * *",
+      "timezone": "Africa/Nairobi",
+      "input_payload": {}
+    }
+  ],
+  "steps": [
+    {
+      "id": "run",
+      "type": "call",
+      "name": "RUN \u2014 one bounded batch; repeats while the service reports more",
+      "call": {
+        "action": "connect.call",
+        "input": {
+          "service": "loans.v1.LoanManagementService",
+          "rpc": "LoanJobRun",
+          "request": {
+            "job": "LOAN_JOB_DUE_REMINDERS",
+            "batchSize": 500
+          }
+        },
+        "output_var": "batch"
+      },
+      "retry": {
+        "max_attempts": 3,
+        "initial_interval": "10s",
+        "backoff_coefficient": 2.0,
+        "max_interval": "2m"
+      },
+      "on_success": [
+        {
+          "condition": "has(vars.batch.more) && vars.batch.more == true",
+          "target": "run"
+        },
+        {
+          "condition": "true",
+          "target": "end"
+        }
+      ],
+      "on_failure": "stalled"
+    },
+    {
+      "id": "stalled",
+      "type": "call",
+      "name": "STALLED (terminal) \u2014 the job failed after retries; the next schedule tries again",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "error",
+          "message": "loans_due_reminders stalled after retries",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}",
+            "execution_id": "{{ metadata.execution_id }}"
+          }
+        }
+      },
+      "on_success": "end"
+    },
+    {
+      "id": "end",
+      "type": "call",
+      "name": "END \u2014 instance terminal",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "info",
+          "message": "loans_due_reminders done",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}"
+          }
+        }
+      }
+    }
+  ]
+}

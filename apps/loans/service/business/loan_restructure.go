@@ -25,7 +25,6 @@ import (
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 
-	"github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
@@ -102,7 +101,7 @@ func (b *loanRestructureBusiness) Create(
 	if laErr != nil {
 		return nil, ErrLoanAccountNotFound
 	}
-	if !canRestructure(la.Status) {
+	if !restructureAllowed(lr.RestructureType, la.Status) {
 		return nil, ErrRestructureLoanNotEligible
 	}
 
@@ -115,34 +114,47 @@ func (b *loanRestructureBusiness) Create(
 	lr.CurrencyCode = la.CurrencyCode
 	lr.NewScheduleID = ""
 	lr.State = int32(commonv1.STATE_CREATED)
+	lr.GenID(ctx)
 
-	if err := b.eventsMan.Emit(ctx, events.LoanRestructureSaveEvent, lr); err != nil {
-		logger.WithError(err).Error("could not emit loan restructure save event")
+	// Written synchronously: the approver reads it back by id.
+	if err := b.loanRestructureRepo.Create(ctx, lr); err != nil {
+		logger.WithError(err).Error("could not save loan restructure")
 		return nil, err
 	}
 
 	return lr.ToAPI(), nil
 }
 
-// validateRestructureType rejects the restructure kinds that would have to
-// move money. Rescheduling, refinancing and rate changes rewrite a schedule;
-// a waiver or a write-off forgives a receivable, which is a ledger posting
-// this service does not yet make. Accepting one silently would leave the loan
-// book and the ledger disagreeing about what the borrower owes.
+// validateRestructureType rejects the restructure kinds this service cannot
+// carry out. Rescheduling, refinancing and rate changes rewrite a schedule;
+// a write-off recognises the loss and closes the loan. A partial waiver
+// forgives part of a receivable, which needs postings this service does not
+// make yet; accepting one silently would leave the loan book and the ledger
+// disagreeing about what the borrower owes.
 func validateRestructureType(restructureType int32) error {
 	switch loansv1.RestructureType(restructureType) {
 	case loansv1.RestructureType_RESTRUCTURE_TYPE_RESCHEDULE,
 		loansv1.RestructureType_RESTRUCTURE_TYPE_REFINANCE,
-		loansv1.RestructureType_RESTRUCTURE_TYPE_RATE_CHANGE:
-		return nil
-	case loansv1.RestructureType_RESTRUCTURE_TYPE_PARTIAL_WAIVER,
+		loansv1.RestructureType_RESTRUCTURE_TYPE_RATE_CHANGE,
 		loansv1.RestructureType_RESTRUCTURE_TYPE_WRITE_OFF:
+		return nil
+	case loansv1.RestructureType_RESTRUCTURE_TYPE_PARTIAL_WAIVER:
 		return ErrRestructureTypeUnsupported
 	case loansv1.RestructureType_RESTRUCTURE_TYPE_UNSPECIFIED:
 		return ErrRestructureTypeRequired
 	default:
 		return ErrRestructureTypeRequired
 	}
+}
+
+// restructureAllowed reports whether a loan in this status may take this
+// kind of restructure. Only a defaulted loan may be written off.
+func restructureAllowed(restructureType, status int32) bool {
+	if loansv1.RestructureType(restructureType) == loansv1.RestructureType_RESTRUCTURE_TYPE_WRITE_OFF {
+		return loansv1.LoanStatus(status) == loansv1.LoanStatus_LOAN_STATUS_DEFAULT ||
+			loansv1.LoanStatus(status) == loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF
+	}
+	return canRestructure(status)
 }
 
 // canRestructure reports whether a loan in this status may be restructured.
@@ -159,70 +171,134 @@ func (b *loanRestructureBusiness) Approve(
 	ctx context.Context,
 	id string,
 ) (*loansv1.LoanRestructureObject, error) {
-	logger := util.Log(ctx).WithField("method", "LoanRestructureBusiness.Approve")
-
 	lr, err := b.loanRestructureRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, ErrRestructureNotFound
 	}
-	if commonv1.STATE(lr.State) != commonv1.STATE_CREATED {
-		return nil, ErrRestructureNotPending
-	}
 	if err = validateRestructureType(lr.RestructureType); err != nil {
 		return nil, err
 	}
-
 	la, laErr := b.loanAccountRepo.GetByID(ctx, lr.LoanAccountID)
 	if laErr != nil {
 		return nil, ErrLoanAccountNotFound
 	}
 
+	// A restructure is a credit decision: whoever asked for it cannot
+	// approve it.
+	approvedBy := callerSubject(ctx)
+	if err = requireSeparationOfDuties(ctx, approvedBy, lr.RequestedBy); err != nil {
+		return nil, err
+	}
+
+	claimed, claimErr := b.loanRestructureRepo.ClaimDecision(
+		ctx, id, int32(commonv1.STATE_CHECKED), approvedBy, "", true)
+	if claimErr != nil {
+		return nil, claimErr
+	}
+	if !claimed {
+		return nil, ErrRestructureNotPending
+	}
+
+	var oldScheduleID, newScheduleID string
+	if loansv1.RestructureType(lr.RestructureType) == loansv1.RestructureType_RESTRUCTURE_TYPE_WRITE_OFF {
+		err = b.applyWriteOff(ctx, la, lr, approvedBy)
+	} else {
+		oldScheduleID, newScheduleID, err = b.applyReschedule(ctx, la, lr, approvedBy)
+	}
+	if err != nil {
+		// Every step above is safe to repeat, so the restructure goes back to
+		// pending and a later approval finishes it.
+		if relErr := b.loanRestructureRepo.ReleaseDecision(ctx, id); relErr != nil {
+			util.Log(ctx).WithError(relErr).WithField("restructure_id", id).
+				Error("could not release a restructure whose approval failed; it is retaken after the lease")
+		}
+		return nil, err
+	}
+	if err = b.loanRestructureRepo.CompleteDecision(ctx, id, oldScheduleID, newScheduleID); err != nil {
+		return nil, err
+	}
+
+	lr.State = int32(commonv1.STATE_ACTIVE)
+	lr.ApprovedBy = approvedBy
+	lr.OldScheduleID = oldScheduleID
+	lr.NewScheduleID = newScheduleID
+	return lr.ToAPI(), nil
+}
+
+// applyWriteOff recognises the loss on a defaulted loan and closes it. The
+// write-off transition posts the loss and charges the funders; a loan already
+// written off by an earlier, interrupted approval is only closed.
+func (b *loanRestructureBusiness) applyWriteOff(
+	ctx context.Context,
+	la *models.LoanAccount,
+	lr *models.LoanRestructure,
+	approvedBy string,
+) error {
+	if la.Status != int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF) {
+		if _, err := b.laBusiness.TransitionStatus(
+			ctx, la.GetID(), loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF,
+			approvedBy, "write-off "+lr.GetID()+" approved",
+		); err != nil {
+			return err
+		}
+	}
+	_, err := b.laBusiness.TransitionStatus(
+		ctx, la.GetID(), loansv1.LoanStatus_LOAN_STATUS_CLOSED,
+		approvedBy, "closed after write-off "+lr.GetID(),
+	)
+	return err
+}
+
+// applyReschedule moves the loan to RESTRUCTURED, applies the new terms and
+// regenerates the schedule on the principal still owed. It returns the old
+// and new schedule ids.
+func (b *loanRestructureBusiness) applyReschedule(
+	ctx context.Context,
+	la *models.LoanAccount,
+	lr *models.LoanRestructure,
+	approvedBy string,
+) (string, string, error) {
+	logger := util.Log(ctx).WithField("method", "LoanRestructureBusiness.applyReschedule")
+
 	balance, balErr := b.loanBalanceRepo.GetByLoanAccountID(ctx, la.GetID())
 	if balErr != nil || balance == nil {
-		return nil, ErrBalanceNotFound
+		return "", "", ErrBalanceNotFound
 	}
 	// A restructure reschedules what is still owed. Regenerating from the
 	// original principal would re-charge a borrower who has already repaid
 	// most of the loan.
 	outstandingPrincipal := balance.PrincipalOutstanding
 	if outstandingPrincipal <= 0 {
-		return nil, ErrRestructureNothingOutstanding
+		return "", "", ErrRestructureNothingOutstanding
 	}
 
+	oldScheduleID := ""
 	if oldSchedule, schedErr := b.scheduleRepo.GetActivByLoanAccountID(ctx, la.GetID()); schedErr == nil &&
 		oldSchedule != nil {
-		lr.OldScheduleID = oldSchedule.GetID()
+		oldScheduleID = oldSchedule.GetID()
 	}
-
-	approvedBy := callerSubject(ctx)
 
 	// Routed through the loan's own state machine, so a CLOSED or WRITTEN_OFF
 	// loan cannot be revived by approving a restructure against it, and the
 	// change lands in the loan's status history.
-	if _, transErr := b.laBusiness.TransitionStatus(
-		ctx, la.GetID(),
-		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
-		approvedBy, "restructure "+lr.GetID()+" approved",
-	); transErr != nil {
-		return nil, transErr
+	if la.Status != int32(loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED) {
+		if _, transErr := b.laBusiness.TransitionStatus(
+			ctx, la.GetID(),
+			loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
+			approvedBy, "restructure "+lr.GetID()+" approved",
+		); transErr != nil {
+			return "", "", transErr
+		}
 	}
 
-	if err = b.applyRestructuredTerms(ctx, la, lr); err != nil {
-		return nil, err
+	if err := b.applyRestructuredTerms(ctx, la, lr); err != nil {
+		return "", "", err
 	}
 
 	schedule, schedErr := b.scheduleBusiness.GenerateFor(ctx, la, outstandingPrincipal)
 	if schedErr != nil {
 		logger.WithError(schedErr).Error("could not regenerate schedule after restructure")
-		return nil, schedErr
-	}
-	lr.NewScheduleID = schedule.Schedule.GetID()
-
-	lr.State = int32(commonv1.STATE_ACTIVE)
-	lr.ApprovedBy = approvedBy
-	if err = b.eventsMan.Emit(ctx, events.LoanRestructureSaveEvent, lr); err != nil {
-		logger.WithError(err).Error("could not emit loan restructure save event")
-		return nil, err
+		return "", "", schedErr
 	}
 
 	var nextDue *time.Time
@@ -230,8 +306,7 @@ func (b *loanRestructureBusiness) Approve(
 		nextDue = schedule.Entries[0].DueDate
 	}
 	b.notifier.NotifyLoanRestructured(ctx, la, balance.TotalOutstanding, nextDue)
-
-	return lr.ToAPI(), nil
+	return oldScheduleID, schedule.Schedule.GetID(), nil
 }
 
 // applyRestructuredTerms writes only the terms the restructure changes.
@@ -261,26 +336,20 @@ func (b *loanRestructureBusiness) Reject(
 	ctx context.Context,
 	id, reason string,
 ) (*loansv1.LoanRestructureObject, error) {
-	logger := util.Log(ctx).WithField("method", "LoanRestructureBusiness.Reject")
-
 	lr, err := b.loanRestructureRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, ErrRestructureNotFound
 	}
-
-	if commonv1.STATE(lr.State) != commonv1.STATE_CREATED {
+	claimed, claimErr := b.loanRestructureRepo.ClaimDecision(
+		ctx, id, int32(commonv1.STATE_INACTIVE), callerSubject(ctx), reason, false)
+	if claimErr != nil {
+		return nil, claimErr
+	}
+	if !claimed {
 		return nil, ErrRestructureNotPending
 	}
-
 	lr.State = int32(commonv1.STATE_INACTIVE)
 	lr.Reason = reason
-
-	err = b.eventsMan.Emit(ctx, events.LoanRestructureSaveEvent, lr)
-	if err != nil {
-		logger.WithError(err).Error("could not emit loan restructure save event")
-		return nil, err
-	}
-
 	return lr.ToAPI(), nil
 }
 

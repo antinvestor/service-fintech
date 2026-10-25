@@ -36,7 +36,6 @@ import (
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
-	"github.com/pitabwire/util/decimalx"
 	utilmoney "github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/events"
@@ -44,7 +43,6 @@ import (
 	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/audit"
-	"github.com/antinvestor/service-fintech/pkg/calculation"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/limits"
@@ -54,19 +52,11 @@ import (
 // account cannot be resolved to a ledger account.
 var errUnresolvedAccountRef = errors.New("transfer order account ref could not be resolved to a ledger account")
 
-const (
-	// basisPointsDenominator is the multiplier used to convert proportions to basis points.
-	basisPointsDenominator = 10000
-)
-
 type transferOrderBusiness struct {
 	eventsMan         fevents.Manager
 	toRepo            repository.TransferOrderRepository
 	csRepo            repository.CBSSyncRecordRepository
 	arRepo            repository.AccountRefRepository
-	lfRepo            LoanFundingReader
-	ftRepo            FundingTrancheManager
-	iaRepo            InvestorAccountManager
 	clients           *clients.PlatformClients
 	auditWriter       *audit.Writer
 	limitsCli         limitsv1connect.LimitsServiceClient
@@ -83,9 +73,6 @@ func NewTransferOrderBusiness(
 	toRepo repository.TransferOrderRepository,
 	csRepo repository.CBSSyncRecordRepository,
 	arRepo repository.AccountRefRepository,
-	lfRepo LoanFundingReader,
-	ftRepo FundingTrancheManager,
-	iaRepo InvestorAccountManager,
 	pc *clients.PlatformClients,
 	auditWriter *audit.Writer,
 	limitsCli limitsv1connect.LimitsServiceClient,
@@ -97,9 +84,6 @@ func NewTransferOrderBusiness(
 		toRepo:            toRepo,
 		csRepo:            csRepo,
 		arRepo:            arRepo,
-		lfRepo:            lfRepo,
-		ftRepo:            ftRepo,
-		iaRepo:            iaRepo,
 		clients:           pc,
 		auditWriter:       auditWriter,
 		limitsCli:         limitsCli,
@@ -1052,273 +1036,6 @@ func extraDataString(order *models.TransferOrder, key string) string {
 	return s
 }
 
-// extraDataInt64 safely extracts an int64 value from a JSONMap.
-func extraDataInt64(m map[string]interface{}, key string) int64 {
-	if m == nil {
-		return 0
-	}
-	v, ok := m[key]
-	if !ok {
-		return 0
-	}
-	switch val := v.(type) {
-	case float64:
-		return int64(val)
-	case int64:
-		return val
-	case int:
-		return int64(val)
-	default:
-		return 0
-	}
-}
-
-// redistributeRepayment distributes a repayment (principal or interest) across
-// all funding tranches proportionally and creates transfer orders for each.
-// For interest distributions to investors, platform fees and withholding tax are deducted.
-func (b *transferOrderBusiness) redistributeRepayment(
-	ctx context.Context,
-	sourceOrder *models.TransferOrder,
-	amount int64,
-	repaymentType string,
-	transferType int,
-) {
-	logger := util.Log(ctx).WithField("method", "redistributeRepayment").
-		WithField("type", repaymentType).
-		WithField("order_id", sourceOrder.GetID())
-
-	loanRequestID := extraDataLoanRequestID(sourceOrder)
-	if loanRequestID == "" {
-		logger.Debug("no loan_request_id in transfer order, skipping redistribution")
-		return
-	}
-
-	fundings, err := b.lfRepo.GetByLoanRequestID(ctx, loanRequestID)
-	if err != nil || len(fundings) == 0 {
-		logger.WithError(err).Warn("no funding records found for redistribution")
-		return
-	}
-
-	tranchesByFunding := b.loadTrancheMap(ctx, fundings)
-	platformFeeBP, taxBP := extractFeeRates(sourceOrder)
-	isInterest := repaymentType == "interest"
-
-	var distributed int64
-	for i, funding := range fundings {
-		var share int64
-		if i == len(fundings)-1 {
-			share = amount - distributed
-		} else {
-			share = amount * funding.Proportion / basisPointsDenominator
-		}
-		if share <= 0 {
-			continue
-		}
-
-		b.redistributeToFundingSource(ctx, sourceOrder, funding, share,
-			repaymentType, transferType, isInterest, platformFeeBP, taxBP,
-			tranchesByFunding, logger)
-
-		distributed += share
-	}
-
-	logger.WithFields(map[string]any{fieldAmount: amount, "distributed": distributed, "funding_sources": len(fundings)}).
-		Info("repayment redistribution completed")
-}
-
-// loadTrancheMap loads the first tranche for each funding record into a lookup map.
-func (b *transferOrderBusiness) loadTrancheMap(
-	ctx context.Context,
-	fundings []*LoanFundingInfo,
-) map[string]*FundingTrancheInfo {
-	result := make(map[string]*FundingTrancheInfo)
-	if b.ftRepo == nil {
-		return result
-	}
-	for _, funding := range fundings {
-		tranches, tErr := b.ftRepo.GetByLoanFundingID(ctx, funding.GetID())
-		if tErr == nil && len(tranches) > 0 {
-			result[funding.GetID()] = tranches[0]
-		}
-	}
-	return result
-}
-
-// extractFeeRates reads platform fee and withholding tax basis points from a
-// transfer order's extra data, falling back to system defaults.
-func extractFeeRates(order *models.TransferOrder) (int64, int64) {
-	feeBP := calculation.DefaultPlatformFeePercent
-	taxBP := calculation.DefaultWithholdingTaxPercent
-	if order.ExtraData == nil {
-		return feeBP, taxBP
-	}
-	if pfee, ok := order.ExtraData["platform_fee_bp"].(float64); ok && pfee > 0 {
-		feeBP = int64(pfee)
-	}
-	if tax, ok := order.ExtraData["withholding_tax_bp"].(float64); ok && tax > 0 {
-		taxBP = int64(tax)
-	}
-	return feeBP, taxBP
-}
-
-// redistributeToFundingSource routes a single funding source's share of a repayment,
-// handling investor fee/tax deductions, tranche tracking updates, and investor balance release.
-func (b *transferOrderBusiness) redistributeToFundingSource(
-	ctx context.Context,
-	sourceOrder *models.TransferOrder,
-	funding *LoanFundingInfo,
-	share int64,
-	repaymentType string,
-	transferType int,
-	isInterest bool,
-	platformFeeBP, taxBP int64,
-	tranchesByFunding map[string]*FundingTrancheInfo,
-	logger *util.LogEntry,
-) {
-	var creditAccount string
-	actualTransferType := transferType
-	actualAmount := share
-
-	switch FundingSource(funding.FundingType) {
-	case FundingSourceGroupSavings:
-		creditAccount = constants.MemberPeriodicSavingsAccount(funding.OwnerID)
-	case FundingSourceGroupIncome:
-		creditAccount = constants.GroupInterestIncomeAccount(funding.OwnerID)
-	case FundingSourceInvestorAffiliated, FundingSourceInvestorGeneral:
-		creditAccount = constants.InvestorCapitalAccount(funding.OwnerID)
-		if isInterest {
-			actualTransferType = constants.TransferTypeInvestorIncomeDistribution
-			fee, tax := interestDeductions(share, sourceOrder.Currency, platformFeeBP, taxBP)
-			// The investor gets what is left, so the three legs always sum
-			// to the share whatever the rounding of fee and tax.
-			actualAmount = share - fee - tax
-
-			b.createRedistributionOrder(ctx, sourceOrder, fee,
-				constants.ProductServiceFeePayableAccount("default"),
-				constants.TransferTypeServiceFee,
-				fmt.Sprintf("platform_fee:%s:%s", sourceOrder.GetID(), funding.GetID()),
-				fmt.Sprintf("Platform fee on investor interest from %s", funding.OwnerID),
-			)
-			b.createRedistributionOrder(ctx, sourceOrder, tax,
-				constants.ProductServiceFeePayableAccount("tax"),
-				constants.TransferTypeCost,
-				fmt.Sprintf("wht:%s:%s", sourceOrder.GetID(), funding.GetID()),
-				fmt.Sprintf("Withholding tax on investor interest from %s", funding.OwnerID),
-			)
-		} else {
-			actualTransferType = constants.TransferTypeInvestorPrincipalReturn
-		}
-	case FundingSourcePlatformReserve:
-		creditAccount = constants.PlatformFirstLossAccount("default")
-	case FundingSourceUnspecified:
-		creditAccount = constants.GroupInterestIncomeAccount(funding.OwnerID)
-	}
-
-	created := b.createRedistributionOrder(ctx, sourceOrder, actualAmount,
-		creditAccount, actualTransferType,
-		fmt.Sprintf("redist:%s:%s:%s", repaymentType, sourceOrder.GetID(), funding.GetID()),
-		fmt.Sprintf("%s redistribution to %s funding source", repaymentType, funding.OwnerID),
-	)
-	// A replayed side effect finds its order already written: the tranche
-	// and investor balance were moved the first time and must not move again.
-	if !created {
-		return
-	}
-
-	if tranche, ok := tranchesByFunding[funding.GetID()]; ok {
-		if isInterest {
-			tranche.InterestEarned += share
-		} else {
-			tranche.PrincipalRepaid += share
-		}
-		if ftErr := b.ftRepo.Save(ctx, tranche); ftErr != nil {
-			logger.WithError(ftErr).Warn("could not update funding tranche")
-		}
-	}
-
-	if !isInterest && b.iaRepo != nil &&
-		(FundingSource(funding.FundingType) == FundingSourceInvestorAffiliated ||
-			FundingSource(funding.FundingType) == FundingSourceInvestorGeneral) {
-		b.releaseInvestorBalance(ctx, funding.OwnerID, share)
-	}
-}
-
-// createRedistributionOrder creates and emits a transfer order for redistribution.
-func (b *transferOrderBusiness) createRedistributionOrder(
-	ctx context.Context,
-	sourceOrder *models.TransferOrder,
-	amount int64,
-	creditAccount string,
-	transferType int,
-	reference string,
-	description string,
-) bool {
-	if amount <= 0 {
-		return false
-	}
-
-	redistOrder := &models.TransferOrder{
-		DebitAccountRef:  sourceOrder.CreditAccountRef,
-		CreditAccountRef: creditAccount,
-		Amount:           amount,
-		Currency:         sourceOrder.Currency,
-		OrderType:        constants.SafeInt32FromInt(transferType),
-		Reference:        reference,
-		Description:      description,
-		ExtraData:        cloneExtraData(sourceOrder.ExtraData),
-		State:            int32(constants.StateJustCreated),
-	}
-	redistOrder.GenID(ctx)
-	redistOrder.CopyPartitionInfo(&sourceOrder.BaseModel)
-	freshID := redistOrder.GetID()
-
-	// Written synchronously and keyed on the reference: a replay converges
-	// on the order the first run wrote and reports it was not created.
-	if err := b.toRepo.CreateIfAbsent(ctx, redistOrder); err != nil {
-		util.Log(ctx).WithError(err).WithField("reference", reference).
-			Error("could not create redistribution transfer order")
-		return false
-	}
-	return redistOrder.GetID() == freshID
-}
-
-// interestDeductions splits the platform fee and withholding tax off an
-// investor's interest share, in the currency's own minor units.
-func interestDeductions(share int64, currency string, platformFeeBP, taxBP int64) (int64, int64) {
-	decimals := utilmoney.Decimals(currency)
-	dist := calculation.CalculateInterestDistribution(decimalx.FromMinorUnits(share, decimals), platformFeeBP, taxBP)
-	fee := max(dist.PlatformFee.ToMinorUnits(decimals), 0)
-	tax := max(dist.WithholdingTax.ToMinorUnits(decimals), 0)
-	if fee+tax > share {
-		tax = max(share-fee, 0)
-	}
-	return fee, tax
-}
-
-// releaseInvestorBalance decrements the reserved balance when principal is returned.
-func (b *transferOrderBusiness) releaseInvestorBalance(ctx context.Context, investorAccountID string, amount int64) {
-	if b.iaRepo == nil || amount <= 0 {
-		return
-	}
-
-	account, err := b.iaRepo.GetByID(ctx, investorAccountID)
-	if err != nil {
-		util.Log(ctx).WithError(err).Warn("could not load investor account for balance release")
-		return
-	}
-
-	account.ReservedBalance -= amount
-	if account.ReservedBalance < 0 {
-		account.ReservedBalance = 0
-	}
-	account.AvailableBalance += amount
-	account.TotalReturned += amount
-
-	if saveErr := b.iaRepo.Save(ctx, account); saveErr != nil {
-		util.Log(ctx).WithError(saveErr).Warn("could not update investor account after balance release")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Loan-related handlers
 // ---------------------------------------------------------------------------
@@ -1379,9 +1096,9 @@ func (b *transferOrderBusiness) recordRepaymentWithLender(
 	return nil
 }
 
-// handleLoanRepayment processes a loan principal repayment transfer.
-// Debit: member suspense -> Credit: subscription loans account.
-// Side effect: records the repayment in Lender loans.
+// handleLoanRepayment processes a loan principal repayment transfer. An order
+// raised from a payment allocation is recorded with the lender; the lender's
+// own repayment orders need nothing beyond the ledger posting.
 func (b *transferOrderBusiness) handleLoanRepayment(
 	ctx context.Context,
 	order *models.TransferOrder,
@@ -1390,55 +1107,21 @@ func (b *transferOrderBusiness) handleLoanRepayment(
 		WithField("order_id", order.GetID())
 
 	loanID := extraDataString(order, fieldLoanID)
-	clientID := extraDataString(order, fieldClientID)
-
-	// Extract repayment breakdown from ExtraData
-	interestPortion := extraDataInt64(order.ExtraData, "interest_applied")
-	feesPortion := extraDataInt64(order.ExtraData, "fees_applied")
-	principalPortion := order.Amount - interestPortion - feesPortion
-
-	logger.WithField(fieldLoanID, loanID).
-		WithField(fieldClientID, clientID).
-		WithField("amount", order.Amount).
-		WithField("principal", principalPortion).
-		WithField("interest", interestPortion).
-		WithField("fees", feesPortion).
-		Info("recording loan repayment in lender system")
 
 	// A group member's payment allocated to their loan must reach the loans
 	// service, or the loan never shows the repayment. Only orders this
 	// service raised from a payment allocation (server-set source marker) are
 	// fed back; the order reference is the idempotency key, so a replayed
 	// order records one repayment. The loans service then raises its own
-	// repayment orders, which redistribute to investors below, so a forwarded
-	// order must not redistribute as well.
+	// repayment orders for it.
 	if loanID != "" && extraDataString(order, extraKeySource) == allocationSourceMarker {
 		return b.recordRepaymentWithLender(ctx, logger, order, loanID)
 	}
 
-	// Loan repayment recording is handled by the loans app via its own event
-	// pipeline. The operations app only manages ledger postings and redistribution.
-
-	// Redistribute principal to funding sources (investors get their capital back)
-	if principalPortion > 0 {
-		b.redistributeRepayment(ctx, order, principalPortion, "principal", constants.TransferTypeLoanRepayment)
-	}
-
-	// Redistribute interest to funding sources (with platform fees + tax for investors)
-	if interestPortion > 0 {
-		b.redistributeRepayment(
-			ctx,
-			order,
-			interestPortion,
-			"interest",
-			constants.TransferTypeLoanInterestIncomeDistribution,
-		)
-	}
-
-	// Fees go to platform
-	if feesPortion > 0 {
-		b.redistributeRepayment(ctx, order, feesPortion, "fees", constants.TransferTypeServiceFee)
-	}
+	// Every other repayment order was raised by the loans service, which
+	// shares the repayment out to the loan's funders through the funding
+	// service once the repayment is recorded. Nothing more happens here.
+	logger.Debug("loan repayment order posted")
 	return nil
 }
 
@@ -1461,15 +1144,12 @@ func (b *transferOrderBusiness) handleLoanInterestRepayment(
 	ctx context.Context,
 	order *models.TransferOrder,
 ) {
-	logger := util.Log(ctx).WithField("handler", "handleLoanInterestRepayment").
-		WithField("order_id", order.GetID())
-
-	loanID := extraDataString(order, fieldLoanID)
-
-	logger.WithField(fieldLoanID, loanID).
-		Info("recording loan interest repayment in lender system")
-
-	b.redistributeRepayment(ctx, order, order.Amount, "interest", constants.TransferTypeLoanInterestIncomeDistribution)
+	// Funders' shares of interest are moved by the funding service when the
+	// loans service applies the repayment; see handleLoanRepayment.
+	util.Log(ctx).WithField("handler", "handleLoanInterestRepayment").
+		WithField("order_id", order.GetID()).
+		WithField(fieldLoanID, extraDataString(order, fieldLoanID)).
+		Debug("loan interest repayment posted")
 }
 
 // handleLoanInsurance processes a loan insurance charge.
@@ -1981,13 +1661,6 @@ func (b *transferOrderBusiness) handlePlatformFirstLossAbsorption(
 
 func extraDataLoanRequestID(order *models.TransferOrder) string {
 	return extraDataString(order, "loan_request_id")
-}
-
-func cloneExtraData(extra data.JSONMap) data.JSONMap {
-	if extra == nil {
-		return nil
-	}
-	return extra.Copy()
 }
 
 // handleInvestorLossAbsorption processes a loss absorption from an investor account.

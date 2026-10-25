@@ -32,6 +32,9 @@ type LoanRequestRepository interface {
 	datastore.BaseRepository[*models.LoanRequest]
 	GetByIdempotencyKey(ctx context.Context, key string) (*models.LoanRequest, error)
 	GetByLoanAccountID(ctx context.Context, loanAccountID string) (*models.LoanRequest, error)
+	// ExpireLapsedOffers moves up to limit submitted or approved requests
+	// whose offer deadline has passed to EXPIRED and returns them.
+	ExpireLapsedOffers(ctx context.Context, limit int) ([]*models.LoanRequest, error)
 	// ClaimForLoanCreation moves an APPROVED request to LOAN_CREATED and
 	// stamps the loan account onto it, in one conditional statement. Only the
 	// first caller wins, which is what stops a second LoanAccountCreate from
@@ -152,4 +155,22 @@ func (repo *loanRequestRepository) ReleaseLoanCreationClaim(
 			colModifiedAt:     time.Now().UTC(),
 			colVersion:        gorm.Expr(colVersion + " + 1"),
 		}).Error
+}
+
+// ExpireLapsedOffers expires through FOR UPDATE SKIP LOCKED on the
+// idx_lr_offer_expiry index; the status guard in the UPDATE keeps a request
+// decided in the meantime from being expired.
+func (repo *loanRequestRepository) ExpireLapsedOffers(ctx context.Context, limit int) ([]*models.LoanRequest, error) {
+	var rows []*models.LoanRequest
+	err := repo.Pool().DB(ctx, false).Raw(`
+UPDATE loan_requests SET status = 6, modified_at = now(), version = version + 1
+WHERE id IN (
+    SELECT id FROM loan_requests
+    WHERE status IN (2, 3) AND offer_expires_at IS NOT NULL AND offer_expires_at < now() AND deleted_at IS NULL
+    ORDER BY offer_expires_at
+    LIMIT ?
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING *`, limit).Scan(&rows).Error
+	return rows, err
 }

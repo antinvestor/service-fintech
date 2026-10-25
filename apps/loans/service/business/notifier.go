@@ -182,6 +182,14 @@ func (n *LoanNotifier) NotifyApplicationCancelled(ctx context.Context, lr *model
 	n.toClient(ctx, lr.ClientID, messages.LoanApplicationCancelled, vars, notificationv1.PRIORITY_LOW)
 }
 
+// NotifyApplicationExpired tells the borrower their offer lapsed.
+func (n *LoanNotifier) NotifyApplicationExpired(ctx context.Context, lr *models.LoanRequest) {
+	if !n.Enabled() || lr == nil {
+		return
+	}
+	n.toClient(ctx, lr.ClientID, messages.LoanApplicationExpired, n.requestVars(lr), notificationv1.PRIORITY_LOW)
+}
+
 // --- money movements ---
 
 // NotifyLoanDisbursed tells the borrower the principal has left and when the

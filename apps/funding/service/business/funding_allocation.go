@@ -21,12 +21,12 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
 	moneyx "github.com/pitabwire/util/moneyx"
 
-	"github.com/antinvestor/service-fintech/apps/funding/service/events"
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
 	"github.com/antinvestor/service-fintech/apps/funding/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
@@ -49,6 +49,10 @@ var (
 	// ErrLoanRequestAmountInvalid is returned when a request carries no amount to fund.
 	ErrLoanRequestAmountInvalid = apperrors.NewError(
 		apperrors.Unprocessable, "loan request has no amount to fund")
+	// ErrLossProductRequired is returned for a loss that names no product:
+	// without one the loss cannot be posted to funders' capital.
+	ErrLossProductRequired = apperrors.NewError(apperrors.BadRequest,
+		"a loss must name the product whose bad debt the funders take")
 	// ErrLossAmountNotPositive is returned for a zero or negative loss.
 	ErrLossAmountNotPositive = apperrors.NewError(apperrors.BadRequest, "loss amount must be positive")
 )
@@ -62,6 +66,7 @@ type fundingAllocationBusiness struct {
 	iaRepo     repository.InvestorAccountRepository
 	ftRepo     repository.FundingTrancheRepository
 	srcBalance SourceBalances
+	poster     LedgerPoster
 }
 
 func NewFundingAllocationBusiness(
@@ -74,6 +79,7 @@ func NewFundingAllocationBusiness(
 	iaRepo repository.InvestorAccountRepository,
 	ftRepo repository.FundingTrancheRepository,
 	srcBalance SourceBalances,
+	poster LedgerPoster,
 ) FundingAllocationBusiness {
 	return &fundingAllocationBusiness{
 		eventsMan:  eventsMan,
@@ -84,6 +90,7 @@ func NewFundingAllocationBusiness(
 		iaRepo:     iaRepo,
 		ftRepo:     ftRepo,
 		srcBalance: srcBalance,
+		poster:     poster,
 	}
 }
 
@@ -196,8 +203,8 @@ func (b *fundingAllocationBusiness) rollbackReservations(
 	for _, r := range reserved {
 		if _, err := b.iaRepo.AtomicRelease(ctx, r.investorAccountID, r.amount); err != nil {
 			logger.WithError(err).WithFields(map[string]any{
-				"investor_account_id": r.investorAccountID,
-				"amount":              r.amount,
+				fieldInvestorAccountID: r.investorAccountID,
+				"amount":               r.amount,
 			}).Error("could not release investor reservation; capital stays reserved until reconciled")
 		}
 	}
@@ -433,102 +440,161 @@ func buildFundingRequest(requestInfo *LoanRequestInfo, loanAmount decimalx.Decim
 // AbsorbLoss distributes a loss across the loan's funding tranches in order,
 // first-loss first, and reports what they actually covered.
 //
-// The absorption row is written before any tranche is touched and is unique
-// on the loss reference, so repeating the call returns the first call's split
-// instead of eating further tranches.
+// A tranche can only lose what it still has lent out: its amount less the
+// principal already repaid and any loss it already took. The absorption row,
+// every tranche charge and every investor charge are written in one
+// transaction unique on the loss reference, so a repeat moves nothing and a
+// crash part way leaves nothing half applied. When the loss names a product,
+// each funder's part is then moved off the product's bad-debt expense onto
+// their capital on the ledger; a repeat finishes postings left undone.
 func (b *fundingAllocationBusiness) AbsorbLoss(
 	ctx context.Context,
-	loanRequestID string,
-	lossAmount int64,
+	loss LossApplication,
 ) (*LossResult, error) {
 	logger := util.Log(ctx).WithField("method", "FundingAllocationBusiness.AbsorbLoss").
-		WithField("loan_request_id", loanRequestID)
+		WithField("loan_request_id", loss.LoanRequestID)
 
-	if lossAmount <= 0 {
+	if loss.Amount <= 0 {
 		return nil, ErrLossAmountNotPositive
 	}
 
-	tranches, err := b.ftRepo.GetByLoanRequestID(ctx, loanRequestID)
-	if err != nil {
-		return nil, fmt.Errorf("load tranches: %w", err)
-	}
-	currency := ""
-	if len(tranches) > 0 {
-		currency = tranches[0].Currency
+	if stored, err := b.lossRepo.GetByReference(ctx, lossReference(loss.LoanRequestID)); err == nil && stored != nil {
+		return b.settleLoss(ctx, logger, stored)
 	}
 
+	sources, err := loadTrancheSources(ctx, b.lfRepo, b.ftRepo, loss.LoanRequestID)
+	if err != nil {
+		return nil, err
+	}
+	currency := loss.Currency
+	if len(sources) > 0 && sources[0].tranche.Currency != "" {
+		currency = sources[0].tranche.Currency
+	}
+
+	shares, remaining := computeLossShares(sources, loss.Amount)
 	absorption := &models.LossAbsorption{
-		LoanRequestID: loanRequestID,
-		Reference:     lossReference(loanRequestID),
-		LossAmount:    lossAmount,
+		LoanRequestID: loss.LoanRequestID,
+		Reference:     lossReference(loss.LoanRequestID),
+		LossAmount:    loss.Amount,
+		Absorbed:      loss.Amount - remaining,
+		Unrecoverable: remaining,
 		Currency:      currency,
+		ProductID:     loss.ProductID,
+		Properties:    encodeShares(shares),
 	}
 	absorption.GenID(ctx)
-
-	stored, created, claimErr := b.lossRepo.Claim(ctx, absorption)
-	if claimErr != nil {
-		return nil, fmt.Errorf("claim loss absorption: %w", claimErr)
-	}
-	if !created {
-		return &LossResult{
-			Absorbed:      stored.Absorbed,
-			Unrecoverable: stored.Unrecoverable,
-			Currency:      stored.Currency,
-		}, nil
+	if len(sources) > 0 {
+		absorption.CopyPartitionInfo(&sources[0].tranche.BaseModel)
 	}
 
-	remaining := b.walkTranches(ctx, logger, tranches, lossAmount)
-	absorbed := lossAmount - remaining
-
-	if remaining > 0 {
-		logger.WithField("unrecoverable", remaining).
+	movements := make([]repository.TrancheMovement, 0, len(shares))
+	for _, s := range shares {
+		movements = append(movements, repository.TrancheMovement{
+			TrancheID:         s.TrancheID,
+			InvestorAccountID: s.InvestorAccountID,
+			Principal:         s.Principal,
+		})
+	}
+	stored, _, err := b.lossRepo.ClaimAndApply(ctx, absorption, movements)
+	if err != nil {
+		return nil, fmt.Errorf("absorb loss: %w", err)
+	}
+	if stored.Unrecoverable > 0 {
+		logger.WithField("unrecoverable", stored.Unrecoverable).
 			Error("unrecoverable loss: all tranches exhausted")
 	}
-	if finalErr := b.lossRepo.Finalize(ctx, stored.GetID(), absorbed, remaining); finalErr != nil {
-		return nil, fmt.Errorf("finalize loss absorption: %w", finalErr)
-	}
-
-	return &LossResult{Absorbed: absorbed, Unrecoverable: remaining, Currency: currency}, nil
+	return b.settleLoss(ctx, logger, stored)
 }
 
-// walkTranches applies the loss to each tranche in priority order and returns
-// what none of them could cover.
-func (b *fundingAllocationBusiness) walkTranches(
-	ctx context.Context,
-	logger *util.LogEntry,
-	tranches []*models.FundingTranche,
-	lossAmount int64,
-) int64 {
+// computeLossShares walks the tranches in priority order and charges each
+// the most it can still carry, returning the shares and what none covered.
+func computeLossShares(sources []trancheSource, lossAmount int64) ([]RepaymentShare, int64) {
 	remaining := lossAmount
-	for _, tranche := range tranches {
+	var shares []RepaymentShare
+	for _, s := range sources {
 		if remaining <= 0 {
 			break
 		}
-
-		absorbable := tranche.Amount - tranche.LossAbsorbed
-		if absorbable <= 0 {
+		exposure := s.tranche.Amount - s.tranche.PrincipalRepaid - s.tranche.LossAbsorbed
+		if exposure <= 0 {
 			continue
 		}
-
-		absorbed := min(absorbable, remaining)
-
-		tranche.LossAbsorbed += absorbed
-		if emitErr := b.eventsMan.Emit(ctx, events.FundingTrancheSaveEvent, tranche); emitErr != nil {
-			logger.WithError(emitErr).Error("could not update tranche after loss absorption")
-			continue
-		}
+		absorbed := min(exposure, remaining)
 		remaining -= absorbed
-
-		// Debit investor accounts; group and platform losses are handled at
-		// the ledger level.
-		b.debitInvestorLoss(ctx, logger, tranche.InvestorAccountID, absorbed)
-
-		logger.WithField("tranche_id", tranche.GetID()).
-			WithField("tranche_level", tranche.TrancheLevel).
-			WithField("absorbed", absorbed).
-			Info("loss absorbed by tranche")
+		shares = append(shares, RepaymentShare{
+			TrancheID:         s.tranche.GetID(),
+			SourceID:          s.funding.OwnerID,
+			SourceType:        s.funding.FundingType,
+			TrancheLevel:      s.tranche.TrancheLevel,
+			InvestorAccountID: s.tranche.InvestorAccountID,
+			Principal:         absorbed,
+		})
 	}
-	return remaining
+	return shares, remaining
+}
+
+// settleLoss posts the absorbed loss to the ledger: each investor's capital
+// and the platform's first-loss reserve take their part of the product's
+// bad-debt expense. A group's part stays an expense of the product until the
+// group's own ledger carries members' savings losses.
+func (b *fundingAllocationBusiness) settleLoss(
+	ctx context.Context,
+	logger *util.LogEntry,
+	stored *models.LossAbsorption,
+) (*LossResult, error) {
+	result := &LossResult{
+		Absorbed:      stored.Absorbed,
+		Unrecoverable: stored.Unrecoverable,
+		Currency:      stored.Currency,
+		Settled:       stored.SettledAt != nil || stored.ProductID == "",
+	}
+	if result.Settled {
+		return result, nil
+	}
+	if b.poster == nil {
+		return result, nil
+	}
+	shares, err := decodeShares(stored.Properties)
+	if err != nil {
+		return nil, fmt.Errorf("read loss absorption %s: %w", stored.GetID(), err)
+	}
+	expense := constants.ProductBadDebtExpenseAccount(stored.ProductID)
+	for _, s := range shares {
+		var debit string
+		var transferType int
+		switch models.FundingSource(s.SourceType) {
+		case models.FundingSourceInvestorAffiliated, models.FundingSourceInvestorGeneral:
+			debit, transferType = constants.InvestorCapitalAccount(s.InvestorAccountID),
+				constants.TransferTypeInvestorLossAbsorption
+		case models.FundingSourcePlatformReserve:
+			debit, transferType = constants.PlatformFirstLossAccount(stored.ProductID),
+				constants.TransferTypePlatformFirstLossAbsorption
+		case models.FundingSourceGroupSavings, models.FundingSourceGroupIncome, models.FundingSourceUnspecified:
+			continue
+		}
+		posting := LedgerPosting{
+			Reference: fmt.Sprintf("fund-loss:%s:%s", stored.GetID(), s.TrancheID),
+			Debit:     debit, Credit: expense,
+			Amount: s.Principal, Currency: stored.Currency, Type: transferType,
+			Description: "Funder share of a written-off loan",
+			Extra: data.JSONMap{
+				fieldLoanRequestID:     stored.LoanRequestID,
+				"tranche_id":           s.TrancheID,
+				fieldInvestorAccountID: s.InvestorAccountID,
+			},
+		}
+		if postErr := b.poster.Post(ctx, posting); postErr != nil {
+			logger.WithError(postErr).WithField("posting_reference", posting.Reference).
+				Warn("loss share not yet posted; a later call finishes it")
+			return result, nil
+		}
+	}
+	if markErr := b.lossRepo.MarkSettled(ctx, stored.GetID()); markErr != nil {
+		logger.WithError(markErr).Warn("loss shares posted but not marked settled; a later call marks it")
+		return result, nil
+	}
+	result.Settled = true
+	return result, nil
 }
 
 // lossReference derives the idempotency key for one absorption. A loan is
@@ -590,6 +656,9 @@ func (b *fundingAllocationBusiness) buildPersistedResult(
 	}, nil
 }
 
+// FundingSourceLabel names a funding source type for API responses.
+func FundingSourceLabel(sourceType int32) string { return fundingSourceLabel(sourceType) }
+
 func fundingSourceLabel(sourceType int32) string {
 	switch models.FundingSource(sourceType) {
 	case models.FundingSourceUnspecified:
@@ -606,22 +675,6 @@ func fundingSourceLabel(sourceType int32) string {
 		return "platform_reserve"
 	default:
 		return "unspecified"
-	}
-}
-
-// debitInvestorLoss atomically reduces an investor's reserved balance after
-// a loss absorption using the repository's SQL-level guard.
-func (b *fundingAllocationBusiness) debitInvestorLoss(
-	ctx context.Context,
-	logger *util.LogEntry,
-	investorAccountID string,
-	absorbed int64,
-) {
-	if investorAccountID == "" {
-		return
-	}
-	if _, err := b.iaRepo.AtomicAbsorbLoss(ctx, investorAccountID, absorbed); err != nil {
-		logger.WithError(err).Error("could not debit investor account for loss absorption")
 	}
 }
 

@@ -16,6 +16,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pitabwire/frame/v3/datastore"
@@ -43,13 +44,13 @@ type ScheduleEntryRepository interface {
 	// be saved, so the installment is penalised on a later scan instead of
 	// never.
 	ClearPenaltyApplied(ctx context.Context, entryID string) error
-	// ListDueBetween pages unpaid installments of active schedules whose due
-	// date falls in [from, to), ordered by id after afterID.
-	ListDueBetween(ctx context.Context, from, to time.Time, afterID string, limit int) ([]*models.ScheduleEntry, error)
-	// MarkReminded records on the entry that the reminder named by key was
-	// sent, conditionally, so a repeated reminder run does not message the
-	// borrower twice. It reports whether this call was the one that marked it.
-	MarkReminded(ctx context.Context, entryID, key string) (bool, error)
+	// ClaimReminders claims up to limit unpaid installments of active
+	// schedules due in [from, to) whose reminder of the given kind is still
+	// to be sent, marking them sent. Concurrent callers never receive the
+	// same installment, and each reminder is claimed at most once.
+	ClaimReminders(
+		ctx context.Context, kind ReminderKind, from, to time.Time, limit int,
+	) ([]*models.ScheduleEntry, error)
 	// CountActiveEntries counts the installments on the loan's active schedule.
 	CountActiveEntries(ctx context.Context, loanAccountID string) (int64, error)
 }
@@ -155,48 +156,6 @@ func (repo *scheduleEntryRepository) ClearPenaltyApplied(ctx context.Context, en
 		}).Error
 }
 
-func (repo *scheduleEntryRepository) ListDueBetween(
-	ctx context.Context,
-	from, to time.Time,
-	afterID string,
-	limit int,
-) ([]*models.ScheduleEntry, error) {
-	var entries []*models.ScheduleEntry
-	q := repo.Pool().DB(ctx, true).
-		Table("schedule_entries").
-		Joins("JOIN repayment_schedules rs ON rs.id = schedule_entries.schedule_id AND rs.is_active = true AND rs.deleted_at IS NULL").
-		Where("schedule_entries.due_date >= ? AND schedule_entries.due_date < ? AND schedule_entries.status != ? "+
-			"AND schedule_entries.outstanding > 0 AND schedule_entries.deleted_at IS NULL",
-			from, to, int32(scheduleEntryStatusPaid))
-	if afterID != "" {
-		q = q.Where("schedule_entries.id > ?", afterID)
-	}
-	err := q.Order("schedule_entries.id ASC").Limit(limit).Find(&entries).Error
-	if err != nil {
-		return nil, err
-	}
-	return entries, nil
-}
-
-func (repo *scheduleEntryRepository) MarkReminded(ctx context.Context, entryID, key string) (bool, error) {
-	result := repo.Pool().DB(ctx, false).
-		Table("schedule_entries").
-		Where("id = ? AND deleted_at IS NULL AND NOT jsonb_exists(COALESCE(properties, '{}'::jsonb), ?)", entryID, key).
-		Updates(map[string]any{
-			colProperties: gorm.Expr(
-				`COALESCE(properties, '{}'::jsonb) || jsonb_build_object(?::text, ?::text)`,
-				key,
-				time.Now().UTC().Format(time.RFC3339),
-			),
-			colModifiedAt: time.Now().UTC(),
-			colVersion:    gorm.Expr(colVersion + " + 1"),
-		})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected > 0, nil
-}
-
 func (repo *scheduleEntryRepository) CountActiveEntries(ctx context.Context, loanAccountID string) (int64, error) {
 	var count int64
 	err := repo.Pool().DB(ctx, true).
@@ -205,4 +164,38 @@ func (repo *scheduleEntryRepository) CountActiveEntries(ctx context.Context, loa
 		Where("schedule_entries.loan_account_id = ? AND schedule_entries.deleted_at IS NULL", loanAccountID).
 		Count(&count).Error
 	return count, err
+}
+
+// ReminderKind names one of an installment's two reminders.
+type ReminderKind string
+
+const (
+	ReminderDue     ReminderKind = "due_reminded_at"
+	ReminderOverdue ReminderKind = "overdue_reminded_at"
+)
+
+func (repo *scheduleEntryRepository) ClaimReminders(
+	ctx context.Context,
+	kind ReminderKind,
+	from, to time.Time,
+	limit int,
+) ([]*models.ScheduleEntry, error) {
+	column := string(kind)
+	if kind != ReminderDue && kind != ReminderOverdue {
+		return nil, fmt.Errorf("unknown reminder kind %q", kind)
+	}
+	var rows []*models.ScheduleEntry
+	err := repo.Pool().DB(ctx, false).Raw(`
+UPDATE schedule_entries SET `+column+` = now()
+WHERE id IN (
+    SELECT se.id FROM schedule_entries se
+    JOIN repayment_schedules rs ON rs.id = se.schedule_id AND rs.is_active = true AND rs.deleted_at IS NULL
+    WHERE se.`+column+` IS NULL AND se.status <> ? AND se.outstanding > 0 AND se.deleted_at IS NULL
+      AND se.due_date >= ? AND se.due_date < ?
+    ORDER BY se.due_date
+    LIMIT ?
+    FOR UPDATE OF se SKIP LOCKED
+)
+RETURNING *`, scheduleEntryStatusPaid, from, to, limit).Scan(&rows).Error
+	return rows, err
 }

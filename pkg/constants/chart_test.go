@@ -36,6 +36,7 @@ func TestEveryAccountNameIsOnTheChart(t *testing.T) {
 		constants.MemberPenaltyReceivableAccount("m"), constants.InvestorCapitalAccount("i"),
 		constants.InvestorReservedAccount("i"), constants.PlatformFirstLossAccount("x"),
 		constants.PlatformIncomeAccount("x"), constants.PlatformExternalCashAccount(),
+		constants.PlatformWithholdingTaxPayableAccount("x"),
 		"savings:s1:balance",
 	}
 	for _, name := range names {

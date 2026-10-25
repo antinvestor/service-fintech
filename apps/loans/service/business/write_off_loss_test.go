@@ -30,8 +30,9 @@ import (
 
 type fakeFundingLoss struct {
 	fundingv1connect.FundingServiceClient
-	calls []*fundingv1.AbsorbLossRequest
-	err   error
+	calls     []*fundingv1.AbsorbLossRequest
+	err       error
+	unsettled bool
 }
 
 func (f *fakeFundingLoss) AbsorbLoss(
@@ -42,7 +43,7 @@ func (f *fakeFundingLoss) AbsorbLoss(
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &fundingv1.AbsorbLossResponse{Absorbed: req.GetAmount()}, nil
+	return &fundingv1.AbsorbLossResponse{Absorbed: req.GetAmount(), Settled: !f.unsettled}, nil
 }
 
 func TestAbsorbWriteOffLoss_ChargesPrincipalToTheFundingTranches(t *testing.T) {
@@ -64,6 +65,12 @@ func TestAbsorbWriteOffLoss_ChargesPrincipalToTheFundingTranches(t *testing.T) {
 	// Nothing owed, nothing absorbed.
 	require.NoError(t, b.absorbWriteOffLoss(t.Context(), logger, la, 0, "writeoff:loan-1"))
 	require.Len(t, funding.calls, 1)
+
+	// A loss recorded but not yet posted to funders' capital is not a
+	// finished write-off either.
+	funding.unsettled = true
+	require.Error(t, b.absorbWriteOffLoss(t.Context(), logger, la, 1, "writeoff:loan-1"))
+	funding.unsettled = false
 
 	// A funding failure blocks the write-off so it is retried whole.
 	funding.err = errors.New("funding down")

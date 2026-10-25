@@ -27,6 +27,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -157,6 +158,10 @@ func (b *loanRequestBusiness) Save(
 		// field agent is stamped as the agent, a borrower applying for
 		// themselves has none. Staff and services may name the agent.
 		lr.AgentID = b.scope.ServingMemberID(ctx, lr.ClientID)
+		// The price of the loan is the product's, unless staff or a product
+		// service set it. A field agent or borrower cannot name their own
+		// rate; the loan account falls back to the product's.
+		lr.InterestRate = 0
 	}
 
 	existing, reconcileErr := b.reconcileWithStored(ctx, lr)
@@ -243,6 +248,10 @@ func (b *loanRequestBusiness) reconcileWithStored(
 	lr.RejectionReason = existing.RejectionReason
 	lr.DecidedAt = existing.DecidedAt
 	lr.LoanAccountID = existing.LoanAccountID
+	if !b.scope.IsStaff(ctx) {
+		// A rate staff or a product service set survives an agent's edit.
+		lr.InterestRate = existing.InterestRate
+	}
 	return existing, nil
 }
 
@@ -475,7 +484,7 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 	}
 
 	decider := callerSubject(ctx)
-	if err = requireSeparationOfDuties(lr, decider); err != nil {
+	if err = requireSeparationOfDuties(ctx, decider, lr.SubmittedBy, lr.CreatedBy, lr.AgentID); err != nil {
 		return nil, err
 	}
 
@@ -515,14 +524,20 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 	return lr.ToAPI(), nil
 }
 
-// requireSeparationOfDuties refuses a decision by the person who submitted
-// the application (or created it, for requests submitted before submitters
-// were recorded). A field agent cannot approve their own client's loan.
-func requireSeparationOfDuties(lr *models.LoanRequest, decider string) error {
+// requireSeparationOfDuties refuses a credit decision by anyone who made the
+// record being decided (submitted, created or brought it in). A field agent
+// cannot approve their own client's loan, nor a staff member their own
+// restructure. An internal product service (seed, stawi) deciding by its own
+// credit policy is an automated decision, not a self-approval: it submits and
+// decides under one service identity by design.
+func requireSeparationOfDuties(ctx context.Context, decider string, makers ...string) error {
 	if decider == "" {
 		return nil
 	}
-	for _, maker := range []string{lr.SubmittedBy, lr.CreatedBy, lr.AgentID} {
+	if claims := security.ClaimsFromContext(ctx); claims != nil && claims.IsInternalSystem() {
+		return nil
+	}
+	for _, maker := range makers {
 		if maker != "" && maker == decider {
 			return ErrLoanRequestSelfDecision
 		}
@@ -626,7 +641,7 @@ func (b *loanRequestBusiness) Reject(
 	}
 
 	decider := callerSubject(ctx)
-	if err = requireSeparationOfDuties(lr, decider); err != nil {
+	if err = requireSeparationOfDuties(ctx, decider, lr.SubmittedBy, lr.CreatedBy, lr.AgentID); err != nil {
 		return nil, err
 	}
 

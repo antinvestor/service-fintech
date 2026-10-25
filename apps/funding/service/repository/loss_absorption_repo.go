@@ -16,11 +16,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/workerpool"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
 )
@@ -42,7 +44,25 @@ type LossAbsorptionRepository interface {
 	// Finalize records what the tranches actually covered once the walk is
 	// done, so a later repeat of the same reference reports the same split.
 	Finalize(ctx context.Context, id string, absorbed, unrecoverable int64) error
+
+	// ClaimAndApply writes the absorption and charges every tranche and
+	// investor in one transaction. created=false means the reference was
+	// absorbed before: nothing moved and the stored row is returned. A
+	// tranche that no longer has the outstanding principal to carry its part
+	// fails the whole transaction, so the caller recomputes from fresh rows.
+	ClaimAndApply(
+		ctx context.Context,
+		absorption *models.LossAbsorption,
+		movements []TrancheMovement,
+	) (row *models.LossAbsorption, created bool, err error)
+
+	// MarkSettled records that the absorption's ledger postings are done.
+	MarkSettled(ctx context.Context, id string) error
 }
+
+// ErrTrancheExposureChanged is returned when a tranche's outstanding
+// principal moved between the read and the absorption.
+var ErrTrancheExposureChanged = errors.New("funding tranche exposure changed during loss absorption")
 
 type lossAbsorptionRepository struct {
 	datastore.BaseRepository[*models.LossAbsorption]
@@ -99,5 +119,87 @@ func (r *lossAbsorptionRepository) Finalize(ctx context.Context, id string, abso
 			"unrecoverable": unrecoverable,
 			colModifiedAt:   gormNow(),
 			colVersion:      gormVersionIncrement(),
+		}).Error
+}
+
+func (r *lossAbsorptionRepository) ClaimAndApply(
+	ctx context.Context,
+	absorption *models.LossAbsorption,
+	movements []TrancheMovement,
+) (*models.LossAbsorption, bool, error) {
+	err := r.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		if createErr := tx.Create(absorption).Error; createErr != nil {
+			return createErr
+		}
+		for _, m := range movements {
+			if moveErr := applyLossMovement(tx, m); moveErr != nil {
+				return moveErr
+			}
+		}
+		return nil
+	})
+	if err == nil {
+		return absorption, true, nil
+	}
+	if !data.ErrorIsDuplicateKey(err) {
+		return nil, false, err
+	}
+	existing, rereadErr := r.GetByReference(ctx, absorption.Reference)
+	if rereadErr != nil {
+		return nil, false, err
+	}
+	return existing, false, nil
+}
+
+// applyLossMovement charges one tranche's part of a loss. The tranche can
+// only lose what it still has lent out; the investor loses the same amount
+// from both their capital and the part of it that was lent.
+func applyLossMovement(tx *gorm.DB, m TrancheMovement) error {
+	if m.Principal <= 0 {
+		return nil
+	}
+	result := tx.Table("funding_tranches").
+		Where("id = ? AND deleted_at IS NULL AND amount - principal_repaid - loss_absorbed >= ?",
+			m.TrancheID, m.Principal).
+		Updates(map[string]any{
+			"loss_absorbed": gorm.Expr("loss_absorbed + ?", m.Principal),
+			colModifiedAt:   gormNow(),
+			colVersion:      gormVersionIncrement(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTrancheExposureChanged
+	}
+	if m.InvestorAccountID == "" {
+		return nil
+	}
+	result = tx.Table("investor_accounts").
+		Where("id = ? AND deleted_at IS NULL", m.InvestorAccountID).
+		Updates(map[string]any{
+			colReservedBalance:  gorm.Expr("GREATEST(reserved_balance - ?, 0)", m.Principal),
+			colAvailableBalance: gorm.Expr("GREATEST(available_balance - ?, 0)", m.Principal),
+			"total_lost":        gorm.Expr("total_lost + ?", m.Principal),
+			colModifiedAt:       gormNow(),
+			colVersion:          gormVersionIncrement(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrInvestorAccountNotFound
+	}
+	return nil
+}
+
+func (r *lossAbsorptionRepository) MarkSettled(ctx context.Context, id string) error {
+	return r.Pool().DB(ctx, false).
+		Table("loss_absorptions").
+		Where("id = ? AND settled_at IS NULL AND deleted_at IS NULL", id).
+		Updates(map[string]any{
+			"settled_at":  gormNow(),
+			colModifiedAt: gormNow(),
+			colVersion:    gormVersionIncrement(),
 		}).Error
 }

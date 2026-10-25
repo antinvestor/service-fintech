@@ -997,11 +997,13 @@ func recordLoanStatusTransition(ctx context.Context, newStatus loansv1.LoanStatu
 	}
 }
 
-// postWriteOffLedgerCascade issues the transfer order that recognises the
-// realised loss when a loan is written off. The amount is the current
-// outstanding balance (principal + accrued interest + fees + penalties).
-// Missing balance rows are treated as a hard error so a silent write-off
-// against a loan with unknown exposure cannot happen.
+// postWriteOffLedgerCascade recognises the realised loss when a loan is
+// written off. Only what was booked as a receivable can be written off: the
+// principal still on the loan asset, and penalties charged but unpaid.
+// Interest and fees are recognised as income only when paid, so their unpaid
+// part was never booked and needs no reversal. Each leg is keyed on the loan,
+// so a retried write-off converges on the same postings. Missing balance rows
+// are a hard error so a loan with unknown exposure is never written off.
 func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 	ctx context.Context,
 	logger *util.LogEntry,
@@ -1022,13 +1024,6 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 		return fmt.Errorf("cannot load loan balance for write-off of %s: %w", la.GetID(), err)
 	}
 
-	outstanding := balance.TotalOutstanding
-	if outstanding <= 0 {
-		logger.WithField("loan_id", la.GetID()).
-			Info("write-off requested on loan with zero outstanding balance; no ledger posting")
-		return nil
-	}
-
 	reference := fmt.Sprintf("writeoff:%s", la.GetID())
 	extraData := data.JSONMap{
 		fieldLoanAccountID:      la.GetID(),
@@ -1038,38 +1033,50 @@ func (b *loanAccountBusiness) postWriteOffLedgerCascade(
 		"fees_outstanding":      balance.FeesOutstanding,
 		"penalties_outstanding": balance.PenaltiesOutstanding,
 	}
-
-	req := &operationsv1.TransferOrderExecuteRequest{
-		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
-			DebitAccountRef:  constants.ProductBadDebtExpenseAccount(la.ProductID),
-			CreditAccountRef: la.LedgerAssetAccountID,
-			Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, outstanding),
-			Reference:        reference,
-			Description:      "Loan write-off recovery",
-			ExtraData:        extraData.ToProtoStruct(),
-		}, constants.TransferTypeShutdownLoanRecovery),
+	legs := []struct {
+		suffix, credit string
+		amount         int64
+	}{
+		{"principal", la.LedgerAssetAccountID, balance.PrincipalOutstanding},
+		{"penalties", constants.MemberPenaltyReceivableAccount(la.ClientID), balance.PenaltiesOutstanding},
 	}
-
-	if _, execErr := b.operationsCli.TransferOrderExecute(ctx, req); execErr != nil {
-		logger.WithError(execErr).
-			WithField("reference", reference).
-			Error("could not execute write-off transfer order")
-		return fmt.Errorf("write-off transfer order %s failed: %w", reference, execErr)
+	for _, leg := range legs {
+		if leg.amount <= 0 {
+			continue
+		}
+		legRef := reference + ":" + leg.suffix
+		if _, execErr := b.operationsCli.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
+			Data: transferorder.Typed(&operationsv1.TransferOrderObject{
+				DebitAccountRef:  constants.ProductBadDebtExpenseAccount(la.ProductID),
+				CreditAccountRef: leg.credit,
+				Amount:           moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, leg.amount),
+				Reference:        legRef,
+				Description:      "Loan write-off: " + leg.suffix,
+				ExtraData:        extraData.ToProtoStruct(),
+			}, constants.TransferTypeShutdownLoanRecovery),
+		}); execErr != nil {
+			logger.WithError(execErr).WithField("reference", legRef).
+				Error("could not execute write-off transfer order")
+			return fmt.Errorf("write-off transfer order %s failed: %w", legRef, execErr)
+		}
 	}
 	if absorbErr := b.absorbWriteOffLoss(ctx, logger, la, balance.PrincipalOutstanding, reference); absorbErr != nil {
 		return absorbErr
 	}
 	logger.WithField("loan_id", la.GetID()).
-		WithField("amount", outstanding).
+		WithField("principal", balance.PrincipalOutstanding).
+		WithField("penalties", balance.PenaltiesOutstanding).
 		Info("loan written off")
 	return nil
 }
 
 // absorbWriteOffLoss charges the unrecovered principal to the investors who
-// funded the loan, first-loss tranche first. Interest and fees were never
-// theirs, so only principal is absorbed. Funding records the absorption once
-// per loan, so a retried write-off does not absorb twice. A failure leaves
-// the loan in its current status so the write-off is retried whole.
+// funded the loan, first-loss tranche first, and moves their part of the
+// bad-debt expense onto their capital on the ledger. Interest and fees were
+// never theirs, so only principal is absorbed. Funding records the absorption
+// once per loan, so a retried write-off does not absorb twice; until funding
+// reports its postings settled the write-off is not complete and the loan
+// stays in its current status for a retry.
 func (b *loanAccountBusiness) absorbWriteOffLoss(
 	ctx context.Context,
 	logger *util.LogEntry,
@@ -1086,11 +1093,16 @@ func (b *loanAccountBusiness) absorbWriteOffLoss(
 	req := fundingcompat.NewAbsorbLossRequest(loanRequestIDFromProperties(la.Properties, la.LoanRequestID))
 	req.Amount = moneyx.FromMinorUnitsByCurrency(la.CurrencyCode, principalOutstanding)
 	req.LossReference = reference
+	req.ProductId = la.ProductID
 	resp, err := b.fundingCli.AbsorbLoss(ctx, req)
 	if err != nil {
 		logger.WithError(err).WithField("loan_id", la.GetID()).
 			Error("could not absorb the written-off principal across funding tranches")
 		return fmt.Errorf("absorb write-off loss for loan %s: %w", la.GetID(), err)
+	}
+	if !resp.GetSettled() {
+		return ErrFundingServiceUnavailable.Extend(
+			"the funders' share of the loss is not yet posted; retry the write-off")
 	}
 	logger.WithField("loan_id", la.GetID()).
 		WithField("absorbed", resp.GetAbsorbed()).

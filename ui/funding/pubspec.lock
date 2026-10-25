@@ -25,13 +25,54 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+  antinvestor_api_field:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/field"
+      relative: true
+    source: path
+    version: "0.4.0"
   antinvestor_api_funding:
     dependency: "direct main"
     description:
-      name: antinvestor_api_funding
-      sha256: "7189927e03f8cd3f03679d623b401b2b79b4e7f20d4655bca6290f7b6b98e2ae"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../../sdk/dart/funding"
+      relative: true
+    source: path
+    version: "0.5.0"
+  antinvestor_api_identity:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/identity"
+      relative: true
+    source: path
+    version: "0.8.0"
+  antinvestor_api_limits:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/limits"
+      relative: true
+    source: path
+    version: "0.3.0"
+  antinvestor_api_loans:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/loans"
+      relative: true
+    source: path
+    version: "0.6.0"
+  antinvestor_api_operations:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/operations"
+      relative: true
+    source: path
+    version: "0.4.0"
+  antinvestor_api_savings:
+    dependency: "direct overridden"
+    description:
+      path: "../../sdk/dart/savings"
+      relative: true
+    source: path
     version: "0.4.0"
   antinvestor_ui_core:
     dependency: "direct main"

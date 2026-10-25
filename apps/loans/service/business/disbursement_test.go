@@ -733,3 +733,15 @@ func TestCreate_KeyBoundToAnotherLoanIsRefused(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrDuplicateIdempotencyKey)
 }
+
+func (r *stubLoanAccountRepo) ClaimForAssessment(context.Context, int) ([]*loansmodels.LoanAccount, error) {
+	return nil, nil
+}
+
+func (r *stubLoanAccountRepo) AssessSoon(context.Context, string) error { return nil }
+
+func (r *stubLoanAccountRepo) ClaimRepaymentLock(context.Context, string) (bool, error) {
+	return true, nil
+}
+
+func (r *stubLoanAccountRepo) ReleaseRepaymentLock(context.Context, string) error { return nil }
