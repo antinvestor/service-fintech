@@ -53,10 +53,10 @@ packages:
     dependency: "direct main"
     description:
       name: antinvestor_api_identity
-      sha256: "6ca374c45b1461d9c1f2c7b3fa527d3ce869c45cf4908eb545b8babb9d66be79"
+      sha256: "28564d40c4e0b66643f42a2c7b38a582a9f84dbc54b4243819f0d2987ec9cddc"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.0"
+    version: "0.8.0"
   antinvestor_api_profile:
     dependency: "direct main"
     description:
