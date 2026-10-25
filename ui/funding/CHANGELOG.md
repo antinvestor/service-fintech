@@ -1,3 +1,10 @@
+## 0.3.0
+
+- **Breaking:** removes the manual "Absorb Loss" action (`AbsorbLossDialog`,
+  `InvestorAccountNotifier.absorbLoss`). A loss now reaches funders only
+  through a loan write-off, which posts it to the ledger; the funding service
+  refuses `AbsorbLoss` from a person.
+
 ## 0.2.0
 
 - **Breaking:** moves to connect-dart 2 and the protobuf 6 runtime:

@@ -49,6 +49,10 @@ var (
 	// ErrLoanRequestAmountInvalid is returned when a request carries no amount to fund.
 	ErrLoanRequestAmountInvalid = apperrors.NewError(
 		apperrors.Unprocessable, "loan request has no amount to fund")
+	// ErrLossProductRequired is returned for a loss that names no product:
+	// without one the loss cannot be posted to funders' capital.
+	ErrLossProductRequired = apperrors.NewError(apperrors.BadRequest,
+		"a loss must name the product whose bad debt the funders take")
 	// ErrLossAmountNotPositive is returned for a zero or negative loss.
 	ErrLossAmountNotPositive = apperrors.NewError(apperrors.BadRequest, "loss amount must be positive")
 )

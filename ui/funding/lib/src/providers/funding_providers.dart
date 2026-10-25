@@ -159,37 +159,6 @@ class InvestorAccountNotifier extends Notifier<AsyncValue<void>> {
     }
   }
 
-  /// Writes a loss off against a loan's tranches. [idempotencyKey] must be
-  /// generated once per user intent; it travels as the Idempotency-Key header
-  /// so a retry of the same decision is not a second write-off.
-  Future<AbsorbLossResponse> absorbLoss({
-    required String loanRequestId,
-    required String amount,
-    required String currencyCode,
-    required String idempotencyKey,
-    String? accountId,
-  }) async {
-    state = const AsyncValue.loading();
-    try {
-      final req = AbsorbLossRequest(loanRequestId: loanRequestId);
-      setMoneyFields(req.ensureAmount(), amount, currencyCode);
-      final response = await _client.absorbLoss(
-        req,
-        headers: _idempotencyHeaders(idempotencyKey),
-      );
-      state = const AsyncValue.data(null);
-      if (accountId != null) {
-        _invalidate(accountId);
-      } else {
-        ref.invalidate(investorAccountListProvider);
-      }
-      return response;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      rethrow;
-    }
-  }
-
   void _invalidate(String accountId) {
     ref.invalidate(investorAccountDetailProvider(accountId));
     ref.invalidate(investorAccountListProvider);

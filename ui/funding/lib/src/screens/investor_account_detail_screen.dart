@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/funding_providers.dart';
 import '../utils/money_bridge.dart';
 import '../utils/money_display.dart';
-import '../widgets/absorb_loss_dialog.dart';
 import '../widgets/money_amount_dialog.dart';
 import 'investor_accounts_screen.dart' show accountLabel;
 
@@ -239,12 +238,6 @@ class _ActionButtons extends ConsumerWidget {
           icon: const Icon(Icons.send),
           label: const Text('Fund Loan'),
         ),
-        OutlinedButton.icon(
-          key: const Key('funding-action-absorb-loss'),
-          onPressed: () => _showAbsorbLossDialog(context, ref),
-          icon: const Icon(Icons.trending_down),
-          label: const Text('Absorb Loss'),
-        ),
       ],
     );
   }
@@ -316,41 +309,6 @@ class _ActionButtons extends ConsumerWidget {
       if (!context.mounted) return;
       _toast(context, false, '', error: error);
     }
-  }
-
-  Future<void> _showAbsorbLossDialog(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    AbsorbLossResponse? outcome;
-    await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AbsorbLossDialog(
-        currencyCode: currencyCode,
-        onSubmit: (loanRequestId, amount, idempotencyKey) async {
-          outcome = await ref
-              .read(investorAccountNotifierProvider.notifier)
-              .absorbLoss(
-                loanRequestId: loanRequestId,
-                amount: amount,
-                currencyCode: currencyCode,
-                idempotencyKey: idempotencyKey,
-                accountId: accountId,
-              );
-        },
-      ),
-    );
-
-    final result = outcome;
-    if (result == null || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Absorbed ${displayMoney(result.absorbed)}, '
-          'unrecoverable ${displayMoney(result.unrecoverable)}',
-        ),
-      ),
-    );
   }
 
   void _toast(
