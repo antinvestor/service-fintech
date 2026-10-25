@@ -123,7 +123,15 @@ var (
 		"the penalty could not be posted to the ledger",
 	)
 
-	ErrLoanRequestNotFound     = apperrors.NewError(apperrors.NotFound, "loan request not found")
+	ErrLoanRequestNotFound = apperrors.NewError(apperrors.NotFound, "loan request not found")
+	ErrClientNotActive     = apperrors.NewError(
+		apperrors.Unprocessable,
+		"the client must be activated (KYC verified and consent given) before a loan is approved",
+	)
+	ErrClientStandingUnverifiable = apperrors.NewError(
+		apperrors.ServiceUnavailable,
+		"the client's standing could not be checked; retry",
+	)
 	ErrLoanRequestNotSubmitted = apperrors.NewError(
 		apperrors.Unprocessable,
 		"loan request is not in submitted status",

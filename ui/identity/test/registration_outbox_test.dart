@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
     show ClientDataEntryObject;
@@ -140,39 +138,4 @@ void main() {
     await outbox.dismiss(id);
     expect(await container.read(registrationOutboxProvider.future), isEmpty);
   });
-
-  test('a wrong consent code is thrown and the entry keeps waiting', () async {
-    final service = _Service();
-    final container = _container(service, InMemoryRegistrationOutboxStore());
-    final outbox = container.read(registrationOutboxProvider.notifier);
-    final id = await outbox.capture(name: 'Known', phone: '+254700000009');
-    // Simulate the service having asked for consent.
-    final store = container.read(registrationOutboxStoreProvider);
-    final item = (await container.read(
-      registrationOutboxProvider.future,
-    )).single;
-    await store.write(
-      '[${_json(item.copyWith(consentVerificationId: 'challenge-1'))}]',
-    );
-    container.invalidate(registrationOutboxProvider);
-
-    expect(await outbox.flush(), 0, reason: 'consent needs the agent');
-    expect(service.clients, isEmpty);
-
-    service.clientFailure = ConnectException(
-      Code.permissionDenied,
-      'consent code is not valid',
-    );
-    await expectLater(
-      container.read(registrationOutboxProvider.notifier).submit(id, code: '1'),
-      throwsA(isA<ConnectException>()),
-    );
-    final after = (await container.read(
-      registrationOutboxProvider.future,
-    )).single;
-    expect(after.awaitingConsent, isTrue);
-    expect(after.rejected, isFalse);
-  });
 }
-
-String _json(PendingRegistration item) => jsonEncode(item.toJson());

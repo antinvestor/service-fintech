@@ -25,7 +25,6 @@ class PendingRegistration {
     required this.nationalId,
     required this.details,
     required this.queuedAt,
-    this.consentVerificationId = '',
     this.clientId = '',
     this.rejection = '',
   });
@@ -40,7 +39,6 @@ class PendingRegistration {
           json['details'] as Map<String, dynamic>? ?? const {},
         ),
         queuedAt: DateTime.parse(json['queued_at'] as String),
-        consentVerificationId: json['consent_verification_id'] as String? ?? '',
         clientId: json['client_id'] as String? ?? '',
         rejection: json['rejection'] as String? ?? '',
       );
@@ -56,10 +54,6 @@ class PendingRegistration {
   final Map<String, String> details;
   final DateTime queuedAt;
 
-  /// The consent challenge the service answered with for a person who
-  /// already has a profile; empty until then.
-  final String consentVerificationId;
-
   /// Set once the client is registered and only details remain.
   final String clientId;
 
@@ -67,12 +61,9 @@ class PendingRegistration {
   final String rejection;
 
   bool get rejected => rejection.isNotEmpty;
-  bool get awaitingConsent =>
-      !rejected && clientId.isEmpty && consentVerificationId.isNotEmpty;
 
   PendingRegistration copyWith({
     Map<String, String>? details,
-    String? consentVerificationId,
     String? clientId,
     String? rejection,
   }) => PendingRegistration(
@@ -82,30 +73,20 @@ class PendingRegistration {
     nationalId: nationalId,
     details: details ?? this.details,
     queuedAt: queuedAt,
-    consentVerificationId: consentVerificationId ?? this.consentVerificationId,
     clientId: clientId ?? this.clientId,
     rejection: rejection ?? this.rejection,
   );
 
-  /// The registration as sent to the service, with the consent [code] when
-  /// answering a challenge.
-  ClientObject toClient({String code = ''}) {
+  /// The registration as sent to the service. It needs no consent code:
+  /// the client is registered CREATED and the person consents when it is
+  /// activated, after their KYC is verified.
+  ClientObject toClient() {
     final properties = Struct();
     properties.fields[kClientPhoneNumberKey] = Value(stringValue: phone);
     if (nationalId.isNotEmpty) {
       properties.fields[kClientNationalIdKey] = Value(stringValue: nationalId);
     }
-    if (code.isNotEmpty && consentVerificationId.isNotEmpty) {
-      properties.fields[kClientConsentVerificationIdKey] = Value(
-        stringValue: consentVerificationId,
-      );
-      properties.fields[kClientConsentCodeKey] = Value(stringValue: code);
-    }
-    return ClientObject(
-      name: name,
-      state: STATE.ACTIVE,
-      properties: properties,
-    );
+    return ClientObject(name: name, properties: properties);
   }
 
   Map<String, dynamic> toJson() => {
@@ -115,7 +96,6 @@ class PendingRegistration {
     'national_id': nationalId,
     'details': details,
     'queued_at': queuedAt.toUtc().toIso8601String(),
-    'consent_verification_id': consentVerificationId,
     'client_id': clientId,
     'rejection': rejection,
   };
@@ -125,9 +105,6 @@ class PendingRegistration {
 enum RegistrationOutcome {
   /// The client is registered and every detail saved.
   registered,
-
-  /// The person already has a profile; their consent code is needed.
-  awaitingConsent,
 
   /// The service could not be reached; it stays on the device.
   queued,
@@ -255,41 +232,24 @@ class RegistrationOutbox extends AsyncNotifier<List<PendingRegistration>> {
     return item.id;
   }
 
-  /// Sends the registration [id], with the person's consent [code] when one
-  /// was asked for. A wrong or expired code is thrown and the entry keeps
-  /// waiting for consent.
-  Future<RegistrationOutcome> submit(String id, {String code = ''}) async {
+  /// Sends the registration [id]: the client first, then each detail.
+  Future<RegistrationOutcome> submit(String id) async {
     var item = _find(await future, id);
     if (item == null) return RegistrationOutcome.registered;
     if (item.rejected) return RegistrationOutcome.rejected;
 
     if (item.clientId.isEmpty) {
-      if (item.awaitingConsent && code.isEmpty) {
-        return RegistrationOutcome.awaitingConsent;
-      }
       final ClientObject saved;
       try {
         saved = await ref
             .read(clientNotifierProvider.notifier)
-            .save(item.toClient(code: code));
+            .save(item.toClient());
       } catch (e) {
         if (_isTransientFailure(e)) return RegistrationOutcome.queued;
-        if (code.isNotEmpty) rethrow;
         await _replace(item.copyWith(rejection: _reason(e)));
         return RegistrationOutcome.rejected;
       }
-      if (saved.id.isEmpty && clientConsentPending(saved)) {
-        await _replace(
-          item.copyWith(
-            consentVerificationId: clientProperty(
-              saved,
-              kClientConsentVerificationIdKey,
-            ),
-          ),
-        );
-        return RegistrationOutcome.awaitingConsent;
-      }
-      item = item.copyWith(clientId: saved.id, consentVerificationId: '');
+      item = item.copyWith(clientId: saved.id);
       await _replace(item);
     }
 
@@ -329,24 +289,13 @@ class RegistrationOutbox extends AsyncNotifier<List<PendingRegistration>> {
     return RegistrationOutcome.registered;
   }
 
-  /// Asks the service to send the person a fresh consent code, for when the
-  /// last one expired or never arrived.
-  Future<RegistrationOutcome> resendConsent(String id) async {
-    final item = _find(await future, id);
-    if (item == null || !item.awaitingConsent) {
-      return RegistrationOutcome.registered;
-    }
-    await _replace(item.copyWith(consentVerificationId: ''));
-    return submit(id);
-  }
-
-  /// Submits every registration that can go without the agent: new ones
-  /// and ones with details left to save. Those waiting for a consent code
-  /// or refused stay for the agent. Returns how many were registered.
+  /// Submits every registration not refused: new ones and ones with
+  /// details left to save. Refused ones stay for the agent. Returns how
+  /// many were registered.
   Future<int> flush() async {
     var registered = 0;
     for (final item in [...await future]) {
-      if (item.rejected || item.awaitingConsent) continue;
+      if (item.rejected) continue;
       if (await submit(item.id) == RegistrationOutcome.registered) {
         registered++;
       }

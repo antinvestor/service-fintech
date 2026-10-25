@@ -2,6 +2,7 @@ import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
     show ClientDataEntryObject, DataVerificationStatus;
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
+import 'package:connectrpc/connect.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -43,6 +44,41 @@ class _RecordingClientDataNotifier extends ClientDataNotifier {
   }
 }
 
+/// Answers activation like the identity service: KYC first, then a code,
+/// then ACTIVE.
+class _ActivatingClientNotifier extends ClientNotifier {
+  _ActivatingClientNotifier(this.saved, {this.kycVerified = true});
+
+  final List<ClientObject> saved;
+  final bool kycVerified;
+
+  @override
+  Future<ClientObject> save(ClientObject client) async {
+    saved.add(client);
+    if (!kycVerified) {
+      throw ConnectException(
+        Code.failedPrecondition,
+        "the client's KYC must be fully verified before they are activated",
+      );
+    }
+    final code = clientProperty(client, kClientConsentCodeKey);
+    if (code.isEmpty) {
+      return client.deepCopy()
+        ..state = STATE.CREATED
+        ..properties = Struct(
+          fields: {
+            kClientConsentVerificationIdKey: Value(stringValue: 'ch-1'),
+            kClientConsentStatusKey: Value(stringValue: 'pending'),
+          }.entries,
+        );
+    }
+    if (code != '123456') {
+      throw ConnectException(Code.failedPrecondition, 'code is wrong');
+    }
+    return client.deepCopy()..state = STATE.ACTIVE;
+  }
+}
+
 ClientDataEntryObject _entry(String id, DataVerificationStatus status) =>
     ClientDataEntryObject(
       id: id,
@@ -56,14 +92,18 @@ Widget _host({
   required List<ClientDataEntryObject> entries,
   required List<String> log,
   bool canManage = false,
+  STATE state = STATE.ACTIVE,
+  ClientNotifier Function()? clientNotifier,
 }) {
   return ProviderScope(
     overrides: [
+      if (clientNotifier != null)
+        clientNotifierProvider.overrideWith(clientNotifier),
       clientDetailProvider.overrideWith(
         (ref, id) async => ClientObject(
           id: id,
           name: 'Amina Wanjiru',
-          state: STATE.ACTIVE,
+          state: state,
           owningTeamId: 'team-1',
           properties: Struct(
             fields: {
@@ -232,5 +272,95 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(log, ['save:date_of_birth=1990-01-01']);
+  });
+
+  testWidgets('an active client offers no activation', (tester) async {
+    _wide(tester);
+    await tester.pumpWidget(_host(entries: const [], log: [], canManage: true));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('client-activate')), findsNothing);
+    expect(find.byKey(const Key('client-activation-hint')), findsNothing);
+  });
+
+  testWidgets('activating asks for the borrower\'s code, then activates', (
+    tester,
+  ) async {
+    _wide(tester);
+    final saved = <ClientObject>[];
+    await tester.pumpWidget(
+      _host(
+        entries: const [],
+        log: [],
+        canManage: true,
+        state: STATE.CREATED,
+        clientNotifier: () => _ActivatingClientNotifier(saved),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('client-activation-hint')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('client-activate')));
+    await tester.pumpAndSettle();
+    expect(saved.single.state, STATE.ACTIVE, reason: 'asks to become ACTIVE');
+    expect(clientProperty(saved.single, kClientConsentCodeKey), isEmpty);
+
+    expect(find.byType(ConsentCodeDialog), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField).last, '123456');
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(saved, hasLength(2));
+    expect(clientProperty(saved.last, kClientConsentVerificationIdKey), 'ch-1');
+    expect(clientProperty(saved.last, kClientConsentCodeKey), '123456');
+    expect(find.text('Amina Wanjiru is now an active client'), findsOneWidget);
+  });
+
+  testWidgets('a wrong code is reported and nothing is activated', (
+    tester,
+  ) async {
+    _wide(tester);
+    final saved = <ClientObject>[];
+    await tester.pumpWidget(
+      _host(
+        entries: const [],
+        log: [],
+        canManage: true,
+        state: STATE.CREATED,
+        clientNotifier: () => _ActivatingClientNotifier(saved),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('client-activate')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).last, '000000');
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Code not accepted'), findsOneWidget);
+    expect(find.text('Amina Wanjiru is now an active client'), findsNothing);
+  });
+
+  testWidgets('activation before KYC is verified is refused', (tester) async {
+    _wide(tester);
+    final saved = <ClientObject>[];
+    await tester.pumpWidget(
+      _host(
+        entries: const [],
+        log: [],
+        canManage: true,
+        state: STATE.CREATED,
+        clientNotifier: () =>
+            _ActivatingClientNotifier(saved, kycVerified: false),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('client-activate')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ConsentCodeDialog), findsNothing);
+    expect(find.textContaining('Could not activate'), findsOneWidget);
   });
 }

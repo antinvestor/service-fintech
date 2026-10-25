@@ -17,9 +17,10 @@ String clientProperty(ClientObject client, String key) {
   return value.stringValue;
 }
 
-/// Consent handshake keys: a field agent registering someone who already
-/// has a profile gets [kClientConsentVerificationIdKey] back with status
-/// pending, and resubmits with the code the person received.
+/// Consent handshake keys. Registration asks for no code: a client starts
+/// CREATED. Activating it (once its KYC is verified) answers with
+/// [kClientConsentVerificationIdKey] and status pending after a code is sent
+/// to the person; the activation is resubmitted with the code they received.
 const kClientConsentVerificationIdKey = 'consent_verification_id';
 const kClientConsentCodeKey = 'consent_code';
 const kClientConsentStatusKey = 'consent_status';
@@ -29,18 +30,25 @@ bool clientConsentPending(ClientObject client) =>
     clientProperty(client, kClientConsentStatusKey) == 'pending' &&
     clientProperty(client, kClientConsentVerificationIdKey).isNotEmpty;
 
-/// The registration [draft] resubmitted with the person's consent [code]
-/// for the challenge in [pending].
-ClientObject withConsentCode(
-  ClientObject draft,
-  ClientObject pending,
-  String code,
-) {
-  final next = draft.deepCopy();
-  next.properties.fields[kClientConsentVerificationIdKey] = Value(
-    stringValue: clientProperty(pending, kClientConsentVerificationIdKey),
-  );
-  next.properties.fields[kClientConsentCodeKey] = Value(stringValue: code);
+/// Whether [client] is registered but not yet activated.
+bool clientAwaitingActivation(ClientObject client) =>
+    client.state == STATE.CREATED;
+
+/// [client] asked to become ACTIVE, answering the consent challenge in
+/// [pending] with [code] when given.
+ClientObject activationRequest(
+  ClientObject client, {
+  ClientObject? pending,
+  String code = '',
+}) {
+  final next = client.deepCopy()..state = STATE.ACTIVE;
+  if (!next.hasProperties()) next.properties = Struct();
+  if (pending != null && code.isNotEmpty) {
+    next.properties.fields[kClientConsentVerificationIdKey] = Value(
+      stringValue: clientProperty(pending, kClientConsentVerificationIdKey),
+    );
+    next.properties.fields[kClientConsentCodeKey] = Value(stringValue: code);
+  }
   return next;
 }
 

@@ -2,8 +2,8 @@ import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
 
 /// Asks the field agent for the code the borrower received, proving the
-/// borrower consents to being registered. Pops with the code, or null when
-/// cancelled.
+/// borrower consents to being activated as a client. Pops with the code, or
+/// null when cancelled.
 class ConsentCodeDialog extends StatefulWidget {
   const ConsentCodeDialog({super.key});
 
@@ -37,8 +37,8 @@ class _ConsentCodeDialogState extends State<ConsentCodeDialog> {
           child: FormFieldCard(
             label: 'Consent code',
             description:
-                'This person is already known. A code was sent to their '
-                'registered mobile number; enter it to confirm they agree.',
+                'A code was sent to the borrower\'s mobile number. Enter it '
+                'to confirm they agree to become a client.',
             isRequired: true,
             child: TextFormField(
               controller: _codeCtrl,
