@@ -113,14 +113,6 @@ func MemberLoansAccount(memberID string) string {
 	return fmt.Sprintf("member:%s:loans", memberID)
 }
 
-// AgentCashAccount is the cash a field agent holds on the lender's behalf:
-// repayments collected in cash are debited here, not to the borrower's own
-// account, until the agent remits them. Its balance is what the agent owes
-// the till.
-func AgentCashAccount(agentProfileID string) string {
-	return fmt.Sprintf("agent:%s:cash_in_hand", agentProfileID)
-}
-
 // MemberPenaltyReceivableAccount is the receivable account that is debited
 // when a penalty is applied to a member and credited when the penalty is
 // settled via repayment waterfall. It is the accrual-side counterpart to

@@ -453,3 +453,33 @@ KYC entries had two of their six stages in use:
 - A review used to emit an asynchronous full upsert of the entry after its
   conditional write had already landed. That upsert could overwrite a
   resubmission made in between; it is removed.
+
+## 25. Addendum 2026-10-25 — agents never handle borrower money
+
+Rule: a field agent never touches a borrower's money. Repaying is the
+borrower's own act, from their own registered contact; the payment rail
+matches the inbound payment and applies it to the loan.
+
+What this removed:
+
+- **Agents recording cash.** `ROLE_MEMBER` held `repayment_manage`, and a
+  field agent could book a cash repayment that debited an
+  `agent:<profile>:cash_in_hand` ledger account "until remitted". That
+  account, the cash channel, the collector column (`repayments.collected_by`,
+  dropped by migration 0007), the "collection recorded, remit by end of day"
+  message, the agent app's Record Payment dialog, its offline repayment
+  outbox and the "My collections" screen are gone.
+- **Anyone recording by hand.** `RepaymentRecord` now refuses every caller
+  but an internal service account (the operations payment rail, which holds
+  its grant explicitly), and refuses cash even from the rail. Owners, admins
+  and operators lost `repayment_manage` too; a payment that arrived but did
+  not match is resolved through operations' suspense and allocation, never by
+  typing in an amount.
+- A partition-wide repayment search (no loan named) is staff-only; field
+  agents read repayments loan by loan, for the clients they serve.
+
+What stays: "Collect Payment" (`InitiateCollection`), with which a field
+agent or staff member prompts the borrower to pay from their own contact.
+
+Production had no repayments recorded when this shipped, so no cash entries
+or agent cash balances needed unwinding.

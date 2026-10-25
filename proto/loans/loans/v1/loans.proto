@@ -456,9 +456,13 @@ message RepaymentObject {
   common.v1.Money excess_amount = 15;
   string idempotency_key = 16;
   google.protobuf.Struct properties = 17;
-  // collected_by is the profile of the staff member or field agent who
-  // recorded the repayment. Empty when the borrower paid directly.
-  string collected_by = 18 [(buf.validate.field).ignore = IGNORE_ALWAYS];
+  // Deprecated and always empty: field agents and staff never handle a
+  // borrower's money. Every repayment is a payment the borrower made from
+  // their own contact.
+  string collected_by = 18 [
+    deprecated = true,
+    (buf.validate.field).ignore = IGNORE_ALWAYS
+  ];
 }
 
 // PenaltyObject represents a penalty applied to a loan.
@@ -706,10 +710,10 @@ message RepaymentSearchRequest {
   ];
   RepaymentStatus status = 2;
   common.v1.PageCursor cursor = 3;
-  // collected_by narrows the search to repayments one collector recorded.
-  // A field agent searching without a loan lists their own collections;
-  // leaving collected_by empty means "mine".
+  // Deprecated and ignored: nobody collects repayments on a borrower's
+  // behalf. A search without a loan is open to staff only.
   string collected_by = 4 [
+    deprecated = true,
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.max_len = 40
   ];
@@ -1212,7 +1216,6 @@ service LoanManagementService {
           "disbursement_view",
           "disbursement_manage",
           "repayment_view",
-          "repayment_manage",
           "penalty_view",
           "penalty_manage",
           "restructure_view",
@@ -1238,7 +1241,6 @@ service LoanManagementService {
           "disbursement_view",
           "disbursement_manage",
           "repayment_view",
-          "repayment_manage",
           "penalty_view",
           "penalty_manage",
           "restructure_view",
@@ -1260,7 +1262,6 @@ service LoanManagementService {
           "loan_view",
           "disbursement_view",
           "repayment_view",
-          "repayment_manage",
           "penalty_view",
           "restructure_view",
           "reconciliation_manage",
@@ -1285,10 +1286,11 @@ service LoanManagementService {
         // ROLE_MEMBER is held by borrowers and by field agents. The server
         // resolves the caller through the field service: a borrower reads
         // and applies only for their own client; a field agent reads,
-        // applies, records repayments and starts collections only for the
-        // clients their teams own or they hold a relationship with. A
-        // borrower can never record a repayment. Staff roles (owner, admin,
-        // operator, viewer) act partition-wide.
+        // applies and prompts a borrower to pay only for the clients their
+        // teams own or they hold a relationship with. No person records a
+        // repayment: the borrower pays from their own contact and the
+        // payment rail applies it. Staff roles (owner, admin, operator,
+        // viewer) act partition-wide.
         role: ROLE_MEMBER
         permissions: [
           "loan_product_view",
@@ -1300,7 +1302,6 @@ service LoanManagementService {
           "repayment_view",
           "penalty_view",
           "restructure_view",
-          "repayment_manage",
           "collection_manage"
         ]
       },
@@ -1615,7 +1616,9 @@ service LoanManagementService {
     };
   }
 
-  // RepaymentRecord records an incoming payment for a loan.
+  // RepaymentRecord applies a payment the borrower made from their own
+  // contact to their loan. Only the payment rail calls it, once it has
+  // matched the inbound payment; no person records a repayment.
   rpc RepaymentRecord(RepaymentRecordRequest) returns (RepaymentRecordResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["repayment_manage"]
@@ -1623,7 +1626,7 @@ service LoanManagementService {
     option (gnostic.openapi.v3.operation) = {
       operation_id: "repaymentRecord"
       summary: "Record a repayment"
-      description: "Records an incoming payment and allocates it to outstanding schedule entries."
+      description: "Applies a matched inbound payment from the borrower to outstanding schedule entries. Internal: called by the payment rail only."
       tags: "Repayments"
     };
   }

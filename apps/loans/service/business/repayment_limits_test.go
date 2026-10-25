@@ -23,6 +23,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/pitabwire/frame/v3/security"
+
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
@@ -447,7 +450,7 @@ func TestRecord_EmptyIdempotencyKey_Rejected(t *testing.T) {
 
 	b := buildRepBusiness(laRepo, repRepo, nil, limitsCli, true)
 
-	result, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId: la.GetID(),
 		Amount:        moneyx.FromMinorUnitsByCurrency("KES", 5000),
 		// IdempotencyKey intentionally omitted
@@ -474,7 +477,7 @@ func TestRecord_GateDisabled_BehavesAsBefore(t *testing.T) {
 
 	b := buildRepBusiness(laRepo, repRepo, opsCli, nil, false)
 
-	result, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
 		IdempotencyKey: "idem-rep-disabled",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
@@ -505,7 +508,7 @@ func TestRecord_GateAllowed(t *testing.T) {
 
 	b := buildRepBusiness(laRepo, repRepo, opsCli, limitsCli, true)
 
-	result, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
 		IdempotencyKey: "idem-rep-gate-allowed",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
@@ -531,7 +534,7 @@ func TestRecord_GateDenied(t *testing.T) {
 
 	b := buildRepBusiness(laRepo, repRepo, opsCli, limitsCli, true)
 
-	result, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
 		IdempotencyKey: "idem-rep-gate-denied",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
@@ -561,7 +564,7 @@ func TestRecord_GatePending(t *testing.T) {
 
 	b := buildRepBusiness(laRepo, repRepo, opsCli, limitsCli, true)
 
-	result, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
 		IdempotencyKey: "idem-rep-gate-pending",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
@@ -588,4 +591,13 @@ func (r *stubScheduleEntryRepo) ClaimReminders(
 	context.Context, repository.ReminderKind, time.Time, time.Time, int,
 ) ([]*loansmodels.ScheduleEntry, error) {
 	return nil, nil
+}
+
+// paymentRailContext is the payment rail calling RepaymentRecord: an internal
+// service account, the only caller that may apply a repayment.
+func paymentRailContext() context.Context {
+	return (&security.AuthenticationClaims{
+		Roles:            []string{security.ConstantSystemInternalRole},
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "service-operations"},
+	}).ClaimsToContext(context.Background())
 }

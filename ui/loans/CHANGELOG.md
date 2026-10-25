@@ -1,3 +1,19 @@
+## 0.3.0
+
+- **Breaking:** field agents and staff no longer record repayments. The
+  borrower pays from their own contact and the payment rail applies it.
+  Removed: the Record Payment action and dialog,
+  `LoanAccountDetailScreen.canRecordPayment`, `RepaymentNotifier`,
+  `repaymentNotifierProvider`, the offline repayment outbox
+  (`PendingRepayment`, `OutboxStore`, `outboxStoreProvider`,
+  `repaymentOutboxProvider`), `MyCollectionsScreen` and its
+  `/loans/collections` route, `myCollectionsTodayProvider`, the cash channel
+  (`kRepaymentChannelCash`, `kRepaymentChannels`, `kCashCollectionNote`), and
+  the `repayment_manage` permission entry.
+- "Collect Payment" stays: it prompts the borrower to pay from their own
+  contact.
+- Requires `antinvestor_api_loans ^0.6.1`.
+
 ## 0.2.0
 
 - **Breaking:** moves to connect-dart 2 and the protobuf 6 runtime:

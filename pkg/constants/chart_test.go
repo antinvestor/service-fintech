@@ -32,7 +32,7 @@ func TestEveryAccountNameIsOnTheChart(t *testing.T) {
 		constants.GroupServiceFeeAccount("g"), constants.GroupSavingsInterestIncomeAccount("g"),
 		constants.MemberSuspenseAccount("m"), constants.ClientSuspenseAccount("c"),
 		constants.MemberLendingAccount("m"), constants.MemberPeriodicSavingsAccount("m"),
-		constants.MemberLoansAccount("m"), constants.AgentCashAccount("a"),
+		constants.MemberLoansAccount("m"),
 		constants.MemberPenaltyReceivableAccount("m"), constants.InvestorCapitalAccount("i"),
 		constants.InvestorReservedAccount("i"), constants.PlatformFirstLossAccount("x"),
 		constants.PlatformIncomeAccount("x"), constants.PlatformExternalCashAccount(),

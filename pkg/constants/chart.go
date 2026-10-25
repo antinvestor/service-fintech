@@ -30,7 +30,7 @@ const (
 // Chart ledgers: every account the platform posts to belongs to one of
 // these, by the kind of account its name encodes.
 const (
-	LedgerCash         = "fintech_cash"         // money held: product, platform, group bank, agent cash
+	LedgerCash         = "fintech_cash"         // money held: product, platform, group bank
 	LedgerReceivables  = "fintech_receivables"  // loans and penalties owed to the lender
 	LedgerMemberFunds  = "fintech_member_funds" // money held for members, clients and investors
 	LedgerPayables     = "fintech_payables"     // fees and premiums owed onwards
@@ -60,7 +60,6 @@ func ChartLedgers() map[string]LedgerCategory {
 var chartByKind = map[string]string{
 	"product:external_cash":            LedgerCash,
 	"group:bank":                       LedgerCash,
-	"agent:cash_in_hand":               LedgerCash,
 	"product:unallocated":              LedgerReceivables,
 	"member:penalty_receivable":        LedgerReceivables,
 	"product:unidentified":             LedgerMemberFunds,

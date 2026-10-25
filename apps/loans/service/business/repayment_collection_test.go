@@ -18,8 +18,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 func TestNormalizeRepaymentChannel(t *testing.T) {
@@ -40,8 +38,4 @@ func TestNormalizeRepaymentChannel(t *testing.T) {
 	for in, want := range cases {
 		assert.Equal(t, want, NormalizeRepaymentChannel(in), "%q", in)
 	}
-}
-
-func TestAgentCashAccountNaming(t *testing.T) {
-	assert.Equal(t, "agent:profile-7:cash_in_hand", constants.AgentCashAccount("profile-7"))
 }

@@ -1,3 +1,9 @@
+## 0.6.1
+
+- `RepaymentObject.collected_by` and `RepaymentSearchRequest.collected_by`
+  are deprecated: nobody collects repayments on a borrower's behalf.
+  `RepaymentRecord` is applied by the payment rail only.
+
 ## 0.6.0
 
 - `LoanManagementService.LoanJobRun` and the `LoanJob` enum: one bounded batch of a periodic job (delinquency scan, due reminders, funder settlement, offer expiry), called by the platform scheduler.

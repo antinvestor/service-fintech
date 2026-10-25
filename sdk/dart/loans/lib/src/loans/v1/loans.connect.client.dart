@@ -372,7 +372,9 @@ extension type LoanManagementServiceClient (connect.Transport _transport) {
     );
   }
 
-  /// RepaymentRecord records an incoming payment for a loan.
+  /// RepaymentRecord applies a payment the borrower made from their own
+  /// contact to their loan. Only the payment rail calls it, once it has
+  /// matched the inbound payment; no person records a repayment.
   Future<loansv1loans.RepaymentRecordResponse> repaymentRecord(
     loansv1loans.RepaymentRecordRequest input, {
     connect.Headers? headers,

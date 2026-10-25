@@ -45,9 +45,13 @@ var (
 		apperrors.BadRequest,
 		"time range bounds must be RFC3339 timestamps",
 	)
-	ErrAgentCashOnly = apperrors.NewError(
+	ErrRepaymentRecordInternalOnly = apperrors.NewError(
 		apperrors.Forbidden,
-		"field agents record cash repayments only; other channels are confirmed by the payment rail",
+		"repayments are applied by the payment rail from the borrower's own payments; they cannot be recorded by hand",
+	)
+	ErrCashRepaymentRefused = apperrors.NewError(
+		apperrors.BadRequest,
+		"cash repayments are not accepted: the borrower pays from their own registered contact",
 	)
 	ErrIdempotencyKeyConflict = apperrors.NewError(
 		apperrors.Conflict,
@@ -204,10 +208,6 @@ var (
 	ErrPenaltyEntryConflict = apperrors.NewError(
 		apperrors.Conflict,
 		"a different penalty already exists for this installment",
-	)
-	ErrCashRepaymentNeedsCollector = apperrors.NewError(
-		apperrors.BadRequest,
-		"a cash repayment must be recorded by the staff member or field agent who holds the cash",
 	)
 	ErrLoanRequestSelfDecision = apperrors.NewError(
 		apperrors.Forbidden,
