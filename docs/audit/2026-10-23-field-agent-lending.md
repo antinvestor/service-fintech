@@ -357,3 +357,61 @@ list any client's entries, and field agents (members) lacked
 `client_data_manage`, so the details captured at onboarding were refused on
 sync. KYC reads, writes, reviews and history are now allowed only for staff
 and the agents serving the client, and members hold `client_data_manage`.
+
+## 23. Addendum 2026-10-25 — money flow gaps and scheduled work
+
+Tracing every flow end to end found money that never moved and work that
+never ran. Fixed:
+
+- **Funders were never paid.** Operations shared repayments out by reading
+  the funding tables from its own database, where they do not exist (each
+  service has its own database), so nothing was ever redistributed. Funding
+  now owns it: `FundingService.LoanRepaymentApply` writes one distribution per
+  repayment (unique reference) and moves tranche counters and investor
+  balances in the same transaction, then posts the interest legs (funder's
+  net share and withholding tax out of the product's income; the platform
+  fee is income it keeps). Principal posts nothing: a funder's capital claim
+  did not shrink when the loan went out. Loans calls it after each repayment
+  and marks the repayment settled; the settlement job finishes any that did
+  not complete. Repayments recorded before this are shared retroactively.
+- **Write-off could not happen.** It is now a restructure of type WRITE_OFF on
+  a DEFAULT loan, approved by someone other than its requester. It posts the
+  principal still on the loan asset and the unpaid penalties to bad debt
+  (interest and fees were never booked, so need no reversal), has the funders
+  absorb the principal first-loss first (only what each tranche still has
+  lent out) and move their share of the expense onto their capital, then
+  closes the loan.
+- **Restructures had no maker/checker** and were decided by unconditional
+  writes. Every decision is now a conditional claim; the requester cannot
+  approve.
+- **Disbursement credited a contact id**, not a ledger account. It credits the
+  product's external cash; the contact stays the payout destination.
+- **Concurrent repayments on one loan could double-allocate**, and
+  installments were persisted through asynchronous events with absolute
+  values. Repayments on a loan now run one at a time under a lease; the
+  allocation is stored with the repayment, the ledger is posted, and the
+  installments, balance and an `applied_at` mark move in one transaction.
+  A retry with the same key resumes from wherever it stopped.
+- **Seed loans were priced at the product rate** and seed's own approval was
+  refused as self-approval. The tier rate reaches loans; an internal product
+  service deciding by its own credit policy is not self-approval. A field
+  agent or borrower can no longer set a loan's rate.
+- **Lapsed offers never expired.** Submitted or approved requests past their
+  offer deadline now expire and the borrower is told.
+
+**Scheduled work runs only through trustage.** The delinquency scan and due
+reminders were in-process tickers on a service that scales to zero, so they
+ran only while a request happened to be in flight. They, funder settlement
+and offer expiry are now `LoanJobRun` batches that trustage calls on the
+schedules in `products/loans/workflows`, registered by the loans setup Job.
+Each job claims its items in the database (`FOR UPDATE SKIP LOCKED` on
+partial indexes), so any number of runs and replicas share the work and the
+cost of a run follows what is due, not the size of the book: a loan is
+assessed once a day, each reminder is claimed once, each repayment settled
+once.
+
+Found and queued: four of the five stawi workflow definitions fail trustage's
+current DSL validation and so were never registered (`return`/`noop` step
+types, missing `signal_name`, `foreach.items`); stawi embeds a second funding
+allocation in its own database; limits' reapers and savings' interest accrual
+still run in-process.

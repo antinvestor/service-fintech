@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -69,6 +70,8 @@ type PaidOffHook interface {
 
 type repaymentBusiness struct {
 	scope             *ReadScope
+	fundingSettlement *FundingSettlement
+	applier           repository.RepaymentApplier
 	eventsMan         fevents.Manager
 	loanAccountRepo   repository.LoanAccountRepository
 	repaymentRepo     repository.RepaymentRepository
@@ -103,6 +106,8 @@ func NewRepaymentBusiness(
 ) RepaymentBusiness {
 	return &repaymentBusiness{
 		scope:             applyOptions(opts).scope,
+		fundingSettlement: applyOptions(opts).fundingSettlement,
+		applier:           applyOptions(opts).repaymentApplier,
 		eventsMan:         eventsMan,
 		loanAccountRepo:   loanAccountRepo,
 		repaymentRepo:     repaymentRepo,
@@ -156,7 +161,10 @@ func (b *repaymentBusiness) Record(
 		if existing.LoanAccountID != la.GetID() {
 			return nil, ErrIdempotencyKeyConflict
 		}
-		return existing.ToAPI(), nil
+		if existing.AppliedAt != nil {
+			return existing.ToAPI(), nil
+		}
+		// Recorded but not finished: the retry below resumes it.
 	}
 
 	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
@@ -200,13 +208,15 @@ func (b *repaymentBusiness) Record(
 }
 
 // recordInner is the pre-Gate body factored out so Gate's handler can wrap it.
-// The idempotency check lives in the outer Record.
 //
-// The order of operations is deliberate. The allocation is computed in memory,
-// the repayment row claims the idempotency key, the ledger is posted, and only
-// then are the schedule entries and the balance moved. Posting the ledger
-// after the schedule would let a transfer failure leave installments marked
-// paid against money that never arrived.
+// Repayments on one loan are taken one at a time under the loan's repayment
+// lease, so two payments never allocate against the same installments. The
+// allocation is computed and stored on the repayment row with the
+// idempotency key; the ledger is then posted; and only then are the
+// installments and the balance moved, together with marking the row applied,
+// in one transaction. A failure at any step leaves a row that a retry with
+// the same key resumes from where it stopped, with the amounts it stored, so
+// nothing posts or applies twice.
 func (b *repaymentBusiness) recordInner(
 	ctx context.Context,
 	req *loansv1.RepaymentRecordRequest,
@@ -217,6 +227,28 @@ func (b *repaymentBusiness) recordInner(
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
 	}
+
+	locked, lockErr := b.loanAccountRepo.ClaimRepaymentLock(ctx, la.GetID())
+	if lockErr != nil {
+		return nil, fmt.Errorf("claim the loan for repayment: %w", lockErr)
+	}
+	if !locked {
+		return nil, ErrRepaymentInProgress
+	}
+	defer func() {
+		if relErr := b.loanAccountRepo.ReleaseRepaymentLock(ctx, la.GetID()); relErr != nil {
+			logger.WithError(relErr).Warn("could not release the loan's repayment lease; it lapses on its own")
+		}
+	}()
+
+	if existing, existErr := b.repaymentRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); existErr == nil &&
+		existing != nil {
+		if existing.LoanAccountID != la.GetID() {
+			return nil, ErrIdempotencyKeyConflict
+		}
+		return b.finishRepayment(ctx, logger, la, existing, req)
+	}
+
 	if !isRepayableStatus(la.Status) {
 		return nil, ErrLoanNotRepayable
 	}
@@ -261,57 +293,133 @@ func (b *repaymentBusiness) recordInner(
 		PenaltiesApplied: alloc.penaltiesApplied,
 		ExcessAmount:     alloc.excessAmount,
 		IdempotencyKey:   req.GetIdempotencyKey(),
+		Properties:       data.JSONMap{repaymentAllocationKey: encodeEntryAllocations(alloc.entryAllocations)},
 	}
 	r.GenID(ctx)
 
-	stored, created, claimErr := b.repaymentRepo.ClaimIdempotencyKey(ctx, r)
+	stored, _, claimErr := b.repaymentRepo.ClaimIdempotencyKey(ctx, r)
 	if claimErr != nil {
 		logger.WithError(claimErr).Error("could not claim repayment idempotency key")
 		return nil, claimErr
 	}
-	if !created {
-		return stored.ToAPI(), nil
+	return b.finishRepayment(ctx, logger, la, stored, req)
+}
+
+// finishRepayment takes a recorded repayment the rest of the way: the ledger
+// postings, then the installments and balance in one transaction, then the
+// consequences (messages, pay-off, funder shares). Each step is safe to
+// repeat, which is what lets a retry resume a repayment that stopped part way.
+func (b *repaymentBusiness) finishRepayment(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+	r *models.Repayment,
+	req *loansv1.RepaymentRecordRequest,
+) (*loansv1.RepaymentObject, error) {
+	if r.AppliedAt != nil {
+		return r.ToAPI(), nil
 	}
+	alloc := allocationOf(r)
 
 	if toErr := b.emitRepaymentTransferOrders(ctx, logger, la, r, alloc); toErr != nil {
-		// Nothing has been marked paid yet, so handing the key back leaves
-		// the loan exactly as it was and lets the caller retry. The ledger
-		// references are derived from the idempotency key, so any component
-		// that did post is recognised as a duplicate on that retry.
-		if _, relErr := b.repaymentRepo.UpdateColumns(ctx, r.GetID(), map[string]any{
-			fieldStatus:         int32(loansv1.RepaymentStatus_REPAYMENT_STATUS_REVERSED),
-			fieldIdempotencyKey: "failed:" + r.GetID(),
-		}); relErr != nil {
-			logger.WithError(relErr).Error("could not release the idempotency key of a failed repayment")
-		}
+		// Nothing counts against the loan yet. The ledger references are
+		// keyed on the idempotency key, so the retry that resumes this row
+		// posts only the components that did not go through.
 		return nil, toErr
 	}
 
-	b.persistAllocatedEntries(ctx, logger, alloc)
-
-	if applyErr := b.applyRepaymentToBalance(
-		ctx,
-		logger,
-		la,
-		alloc,
-		channel,
-		req.GetPaymentReference(),
-	); applyErr != nil {
+	if b.applier == nil {
+		return nil, ErrRepaymentPostingFailed
+	}
+	applied, fresh, applyErr := b.applier.Apply(ctx, r.GetID(), la.GetID(), alloc.entryAllocations,
+		repository.LoanBalanceDelta{
+			PrincipalApplied: alloc.principalApplied,
+			InterestApplied:  alloc.interestApplied,
+			FeesApplied:      alloc.feesApplied,
+			PenaltiesApplied: alloc.penaltiesApplied,
+		})
+	if applyErr != nil {
+		logger.WithError(applyErr).Error("repayment posted but not yet applied; a retry with the same key finishes it")
 		return nil, applyErr
+	}
+	now := time.Now().UTC()
+	r.AppliedAt = &now
+	if !applied {
+		// Another attempt applied it first; its consequences ran there.
+		return r.ToAPI(), nil
+	}
+
+	b.afterRepaymentApplied(ctx, logger, la, r, fresh)
+
+	// A repayment can clear arrears; bring the loan's assessment forward so
+	// the next delinquency run cures it rather than a day later.
+	if la.Status == int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT) {
+		if soonErr := b.loanAccountRepo.AssessSoon(ctx, la.GetID()); soonErr != nil {
+			logger.WithError(soonErr).Warn("could not bring the loan's delinquency assessment forward")
+		}
+	}
+
+	// The funders' shares are a consequence of the repayment, not part of
+	// it: a failure here leaves the repayment recorded and the scheduled
+	// settlement job finishes the shares.
+	if b.fundingSettlement != nil {
+		if settleErr := b.fundingSettlement.Settle(ctx, la, r); settleErr != nil {
+			logger.WithError(settleErr).Warn("repayment recorded; funder shares left to the settlement job")
+		}
 	}
 
 	b.auditRepayment(ctx, logger, la, r, alloc, req)
-	if collector != "" {
-		b.notifier.NotifyAgentCollectionRecorded(ctx, la, collector, amount, channel, req.GetPaymentReference())
+	if r.CollectedBy != "" {
+		b.notifier.NotifyAgentCollectionRecorded(ctx, la, r.CollectedBy, r.Amount, r.Channel, r.PaymentReference)
 	}
 
 	currencyAttr := attribute.String("currency", la.CurrencyCode)
 	LoansRepaid.Add(ctx, 1, currencyAttr)
 	LoansRepaidAmount.Add(ctx,
-		float64(amount)/minorUnitsPerMajor,
+		float64(r.Amount)/minorUnitsPerMajor,
 		currencyAttr)
 
 	return r.ToAPI(), nil
+}
+
+// repaymentAllocationKey holds, on the repayment row, how the payment was
+// spread over the installments, so a resumed repayment applies exactly what
+// was allocated when it was recorded.
+const repaymentAllocationKey = "allocation"
+
+// allocationOf rebuilds the allocation stored on a repayment row.
+func allocationOf(r *models.Repayment) waterfallResult {
+	return waterfallResult{
+		principalApplied: r.PrincipalApplied,
+		interestApplied:  r.InterestApplied,
+		feesApplied:      r.FeesApplied,
+		penaltiesApplied: r.PenaltiesApplied,
+		excessAmount:     r.ExcessAmount,
+		status:           loansv1.RepaymentStatus(r.Status),
+		entryAllocations: decodeEntryAllocations(r.Properties[repaymentAllocationKey]),
+	}
+}
+
+func encodeEntryAllocations(entries []repository.EntryAllocation) []any {
+	raw, _ := json.Marshal(entries)
+	var out []any
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+func decodeEntryAllocations(v any) []repository.EntryAllocation {
+	if v == nil {
+		return nil
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	var out []repository.EntryAllocation
+	if json.Unmarshal(raw, &out) != nil {
+		return nil
+	}
+	return out
 }
 
 // auditRepayment records what happened when money came in, as an entry that
@@ -365,48 +473,18 @@ func isRepayableStatus(status int32) bool {
 		status == int32(loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED)
 }
 
-// persistAllocatedEntries publishes the schedule entries the waterfall
-// touched. It runs only once the ledger has accepted the money.
-func (b *repaymentBusiness) persistAllocatedEntries(
-	ctx context.Context,
-	logger *util.LogEntry,
-	alloc waterfallResult,
-) {
-	for _, entry := range alloc.touchedEntries {
-		if emitErr := b.eventsMan.Emit(ctx, events.ScheduleEntrySaveEvent, entry); emitErr != nil {
-			logger.WithField("entry_id", entry.GetID()).
-				WithError(emitErr).
-				Error("could not persist the updated schedule entry")
-		}
-	}
-}
-
-// applyRepaymentToBalance applies a waterfall allocation to the authoritative
-// loan balance row using an atomic SQL delta, then re-reads the fresh row to
-// check for full payoff. Because the UPDATE uses arithmetic expressions and
-// clamps each bucket at zero in the database itself, concurrent repayments
-// on the same loan serialize correctly without any application-side locking.
-func (b *repaymentBusiness) applyRepaymentToBalance(
+// afterRepaymentApplied tells the borrower and, when the repayment cleared
+// the loan, moves it to PAID_OFF. It runs once, for the call that applied
+// the repayment.
+func (b *repaymentBusiness) afterRepaymentApplied(
 	ctx context.Context,
 	logger *util.LogEntry,
 	la *models.LoanAccount,
-	alloc waterfallResult,
-	channel, reference string,
-) error {
-	delta := repository.LoanBalanceDelta{
-		PrincipalApplied: alloc.principalApplied,
-		InterestApplied:  alloc.interestApplied,
-		FeesApplied:      alloc.feesApplied,
-		PenaltiesApplied: alloc.penaltiesApplied,
-	}
-
-	fresh, err := b.loanBalanceRepo.ApplyRepaymentDelta(ctx, la.GetID(), delta)
-	if err != nil {
-		logger.WithError(err).Error("could not apply repayment delta to loan balance")
-		return err
-	}
-
-	b.notifier.NotifyRepaymentReceived(ctx, la, delta.Total(), fresh.TotalOutstanding, channel, reference)
+	r *models.Repayment,
+	fresh *models.LoanBalance,
+) {
+	paid := r.PrincipalApplied + r.InterestApplied + r.FeesApplied + r.PenaltiesApplied
+	b.notifier.NotifyRepaymentReceived(ctx, la, paid, fresh.TotalOutstanding, r.Channel, r.PaymentReference)
 
 	if fresh.TotalOutstanding <= 0 {
 		// The automatic pay-off goes through the same state machine as an
@@ -441,7 +519,6 @@ func (b *repaymentBusiness) applyRepaymentToBalance(
 
 		b.notifier.NotifyLoanFullyPaid(ctx, la)
 	}
-	return nil
 }
 
 func (b *repaymentBusiness) firePaidOffHook(
@@ -488,10 +565,10 @@ type waterfallResult struct {
 	penaltiesApplied int64
 	excessAmount     int64
 	status           loansv1.RepaymentStatus
-	// touchedEntries are the schedule entries the allocation changed. They are
-	// held in memory until the ledger has accepted the money, so a failed
-	// posting never leaves installments marked paid.
-	touchedEntries []*models.ScheduleEntry
+	// entryAllocations are what the payment puts onto each installment. They
+	// are stored with the repayment and applied only once the ledger has
+	// accepted the money, so a failed posting never leaves installments paid.
+	entryAllocations []repository.EntryAllocation
 	// amountDue is what the schedule and balance were still asking for at the
 	// time of allocation. It is what separates a partial payment from a
 	// settlement.
@@ -749,45 +826,30 @@ func (b *repaymentBusiness) allocateToEntry(
 	remaining int64,
 	result *waterfallResult,
 ) int64 {
+	share := repository.EntryAllocation{EntryID: entry.GetID()}
+
 	// 1. Interest first
-	interestOwed := entry.InterestDue - entry.InterestPaid
-	if interestOwed > 0 {
-		pay := min64(interestOwed, remaining)
-		entry.InterestPaid += pay
-		result.interestApplied += pay
-		remaining -= pay
+	if owed := entry.InterestDue - entry.InterestPaid; owed > 0 {
+		share.Interest = min64(owed, remaining)
+		remaining -= share.Interest
 	}
-
 	// 2. Fees (insurance + processing)
-	feesOwed := entry.FeesDue - entry.FeesPaid
-	if feesOwed > 0 {
-		pay := min64(feesOwed, remaining)
-		entry.FeesPaid += pay
-		result.feesApplied += pay
-		remaining -= pay
+	if owed := entry.FeesDue - entry.FeesPaid; owed > 0 {
+		share.Fees = min64(owed, remaining)
+		remaining -= share.Fees
 	}
-
 	// 3. Principal last
-	principalOwed := entry.PrincipalDue - entry.PrincipalPaid
-	if principalOwed > 0 {
-		pay := min64(principalOwed, remaining)
-		entry.PrincipalPaid += pay
-		result.principalApplied += pay
-		remaining -= pay
+	if owed := entry.PrincipalDue - entry.PrincipalPaid; owed > 0 {
+		share.Principal = min64(owed, remaining)
+		remaining -= share.Principal
 	}
 
-	entryTotalPaid := entry.PrincipalPaid + entry.InterestPaid + entry.FeesPaid
-	switch {
-	case entryTotalPaid >= entry.TotalDue:
-		entry.Status = int32(loansv1.ScheduleEntryStatus_SCHEDULE_ENTRY_STATUS_PAID)
-	case entryTotalPaid > 0:
-		entry.Status = int32(loansv1.ScheduleEntryStatus_SCHEDULE_ENTRY_STATUS_PARTIAL)
+	result.interestApplied += share.Interest
+	result.feesApplied += share.Fees
+	result.principalApplied += share.Principal
+	if share.Total() > 0 {
+		result.entryAllocations = append(result.entryAllocations, share)
 	}
-	entry.TotalPaid = entryTotalPaid
-	entry.Outstanding = entry.TotalDue - entryTotalPaid
-
-	result.touchedEntries = append(result.touchedEntries, entry)
-
 	return remaining
 }
 

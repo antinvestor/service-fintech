@@ -73,7 +73,7 @@ func TestReferencedNamesAreRegistered(t *testing.T) {
 	reg := messages.Registry()
 	for _, name := range []string{
 		messages.LoanApplicationSubmitted, messages.LoanApplicationApproved, messages.LoanApplicationRejected,
-		messages.LoanApplicationCancelled, messages.LoanDisbursed, messages.LoanRepaymentReceived, messages.LoanPaidOff,
+		messages.LoanApplicationCancelled, messages.LoanApplicationExpired, messages.LoanDisbursed, messages.LoanRepaymentReceived, messages.LoanPaidOff,
 		messages.LoanPaymentDue, messages.LoanPaymentOverdue, messages.LoanDelinquent, messages.LoanPenaltyApplied,
 		messages.LoanPenaltyWaived, messages.LoanRestructured, messages.LoanWrittenOff, messages.LoanCollectionRequested,
 		messages.AgentClientDelinquent, messages.AgentDisbursementFailed, messages.AgentCollectionRecorded,

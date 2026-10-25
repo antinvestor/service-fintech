@@ -16,6 +16,7 @@ COPY ./apps/loans ./apps/loans
 COPY ./pkg ./pkg
 # The seed client (paid-off hook) is generated in-repo.
 COPY ./gen ./gen
+COPY ./products/loans/workflows ./products/loans/workflows
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -trimpath \
@@ -32,5 +33,6 @@ USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/binary /service
 COPY --from=builder /app/apps/loans/migrations /migrations
+COPY --from=builder /app/products/loans/workflows /workflows
 ENV DATABASE_MIGRATION_PATH=/migrations
 ENTRYPOINT ["/service"]

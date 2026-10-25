@@ -170,7 +170,32 @@ type LossAbsorption struct {
 	Absorbed      int64  // minor units actually taken by tranches
 	Unrecoverable int64  // minor units no tranche could cover
 	Currency      string `gorm:"type:varchar(3)"`
-	Properties    data.JSONMap
+	// ProductID names the product whose bad-debt expense the absorbed loss
+	// is charged against on the ledger. Empty means no ledger posting.
+	ProductID  string       `gorm:"type:varchar(50)"`
+	Properties data.JSONMap // {"shares": [LossShare...]}
+	// SettledAt is set once every ledger posting the absorption needs is done.
+	SettledAt *time.Time
 }
 
 func (m *LossAbsorption) TableName() string { return "loss_absorptions" }
+
+// RepaymentDistribution records one loan repayment shared out to the loan's
+// funders. It is unique on Reference: the row is written in the same
+// transaction that moves the tranche and investor counters, so a repeated
+// call finds it and moves nothing again. SettledAt is set once every ledger
+// posting the shares need has gone through.
+type RepaymentDistribution struct {
+	data.BaseModel
+	Reference     string       `gorm:"type:varchar(160);not null"`
+	LoanRequestID string       `gorm:"type:varchar(50);index:idx_rd_request;not null"`
+	LoanAccountID string       `gorm:"type:varchar(50)"`
+	ProductID     string       `gorm:"type:varchar(50)"`
+	Currency      string       `gorm:"type:varchar(3)"`
+	Principal     int64        // minor units
+	Interest      int64        // minor units, gross
+	Shares        data.JSONMap `gorm:"type:jsonb"` // {"shares": [RepaymentShare...]}
+	SettledAt     *time.Time
+}
+
+func (m *RepaymentDistribution) TableName() string { return "repayment_distributions" }

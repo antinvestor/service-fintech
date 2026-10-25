@@ -58,4 +58,13 @@ abstract final class FundingService {
     fundingv1funding.AbsorbLossRequest.new,
     fundingv1funding.AbsorbLossResponse.new,
   );
+
+  /// LoanRepaymentApply shares a loan repayment out to the loan's funders:
+  /// principal back to their capital, interest net of fee and tax as income.
+  static const loanRepaymentApply = connect.Spec(
+    '/$name/LoanRepaymentApply',
+    connect.StreamType.unary,
+    fundingv1funding.LoanRepaymentApplyRequest.new,
+    fundingv1funding.LoanRepaymentApplyResponse.new,
+  );
 }

@@ -249,7 +249,13 @@ var (
 		apperrors.ServiceUnavailable,
 		"the ledger is not reachable; no money movement can be recorded",
 	)
-	ErrDuplicateIdempotencyKey   = apperrors.NewError(apperrors.Conflict, "duplicate idempotency key")
+	ErrDuplicateIdempotencyKey = apperrors.NewError(apperrors.Conflict, "duplicate idempotency key")
+	// ErrRepaymentInProgress is returned while another repayment is being
+	// applied to the same loan. The caller retries with the same key.
+	ErrRepaymentInProgress = apperrors.NewError(
+		apperrors.ServiceUnavailable,
+		"another repayment on this loan is being applied; retry shortly",
+	)
 	ErrFundingServiceUnavailable = apperrors.NewError(
 		apperrors.ServiceUnavailable,
 		"funding service is not available",

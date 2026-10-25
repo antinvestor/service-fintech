@@ -20,7 +20,6 @@ import (
 	"time"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
-	"github.com/pitabwire/frame/v3/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,43 +36,32 @@ type memScheduleEntryRepo struct {
 	entries []*models.ScheduleEntry
 }
 
-func (r *memScheduleEntryRepo) ListDueBetween(
+func (r *memScheduleEntryRepo) ClaimReminders(
 	_ context.Context,
+	kind repository.ReminderKind,
 	from, to time.Time,
-	afterID string,
-	_ int,
+	limit int,
 ) ([]*models.ScheduleEntry, error) {
 	var out []*models.ScheduleEntry
 	for _, e := range r.entries {
-		if e.DueDate == nil || e.Outstanding <= 0 {
+		if len(out) == limit {
+			break
+		}
+		if e.DueDate == nil || e.Outstanding <= 0 || e.DueDate.Before(from) || !e.DueDate.Before(to) {
 			continue
 		}
-		if e.DueDate.Before(from) || !e.DueDate.Before(to) {
+		claim := &e.DueRemindedAt
+		if kind == repository.ReminderOverdue {
+			claim = &e.OverdueRemindedAt
+		}
+		if *claim != nil {
 			continue
 		}
-		if afterID != "" && e.GetID() <= afterID {
-			continue
-		}
+		now := time.Now().UTC()
+		*claim = &now
 		out = append(out, e)
 	}
 	return out, nil
-}
-
-func (r *memScheduleEntryRepo) MarkReminded(_ context.Context, entryID, key string) (bool, error) {
-	for _, e := range r.entries {
-		if e.GetID() != entryID {
-			continue
-		}
-		if e.Properties == nil {
-			e.Properties = data.JSONMap{}
-		}
-		if _, done := e.Properties[key]; done {
-			return false, nil
-		}
-		e.Properties[key] = time.Now().UTC().Format(time.RFC3339)
-		return true, nil
-	}
-	return false, nil
 }
 
 type memLoanAccountRepo struct {
@@ -123,7 +111,10 @@ func TestDueReminderJob_RemindsOnceAndSkipsClosedLoans(t *testing.T) {
 	job := NewDueReminderJob(entries, loans, notifier, 2)
 	job.now = func() time.Time { return now }
 
-	require.NoError(t, job.Run(context.Background()))
+	processed, more, err := job.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	assert.Equal(t, 3, processed, "the closed loan's installment is claimed but not messaged")
+	assert.False(t, more)
 	require.Len(t, sender.got, 2)
 	templates := []string{sender.got[0].GetTemplate(), sender.got[1].GetTemplate()}
 	assert.ElementsMatch(t, []string{messages.LoanPaymentDue, messages.LoanPaymentOverdue}, templates)
@@ -140,11 +131,16 @@ func TestDueReminderJob_RemindsOnceAndSkipsClosedLoans(t *testing.T) {
 	}
 
 	// A second run sends nothing: each reminder is claimed on its installment.
-	require.NoError(t, job.Run(context.Background()))
+	processed, _, err = job.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	assert.Zero(t, processed)
 	assert.Len(t, sender.got, 2)
 }
 
 func TestDueReminderJob_DisabledNotifierIsANoop(t *testing.T) {
 	job := NewDueReminderJob(&memScheduleEntryRepo{}, &memLoanAccountRepo{}, nil, 2)
-	require.NoError(t, job.Run(context.Background()))
+	processed, more, err := job.RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	assert.Zero(t, processed)
+	assert.False(t, more)
 }

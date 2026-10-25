@@ -4646,7 +4646,8 @@ class RepaymentSearchRequest extends $pb.GeneratedMessage {
   $2.PageCursor ensureCursor() => $_ensure(2);
 
   /// collected_by narrows the search to repayments one collector recorded.
-  /// A field agent may search their own collections without naming a loan.
+  /// A field agent searching without a loan lists their own collections;
+  /// leaving collected_by empty means "mine".
   @$pb.TagNumber(4)
   $core.String get collectedBy => $_getSZ(3);
   @$pb.TagNumber(4)
@@ -6446,6 +6447,147 @@ class InitiateCollectionResponse extends $pb.GeneratedMessage {
   $core.bool hasStatus() => $_has(1);
   @$pb.TagNumber(2)
   void clearStatus() => $_clearField(2);
+}
+
+class LoanJobRunRequest extends $pb.GeneratedMessage {
+  factory LoanJobRunRequest({
+    LoanJob? job,
+    $core.int? batchSize,
+  }) {
+    final result = LoanJobRunRequest._();
+    if (job != null) result.job = job;
+    if (batchSize != null) result.batchSize = batchSize;
+    return result;
+  }
+
+  LoanJobRunRequest._();
+
+  factory LoanJobRunRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanJobRunRequest()..mergeFromBuffer(data, registry);
+  factory LoanJobRunRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanJobRunRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanJobRunRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: LoanJobRunRequest.$_createMessage)
+    ..aE<LoanJob>(1, _omitFieldNames ? '' : 'job', enumValues: LoanJob.values)
+    ..aI(2, _omitFieldNames ? '' : 'batchSize')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanJobRunRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanJobRunRequest copyWith(void Function(LoanJobRunRequest) updates) =>
+      super.copyWith((message) => updates(message as LoanJobRunRequest))
+          as LoanJobRunRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use LoanJobRunRequest() / LoanJobRunRequest.new instead')
+  static LoanJobRunRequest create() => LoanJobRunRequest._();
+  static $pb.GeneratedMessage $_createMessage() => LoanJobRunRequest._();
+  @$core.override
+  LoanJobRunRequest createEmptyInstance() => LoanJobRunRequest._();
+  @$core.pragma('dart2js:noInline')
+  static LoanJobRunRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<LoanJobRunRequest>(
+          LoanJobRunRequest.$_createMessage);
+  static LoanJobRunRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  LoanJob get job => $_getN(0);
+  @$pb.TagNumber(1)
+  set job(LoanJob value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasJob() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearJob() => $_clearField(1);
+
+  /// Most items to process in this run. 0 uses the service default.
+  @$pb.TagNumber(2)
+  $core.int get batchSize => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set batchSize($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBatchSize() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBatchSize() => $_clearField(2);
+}
+
+class LoanJobRunResponse extends $pb.GeneratedMessage {
+  factory LoanJobRunResponse({
+    $core.int? processed,
+    $core.bool? more,
+  }) {
+    final result = LoanJobRunResponse._();
+    if (processed != null) result.processed = processed;
+    if (more != null) result.more = more;
+    return result;
+  }
+
+  LoanJobRunResponse._();
+
+  factory LoanJobRunResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanJobRunResponse()..mergeFromBuffer(data, registry);
+  factory LoanJobRunResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanJobRunResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanJobRunResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: LoanJobRunResponse.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'processed')
+    ..aOB(2, _omitFieldNames ? '' : 'more')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanJobRunResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanJobRunResponse copyWith(void Function(LoanJobRunResponse) updates) =>
+      super.copyWith((message) => updates(message as LoanJobRunResponse))
+          as LoanJobRunResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use LoanJobRunResponse() / LoanJobRunResponse.new instead')
+  static LoanJobRunResponse create() => LoanJobRunResponse._();
+  static $pb.GeneratedMessage $_createMessage() => LoanJobRunResponse._();
+  @$core.override
+  LoanJobRunResponse createEmptyInstance() => LoanJobRunResponse._();
+  @$core.pragma('dart2js:noInline')
+  static LoanJobRunResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanJobRunResponse>(
+          LoanJobRunResponse.$_createMessage);
+  static LoanJobRunResponse? _defaultInstance;
+
+  /// Items this run worked through.
+  @$pb.TagNumber(1)
+  $core.int get processed => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set processed($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProcessed() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProcessed() => $_clearField(1);
+
+  /// True when the batch was full and more work may be waiting.
+  @$pb.TagNumber(2)
+  $core.bool get more => $_getBF(1);
+  @$pb.TagNumber(2)
+  set more($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMore() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMore() => $_clearField(2);
 }
 
 class LoanStatusChangeSearchRequest extends $pb.GeneratedMessage {
@@ -9161,6 +9303,13 @@ class LoanManagementServiceApi {
           $pb.ClientContext? ctx, InitiateCollectionRequest request) =>
       _client.invoke<InitiateCollectionResponse>(ctx, 'LoanManagementService',
           'InitiateCollection', request, InitiateCollectionResponse());
+
+  /// LoanJobRun runs one batch of a periodic job. Called by the platform
+  /// scheduler (trustage); only service accounts hold the permission.
+  $async.Future<LoanJobRunResponse> loanJobRun(
+          $pb.ClientContext? ctx, LoanJobRunRequest request) =>
+      _client.invoke<LoanJobRunResponse>(ctx, 'LoanManagementService',
+          'LoanJobRun', request, LoanJobRunResponse());
 
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.
   $async.Future<LoanStatusChangeSearchResponse> loanStatusChangeSearch(

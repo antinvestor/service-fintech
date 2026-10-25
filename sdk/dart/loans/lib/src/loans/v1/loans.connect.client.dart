@@ -624,6 +624,25 @@ extension type LoanManagementServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// LoanJobRun runs one batch of a periodic job. Called by the platform
+  /// scheduler (trustage); only service accounts hold the permission.
+  Future<loansv1loans.LoanJobRunResponse> loanJobRun(
+    loansv1loans.LoanJobRunRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LoanManagementService.loanJobRun,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.
   Stream<loansv1loans.LoanStatusChangeSearchResponse> loanStatusChangeSearch(
     loansv1loans.LoanStatusChangeSearchRequest input, {

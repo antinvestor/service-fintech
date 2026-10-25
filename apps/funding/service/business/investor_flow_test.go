@@ -34,6 +34,7 @@ import (
 	"github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
 	"github.com/pitabwire/frame/v3/queue"
 	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 
@@ -153,6 +154,8 @@ type fundingEnv struct {
 	iaBiz   business.InvestorAccountBusiness
 	iaRepo  repository.InvestorAccountRepository
 	icmRepo repository.InvestorCapitalMovementRepository
+	dbPool  pool.Pool
+	workMan workerpool.Manager
 }
 
 func (s *fundingSuite) newEnv() *fundingEnv {
@@ -189,7 +192,13 @@ func (s *fundingSuite) newEnv() *fundingEnv {
 	s.Require().NoError(dbPool.DB(ctx, false).AutoMigrate(
 		&models.LoanFunding{}, &models.InvestorAccount{}, &models.FundingTranche{},
 		&models.InvestorCapitalMovement{}, &models.LoanFundingClaim{}, &models.LossAbsorption{},
+		&models.RepaymentDistribution{},
 	))
+	s.Require().NoError(dbPool.DB(ctx, false).Exec(
+		`CREATE UNIQUE INDEX uq_rd_reference ON repayment_distributions (reference) WHERE deleted_at IS NULL`).Error)
+	s.Require().NoError(dbPool.DB(ctx, false).Exec(
+		`CREATE UNIQUE INDEX uq_loss_reference ON loss_absorptions (reference)
+		 WHERE reference <> '' AND deleted_at IS NULL`).Error)
 	// The idempotency constraint lives in a SQL migration; recreate it so the
 	// tests exercise the real guard.
 	s.Require().NoError(dbPool.DB(ctx, false).Exec(
@@ -212,6 +221,8 @@ func (s *fundingSuite) newEnv() *fundingEnv {
 		ops:     ops,
 		iaRepo:  iaRepo,
 		icmRepo: icmRepo,
+		dbPool:  dbPool,
+		workMan: workMan,
 		iaBiz: business.NewInvestorAccountBusiness(
 			ctx, evtsMan, iaRepo, icmRepo, ops,
 			audit.NewWriter(evtsMan), nil, false, "off", false, "off"),

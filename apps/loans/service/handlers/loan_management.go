@@ -16,6 +16,7 @@ package handlers
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"time"
 
@@ -47,6 +48,7 @@ type LoanManagementServer struct {
 	cpaBusiness        business.ClientProductAccessBusiness
 	collectionBusiness business.CollectionBusiness
 	statusChangeRepo   repository.LoanStatusChangeRepository
+	jobs               *business.LoanJobs
 
 	loansv1connect.UnimplementedLoanManagementServiceHandler
 }
@@ -65,6 +67,7 @@ func NewLoanManagementServer(
 	cpaBusiness business.ClientProductAccessBusiness,
 	collectionBusiness business.CollectionBusiness,
 	statusChangeRepo repository.LoanStatusChangeRepository,
+	jobs *business.LoanJobs,
 ) loansv1connect.LoanManagementServiceHandler {
 	return &LoanManagementServer{
 		lpBusiness:         lpBusiness,
@@ -80,7 +83,25 @@ func NewLoanManagementServer(
 		cpaBusiness:        cpaBusiness,
 		collectionBusiness: collectionBusiness,
 		statusChangeRepo:   statusChangeRepo,
+		jobs:               jobs,
 	}
+}
+
+// LoanJobRun runs one batch of a periodic job for the platform scheduler.
+func (s *LoanManagementServer) LoanJobRun(
+	ctx context.Context,
+	req *loansv1.LoanJobRunRequest,
+) (*loansv1.LoanJobRunResponse, error) {
+	processed, more, err := s.jobs.Run(ctx, req.GetJob(), int(req.GetBatchSize()))
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithAction(ctx, "job_run")
+	audit.WithDetail(ctx, "job", req.GetJob().String())
+	return &loansv1.LoanJobRunResponse{
+		Processed: int32(min(processed, math.MaxInt32)), //nolint:gosec // clamped to int32
+		More:      more,
+	}, nil
 }
 
 // --- LoanProduct RPCs ---

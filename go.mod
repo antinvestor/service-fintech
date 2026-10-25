@@ -10,16 +10,16 @@ require (
 	buf.build/gen/go/antinvestor/field/connectrpc/go/v2 v2.0.2-20261024205209-89cd53e13146.1
 	buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261024205209-89cd53e13146.2
 	buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac946cc1ed.1
-	buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261024205209-46ef2ece0d2e.1
-	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261024205209-46ef2ece0d2e.2
+	buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261025114649-9da866114f22.1
+	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261025114649-9da866114f22.2
 	buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261025064321-d1427d24dff2.1
 	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261025064321-d1427d24dff2.2
 	buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2 v2.0.2-20261011184341-460358e58550.1
 	buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.12-20261011184341-460358e58550.2
 	buf.build/gen/go/antinvestor/limits/connectrpc/go/v2 v2.0.2-20261024205209-e1c773bb733d.1
 	buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.12-20261024205209-e1c773bb733d.2
-	buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261024205209-5cba0ca1181c.1
-	buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261024205209-5cba0ca1181c.2
+	buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025121205-399271319c1b.1
+	buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025121205-399271319c1b.2
 	buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1
 	buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.12-20260831182621-e7d71a2bcc5d.2
 	buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261024205209-89e02b325c73.1
@@ -100,6 +100,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sql-driver/mysql v1.10.1 // indirect
+	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/google/wire v0.7.0 // indirect
@@ -145,6 +146,7 @@ require (
 	github.com/prometheus/common v0.72.1 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/dnscache v0.0.0-20230804202142-fc85eb664529 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.9 // indirect

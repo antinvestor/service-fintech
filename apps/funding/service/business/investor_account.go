@@ -630,8 +630,8 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 	}
 
 	extraData := data.JSONMap{
-		"investor_account_id": account.GetID(),
-		fieldInvestorID:       account.InvestorID,
+		fieldInvestorAccountID: account.GetID(),
+		fieldInvestorID:        account.InvestorID,
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{

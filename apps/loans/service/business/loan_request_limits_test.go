@@ -318,3 +318,7 @@ func TestApprove_GatePending(t *testing.T) {
 	assert.Equal(t, 0, limitsCli.commitCalls)
 	assert.Equal(t, 0, limitsCli.releaseCalls)
 }
+
+func (r *stubLoanRequestRepo) ExpireLapsedOffers(context.Context, int) ([]*loansmodels.LoanRequest, error) {
+	return nil, nil
+}

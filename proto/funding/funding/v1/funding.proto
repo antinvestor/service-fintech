@@ -174,10 +174,70 @@ message AbsorbLossRequest {
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 128
   ];
+  // Product the loan belongs to. When set, the absorbed loss is also posted
+  // to the ledger: each investor's capital and the platform's first-loss
+  // reserve take their share of the product's bad-debt expense.
+  string product_id = 4 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
 }
 message AbsorbLossResponse {
   common.v1.Money absorbed = 1;
   common.v1.Money unrecoverable = 2;
+  // True once the ledger postings for the absorbed loss are done (always
+  // true when no product_id was given). False means call again with the
+  // same loss reference.
+  bool settled = 3;
+}
+
+// One repayment of a funded loan, to be shared out to the sources that
+// funded it in proportion to what each put in.
+message LoanRepaymentApplyRequest {
+  string loan_request_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  string loan_account_id = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // Product whose income account received the interest.
+  string product_id = 3 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // Identifies the repayment. A repeated call with the same reference applies
+  // once and finishes any ledger posting an earlier call left undone.
+  string repayment_reference = 4 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 128
+  ];
+  // Principal the repayment cleared. Returned to each funder's capital.
+  common.v1.Money principal = 5 [(buf.validate.field).required = true];
+  // Interest the repayment paid. Shared to funders net of the platform fee
+  // and withholding tax.
+  common.v1.Money interest = 6 [(buf.validate.field).required = true];
+}
+
+// One funding source's share of a repayment.
+message RepaymentShareObject {
+  string source_id = 1;
+  string source_type = 2;
+  int32 tranche_level = 3;
+  common.v1.Money principal = 4;
+  common.v1.Money interest = 5;
+  common.v1.Money platform_fee = 6;
+  common.v1.Money withholding_tax = 7;
+}
+
+message LoanRepaymentApplyResponse {
+  repeated RepaymentShareObject shares = 1;
+  // True once every ledger posting for this repayment is done. False means
+  // the shares are recorded but a posting is still owed: call again with the
+  // same reference.
+  bool settled = 2;
 }
 
 service FundingService {
@@ -262,6 +322,13 @@ service FundingService {
     };
   }
   rpc AbsorbLoss(AbsorbLossRequest) returns (AbsorbLossResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["fund_manage"]
+    };
+  }
+  // LoanRepaymentApply shares a loan repayment out to the loan's funders:
+  // principal back to their capital, interest net of fee and tax as income.
+  rpc LoanRepaymentApply(LoanRepaymentApplyRequest) returns (LoanRepaymentApplyResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["fund_manage"]
     };

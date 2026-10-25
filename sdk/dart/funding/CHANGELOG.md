@@ -1,3 +1,8 @@
+## 0.5.0
+
+- `FundingService.LoanRepaymentApply`: shares a loan repayment out to its funders (`RepaymentShareObject`).
+- `AbsorbLossRequest.product_id` and `AbsorbLossResponse.settled`: an absorbed loss is posted to funders' capital.
+
 ## 0.4.0
 
 - **Breaking:** regenerated with protoc_plugin 25.1 (`buf.build/protocolbuffers/dart:v25.1.0`)

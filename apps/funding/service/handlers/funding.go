@@ -39,6 +39,7 @@ const idempotencyHeader = "Idempotency-Key"
 type FundingServer struct {
 	iaBusiness business.InvestorAccountBusiness
 	faBusiness business.FundingAllocationBusiness
+	rdBusiness business.RepaymentDistributionBusiness
 
 	fundingv1connect.UnimplementedFundingServiceHandler
 }
@@ -46,10 +47,12 @@ type FundingServer struct {
 func NewFundingServer(
 	iaBusiness business.InvestorAccountBusiness,
 	faBusiness business.FundingAllocationBusiness,
+	rdBusiness business.RepaymentDistributionBusiness,
 ) fundingv1connect.FundingServiceHandler {
 	return &FundingServer{
 		iaBusiness: iaBusiness,
 		faBusiness: faBusiness,
+		rdBusiness: rdBusiness,
 	}
 }
 
@@ -188,7 +191,12 @@ func (s *FundingServer) AbsorbLoss(
 	amount := moneyx.ToSmallestUnit(req.GetAmount(), moneyx.Decimals(currency))
 
 	loanRequestID := fundingcompat.LoanRequestIDFromAbsorbLossRequest(req)
-	result, err := s.faBusiness.AbsorbLoss(ctx, loanRequestID, amount)
+	result, err := s.faBusiness.AbsorbLoss(ctx, business.LossApplication{
+		LoanRequestID: loanRequestID,
+		ProductID:     req.GetProductId(),
+		Amount:        amount,
+		Currency:      currency,
+	})
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
@@ -201,7 +209,50 @@ func (s *FundingServer) AbsorbLoss(
 	return &fundingv1.AbsorbLossResponse{
 		Absorbed:      moneyx.FromMinorUnitsByCurrency(result.Currency, result.Absorbed),
 		Unrecoverable: moneyx.FromMinorUnitsByCurrency(result.Currency, result.Unrecoverable),
+		Settled:       result.Settled,
 	}, nil
+}
+
+// LoanRepaymentApply shares a loan repayment out to the loan's funders.
+func (s *FundingServer) LoanRepaymentApply(
+	ctx context.Context,
+	req *fundingv1.LoanRepaymentApplyRequest,
+) (*fundingv1.LoanRepaymentApplyResponse, error) {
+	currency := req.GetPrincipal().GetCurrencyCode()
+	if ic := req.GetInterest().GetCurrencyCode(); currency == "" {
+		currency = ic
+	} else if ic != "" && ic != currency {
+		return nil, apperrors.CleanErr(business.ErrRepaymentInvalid)
+	}
+	decimals := moneyx.Decimals(currency)
+	applied, err := s.rdBusiness.Apply(ctx, business.RepaymentApplication{
+		Reference:     req.GetRepaymentReference(),
+		LoanRequestID: req.GetLoanRequestId(),
+		LoanAccountID: req.GetLoanAccountId(),
+		ProductID:     req.GetProductId(),
+		Currency:      currency,
+		Principal:     moneyx.ToSmallestUnit(req.GetPrincipal(), decimals),
+		Interest:      moneyx.ToSmallestUnit(req.GetInterest(), decimals),
+	})
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+
+	audit.WithResource(ctx, audit.ResourceFundingAllocation, req.GetLoanRequestId())
+	audit.WithAction(ctx, "loan_repayment_apply")
+	shares := make([]*fundingv1.RepaymentShareObject, 0, len(applied.Shares))
+	for _, sh := range applied.Shares {
+		shares = append(shares, &fundingv1.RepaymentShareObject{
+			SourceId:       sh.SourceID,
+			SourceType:     business.FundingSourceLabel(sh.SourceType),
+			TrancheLevel:   sh.TrancheLevel,
+			Principal:      moneyx.FromMinorUnitsByCurrency(applied.Currency, sh.Principal),
+			Interest:       moneyx.FromMinorUnitsByCurrency(applied.Currency, sh.InterestNet),
+			PlatformFee:    moneyx.FromMinorUnitsByCurrency(applied.Currency, sh.PlatformFee),
+			WithholdingTax: moneyx.FromMinorUnitsByCurrency(applied.Currency, sh.WithholdingTax),
+		})
+	}
+	return &fundingv1.LoanRepaymentApplyResponse{Shares: shares, Settled: applied.Settled}, nil
 }
 
 // --- Conversion helpers ---

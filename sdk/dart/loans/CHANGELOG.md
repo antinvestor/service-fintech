@@ -1,3 +1,7 @@
+## 0.6.0
+
+- `LoanManagementService.LoanJobRun` and the `LoanJob` enum: one bounded batch of a periodic job (delinquency scan, due reminders, funder settlement, offer expiry), called by the platform scheduler.
+
 ## 0.5.0
 
 - **Breaking:** regenerated with protoc_plugin 25.1 (`buf.build/protocolbuffers/dart:v25.1.0`)

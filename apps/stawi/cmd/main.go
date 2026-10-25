@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
 
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
@@ -27,8 +26,6 @@ import (
 	"github.com/antinvestor/common/v3/connection"
 	"github.com/antinvestor/common/v3/permissions"
 	"github.com/antinvestor/common/v3/servicecatalog"
-	"github.com/antinvestor/service-trustage/client/workflows"
-	"github.com/antinvestor/service-trustage/gen/go/workflow/v1/workflowv1connect"
 	"github.com/pitabwire/frame/v3"
 	"github.com/pitabwire/frame/v3/config"
 	"github.com/pitabwire/frame/v3/datastore"
@@ -58,7 +55,6 @@ import (
 	// Funding domain (LoanFunding, FundingAllocation, InvestorAccount, FundingTranche).
 	fundingbusiness "github.com/antinvestor/service-fintech/apps/funding/service/business"
 	fundingevents "github.com/antinvestor/service-fintech/apps/funding/service/events"
-	fundingmodels "github.com/antinvestor/service-fintech/apps/funding/service/models"
 	fundingrepo "github.com/antinvestor/service-fintech/apps/funding/service/repository"
 
 	// Operations domain.
@@ -70,6 +66,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
+	"github.com/antinvestor/service-fintech/pkg/trustage"
 
 	fevents "github.com/pitabwire/frame/v3/events"
 )
@@ -142,18 +139,7 @@ func main() {
 		frame.WithDatastore(),
 	)
 
-	// The advisory lock serialises overlapping migrate Jobs on the same
-	// database so concurrent DDL cannot race.
-	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
-		migErr := dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
-			return stawirepo.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
-		})
-		if migErr != nil {
-			return migErr
-		}
-		syncTrustageWorkflows(ctx, &cfg)
-		return nil
-	})
+	registerSetupSteps(svc, &cfg)
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
@@ -282,12 +268,12 @@ func initBusinesses(
 		repos.investorAccount,
 		repos.fundingTranche,
 		fundingbusiness.NewSourceBalances(platformClients),
+		// Stawi only sources funding for offers; losses are absorbed by the
+		// funding service, so this embedded copy posts nothing.
+		nil,
 	)
 
 	periodAdapter := &periodAdapter{repo: repos.period}
-	loanFundingAdapter := &loanFundingAdapter{repo: repos.loanFunding}
-	fundingTrancheAdapter := &fundingTrancheAdapter{repo: repos.fundingTranche, eventsMan: evtsMan}
-	investorAccountAdapter := &investorAccountAdapter{repo: repos.investorAccount, eventsMan: evtsMan}
 
 	paymentBiz := opsbusiness.NewPaymentRoutingBusiness(
 		ctx,
@@ -305,9 +291,6 @@ func initBusinesses(
 		repos.transferOrder,
 		repos.cbsSyncRecord,
 		repos.accountRef,
-		loanFundingAdapter,
-		fundingTrancheAdapter,
-		investorAccountAdapter,
 		platformClients,
 		audit.NewWriter(evtsMan),
 		limitsCli,
@@ -424,30 +407,6 @@ func buildServiceOptions(ctx context.Context, handler http.Handler, repos appRep
 	}
 }
 
-// syncTrustageWorkflows pushes the workflow definitions baked into the image
-// to the Trustage service, when TRUSTAGE_URL is configured.
-func syncTrustageWorkflows(ctx context.Context, cfg *aconfig.StawiConfig) {
-	trustageURL := os.Getenv("TRUSTAGE_URL")
-	if trustageURL == "" {
-		return
-	}
-	workflowsDir := os.Getenv("TRUSTAGE_WORKFLOWS_DIR")
-	if workflowsDir == "" {
-		workflowsDir = "/workflows"
-	}
-	trustageCli, cliErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
-		Endpoint:  trustageURL,
-		ServiceID: servicecatalog.ServiceTrustage,
-	}, workflowv1connect.NewWorkflowServiceClient)
-	if cliErr != nil {
-		util.Log(ctx).WithError(cliErr).Warn("trustage workflow client init failed")
-		return
-	}
-	if syncErr := workflows.SyncFromDir(ctx, trustageCli, workflowsDir); syncErr != nil {
-		util.Log(ctx).WithError(syncErr).Warn("trustage workflow sync failed")
-	}
-}
-
 func setupIdentityClient(
 	ctx context.Context,
 	cfg aconfig.StawiConfig,
@@ -509,91 +468,23 @@ func (a *periodAdapter) GetCurrentByGroupID(ctx context.Context, groupID string)
 	return info, nil
 }
 
-// loanFundingAdapter wraps funding's LoanFundingRepository for operations' LoanFundingReader.
-type loanFundingAdapter struct {
-	repo fundingrepo.LoanFundingRepository
-}
-
-func (a *loanFundingAdapter) GetByLoanRequestID(
-	ctx context.Context,
-	loanRequestID string,
-) ([]*opsbusiness.LoanFundingInfo, error) {
-	fundings, err := a.repo.GetByLoanRequestID(ctx, loanRequestID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*opsbusiness.LoanFundingInfo, len(fundings))
-	for i, f := range fundings {
-		info := &opsbusiness.LoanFundingInfo{
-			OwnerID:     f.OwnerID,
-			FundingType: f.FundingType,
-			Proportion:  f.Proportion,
+// registerSetupSteps adds the setup-job steps: schema migration, then the
+// group workflows.
+func registerSetupSteps(svc *frame.Service, cfg *aconfig.StawiConfig) {
+	// The advisory lock serialises overlapping migrate Jobs on the same
+	// database so concurrent DDL cannot race.
+	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
+		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
+			return stawirepo.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
+		})
+	})
+	// Stawi's group workflows are registered by the setup job, never at
+	// runtime start. A failed sync is logged, as it always has been, so it
+	// cannot block a deploy of the group callbacks themselves.
+	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
+		if syncErr := trustage.SyncWorkflows(ctx, cfg, false); syncErr != nil {
+			util.Log(ctx).WithError(syncErr).Warn("trustage workflow sync failed")
 		}
-		info.BaseModel = f.BaseModel
-		result[i] = info
-	}
-	return result, nil
-}
-
-type fundingTrancheAdapter struct {
-	repo      fundingrepo.FundingTrancheRepository
-	eventsMan fevents.Manager
-}
-
-func (a *fundingTrancheAdapter) GetByLoanFundingID(
-	ctx context.Context,
-	loanFundingID string,
-) ([]*opsbusiness.FundingTrancheInfo, error) {
-	tranches, err := a.repo.GetByLoanFundingID(ctx, loanFundingID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*opsbusiness.FundingTrancheInfo, len(tranches))
-	for i, t := range tranches {
-		info := &opsbusiness.FundingTrancheInfo{
-			PrincipalRepaid: t.PrincipalRepaid,
-			InterestEarned:  t.InterestEarned,
-		}
-		info.BaseModel = t.BaseModel
-		result[i] = info
-	}
-	return result, nil
-}
-
-func (a *fundingTrancheAdapter) Save(ctx context.Context, tranche *opsbusiness.FundingTrancheInfo) error {
-	model := &fundingmodels.FundingTranche{
-		PrincipalRepaid: tranche.PrincipalRepaid,
-		InterestEarned:  tranche.InterestEarned,
-	}
-	model.BaseModel = tranche.BaseModel
-	return a.eventsMan.Emit(ctx, "funding_tranche.save", model)
-}
-
-type investorAccountAdapter struct {
-	repo      fundingrepo.InvestorAccountRepository
-	eventsMan fevents.Manager
-}
-
-func (a *investorAccountAdapter) GetByID(ctx context.Context, id string) (*opsbusiness.InvestorAccountInfo, error) {
-	acct, err := a.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	info := &opsbusiness.InvestorAccountInfo{
-		ReservedBalance:  acct.ReservedBalance,
-		AvailableBalance: acct.AvailableBalance,
-		TotalReturned:    acct.TotalReturned,
-	}
-	info.BaseModel = acct.BaseModel
-	return info, nil
-}
-
-func (a *investorAccountAdapter) Save(ctx context.Context, account *opsbusiness.InvestorAccountInfo) error {
-	model := &fundingmodels.InvestorAccount{
-		ReservedBalance:  account.ReservedBalance,
-		AvailableBalance: account.AvailableBalance,
-		TotalReturned:    account.TotalReturned,
-	}
-	model.BaseModel = account.BaseModel
-	return a.eventsMan.Emit(ctx, "investor_account.save", model)
+		return nil
+	})
 }

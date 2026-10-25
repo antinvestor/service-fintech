@@ -29,9 +29,10 @@ and the service starts, which is the local-development mode. The rules are:
 | `PROFILE_SERVICE_URI` | loans and seed: required at boot; loans verifies a disbursement destination against the borrower's profile contacts and seed resolves the borrower's payout phone from them |
 | `PAYMENT_SERVICE_URI` | operations: required at boot; a payout order must never post to the ledger with no rail to send the cash through |
 | `LENDER_DISPLAY_NAME` | loans and identity: the trading name that opens every borrower message (default `Your lender`) |
-| `SEED_KYC_REQUIRED_FIELDS` | seed: required when running securely; names the KYC fields a borrower must have verified (without it any single verified entry passed) |
 | `STAWI_LOAN_PRODUCT_ID` | stawi: the loans product group loans are written on (default `stawi`) |
-| `DELINQUENCY_SCAN_INTERVAL`, `DUE_REMINDER_INTERVAL`, `DUE_REMINDER_DAYS` | loans: cadence of the arrears scan (default `1h`) and the reminder job (default `6h`), and how many days before a due date the reminder goes out (default `2`) |
+| `DUE_REMINDER_DAYS` | loans: how many days before a due date the payment-due reminder goes out (default `2`) |
+| `TRUSTAGE_URL` (or `TRUSTAGE_SERVICE_URI`) | loans: required for the setup Job when running securely. The setup Job registers the loans schedules (`products/loans/workflows`) with trustage; trustage then calls `LoanJobRun` for the delinquency scan, reminders, funder settlement and offer expiry. Nothing runs on a timer in the service. Needs the `/trustage` audience for loans, and the `/loans` audience, the `loans.v1` connect route and `loan_job_run` for trustage. stawi uses the same variable for its group workflows. |
+| `FUNDING_PLATFORM_FEE_BP`, `FUNDING_WITHHOLDING_TAX_BP` | funding: platform fee and withholding tax taken from funders' interest, in basis points (defaults `500` and `1500`) |
 
 The check applies to the serving process and to the migrate/setup Job, which
 run from the same image and environment.

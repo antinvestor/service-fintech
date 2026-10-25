@@ -16,8 +16,8 @@ package business
 
 // deps.go defines local interfaces and lightweight data types for cross-domain
 // dependencies that lack SDK RPCs. Identity lookups use the SDK client directly;
-// funding and stawi period data still use local repo interfaces since they share
-// the same database and have no dedicated RPCs yet.
+// stawi period data still uses a local repo interface, wired only in the stawi
+// process that owns those tables.
 
 import (
 	"context"
@@ -40,60 +40,4 @@ type PeriodInfo struct {
 // PeriodReader provides read access to period data.
 type PeriodReader interface {
 	GetCurrentByGroupID(ctx context.Context, groupID string) (*PeriodInfo, error)
-}
-
-// ---------------------------------------------------------------------------
-// Funding: loan fundings, tranches, investor accounts
-// ---------------------------------------------------------------------------
-
-// FundingSource defines the source of loan funding (mirrors fundingmodels.FundingSource).
-type FundingSource int32
-
-const (
-	FundingSourceUnspecified        FundingSource = 0
-	FundingSourceGroupSavings       FundingSource = 1
-	FundingSourceGroupIncome        FundingSource = 2
-	FundingSourceInvestorAffiliated FundingSource = 3
-	FundingSourceInvestorGeneral    FundingSource = 4
-	FundingSourcePlatformReserve    FundingSource = 5
-)
-
-// LoanFundingInfo is a lightweight projection of funding's LoanFunding model.
-type LoanFundingInfo struct {
-	data.BaseModel
-	OwnerID     string
-	FundingType int32
-	Proportion  int64
-}
-
-// FundingTrancheInfo is a lightweight projection of funding's FundingTranche model.
-type FundingTrancheInfo struct {
-	data.BaseModel
-	PrincipalRepaid int64
-	InterestEarned  int64
-}
-
-// InvestorAccountInfo is a lightweight projection of funding's InvestorAccount model.
-type InvestorAccountInfo struct {
-	data.BaseModel
-	ReservedBalance  int64
-	AvailableBalance int64
-	TotalReturned    int64
-}
-
-// LoanFundingReader provides read access to loan funding data.
-type LoanFundingReader interface {
-	GetByLoanRequestID(ctx context.Context, loanRequestID string) ([]*LoanFundingInfo, error)
-}
-
-// FundingTrancheManager provides read/write access to funding tranche data.
-type FundingTrancheManager interface {
-	GetByLoanFundingID(ctx context.Context, loanFundingID string) ([]*FundingTrancheInfo, error)
-	Save(ctx context.Context, tranche *FundingTrancheInfo) error
-}
-
-// InvestorAccountManager provides read/write access to investor account data.
-type InvestorAccountManager interface {
-	GetByID(ctx context.Context, id string) (*InvestorAccountInfo, error)
-	Save(ctx context.Context, account *InvestorAccountInfo) error
 }

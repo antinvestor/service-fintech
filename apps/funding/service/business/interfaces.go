@@ -45,7 +45,17 @@ type FundingAllocationBusiness interface {
 	// AbsorbLoss walks the loan's tranches first-loss first and reports what
 	// they actually covered. It is idempotent on the loss reference: a repeat
 	// returns the first call's split rather than eating further tranches.
-	AbsorbLoss(ctx context.Context, loanRequestID string, lossAmount int64) (*LossResult, error)
+	AbsorbLoss(ctx context.Context, loss LossApplication) (*LossResult, error)
+}
+
+// LossApplication is a loss on a loan to charge to its funders.
+type LossApplication struct {
+	LoanRequestID string
+	// ProductID names the product whose bad-debt expense the funders take
+	// over on the ledger. Empty records the absorption without postings.
+	ProductID string
+	Amount    int64
+	Currency  string
 }
 
 // AllocationResult is the outcome of sourcing capital for a loan request.
@@ -77,6 +87,8 @@ type LossResult struct {
 	Absorbed      int64
 	Unrecoverable int64
 	Currency      string
+	// Settled is true once the ledger postings for the absorbed loss are done.
+	Settled bool
 }
 
 // InvestorAccountBusiness handles investor account operations.

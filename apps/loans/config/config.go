@@ -15,8 +15,6 @@
 package config
 
 import (
-	"time"
-
 	"github.com/pitabwire/frame/v3/config"
 
 	"github.com/antinvestor/service-fintech/pkg/clients"
@@ -64,12 +62,10 @@ type LoanManagementConfig struct {
 	// records; every other caller is scoped to the client its profile owns.
 	LoansStaffRoles string `envDefault:"admin,operator,viewer" env:"LOANS_STAFF_ROLES"`
 
-	// DelinquencyScanInterval is how often overdue loans are re-assessed;
-	// DueReminderInterval how often reminders go out; DueReminderDays how many
-	// days before the due date the upcoming-payment reminder is sent.
-	DelinquencyScanInterval time.Duration `envDefault:"1h" env:"DELINQUENCY_SCAN_INTERVAL"`
-	DueReminderInterval     time.Duration `envDefault:"6h" env:"DUE_REMINDER_INTERVAL"`
-	DueReminderDays         int           `envDefault:"2"  env:"DUE_REMINDER_DAYS"`
+	// DueReminderDays is how many days before a due date the payment-due
+	// reminder goes out. The jobs themselves run when the platform scheduler
+	// calls LoanJobRun.
+	DueReminderDays int `envDefault:"2" env:"DUE_REMINDER_DAYS"`
 
 	DefaultGracePeriodDays   int `envDefault:"3"  env:"DEFAULT_GRACE_PERIOD_DAYS"`
 	DelinquencyThresholdDays int `envDefault:"7"  env:"DELINQUENCY_THRESHOLD_DAYS"`

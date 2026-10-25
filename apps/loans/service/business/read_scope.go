@@ -255,6 +255,20 @@ type options struct {
 	auditWriter       *audit.Writer
 	payoutChecker     PayoutDestinationChecker
 	clientStanding    ClientStandingChecker
+	fundingSettlement *FundingSettlement
+	repaymentApplier  repository.RepaymentApplier
+}
+
+// WithRepaymentApplier supplies the transactional step that makes a posted
+// repayment count against the loan.
+func WithRepaymentApplier(a repository.RepaymentApplier) Option {
+	return func(o *options) { o.repaymentApplier = a }
+}
+
+// WithFundingSettlement shares each recorded repayment out to the loan's
+// funders as soon as it is recorded.
+func WithFundingSettlement(fs *FundingSettlement) Option {
+	return func(o *options) { o.fundingSettlement = fs }
 }
 
 // WithScheduleEntries supplies the schedule entry repository to flows that

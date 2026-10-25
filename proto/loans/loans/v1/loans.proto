@@ -890,6 +890,42 @@ message InitiateCollectionResponse {
   string status = 2;
 }
 
+// --- Scheduled jobs ---
+
+// LoanJob names a piece of periodic work. Each run processes one bounded
+// batch; the scheduler calls again while more remains.
+enum LoanJob {
+  LOAN_JOB_UNSPECIFIED = 0;
+  // Moves overdue loans into arrears and default, charges late penalties,
+  // and cures loans that caught up.
+  LOAN_JOB_DELINQUENCY_SCAN = 1;
+  // Sends payment-due and overdue reminders, once per instalment.
+  LOAN_JOB_DUE_REMINDERS = 2;
+  // Finishes sharing recorded repayments out to the loans' funders.
+  LOAN_JOB_FUNDING_SETTLEMENT = 3;
+  // Expires submitted loan requests whose offer lapsed.
+  LOAN_JOB_REQUEST_EXPIRY = 4;
+}
+
+message LoanJobRunRequest {
+  LoanJob job = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // Most items to process in this run. 0 uses the service default.
+  int32 batch_size = 2 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 5000
+  ];
+}
+
+message LoanJobRunResponse {
+  // Items this run worked through.
+  int32 processed = 1;
+  // True when the batch was full and more work may be waiting.
+  bool more = 2;
+}
+
 // --- LoanStatusChange (audit) ---
 
 message LoanStatusChangeSearchRequest {
@@ -1157,7 +1193,8 @@ service LoanManagementService {
       "collection_manage",
       "portfolio_view",
       "portfolio_export",
-      "loan_view_own"
+      "loan_view_own",
+      "loan_job_run"
     ]
     role_bindings: [
       {
@@ -1290,7 +1327,8 @@ service LoanManagementService {
           "reconciliation_manage",
           "collection_manage",
           "portfolio_view",
-          "portfolio_export"
+          "portfolio_export",
+          "loan_job_run"
         ]
       }
     ]
@@ -1762,6 +1800,20 @@ service LoanManagementService {
       summary: "Initiate payment collection"
       description: "Sends an STK push or payment prompt to collect a payment from the client."
       tags: "Collection"
+    };
+  }
+
+  // LoanJobRun runs one batch of a periodic job. Called by the platform
+  // scheduler (trustage); only service accounts hold the permission.
+  rpc LoanJobRun(LoanJobRunRequest) returns (LoanJobRunResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["loan_job_run"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "loanJobRun"
+      summary: "Run one batch of a scheduled job"
+      description: "Runs one bounded batch of a periodic loans job. Idempotent: concurrent runs claim distinct items."
+      tags: "Jobs"
     };
   }
 

@@ -89,6 +89,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.ReconciliationSearchRequest request);
   $async.Future<$3.InitiateCollectionResponse> initiateCollection(
       $pb.ServerContext ctx, $3.InitiateCollectionRequest request);
+  $async.Future<$3.LoanJobRunResponse> loanJobRun(
+      $pb.ServerContext ctx, $3.LoanJobRunRequest request);
   $async.Future<$3.LoanStatusChangeSearchResponse> loanStatusChangeSearch(
       $pb.ServerContext ctx, $3.LoanStatusChangeSearchRequest request);
   $async.Future<$3.PortfolioSummaryResponse> portfolioSummary(
@@ -166,6 +168,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
         return $3.ReconciliationSearchRequest();
       case 'InitiateCollection':
         return $3.InitiateCollectionRequest();
+      case 'LoanJobRun':
+        return $3.LoanJobRunRequest();
       case 'LoanStatusChangeSearch':
         return $3.LoanStatusChangeSearchRequest();
       case 'PortfolioSummary':
@@ -257,6 +261,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
             ctx, request as $3.ReconciliationSearchRequest);
       case 'InitiateCollection':
         return initiateCollection(ctx, request as $3.InitiateCollectionRequest);
+      case 'LoanJobRun':
+        return loanJobRun(ctx, request as $3.LoanJobRunRequest);
       case 'LoanStatusChangeSearch':
         return loanStatusChangeSearch(
             ctx, request as $3.LoanStatusChangeSearchRequest);

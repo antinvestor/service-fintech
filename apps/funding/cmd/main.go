@@ -203,6 +203,14 @@ func setupServiceOptions(
 		loanMgmtCli = platformClients.LenderLoanMgmt
 	}
 
+	// Funding's ledger legs (repayment shares, absorbed losses) are posted
+	// as transfer orders through operations.
+	poster := business.OperationsPoster{Client: operationsCli}
+	rdBiz := business.NewRepaymentDistributionBusiness(
+		repository.NewRepaymentDistributionRepository(ctx, dbPool, workMan),
+		lfRepo, ftRepo, poster, cfg.PlatformFeeBP, cfg.WithholdingTaxBP,
+	)
+
 	// Business logic
 	faBiz := business.NewFundingAllocationBusiness(
 		ctx,
@@ -214,6 +222,7 @@ func setupServiceOptions(
 		iaRepo,
 		ftRepo,
 		business.NewSourceBalances(platformClients),
+		poster,
 	)
 	iaBiz := business.NewInvestorAccountBusiness(
 		ctx,
@@ -230,7 +239,7 @@ func setupServiceOptions(
 	)
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, auditCli)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, rdBiz, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -344,9 +353,10 @@ func setupConnectServer(
 	_ pool.Pool,
 	iaBiz business.InvestorAccountBusiness,
 	faBiz business.FundingAllocationBusiness,
+	rdBiz business.RepaymentDistributionBusiness,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
-	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz)
+	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz, rdBiz)
 
 	auth := sm.GetAuthorizer(ctx)
 

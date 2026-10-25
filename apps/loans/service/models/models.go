@@ -61,6 +61,11 @@ type LoanAccount struct {
 	LedgerPenaltyIncomeAccountID  string `gorm:"type:varchar(50)"`
 	PaymentAccountRef             string `gorm:"type:varchar(100)"`
 	Properties                    data.JSONMap
+	// NextAssessmentAt is when the delinquency job next looks at the loan.
+	// Claiming a loan pushes it a day ahead; a repayment brings it forward.
+	NextAssessmentAt *time.Time `gorm:"default:now()"`
+	// RepaymentLockedAt leases the loan to one repayment at a time.
+	RepaymentLockedAt *time.Time
 }
 
 func (m *LoanAccount) TableName() string { return "loan_accounts" }
@@ -217,6 +222,10 @@ type ScheduleEntry struct {
 	Status            int32
 	PaidDate          *time.Time
 	Properties        data.JSONMap
+	// DueRemindedAt and OverdueRemindedAt claim the installment's two
+	// reminders, so each is sent at most once.
+	DueRemindedAt     *time.Time
+	OverdueRemindedAt *time.Time
 }
 
 func (m *ScheduleEntry) TableName() string { return "schedule_entries" }
@@ -457,6 +466,17 @@ type Repayment struct {
 	// borrower paid directly. Cash collected in the field is reconciled
 	// against this person.
 	CollectedBy string `gorm:"type:varchar(50);index:idx_rep_collector"`
+	// FundingSettledAt is set once the repayment has been shared out to the
+	// loan's funders and every ledger leg of that is posted.
+	FundingSettledAt *time.Time
+	// FundingClaimedAt leases the repayment to one settlement attempt, so
+	// concurrent job runs work on different repayments.
+	FundingClaimedAt *time.Time
+	// AppliedAt is set, in the same transaction that moves the installments
+	// and the balance, once the repayment counts against the loan. A row
+	// without it has been recorded and possibly posted, and a retry with the
+	// same idempotency key finishes it.
+	AppliedAt *time.Time
 }
 
 func (m *Repayment) TableName() string { return "repayments" }
