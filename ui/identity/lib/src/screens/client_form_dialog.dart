@@ -4,9 +4,36 @@ import 'package:flutter/material.dart';
 
 import '../providers/client_providers.dart';
 
-/// Collects the details a field agent needs to onboard a borrower. Pops with
-/// the [ClientObject] to save; the caller performs the save so the list can
-/// react to the result.
+/// KYC fields the onboarding form offers by name; any other detail the
+/// agent captures is added as a free field.
+const kClientDateOfBirthKey = 'date_of_birth';
+const kClientResidentialAddressKey = 'residential_address';
+const kClientOccupationKey = 'occupation';
+
+/// Everything an agent captures when onboarding a borrower. It is stored
+/// on the device before anything is sent, so it can be captured offline.
+class ClientRegistrationDraft {
+  const ClientRegistrationDraft({
+    required this.name,
+    required this.phone,
+    this.nationalId = '',
+    this.details = const {},
+  });
+
+  final String name;
+
+  /// Passed to the profile service to find or create the borrower's
+  /// profile; never kept on the client.
+  final String phone;
+  final String nationalId;
+
+  /// KYC details by field key, saved as COLLECTED for later verification.
+  final Map<String, String> details;
+}
+
+/// Collects a borrower's details. Onboarding pops with a
+/// [ClientRegistrationDraft]; editing pops with the [ClientObject] to save.
+/// The caller performs the save so the list can react to the result.
 ///
 /// `owning_team_id` is left as it was (empty for a new client): the service
 /// places a field agent's client in the agent's own team.
@@ -25,6 +52,10 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _nationalIdCtrl;
+  final _dobCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _occupationCtrl = TextEditingController();
+  final _extra = <({TextEditingController key, TextEditingController value})>[];
 
   bool get _isEditing => widget.client != null;
 
@@ -46,6 +77,13 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _nationalIdCtrl.dispose();
+    _dobCtrl.dispose();
+    _addressCtrl.dispose();
+    _occupationCtrl.dispose();
+    for (final row in _extra) {
+      row.key.dispose();
+      row.value.dispose();
+    }
     super.dispose();
   }
 
@@ -55,17 +93,16 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+    if (!_isEditing) {
+      _submitRegistration();
+      return;
+    }
 
     // Start from the existing properties so an edit never drops keys the
     // form does not know about.
     final properties = widget.client?.hasProperties() == true
         ? widget.client!.properties.deepCopy()
         : Struct();
-    if (!_isEditing) {
-      properties.fields[kClientPhoneNumberKey] = Value(
-        stringValue: _phoneCtrl.text.trim(),
-      );
-    }
     final nationalId = _nationalIdCtrl.text.trim();
     if (nationalId.isNotEmpty) {
       properties.fields[kClientNationalIdKey] = Value(stringValue: nationalId);
@@ -86,6 +123,134 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
       ),
     );
   }
+
+  void _submitRegistration() {
+    final nationalId = _nationalIdCtrl.text.trim();
+    final details = <String, String>{
+      kClientNationalIdKey: nationalId,
+      kClientDateOfBirthKey: _dobCtrl.text.trim(),
+      kClientResidentialAddressKey: _addressCtrl.text.trim(),
+      kClientOccupationKey: _occupationCtrl.text.trim(),
+      for (final row in _extra) row.key.text.trim(): row.value.text.trim(),
+    }..removeWhere((k, v) => k.isEmpty || v.isEmpty);
+    Navigator.pop(
+      context,
+      ClientRegistrationDraft(
+        name: _nameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        nationalId: nationalId,
+        details: details,
+      ),
+    );
+  }
+
+  Future<void> _pickDateOfBirth() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year - 30),
+      firstDate: DateTime(now.year - 100),
+      lastDate: DateTime(now.year - 18, now.month, now.day),
+    );
+    if (picked == null) return;
+    _dobCtrl.text =
+        '${picked.year.toString().padLeft(4, '0')}-'
+        '${picked.month.toString().padLeft(2, '0')}-'
+        '${picked.day.toString().padLeft(2, '0')}';
+  }
+
+  List<Widget> _detailFields() => [
+    FormFieldCard(
+      label: 'Date of birth',
+      description: 'Optional. Verified later under KYC.',
+      child: TextFormField(
+        key: const Key('client-form-dob'),
+        controller: _dobCtrl,
+        readOnly: true,
+        onTap: _pickDateOfBirth,
+        decoration: const InputDecoration(
+          hintText: 'YYYY-MM-DD',
+          prefixIcon: Icon(Icons.cake_outlined),
+        ),
+      ),
+    ),
+    FormFieldCard(
+      label: 'Residential address',
+      description: 'Optional. Verified later under KYC.',
+      child: TextFormField(
+        key: const Key('client-form-address'),
+        controller: _addressCtrl,
+        decoration: const InputDecoration(
+          hintText: 'e.g. Kahawa West, Nairobi',
+          prefixIcon: Icon(Icons.home_outlined),
+        ),
+        textInputAction: TextInputAction.next,
+      ),
+    ),
+    FormFieldCard(
+      label: 'Occupation',
+      description: 'Optional. Verified later under KYC.',
+      child: TextFormField(
+        key: const Key('client-form-occupation'),
+        controller: _occupationCtrl,
+        decoration: const InputDecoration(
+          hintText: 'e.g. Market trader',
+          prefixIcon: Icon(Icons.work_outline),
+        ),
+        textInputAction: TextInputAction.next,
+      ),
+    ),
+    for (final (i, row) in _extra.indexed)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                key: Key('client-form-extra-key-$i'),
+                controller: row.key,
+                decoration: const InputDecoration(labelText: 'Detail'),
+                validator: (v) =>
+                    (v ?? '').trim().isEmpty && row.value.text.trim().isNotEmpty
+                    ? 'Name the detail'
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                key: Key('client-form-extra-value-$i'),
+                controller: row.value,
+                decoration: const InputDecoration(labelText: 'Value'),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Remove',
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() {
+                _extra.removeAt(i);
+                row.key.dispose();
+                row.value.dispose();
+              }),
+            ),
+          ],
+        ),
+      ),
+    Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        key: const Key('client-form-add-detail'),
+        onPressed: () => setState(
+          () => _extra.add((
+            key: TextEditingController(),
+            value: TextEditingController(),
+          )),
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Add another detail'),
+      ),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +285,8 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
                 Text(
                   _isEditing
                       ? 'Update the client details below.'
-                      : 'Register a borrower in your portfolio.',
+                      : 'Register a borrower in your portfolio. Works '
+                            'offline: it is sent when you are back online.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -187,10 +353,13 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
                       hintText: 'e.g. 12345678',
                       prefixIcon: Icon(Icons.badge_outlined),
                     ),
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _submit(),
+                    textInputAction: _isEditing
+                        ? TextInputAction.done
+                        : TextInputAction.next,
+                    onFieldSubmitted: _isEditing ? (_) => _submit() : null,
                   ),
                 ),
+                if (!_isEditing) ..._detailFields(),
               ],
             ),
           ),

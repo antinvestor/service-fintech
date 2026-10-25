@@ -270,8 +270,7 @@ warning; a test keeps every account constructor on the chart.
   the agent's member id via `ClientAccessScope`.
 - Offline outbox for repayments: queued on network failure with the
   original idempotency key, replayed on resume or on demand, kept in device
-  storage; refusals are shown at once. Registrations stay online-only: the
-  consent code needs the person present.
+  storage; refusals are shown at once. Registrations: see §20.
 - Approval queue and maker/checker were already in place (pending filter;
   the server refuses a decider who submitted, created or brought in the
   request).
@@ -286,3 +285,27 @@ Fee and tax now use the currency's decimals, the net leg is the share less
 fee and tax, and redistribution orders are written synchronously keyed on
 their reference; tranche and balance updates run only when the order was
 newly written.
+
+## 20. Addendum 2026-10-25 — offline registration
+
+An agent can capture a borrower's full registration without a connection:
+name, the phone used to find or create their profile, national ID, date of
+birth, residential address, occupation and any other named detail. It is
+stored in the device's encrypted outbox before anything is sent and sent on
+resume or "Sync now". The client is registered first; each detail is then
+saved as a COLLECTED KYC entry and leaves the outbox once saved, so a replay
+never resends one.
+
+No server change: identity already answers a repeated registration of the
+same person with the existing client (`CreateIfAbsent` on the profile, and
+`requireConsent` passes a person who is already a client), and KYC entries
+are saved per field key.
+
+A person who already has a profile still has to consent. If the code is
+asked for while the agent is offline or the person is gone, the registration
+waits on the device with "Enter code" and "Resend code"; the code still
+expires after 15 minutes and is accepted only from the same agent. One gap:
+if a replay finds a profile that an earlier, lost attempt created but no
+client row, it is treated as an existing person and asks for consent.
+
+The phone stays on the device only until the registration reaches identity.
