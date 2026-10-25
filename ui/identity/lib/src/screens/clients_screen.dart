@@ -13,7 +13,6 @@ import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
 import 'client_form_dialog.dart';
-import 'consent_code_dialog.dart';
 
 /// The borrowers a field agent (or their supervisors) can see, with
 /// onboarding for callers who may manage clients.
@@ -95,10 +94,7 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
                       child: const Text('Retry'),
                     ),
                   ),
-                PendingRegistrationsPanel(
-                  onSend: (item, submission) =>
-                      _send(context, item.id, item.name, submission),
-                ),
+                const PendingRegistrationsPanel(),
               ],
             )
           : null,
@@ -182,40 +178,25 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
       details: draft.details,
     );
     if (!context.mounted) return;
-    await _send(context, id, draft.name, outbox.submit(id));
+    await _send(context, draft.name, outbox.submit(id));
   }
 
-  /// Reports how a submission of registration [id] went, asking for the
-  /// person's consent code while they are still with the agent.
+  /// Reports how a registration submission went.
   Future<void> _send(
     BuildContext context,
-    String id,
     String name,
     Future<RegistrationOutcome> submission,
   ) async {
-    final outbox = ref.read(registrationOutboxProvider.notifier);
     try {
-      var outcome = await submission;
-      while (outcome == RegistrationOutcome.awaitingConsent) {
-        if (!context.mounted) return;
-        final code = await showDialog<String>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const ConsentCodeDialog(),
-        );
-        if (!context.mounted) return;
-        if (code == null) {
-          _show(context, '$name is waiting for their consent code');
-          return;
-        }
-        outcome = await outbox.submit(id, code: code);
-      }
+      final outcome = await submission;
       if (!context.mounted) return;
       _show(context, switch (outcome) {
-        RegistrationOutcome.registered => '$name onboarded',
+        RegistrationOutcome.registered =>
+          '$name registered. Activate them once their KYC is verified.',
         RegistrationOutcome.queued =>
           'Saved on this device. $name is registered when you are online.',
-        _ => 'Could not onboard $name; see pending registrations',
+        RegistrationOutcome.rejected =>
+          'Could not register $name; see registrations on this device',
       }, error: outcome == RegistrationOutcome.rejected);
     } catch (e) {
       if (!context.mounted) return;
@@ -240,17 +221,10 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
   }
 }
 
-/// Registrations still on the device: waiting for a connection, for the
-/// person's consent code, or refused by the service.
+/// Registrations still on the device: waiting for a connection, or
+/// refused by the service.
 class PendingRegistrationsPanel extends ConsumerWidget {
-  const PendingRegistrationsPanel({super.key, required this.onSend});
-
-  /// Sends a registration, optionally with a code, and reports the outcome.
-  final void Function(
-    PendingRegistration item,
-    Future<RegistrationOutcome> submission,
-  )
-  onSend;
+  const PendingRegistrationsPanel({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -300,31 +274,14 @@ class PendingRegistrationsPanel extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 title: Text(item.name),
                 subtitle: Text(_status(item)),
-                trailing: Wrap(
-                  spacing: 4,
-                  children: [
-                    if (item.awaitingConsent) ...[
-                      TextButton(
-                        key: Key('registration-code-${item.id}'),
-                        onPressed: () => onSend(item, outbox.submit(item.id)),
-                        child: const Text('Enter code'),
-                      ),
-                      TextButton(
-                        key: Key('registration-resend-${item.id}'),
-                        onPressed: () =>
-                            onSend(item, outbox.resendConsent(item.id)),
-                        child: const Text('Resend code'),
-                      ),
-                    ],
-                    if (item.rejected)
-                      IconButton(
+                trailing: item.rejected
+                    ? IconButton(
                         key: Key('registration-dismiss-${item.id}'),
                         tooltip: 'Dismiss',
                         icon: const Icon(Icons.close),
                         onPressed: () => outbox.dismiss(item.id),
-                      ),
-                  ],
-                ),
+                      )
+                    : null,
               ),
           ],
         ),
@@ -338,9 +295,6 @@ class PendingRegistrationsPanel extends ConsumerWidget {
           ? 'Refused: ${item.rejection}'
           : 'Registered, but a detail was refused: ${item.rejection}. '
                 'Re-enter it on the client\'s KYC tab.';
-    }
-    if (item.awaitingConsent) {
-      return 'Already known: waiting for their consent code';
     }
     if (item.clientId.isNotEmpty) {
       return 'Registered; ${item.details.length} detail(s) still to send';

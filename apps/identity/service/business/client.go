@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"fmt"
 
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
@@ -24,6 +25,7 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
+	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
@@ -73,6 +75,7 @@ type clientBusiness struct {
 	profiles           profilev1connect.ProfileServiceClient
 	crRepo             repository.ClientRelationshipRepository
 	consentRepo        repository.ClientConsentChallengeRepository
+	clientDataRepo     repository.ClientDataEntryRepository
 }
 
 func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -91,6 +94,7 @@ func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
 		profiles:           o.profiles,
 		crRepo:             o.relationshipRepo,
 		consentRepo:        o.consentRepo,
+		clientDataRepo:     o.clientDataRepo,
 		eventsMan:          eventsMan,
 		clientRepo:         clientRepo,
 		clientHistoryRepo:  clientHistoryRepo,
@@ -133,7 +137,9 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 		}
 	}
 
-	if isNew && client.State == 0 {
+	if isNew {
+		// Every client starts CREATED; it becomes ACTIVE only through
+		// activation, once its KYC is verified (see saveExisting).
 		client.State = int32(commonv1.STATE_CREATED.Number())
 	}
 
@@ -150,7 +156,9 @@ func (b *clientBusiness) Save(ctx context.Context, obj *fieldv1.ClientObject) (*
 }
 
 // registerNew creates a client for a borrower: profile first, then the row,
-// then the registering agent's relationship and the welcome message.
+// then the registering agent's relationship and the welcome message. No
+// consent is asked for here: the client starts CREATED, its profile hidden
+// from the agent, and the person consents when it is activated.
 func (b *clientBusiness) registerNew(
 	ctx context.Context,
 	logger *util.LogEntry,
@@ -165,22 +173,14 @@ func (b *clientBusiness) registerNew(
 	if scope != nil {
 		client.ProfileID = ""
 	}
-	consentProps := takeConsentProperties(client.Properties)
+	takeConsentProperties(client.Properties)
 	if client.ProfileID == "" {
-		profileID, existing, profileErr := b.ensureProfile(ctx, client, contact)
+		profileID, consentContact, profileErr := b.ensureProfile(ctx, client, contact)
 		if profileErr != nil {
 			return nil, profileErr
 		}
 		client.ProfileID = profileID
-		// A field agent binding a person who already has a profile needs
-		// that person's consent: a code is sent to their verified mobile
-		// contact, and only a correct code binds them.
-		if scope != nil && existing != nil {
-			pending, consentErr := b.requireConsent(ctx, client, existing, scope, consentProps)
-			if consentErr != nil || pending != nil {
-				return pending, consentErr
-			}
-		}
+		client.ConsentContactID = consentContact
 	}
 
 	stored, created, createErr := b.clientRepo.CreateIfAbsent(ctx, client)
@@ -196,12 +196,24 @@ func (b *clientBusiness) registerNew(
 			return nil, ErrClientOutsideCallerScope
 		}
 		logger.WithField("client_id", stored.GetID()).Info("client already registered for this profile")
-		return stored.ToAPI(), nil
+		return presentClient(stored, scope == nil), nil
 	}
 
 	b.attachCaller(ctx, logger, stored, scope)
 	b.notifier.NotifyClientOnboarded(ctx, stored, "")
-	return stored.ToAPI(), nil
+	return presentClient(stored, scope == nil), nil
+}
+
+// presentClient is the client as the caller may see it. Until a client is
+// activated, which is when the person consents, a field agent does not see
+// which profile it is bound to: typing a phone number must not reveal an
+// existing person's profile.
+func presentClient(client *models.Client, staff bool) *fieldv1.ClientObject {
+	obj := client.ToAPI()
+	if !staff && client.State != int32(commonv1.STATE_ACTIVE) {
+		obj.ProfileId = ""
+	}
+	return obj
 }
 
 // relatedClientIDs lists the clients memberID holds a relationship with; a
@@ -319,6 +331,18 @@ func (b *clientBusiness) saveExisting(
 	}
 
 	applyStoredTenancy(client, existing)
+	consent := takeConsentProperties(client.Properties)
+	activating := existing.State == int32(commonv1.STATE_CREATED) &&
+		client.State == int32(commonv1.STATE_ACTIVE)
+	if activating {
+		if pending, err := b.activate(ctx, existing, scope, consent); err != nil || pending != nil {
+			return pending, err
+		}
+	} else if scope != nil {
+		// A field agent changes a client's state only by activating it.
+		client.State = existing.State
+	}
+	client.ConsentContactID = existing.ConsentContactID
 	if client.AgentID == "" {
 		client.AgentID = existing.AgentID
 	}
@@ -350,24 +374,75 @@ func (b *clientBusiness) saveExisting(
 	if rows == 0 {
 		return nil, apperrors.NewError(apperrors.Conflict, "the client changed while being edited; reload and retry")
 	}
-	return client.ToAPI(), nil
+	return presentClient(client, scope == nil), nil
+}
+
+// activate gates moving a CREATED client to ACTIVE: every KYC entry the
+// client has must be verified, and a field agent must also have the
+// person's consent code (confirmActivation). It returns a pending response
+// while a code is awaited.
+func (b *clientBusiness) activate(
+	ctx context.Context,
+	client *models.Client,
+	scope *callerScope,
+	consent consentProperties,
+) (*fieldv1.ClientObject, error) {
+	verified, err := b.kycVerified(ctx, client.GetID())
+	if err != nil {
+		return nil, err
+	}
+	if !verified {
+		return nil, ErrClientKYCIncomplete
+	}
+	if scope == nil {
+		return nil, nil //nolint:nilnil // staff activate without a code
+	}
+	return b.confirmActivation(ctx, client, scope, consent)
+}
+
+// kycVerified reports whether a client has KYC data and all of it is
+// verified. Which fields a product needs is the product's own check.
+func (b *clientBusiness) kycVerified(ctx context.Context, clientID string) (bool, error) {
+	if b.clientDataRepo == nil {
+		return false, ErrClientKYCIncomplete
+	}
+	const pageSize = 200
+	verified := int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED)
+	seen := 0
+	for offset := 0; ; offset += pageSize {
+		entries, err := b.clientDataRepo.GetByClientID(ctx, clientID, 0, offset, pageSize)
+		if err != nil {
+			return false, fmt.Errorf("list client data: %w", err)
+		}
+		for _, e := range entries {
+			if e.VerificationStatus != verified {
+				return false, nil
+			}
+		}
+		seen += len(entries)
+		if len(entries) < pageSize {
+			return seen > 0, nil
+		}
+	}
 }
 
 // ensureProfile asks the profile service for the borrower's profile by the
 // contact they gave, or has it create one. The contact is passed through,
 // never inspected: the profile service validates and owns it. Without a
 // contact there is nothing to find a person by.
-// It returns the found profile when the person already existed.
+// It also returns the contact the activation code will go to: an existing
+// person's verified mobile contact, or the one a new profile was created
+// with.
 func (b *clientBusiness) ensureProfile(
 	ctx context.Context,
 	client *models.Client,
 	phone string,
-) (string, *profilev1.ProfileObject, error) {
+) (string, string, error) {
 	if phone == "" {
-		return "", nil, ErrClientPhoneInvalid
+		return "", "", ErrClientPhoneInvalid
 	}
 	if b.profiles == nil {
-		return "", nil, ErrClientProfileUnavailable
+		return "", "", ErrClientProfileUnavailable
 	}
 	found, err := b.profiles.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: phone})
 	if err == nil && found.GetData().GetId() != "" {
@@ -376,25 +451,25 @@ func (b *clientBusiness) ensureProfile(
 		// workforce member's profile (the registering agent's own, say) is
 		// refused rather than bound to a client.
 		if profileID == actorFromClaims(ctx) {
-			return "", nil, ErrClientPhoneIsStaff
+			return "", "", ErrClientPhoneIsStaff
 		}
 		if b.workforceRepo != nil {
 			if member, memberErr := b.workforceRepo.GetByProfileID(ctx, profileID); memberErr == nil && member != nil {
-				return "", nil, ErrClientPhoneIsStaff
+				return "", "", ErrClientPhoneIsStaff
 			}
 		}
-		return profileID, found.GetData(), nil
+		return profileID, consentContactID(found.GetData()), nil
 	}
 	if connect.CodeOf(err) == connect.CodeInvalidArgument {
-		return "", nil, ErrClientPhoneInvalid
+		return "", "", ErrClientPhoneInvalid
 	}
 	if err != nil && connect.CodeOf(err) != connect.CodeNotFound {
 		util.Log(ctx).WithError(err).Warn("could not look up the borrower's profile by contact")
-		return "", nil, ErrClientProfileUnavailable
+		return "", "", ErrClientProfileUnavailable
 	}
 	props, propErr := structpb.NewStruct(map[string]any{"name": client.Name})
 	if propErr != nil {
-		return "", nil, propErr
+		return "", "", propErr
 	}
 	created, err := b.profiles.Create(ctx, &profilev1.CreateRequest{
 		Type:       profilev1.ProfileType_PERSON,
@@ -402,13 +477,13 @@ func (b *clientBusiness) ensureProfile(
 		Properties: props,
 	})
 	if connect.CodeOf(err) == connect.CodeInvalidArgument {
-		return "", nil, ErrClientPhoneInvalid
+		return "", "", ErrClientPhoneInvalid
 	}
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("could not create the borrower's profile")
-		return "", nil, ErrClientProfileUnavailable
+		return "", "", ErrClientProfileUnavailable
 	}
-	return created.GetData().GetId(), nil, nil
+	return created.GetData().GetId(), registeredContactID(created.GetData()), nil
 }
 
 // attachCaller makes the registering field agent the client's primary
@@ -462,7 +537,7 @@ func (b *clientBusiness) Get(ctx context.Context, id string) (*fieldv1.ClientObj
 			return nil, ErrClientOutsideCallerScope
 		}
 	}
-	return client.ToAPI(), nil
+	return presentClient(client, callerIsStaff(ctx)), nil
 }
 
 func (b *clientBusiness) Search(
@@ -534,9 +609,10 @@ func (b *clientBusiness) Search(
 	}
 
 	return workerpoolConsumeStream(ctx, results, func(res []*models.Client) error {
+		staff := callerIsStaff(ctx)
 		var apiResults []*fieldv1.ClientObject
 		for _, client := range res {
-			apiResults = append(apiResults, client.ToAPI())
+			apiResults = append(apiResults, presentClient(client, staff))
 		}
 		return consumer(ctx, apiResults)
 	})

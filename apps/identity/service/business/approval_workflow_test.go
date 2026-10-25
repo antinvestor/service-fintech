@@ -463,6 +463,7 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		WithRelationships(crRepo),
 		WithProfiles(profiles),
 		WithConsentChallenges(repository.NewClientConsentChallengeRepository(dbPool)),
+		WithClientData(clientDataRepo),
 	)
 
 	return &approvalWorkflowEnv{

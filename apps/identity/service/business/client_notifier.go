@@ -44,6 +44,7 @@ type options struct {
 	profiles           profilev1connect.ProfileServiceClient
 	relationshipRepo   repository.ClientRelationshipRepository
 	consentRepo        repository.ClientConsentChallengeRepository
+	clientDataRepo     repository.ClientDataEntryRepository
 	clientRepo         repository.ClientRepository
 	workforceRepo      repository.WorkforceMemberRepository
 	teamMembershipRepo repository.TeamMembershipRepository
@@ -58,6 +59,11 @@ func WithProfiles(cli profilev1connect.ProfileServiceClient) Option {
 // WithConsentChallenges stores the consent codes field agents ask for.
 func WithConsentChallenges(repo repository.ClientConsentChallengeRepository) Option {
 	return func(o *options) { o.consentRepo = repo }
+}
+
+// WithClientData lets activation check that a client's KYC is verified.
+func WithClientData(repo repository.ClientDataEntryRepository) Option {
+	return func(o *options) { o.clientDataRepo = repo }
 }
 
 // WithRelationships lets client registration attach the registering agent

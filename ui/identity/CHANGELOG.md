@@ -1,3 +1,17 @@
+## 0.4.0
+
+- Consent moves from registration to activation. Registering a borrower
+  never asks for a code: the client starts CREATED. Once their KYC is
+  verified, "Activate" on the client sends the borrower a code; entering it
+  makes them ACTIVE and confirms the phone is theirs. Loans are approved
+  only for active clients.
+- An awaiting-activation client shows no profile or contacts.
+- **Breaking:** `withConsentCode` is replaced by `activationRequest`;
+  `clientAwaitingActivation` is added. The registration outbox no longer
+  tracks consent (`RegistrationOutcome.awaitingConsent`,
+  `RegistrationOutbox.resendConsent` and `submit(code:)` are removed), and
+  `PendingRegistrationsPanel` takes no `onSend`.
+
 ## 0.3.0
 
 - Onboarding works offline. Every registration is stored on the device

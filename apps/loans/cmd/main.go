@@ -160,6 +160,7 @@ func main() {
 		peers.funding,
 		peers.loanNotifier,
 		peers.payoutChecker,
+		peers.clientStanding,
 		peers.operations,
 		peers.limits,
 		peers.readScope,
@@ -200,6 +201,7 @@ func setupServiceOptions(
 	fundingCli fundingv1connect.FundingServiceClient,
 	loanNotifier *business.LoanNotifier,
 	payoutChecker business.PayoutDestinationChecker,
+	clientStanding business.ClientStandingChecker,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	limitsCli limitsv1connect.LimitsServiceClient,
 	readScope *business.ReadScope,
@@ -244,6 +246,7 @@ func setupServiceOptions(
 		business.WithReadScope(readScope),
 		business.WithNotifier(loanNotifier),
 		business.WithAuditWriter(auditWriter),
+		business.WithClientStanding(clientStanding),
 	)
 	scheduleBusiness := business.NewRepaymentScheduleBusiness(ctx, evtsMan, laRepo, lpRepo, rsRepo, seRepo,
 		business.WithReadScope(readScope))
@@ -374,13 +377,14 @@ func setupOperationsClient(
 
 // peerClients are the outbound service clients the runtime process needs.
 type peerClients struct {
-	loanNotifier  *business.LoanNotifier
-	payoutChecker business.PayoutDestinationChecker
-	agentProfiles business.AgentProfileResolver
-	operations    operationsv1connect.OperationsServiceClient
-	funding       fundingv1connect.FundingServiceClient
-	limits        limitsv1connect.LimitsServiceClient
-	readScope     *business.ReadScope
+	loanNotifier   *business.LoanNotifier
+	payoutChecker  business.PayoutDestinationChecker
+	clientStanding business.ClientStandingChecker
+	agentProfiles  business.AgentProfileResolver
+	operations     operationsv1connect.OperationsServiceClient
+	funding        fundingv1connect.FundingServiceClient
+	limits         limitsv1connect.LimitsServiceClient
+	readScope      *business.ReadScope
 	// paidOffHook tells seed a loan was repaid in full, so it can complete
 	// its loan request and credit the borrower's profile. Nil when
 	// SEED_SERVICE_URI is unset.
@@ -456,9 +460,10 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 	}
 
 	return peerClients{
-		paidOffHook:   paidOffHook,
-		payoutChecker: business.NewProfilePayoutChecker(clientProfiles, profileCli),
-		agentProfiles: business.NewIdentityAgentProfileResolver(identityCli),
+		paidOffHook:    paidOffHook,
+		payoutChecker:  business.NewProfilePayoutChecker(clientProfiles, profileCli),
+		clientStanding: business.NewFieldClientStanding(fieldCli),
+		agentProfiles:  business.NewIdentityAgentProfileResolver(identityCli),
 		loanNotifier: business.NewLoanNotifier(
 			notify.New(notificationCli, messages.Registry()),
 			clientProfiles,

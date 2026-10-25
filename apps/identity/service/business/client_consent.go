@@ -28,10 +28,13 @@ import (
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 )
 
-// Consent handshake carried in client properties. The first registration
-// of an existing person returns consent_verification_id with
-// consent_status "pending" and no client id; the agent resubmits the same
-// registration with that id and the code the person received.
+// Consent handshake carried in client properties. Registration never asks
+// for consent: a field agent's client starts CREATED. Activating it (a save
+// that moves it to ACTIVE) once its KYC is fully verified sends a code to
+// the person's mobile contact and answers with consent_verification_id and
+// consent_status "pending"; the agent resubmits the activation with that id
+// and the code the person received. The check also verifies the contact on
+// the profile, so a newly registered person's phone is proven theirs.
 const (
 	consentVerificationIDKey = "consent_verification_id"
 	consentCodeKey           = "consent_code"
@@ -59,26 +62,22 @@ func takeConsentProperties(props map[string]any) consentProperties {
 	return c
 }
 
-// requireConsent gates binding an existing person to a new client. It
-// returns a pending response when a code has just been sent, nil when the
-// person consented (or is already a client, which the caller handles), and
-// an error when the code is wrong, spent, expired or cannot be sent.
-func (b *clientBusiness) requireConsent(
+// confirmActivation gates a field agent activating a client. It returns a
+// pending response when a code has just been sent, nil when the person
+// consented, and an error when the code is wrong, spent or expired, or the
+// person has no contact to send it to.
+func (b *clientBusiness) confirmActivation(
 	ctx context.Context,
 	client *models.Client,
-	profile *profilev1.ProfileObject,
 	scope *callerScope,
 	consent consentProperties,
 ) (*fieldv1.ClientObject, error) {
-	if existing, err := b.clientRepo.GetByProfileID(ctx, client.ProfileID); err == nil && existing != nil {
-		return nil, nil //nolint:nilnil // already a client: the caller applies its scope rules
-	}
 	if b.consentRepo == nil || b.profiles == nil {
 		return nil, ErrClientProfileUnavailable
 	}
 	now := time.Now().UTC()
 	if consent.verificationID == "" {
-		return b.startConsent(ctx, client, profile, scope, now)
+		return b.startConsent(ctx, client, scope, now)
 	}
 
 	challenge, err := b.consentRepo.GetByID(ctx, consent.verificationID)
@@ -100,26 +99,24 @@ func (b *clientBusiness) requireConsent(
 	if err != nil || !used {
 		return nil, ErrClientConsentFailed
 	}
-	return nil, nil //nolint:nilnil // consent given: the caller binds the client
+	return nil, nil //nolint:nilnil // consent given: the caller activates the client
 }
 
-// startConsent sends a code to the person's verified mobile contact and
-// records the challenge. The pending response reveals nothing about the
-// person: no client id, no profile id, only the opaque challenge id.
+// startConsent sends a code to the client's consent contact and records
+// the challenge. The pending response is the client as the agent already
+// sees it, still CREATED, with the opaque challenge id.
 func (b *clientBusiness) startConsent(
 	ctx context.Context,
 	client *models.Client,
-	profile *profilev1.ProfileObject,
 	scope *callerScope,
 	now time.Time,
 ) (*fieldv1.ClientObject, error) {
-	contactID := consentContactID(profile)
-	if contactID == "" {
+	if client.ConsentContactID == "" {
 		return nil, ErrClientConsentUnreachable
 	}
 	challenge := &models.ClientConsentChallenge{
 		ProfileID: client.ProfileID,
-		ContactID: contactID,
+		ContactID: client.ConsentContactID,
 		MemberID:  scope.member.GetID(),
 		ExpiresAt: now.Add(consentCodeTTL),
 	}
@@ -129,27 +126,38 @@ func (b *clientBusiness) startConsent(
 	}
 	if _, err := b.profiles.CreateContactVerification(ctx, &profilev1.CreateContactVerificationRequest{
 		Id:               challenge.GetID(),
-		ContactId:        contactID,
+		ContactId:        client.ConsentContactID,
 		DurationToExpire: consentCodeTTL.String(),
 	}); err != nil {
 		util.Log(ctx).WithError(err).Warn("could not send the consent code")
 		return nil, ErrClientProfileUnavailable
 	}
-	return &fieldv1.ClientObject{
-		Name: client.Name,
-		Properties: (&data.JSONMap{
-			consentVerificationIDKey: challenge.GetID(),
-			consentStatusKey:         consentStatusPending,
-		}).ToProtoStruct(),
-	}, nil
+	pending := presentClient(client, false)
+	props := data.JSONMap(pending.GetProperties().AsMap())
+	props[consentVerificationIDKey] = challenge.GetID()
+	props[consentStatusKey] = consentStatusPending
+	pending.Properties = props.ToProtoStruct()
+	return pending, nil
 }
 
-// consentContactID picks the contact the consent code goes to: the
-// person's verified, active mobile contact. A person with none is
-// registered by staff.
+// consentContactID picks the contact an existing person's activation code
+// goes to: their verified, active mobile contact. A person with none is
+// activated by staff.
 func consentContactID(profile *profilev1.ProfileObject) string {
 	for _, c := range profile.GetContacts() {
 		if c.GetType() == profilev1.ContactType_MSISDN && c.GetVerified() && c.GetId() != "" &&
+			c.GetState() != commonv1.STATE_DELETED && c.GetState() != commonv1.STATE_INACTIVE {
+			return c.GetId()
+		}
+	}
+	return ""
+}
+
+// registeredContactID is the mobile contact a profile was just created
+// with: the one the activation code goes to, verifying it on the way.
+func registeredContactID(profile *profilev1.ProfileObject) string {
+	for _, c := range profile.GetContacts() {
+		if c.GetType() == profilev1.ContactType_MSISDN && c.GetId() != "" &&
 			c.GetState() != commonv1.STATE_DELETED && c.GetState() != commonv1.STATE_INACTIVE {
 			return c.GetId()
 		}

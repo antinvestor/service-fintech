@@ -326,6 +326,10 @@ type Client struct {
 	AgentCreditLimit  int64
 	State             int32
 	Properties        data.JSONMap
+	// ConsentContactID is the profile contact the activation code goes to:
+	// the contact a newly created profile was registered with, or an
+	// existing person's verified mobile contact. Empty when there is none.
+	ConsentContactID string `gorm:"type:varchar(50);not null;default:''"`
 }
 
 func (m *Client) TableName() string { return "clients" }

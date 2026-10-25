@@ -16,6 +16,7 @@ import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
 import 'client_form_dialog.dart';
+import 'consent_code_dialog.dart';
 
 /// One borrower: their profile and the KYC data collected about them.
 class ClientDetailScreen extends ConsumerWidget {
@@ -133,6 +134,15 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
                 ),
               ),
               StateBadge(state: fieldStateToCommon(_client.state)),
+              if (widget.canManage && clientAwaitingActivation(_client)) ...[
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  key: const Key('client-activate'),
+                  onPressed: () => _activate(context),
+                  icon: const Icon(Icons.verified_user_outlined),
+                  label: const Text('Activate'),
+                ),
+              ],
               if (widget.canManage) ...[
                 const SizedBox(width: 12),
                 IconButton(
@@ -164,6 +174,52 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
           ),
         ),
       ],
+    );
+  }
+
+  /// Activates a client whose KYC is verified. The service sends the
+  /// person a code and the agent enters it, confirming they consent to
+  /// becoming a client and that the phone is theirs.
+  Future<void> _activate(BuildContext context) async {
+    final notifier = ref.read(clientNotifierProvider.notifier);
+    try {
+      var saved = await notifier.save(activationRequest(_client));
+      while (clientConsentPending(saved)) {
+        if (!context.mounted) return;
+        final code = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const ConsentCodeDialog(),
+        );
+        if (code == null || !context.mounted) return;
+        try {
+          saved = await notifier.save(
+            activationRequest(_client, pending: saved, code: code),
+          );
+        } catch (e) {
+          // A wrong or expired code: say so and let the agent retry, which
+          // sends a fresh code.
+          if (!context.mounted) return;
+          _showError(context, 'Code not accepted: ${friendlyError(e)}');
+          return;
+        }
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_client.name} is now an active client')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      _showError(context, 'Could not activate: ${friendlyError(e)}');
+    }
+  }
+
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
     );
   }
 
@@ -220,6 +276,16 @@ class _ProfileTab extends StatelessWidget {
           label: 'Profile',
           value: client.profileId.isNotEmpty ? client.profileId : '-',
         ),
+        if (clientAwaitingActivation(client))
+          const Padding(
+            key: Key('client-activation-hint'),
+            padding: EdgeInsets.only(top: 16),
+            child: Text(
+              'Awaiting activation. Verify the KYC details, then activate: '
+              'the borrower receives a code to confirm they agree. Their '
+              'profile and contacts show here once they are active.',
+            ),
+          ),
         // Contacts and addresses belong to the borrower's profile and are
         // managed there, by contact id.
         if (client.profileId.isNotEmpty) ...[

@@ -301,11 +301,39 @@ same person with the existing client (`CreateIfAbsent` on the profile, and
 `requireConsent` passes a person who is already a client), and KYC entries
 are saved per field key.
 
-A person who already has a profile still has to consent. If the code is
-asked for while the agent is offline or the person is gone, the registration
-waits on the device with "Enter code" and "Resend code"; the code still
-expires after 15 minutes and is accepted only from the same agent. One gap:
-if a replay finds a profile that an earlier, lost attempt created but no
-client row, it is treated as an existing person and asks for consent.
+Consent is no longer asked for at registration; see §21.
 
 The phone stays on the device only until the registration reaches identity.
+
+## 21. Addendum 2026-10-25 — consent at activation
+
+Asking for the consent code at registration made onboarding brittle: it
+needed the person and a connection at the moment of capture. Registration
+now asks nobody for anything. Every new client starts CREATED, whatever the
+payload says. It becomes ACTIVE only by activation:
+
+- every KYC entry the client has is VERIFIED, and there is at least one
+  (`ErrClientKYCIncomplete` otherwise); which fields a product needs stays
+  the product's own check;
+- a field agent then gets a code sent to the client's consent contact and
+  resubmits with it (15-minute TTL, five attempts, bound to the profile and
+  the agent). Staff activate without a code.
+
+The consent contact is recorded at registration (`clients.consent_contact_id`):
+an existing person's verified mobile contact, or the contact a new profile
+was created with. A correct code also verifies that contact on the profile,
+so a new borrower's phone becomes a payable destination by being activated.
+An existing person with no verified mobile contact is activated by staff.
+
+Until activation a field agent does not see the client's profile id, so
+typing a phone number does not reveal an existing person's profile. An
+agent can no longer change a client's state by an edit.
+
+Loans approves a loan request only for an ACTIVE client
+(`ClientStandingChecker`, `ErrClientNotActive`; failing to reach identity
+refuses rather than approves). Applications can be drafted and submitted
+before activation.
+
+Migration 006 marks every stored CREATED client ACTIVE: before this change
+a stored client had either passed consent at registration or been registered
+by staff.

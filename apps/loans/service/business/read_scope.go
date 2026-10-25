@@ -254,6 +254,7 @@ type options struct {
 	notifier          *LoanNotifier
 	auditWriter       *audit.Writer
 	payoutChecker     PayoutDestinationChecker
+	clientStanding    ClientStandingChecker
 }
 
 // WithScheduleEntries supplies the schedule entry repository to flows that

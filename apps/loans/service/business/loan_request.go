@@ -62,6 +62,7 @@ type loanRequestBusiness struct {
 	limitsGateMode    string
 	notifier          *LoanNotifier
 	auditWriter       *audit.Writer
+	clientStanding    ClientStandingChecker
 }
 
 // reservedRequestProperties are keys only staff or a service principal may
@@ -110,6 +111,7 @@ func NewLoanRequestBusiness(
 		scope:             o.scope,
 		notifier:          o.notifier,
 		auditWriter:       o.auditWriter,
+		clientStanding:    o.clientStanding,
 		eventsMan:         eventsMan,
 		loanRequestRepo:   loanRequestRepo,
 		loanProductRepo:   loanProductRepo,
@@ -436,6 +438,14 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 
 	if lr.Status != int32(loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_SUBMITTED) {
 		return nil, ErrLoanRequestNotSubmitted
+	}
+
+	// Only an activated client is lent to: one whose KYC is verified and who
+	// consented. An application can be drafted and submitted before that.
+	if b.clientStanding != nil {
+		if errStanding := b.clientStanding.RequireActive(ctx, lr.ClientID); errStanding != nil {
+			return nil, errStanding
+		}
 	}
 
 	// Verification gate: if the product has required forms, the caller must

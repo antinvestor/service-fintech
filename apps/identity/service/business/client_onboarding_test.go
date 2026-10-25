@@ -21,6 +21,7 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
+	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"connectrpc.com/connect/v2"
@@ -97,7 +98,9 @@ func (f *fakeProfileService) Create(
 	f.created++
 	id := fmt.Sprintf("profile-created-%d", f.created)
 	f.byContact[req.GetContact()] = id
-	return &profilev1.CreateResponse{Data: &profilev1.ProfileObject{Id: id}}, nil
+	return &profilev1.CreateResponse{Data: &profilev1.ProfileObject{Id: id, Contacts: []*profilev1.ContactObject{
+		{Id: "contact-of-" + id, Type: profilev1.ContactType_MSISDN},
+	}}}, nil
 }
 
 // asRole builds claims for profileID holding one platform role.
@@ -181,11 +184,14 @@ func (s *approvalWorkflowSuite) TestFieldAgentRegistersClientInOwnScope() {
 	created, err := env.clientBusiness.Save(asAmina, payload)
 	s.Require().NoError(err)
 	s.Require().Equal(team.GetID(), created.GetOwningTeamId(), "the client lands in the agent's own team")
-	s.Require().Equal("profile-created-1", created.GetProfileId(), "a profile was created from the phone")
+	s.Require().Empty(created.GetProfileId(), "the agent does not see the profile before activation")
+	s.Require().Equal(commonv1.STATE_CREATED, created.GetState())
 
 	stored, err := env.clientRepo.GetByID(env.ctx, created.GetId())
 	s.Require().NoError(err, "the row exists synchronously")
 	s.Require().Equal("Grace Borrower", stored.Name)
+	s.Require().Equal("profile-created-1", stored.ProfileID, "a profile was created from the phone")
+	s.Require().Equal("contact-of-profile-created-1", stored.ConsentContactID)
 
 	rel, err := env.crRepo.GetByClientAndMember(env.ctx, created.GetId(), agent.GetID())
 	s.Require().NoError(err)
@@ -298,6 +304,9 @@ func (s *approvalWorkflowSuite) TestClientAccessScopeResolvesBorrowerAndAgent() 
 		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000222"}),
 	})
 	s.Require().NoError(err)
+	stored, err := env.clientRepo.GetByID(env.ctx, created.GetId())
+	s.Require().NoError(err)
+	borrowerProfile := stored.ProfileID
 
 	got, err := env.clientBusiness.AccessScope(asService, "agent-scope")
 	s.Require().NoError(err)
@@ -305,7 +314,7 @@ func (s *approvalWorkflowSuite) TestClientAccessScopeResolvesBorrowerAndAgent() 
 	s.Require().Equal([]string{created.GetId()}, got.GetServedClientIds())
 	s.Require().Empty(got.GetClientId())
 
-	got, err = env.clientBusiness.AccessScope(asService, created.GetProfileId())
+	got, err = env.clientBusiness.AccessScope(asService, borrowerProfile)
 	s.Require().NoError(err)
 	s.Require().Equal(created.GetId(), got.GetClientId(), "the borrower resolves to their own client")
 	s.Require().Empty(got.GetMemberId())
@@ -318,75 +327,122 @@ func (s *approvalWorkflowSuite) TestClientAccessScopeResolvesBorrowerAndAgent() 
 	s.Require().NotEqual(agent.GetID(), got.GetMemberId())
 
 	// The exact profile filter finds the borrower's client for staff.
-	s.Require().Len(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: created.GetProfileId()}), 1)
+	s.Require().Len(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: borrowerProfile}), 1)
 	s.Require().Empty(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: "nobody"}))
 }
 
-// A field agent binding someone who already has a profile needs that
-// person's consent code; a wrong code or a verification of another person
-// binds nobody.
-func (s *approvalWorkflowSuite) TestAgentBindingAnExistingPersonNeedsTheirConsent() {
+// verifyKYC stores a verified KYC entry for the client.
+func (e *approvalWorkflowEnv) verifyKYC(clientID, key string) {
+	e.t.Helper()
+	claims := security.ClaimsFromContext(e.ctx)
+	entry := &models.ClientDataEntry{ClientID: clientID, FieldKey: key, Value: "v", Revision: 1,
+		VerificationStatus: int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED)}
+	entry.GenID(e.ctx)
+	entry.TenantID, entry.PartitionID = claims.GetTenantID(), claims.GetPartitionID()
+	if err := e.clientDataRepo.Create(e.ctx, entry); err != nil {
+		e.t.Fatalf("create kyc entry: %v", err)
+	}
+}
+
+// Registration asks nobody for anything; the person consents when the
+// client is activated, after its KYC is verified.
+func (s *approvalWorkflowSuite) TestActivationNeedsVerifiedKYCAndConsent() {
 	env := s.newEnv()
 	org := env.createOrganization("Consent SACCO", "consent-sacco")
-	agent, _ := env.fieldAgent(org, "agent-consent", "consent-team")
+	_, _ = env.fieldAgent(org, "agent-consent", "consent-team")
 	asAgent := env.asRole("agent-consent", "member")
 	env.profiles.byContact = map[string]string{"+256701000555": "profile-existing"}
 
-	register := func(props map[string]any) (*fieldv1.ClientObject, error) {
-		props[clientPhoneNumberKey] = "+256701000555"
-		return env.clientBusiness.Save(
-			asAgent,
-			&fieldv1.ClientObject{Name: "Esther", Properties: propertiesStruct(props)},
-		)
+	registered, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Esther",
+		State:      commonv1.STATE_ACTIVE,
+		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000555"})})
+	s.Require().NoError(err)
+	s.Require().NotEmpty(registered.GetId(), "an existing person is registered without a code")
+	s.Require().Equal(commonv1.STATE_CREATED, registered.GetState(), "the payload state is ignored")
+	s.Require().Empty(registered.GetProfileId(), "the existing person is not revealed")
+	s.Require().Empty(env.profiles.sentCodes, "no code at registration")
+	got, err := env.clientBusiness.Get(asAgent, registered.GetId())
+	s.Require().NoError(err)
+	s.Require().Empty(got.GetProfileId())
+
+	activate := func(ctx context.Context, props map[string]any) (*fieldv1.ClientObject, error) {
+		return env.clientBusiness.Save(ctx, &fieldv1.ClientObject{Id: registered.GetId(), Name: "Esther",
+			State: commonv1.STATE_ACTIVE, Properties: propertiesStruct(props)})
 	}
 
-	pending, err := register(map[string]any{})
+	_, err = activate(asAgent, map[string]any{})
+	s.Require().ErrorIs(err, ErrClientKYCIncomplete, "no KYC yet")
+	env.verifyKYC(registered.GetId(), "national_id")
+	pendingEntry := &models.ClientDataEntry{ClientID: registered.GetId(), FieldKey: "address", Revision: 1,
+		VerificationStatus: int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED)}
+	pendingEntry.GenID(env.ctx)
+	s.Require().NoError(env.clientDataRepo.Create(env.ctx, pendingEntry))
+	_, err = activate(asAgent, map[string]any{})
+	s.Require().ErrorIs(err, ErrClientKYCIncomplete, "an unverified entry blocks activation")
+	s.Require().NoError(env.clientDataRepo.Delete(env.ctx, pendingEntry.GetID()))
+
+	// An agent cannot reach ACTIVE, or any other state, by an edit.
+	edited, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Id: registered.GetId(),
+		Name: "Esther", State: commonv1.STATE_INACTIVE})
 	s.Require().NoError(err)
-	s.Require().Empty(pending.GetId(), "nothing is bound before consent")
-	s.Require().Empty(pending.GetProfileId(), "the pending answer reveals nobody")
+	s.Require().Equal(commonv1.STATE_CREATED, edited.GetState())
+
+	pending, err := activate(asAgent, map[string]any{})
+	s.Require().NoError(err)
+	s.Require().Equal(commonv1.STATE_CREATED, pending.GetState())
 	vid := pending.GetProperties().AsMap()[consentVerificationIDKey].(string)
 	s.Require().NotEmpty(vid)
 	s.Equal("contact-of-profile-existing", env.profiles.sentTo[vid], "the code goes to the person's own contact")
 
-	_, err = register(map[string]any{consentVerificationIDKey: vid, consentCodeKey: "000000"})
+	_, err = activate(asAgent, map[string]any{consentVerificationIDKey: vid, consentCodeKey: "000000"})
 	s.Require().ErrorIs(err, ErrClientConsentFailed)
-	_, err = register(
-		map[string]any{consentVerificationIDKey: "client-consent-someone-else-x", consentCodeKey: "123456"},
-	)
-	s.Require().ErrorIs(err, ErrClientConsentFailed)
-
-	// Another agent cannot use this agent's challenge.
-	_, _ = env.fieldAgent(org, "agent-intruder", "intruder-team")
-	_, err = env.clientBusiness.Save(env.asRole("agent-intruder", "member"), &fieldv1.ClientObject{
-		Name: "Esther", Properties: propertiesStruct(map[string]any{
-			clientPhoneNumberKey: "+256701000555", consentVerificationIDKey: vid, consentCodeKey: "123456",
-		}),
+	_, err = activate(asAgent, map[string]any{
+		consentVerificationIDKey: "client-consent-someone-else-x", consentCodeKey: "123456",
 	})
 	s.Require().ErrorIs(err, ErrClientConsentFailed)
 
-	bound, err := register(map[string]any{consentVerificationIDKey: vid, consentCodeKey: "123456"})
+	active, err := activate(asAgent, map[string]any{consentVerificationIDKey: vid, consentCodeKey: "123456"})
 	s.Require().NoError(err)
-	s.Require().NotEmpty(bound.GetId())
-	s.Equal("profile-existing", bound.GetProfileId())
-	s.NotContains(bound.GetProperties().AsMap(), consentCodeKey, "the code is never stored")
-	_ = agent
+	s.Require().Equal(commonv1.STATE_ACTIVE, active.GetState())
+	s.Equal("profile-existing", active.GetProfileId(), "the profile is visible once they consented")
+	s.NotContains(active.GetProperties().AsMap(), consentCodeKey, "the code is never stored")
+	s.NotContains(active.GetProperties().AsMap(), consentVerificationIDKey)
 
-	// A challenge runs out of attempts.
-	env.profiles.byContact["+256701000666"] = "profile-guarded"
-	first, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
+	// A challenge runs out of attempts; a new person's code goes to the
+	// phone they were registered with.
+	guarded, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
 		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000666"})})
 	s.Require().NoError(err)
-	guarded := first.GetProperties().AsMap()[consentVerificationIDKey].(string)
+	env.verifyKYC(guarded.GetId(), "national_id")
+	activateGuarded := func(props map[string]any) (*fieldv1.ClientObject, error) {
+		return env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Id: guarded.GetId(), Name: "Guarded",
+			State: commonv1.STATE_ACTIVE, Properties: propertiesStruct(props)})
+	}
+	first, err := activateGuarded(map[string]any{})
+	s.Require().NoError(err)
+	gid := first.GetProperties().AsMap()[consentVerificationIDKey].(string)
+	s.Equal("contact-of-profile-created-1", env.profiles.sentTo[gid])
 	for range 5 {
-		_, err = env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
-			Properties: propertiesStruct(map[string]any{
-				clientPhoneNumberKey: "+256701000666", consentVerificationIDKey: guarded, consentCodeKey: "999999",
-			})})
+		_, err = activateGuarded(map[string]any{consentVerificationIDKey: gid, consentCodeKey: "999999"})
 		s.Require().ErrorIs(err, ErrClientConsentFailed)
 	}
-	_, err = env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Name: "Guarded",
-		Properties: propertiesStruct(map[string]any{
-			clientPhoneNumberKey: "+256701000666", consentVerificationIDKey: guarded, consentCodeKey: "123456",
-		})})
-	s.Require().ErrorIs(err, ErrClientConsentFailed, "the right code after the budget is spent binds nobody")
+	_, err = activateGuarded(map[string]any{consentVerificationIDKey: gid, consentCodeKey: "123456"})
+	s.Require().ErrorIs(err, ErrClientConsentFailed, "the right code after the budget is spent activates nobody")
+
+	// Staff activate without a code, but not before KYC is verified.
+	staffClient, err := env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{Name: "Back Office",
+		OwningTeamId: guarded.GetOwningTeamId(),
+		Properties:   propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000777"})})
+	s.Require().NoError(err)
+	s.Require().Equal(commonv1.STATE_CREATED, staffClient.GetState())
+	staffActivate := func() (*fieldv1.ClientObject, error) {
+		return env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{Id: staffClient.GetId(),
+			Name: "Back Office", OwningTeamId: staffClient.GetOwningTeamId(), State: commonv1.STATE_ACTIVE})
+	}
+	_, err = staffActivate()
+	s.Require().ErrorIs(err, ErrClientKYCIncomplete)
+	env.verifyKYC(staffClient.GetId(), "national_id")
+	staffActive, err := staffActivate()
+	s.Require().NoError(err)
+	s.Require().Equal(commonv1.STATE_ACTIVE, staffActive.GetState())
 }

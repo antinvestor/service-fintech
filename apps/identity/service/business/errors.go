@@ -30,7 +30,11 @@ var (
 	)
 	ErrClientConsentUnreachable = apperrors.NewError(
 		apperrors.Unprocessable,
-		"the person has no mobile contact to confirm consent; staff must register them",
+		"the person has no mobile contact to confirm consent; staff must activate them",
+	)
+	ErrClientKYCIncomplete = apperrors.NewError(
+		apperrors.Unprocessable,
+		"the client's KYC must be fully verified before they are activated",
 	)
 	ErrClientContactsOnProfile = apperrors.NewError(
 		apperrors.BadRequest,
