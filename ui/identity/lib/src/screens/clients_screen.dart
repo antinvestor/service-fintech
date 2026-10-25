@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/client_providers.dart';
+import '../providers/paged_list.dart';
+import '../providers/registration_outbox.dart';
 import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
@@ -45,7 +47,9 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
   Widget build(BuildContext context) {
     final provider = clientPagedListProvider(_params);
     final clientsAsync = ref.watch(provider);
-    if (clientsAsync.hasError) {
+    // An agent who can onboard keeps the page when the list cannot load:
+    // registrations are captured offline and sent later.
+    if (clientsAsync.hasError && !widget.canManage) {
       return ListErrorView(
         title: _title,
         breadcrumbs: _breadcrumbs,
@@ -56,8 +60,11 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
     if (clientsAsync.isLoading && !clientsAsync.hasValue) {
       return const ListLoadingView(title: _title, breadcrumbs: _breadcrumbs);
     }
-    final page = clientsAsync.requireValue;
+    final page = clientsAsync.hasValue
+        ? clientsAsync.requireValue
+        : const PagedList<ClientObject>(items: [], nextPage: null);
     final clients = page.items;
+    final loadError = clientsAsync.hasError ? clientsAsync.error : null;
 
     return AdminEntityListPage<ClientObject>(
       title: _title,
@@ -70,6 +77,31 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
       items: clients,
       onSearch: (value) => setState(() => _searchQuery = value.trim()),
       searchHint: 'Search by name or phone',
+      filters: widget.canManage
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (loadError != null)
+                  ListTile(
+                    key: const Key('clients-offline'),
+                    leading: const Icon(Icons.cloud_off_outlined),
+                    title: Text(friendlyError(loadError)),
+                    subtitle: const Text(
+                      'You can still onboard clients; they are sent when '
+                      'you are back online.',
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => ref.invalidate(provider),
+                      child: const Text('Retry'),
+                    ),
+                  ),
+                PendingRegistrationsPanel(
+                  onSend: (item, submission) =>
+                      _send(context, item.id, item.name, submission),
+                ),
+              ],
+            )
+          : null,
       addLabel: widget.canManage ? 'Onboard client' : null,
       onAdd: widget.canManage ? () => _onboard(context) : null,
       actions: [
@@ -133,40 +165,186 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
   }
 
   Future<void> _onboard(BuildContext context) async {
-    final draft = await showDialog<ClientObject>(
+    final draft = await showDialog<ClientRegistrationDraft>(
       context: context,
       barrierDismissible: false,
       builder: (_) => const ClientFormDialog(),
     );
     if (draft == null || !context.mounted) return;
 
+    // Stored on the device first, then sent: a dropped connection keeps the
+    // registration for the next sync instead of losing what was captured.
+    final outbox = ref.read(registrationOutboxProvider.notifier);
+    final id = await outbox.capture(
+      name: draft.name,
+      phone: draft.phone,
+      nationalId: draft.nationalId,
+      details: draft.details,
+    );
+    if (!context.mounted) return;
+    await _send(context, id, draft.name, outbox.submit(id));
+  }
+
+  /// Reports how a submission of registration [id] went, asking for the
+  /// person's consent code while they are still with the agent.
+  Future<void> _send(
+    BuildContext context,
+    String id,
+    String name,
+    Future<RegistrationOutcome> submission,
+  ) async {
+    final outbox = ref.read(registrationOutboxProvider.notifier);
     try {
-      final notifier = ref.read(clientNotifierProvider.notifier);
-      var saved = await notifier.save(draft);
-      // A person who already has a profile must consent: the service sends
-      // them a code and answers without a client until it is entered.
-      while (saved.id.isEmpty && clientConsentPending(saved)) {
+      var outcome = await submission;
+      while (outcome == RegistrationOutcome.awaitingConsent) {
         if (!context.mounted) return;
         final code = await showDialog<String>(
           context: context,
           barrierDismissible: false,
           builder: (_) => const ConsentCodeDialog(),
         );
-        if (code == null || !context.mounted) return;
-        saved = await notifier.save(withConsentCode(draft, saved, code));
+        if (!context.mounted) return;
+        if (code == null) {
+          _show(context, '$name is waiting for their consent code');
+          return;
+        }
+        outcome = await outbox.submit(id, code: code);
       }
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${saved.name} onboarded')));
+      _show(context, switch (outcome) {
+        RegistrationOutcome.registered => '$name onboarded',
+        RegistrationOutcome.queued =>
+          'Saved on this device. $name is registered when you are online.',
+        _ => 'Could not onboard $name; see pending registrations',
+      }, error: outcome == RegistrationOutcome.rejected);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to onboard client: ${friendlyError(e)}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      _show(
+        context,
+        'Failed to onboard client: ${friendlyError(e)}',
+        error: true,
       );
     }
+  }
+
+  void _show(BuildContext context, String message, {bool error = false}) {
+    // The newest outcome replaces any earlier one still on screen.
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+        ),
+      );
+  }
+}
+
+/// Registrations still on the device: waiting for a connection, for the
+/// person's consent code, or refused by the service.
+class PendingRegistrationsPanel extends ConsumerWidget {
+  const PendingRegistrationsPanel({super.key, required this.onSend});
+
+  /// Sends a registration, optionally with a code, and reports the outcome.
+  final void Function(
+    PendingRegistration item,
+    Future<RegistrationOutcome> submission,
+  )
+  onSend;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(registrationOutboxProvider).value ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    final outbox = ref.read(registrationOutboxProvider.notifier);
+    final theme = Theme.of(context);
+    return Card(
+      key: const Key('registration-outbox'),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.cloud_upload_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${items.length} registration'
+                    '${items.length == 1 ? '' : 's'} on this device',
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+                TextButton(
+                  key: const Key('registration-outbox-sync'),
+                  onPressed: () async {
+                    final sent = await outbox.flush();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('$sent registered')));
+                  },
+                  child: const Text('Sync now'),
+                ),
+              ],
+            ),
+            for (final item in items)
+              ListTile(
+                key: Key('registration-${item.id}'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(item.name),
+                subtitle: Text(_status(item)),
+                trailing: Wrap(
+                  spacing: 4,
+                  children: [
+                    if (item.awaitingConsent) ...[
+                      TextButton(
+                        key: Key('registration-code-${item.id}'),
+                        onPressed: () => onSend(item, outbox.submit(item.id)),
+                        child: const Text('Enter code'),
+                      ),
+                      TextButton(
+                        key: Key('registration-resend-${item.id}'),
+                        onPressed: () =>
+                            onSend(item, outbox.resendConsent(item.id)),
+                        child: const Text('Resend code'),
+                      ),
+                    ],
+                    if (item.rejected)
+                      IconButton(
+                        key: Key('registration-dismiss-${item.id}'),
+                        tooltip: 'Dismiss',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => outbox.dismiss(item.id),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _status(PendingRegistration item) {
+    if (item.rejected) {
+      return item.clientId.isEmpty
+          ? 'Refused: ${item.rejection}'
+          : 'Registered, but a detail was refused: ${item.rejection}. '
+                'Re-enter it on the client\'s KYC tab.';
+    }
+    if (item.awaitingConsent) {
+      return 'Already known: waiting for their consent code';
+    }
+    if (item.clientId.isNotEmpty) {
+      return 'Registered; ${item.details.length} detail(s) still to send';
+    }
+    return 'Waiting for a connection';
   }
 }

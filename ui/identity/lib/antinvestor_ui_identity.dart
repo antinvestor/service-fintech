@@ -9,6 +9,7 @@ export 'src/providers/team_providers.dart';
 export 'src/providers/access_role_providers.dart';
 export 'src/providers/client_data_providers.dart';
 export 'src/providers/client_providers.dart';
+export 'src/providers/registration_outbox.dart';
 export 'src/providers/form_template_providers.dart';
 
 // Screens

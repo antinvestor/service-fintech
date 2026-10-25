@@ -1,3 +1,18 @@
+## 0.3.0
+
+- Onboarding works offline. Every registration is stored on the device
+  first (`registrationOutboxProvider`), then sent; one that cannot reach
+  the service is sent on the next `flush()`. A host app persists it by
+  overriding `registrationOutboxStoreProvider` with encrypted storage.
+- **Breaking:** onboarding with `ClientFormDialog` pops a
+  `ClientRegistrationDraft` instead of a `ClientObject`. The form now also
+  captures date of birth, residential address, occupation and any other
+  named detail; each is saved as a COLLECTED KYC entry once the client
+  exists, along with the national ID.
+- A person who already has a profile can give their consent code later:
+  the registration waits on the device with "Enter code" and "Resend code".
+- The clients page stays usable for onboarding when the list cannot load.
+
 ## 0.2.0
 
 - **Breaking:** moves to connect-dart 2 and the protobuf 6 runtime:

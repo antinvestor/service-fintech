@@ -9,7 +9,11 @@ import 'package:antinvestor_ui_core/api/api_base.dart';
 import 'package:antinvestor_ui_core/auth/role_provider.dart';
 import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart'
-    show identityTransportProvider, myClientAccessScopeProvider;
+    show
+        identityTransportProvider,
+        myClientAccessScopeProvider,
+        registrationOutboxProvider,
+        registrationOutboxStoreProvider;
 import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
     show LimitsCapabilities, limitsCapabilitiesProvider;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
@@ -34,6 +38,11 @@ import 'core/config/app_config.dart';
 import 'core/config/url_strategy.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/data/auth_repository.dart';
+
+// Unlike the auth tokens, the outboxes must outlive the tab.
+const _outboxStorage = FlutterSecureStorage(
+  webOptions: WebOptions(dbName: 'seed_ui_outbox', publicKey: 'seed_ui_outbox'),
+);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -110,16 +119,15 @@ void main() {
           return (memberId == null || memberId.isEmpty) ? null : memberId;
         }),
 
-        // Repayments recorded offline are kept on the device.
+        // Repayments and registrations recorded offline are kept on the
+        // device.
         outboxStoreProvider.overrideWithValue(
+          const SecureOutboxStore(_outboxStorage),
+        ),
+        registrationOutboxStoreProvider.overrideWithValue(
           const SecureOutboxStore(
-            FlutterSecureStorage(
-              // Unlike the auth tokens, the outbox must outlive the tab.
-              webOptions: WebOptions(
-                dbName: 'seed_ui_outbox',
-                publicKey: 'seed_ui_outbox',
-              ),
-            ),
+            _outboxStorage,
+            key: SecureOutboxStore.registrations,
           ),
         ),
 
@@ -167,8 +175,8 @@ class _SeedAppState extends ConsumerState<SeedApp> {
   @override
   void initState() {
     super.initState();
-    // Repayments saved offline are sent when the app comes back to the
-    // foreground; each keeps its idempotency key, so a resend is harmless.
+    // Repayments and registrations saved offline are sent when the app
+    // comes back to the foreground; a resend of either is harmless.
     _lifecycle = AppLifecycleListener(onResume: _flushOutbox);
     WidgetsBinding.instance.addPostFrameCallback((_) => _flushOutbox());
   }
@@ -178,6 +186,11 @@ class _SeedAppState extends ConsumerState<SeedApp> {
       await ref.read(repaymentOutboxProvider.notifier).flush();
     } catch (_) {
       // Still offline or not signed in: the next resume tries again.
+    }
+    try {
+      await ref.read(registrationOutboxProvider.notifier).flush();
+    } catch (_) {
+      // As above.
     }
   }
 
