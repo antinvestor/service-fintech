@@ -3,6 +3,7 @@ import 'package:antinvestor_ui_core/api/stream_helpers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'identity_transport_provider.dart';
+import 'kyc_requirements_providers.dart';
 import 'paged_list.dart';
 
 /// List client data entries for a given client.
@@ -36,6 +37,7 @@ class ClientDataNotifier extends Notifier<AsyncValue<void>> {
       );
       ref.invalidate(clientDataListProvider);
       ref.invalidate(clientDataPagedListProvider);
+      ref.invalidate(clientKycRequirementsProvider);
       state = const AsyncValue.data(null);
       return resp.data;
     } catch (e, st) {
@@ -53,6 +55,7 @@ class ClientDataNotifier extends Notifier<AsyncValue<void>> {
       );
       ref.invalidate(clientDataListProvider);
       ref.invalidate(clientDataPagedListProvider);
+      ref.invalidate(clientKycRequirementsProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -68,6 +71,7 @@ class ClientDataNotifier extends Notifier<AsyncValue<void>> {
       );
       ref.invalidate(clientDataListProvider);
       ref.invalidate(clientDataPagedListProvider);
+      ref.invalidate(clientKycRequirementsProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -83,6 +87,7 @@ class ClientDataNotifier extends Notifier<AsyncValue<void>> {
       );
       ref.invalidate(clientDataListProvider);
       ref.invalidate(clientDataPagedListProvider);
+      ref.invalidate(clientKycRequirementsProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

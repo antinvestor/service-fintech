@@ -672,6 +672,23 @@ func (s *IdentityServer) ClientDataList(
 	}
 }
 
+// ClientKYCRequirements reports the client's organization's KYC
+// requirements and, for a client, where each required field stands.
+func (s *IdentityServer) ClientKYCRequirements(
+	ctx context.Context,
+	req *identityv1.ClientKYCRequirementsRequest,
+) (*identityv1.ClientKYCRequirementsResponse, error) {
+	reqs, err := s.clientDataBusiness.Requirements(ctx, req.GetClientId(), req.GetOwningTeamId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &identityv1.ClientKYCRequirementsResponse{
+		Template:     reqs.Template.ToAPI(),
+		Requirements: reqs.Requirements,
+		Complete:     reqs.Complete,
+	}, nil
+}
+
 // pageBounds resolves a page cursor into an offset and a per-batch limit. A
 // page token that is not a non-negative integer is rejected rather than
 // silently resolving to the first page.

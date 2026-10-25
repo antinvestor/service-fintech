@@ -34,7 +34,11 @@ var (
 	)
 	ErrClientKYCIncomplete = apperrors.NewError(
 		apperrors.Unprocessable,
-		"the client's KYC must be fully verified before they are activated",
+		"every KYC field the organization requires must be verified before the client is activated",
+	)
+	ErrClientKYCNotConfigured = apperrors.NewError(
+		apperrors.Unprocessable,
+		"the organization has no published client form template, so its KYC requirements are not set",
 	)
 	ErrClientContactsOnProfile = apperrors.NewError(
 		apperrors.BadRequest,

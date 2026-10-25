@@ -44,10 +44,11 @@ type options struct {
 	profiles           profilev1connect.ProfileServiceClient
 	relationshipRepo   repository.ClientRelationshipRepository
 	consentRepo        repository.ClientConsentChallengeRepository
-	clientDataRepo     repository.ClientDataEntryRepository
 	clientRepo         repository.ClientRepository
 	workforceRepo      repository.WorkforceMemberRepository
 	teamMembershipRepo repository.TeamMembershipRepository
+	kycPolicy          *KYCPolicy
+	clientGuard        *clientGuard
 }
 
 // WithProfiles lets client registration find or create the borrower's
@@ -61,9 +62,28 @@ func WithConsentChallenges(repo repository.ClientConsentChallengeRepository) Opt
 	return func(o *options) { o.consentRepo = repo }
 }
 
-// WithClientData lets activation check that a client's KYC is verified.
-func WithClientData(repo repository.ClientDataEntryRepository) Option {
-	return func(o *options) { o.clientDataRepo = repo }
+// WithKYCPolicy installs the per-organization KYC requirements: activation
+// checks them and the KYC flow reports them.
+func WithKYCPolicy(p *KYCPolicy) Option {
+	return func(o *options) { o.kycPolicy = p }
+}
+
+// WithClientGuard limits KYC data to staff and the agents serving the
+// client.
+func WithClientGuard(
+	clientRepo repository.ClientRepository,
+	workforceRepo repository.WorkforceMemberRepository,
+	teamMembershipRepo repository.TeamMembershipRepository,
+	relationshipRepo repository.ClientRelationshipRepository,
+) Option {
+	return func(o *options) {
+		o.clientGuard = &clientGuard{
+			clients:       clientRepo,
+			workforce:     workforceRepo,
+			memberships:   teamMembershipRepo,
+			relationships: relationshipRepo,
+		}
+	}
 }
 
 // WithRelationships lets client registration attach the registering agent

@@ -9,6 +9,7 @@ export 'src/providers/team_providers.dart';
 export 'src/providers/access_role_providers.dart';
 export 'src/providers/client_data_providers.dart';
 export 'src/providers/client_providers.dart';
+export 'src/providers/kyc_requirements_providers.dart';
 export 'src/providers/registration_outbox.dart';
 export 'src/providers/form_template_providers.dart';
 
@@ -37,6 +38,7 @@ export 'src/providers/department_providers.dart';
 // Widgets
 export 'src/widgets/async_state_views.dart';
 export 'src/widgets/client_helpers.dart';
+export 'src/widgets/template_field_input.dart';
 export 'src/widgets/load_more_action.dart';
 export 'src/widgets/org_unit_helpers.dart';
 export 'src/widgets/state_helpers.dart';

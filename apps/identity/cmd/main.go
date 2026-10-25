@@ -234,6 +234,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	accessRoleAssignmentRepo := repository.NewAccessRoleAssignmentRepository(ctx, dbPool, workMan)
 	clientDataEntryRepo := repository.NewClientDataEntryRepository(ctx, dbPool, workMan)
 	clientDataHistoryRepo := repository.NewClientDataEntryHistoryRepository(ctx, dbPool, workMan)
+	formTemplateRepo := repository.NewFormTemplateRepository(ctx, dbPool, workMan)
 
 	approvalCaseNotifier := business.NewApprovalCaseNotifier(
 		notifiers.notificationCli,
@@ -259,6 +260,9 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		agentBranchRepo,
 	)
 	clientRelationshipRepo := repository.NewClientRelationshipRepository(ctx, dbPool, workMan)
+	// What each organization requires of a client before it is activated:
+	// the required fields of its published client form template.
+	kycPolicy := business.NewKYCPolicy(internalTeamRepo, organizationRepo, formTemplateRepo, clientDataEntryRepo)
 	clientBusiness := business.NewClientBusiness(
 		ctx,
 		evtsMan,
@@ -273,7 +277,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 		business.WithProfiles(profileCli),
 		business.WithRelationships(clientRelationshipRepo),
 		business.WithConsentChallenges(repository.NewClientConsentChallengeRepository(dbPool)),
-		business.WithClientData(clientDataEntryRepo),
+		business.WithKYCPolicy(kycPolicy),
 	)
 	workforceBusiness := business.NewWorkforceBusiness(
 		evtsMan,
@@ -293,9 +297,10 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	membershipBusiness := business.NewMembershipBusiness(ctx, evtsMan, groupRepo, membershipRepo)
 	investorBusiness := business.NewInvestorBusiness(ctx, evtsMan, investorRepo)
 	clientDataBusiness := business.NewClientDataBusiness(ctx, evtsMan, clientDataEntryRepo, clientDataHistoryRepo,
-		business.WithClientNotifier(notifiers.client), business.WithClientLookup(clientRepo))
+		business.WithClientNotifier(notifiers.client), business.WithClientLookup(clientRepo),
+		business.WithKYCPolicy(kycPolicy),
+		business.WithClientGuard(clientRepo, workforceMemberRepo, teamMembershipRepo, clientRelationshipRepo))
 
-	formTemplateRepo := repository.NewFormTemplateRepository(ctx, dbPool, workMan)
 	formSubmissionRepo := repository.NewFormSubmissionRepository(ctx, dbPool, workMan)
 	formTemplateBusiness := business.NewFormTemplateBusiness(ctx, evtsMan, formTemplateRepo)
 	formSubmissionBusiness := business.NewFormSubmissionBusiness(ctx, evtsMan, formSubmissionRepo, formTemplateRepo)

@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 
 import '../providers/client_data_providers.dart';
 import '../providers/client_providers.dart';
+import '../providers/kyc_requirements_providers.dart';
 import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
@@ -136,11 +137,9 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
               StateBadge(state: fieldStateToCommon(_client.state)),
               if (widget.canManage && clientAwaitingActivation(_client)) ...[
                 const SizedBox(width: 12),
-                FilledButton.icon(
-                  key: const Key('client-activate'),
-                  onPressed: () => _activate(context),
-                  icon: const Icon(Icons.verified_user_outlined),
-                  label: const Text('Activate'),
+                _ActivateButton(
+                  clientId: _client.id,
+                  onActivate: () => _activate(context),
                 ),
               ],
               if (widget.canManage) ...[
@@ -329,6 +328,97 @@ class _InfoRow extends StatelessWidget {
 
 /// The KYC data collected about a client, with the verification lifecycle
 /// actions a reviewer may take on each entry.
+/// Activation is offered once every field the organization requires is
+/// verified; until then the button says what is missing.
+class _ActivateButton extends ConsumerWidget {
+  const _ActivateButton({required this.clientId, required this.onActivate});
+
+  final String clientId;
+  final VoidCallback onActivate;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reqs = ref.watch(clientKycRequirementsProvider(clientId)).value;
+    final ready = reqs?.complete ?? false;
+    final missing = reqs == null
+        ? 'Checking KYC requirements'
+        : '${reqs.requirements.where((r) => r.status != DataVerificationStatus.DATA_VERIFICATION_STATUS_VERIFIED).length} '
+              'required KYC field(s) still to verify';
+    return Tooltip(
+      message: ready ? 'Send the borrower their activation code' : missing,
+      child: FilledButton.icon(
+        key: const Key('client-activate'),
+        onPressed: ready ? onActivate : null,
+        icon: const Icon(Icons.verified_user_outlined),
+        label: const Text('Activate'),
+      ),
+    );
+  }
+}
+
+/// What the client's organization requires, and where each field stands.
+class _RequirementsChecklist extends ConsumerWidget {
+  const _RequirementsChecklist({required this.clientId});
+
+  final String clientId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final async = ref.watch(clientKycRequirementsProvider(clientId));
+    return async.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) => Padding(
+        key: const Key('kyc-requirements-error'),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+        child: Text(
+          friendlyError(e),
+          style: TextStyle(color: theme.colorScheme.error),
+        ),
+      ),
+      data: (reqs) => Padding(
+        key: const Key('kyc-requirements'),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              reqs.complete
+                  ? 'All required KYC is verified'
+                  : 'Required before activation',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final r in reqs.requirements)
+                  Chip(
+                    key: Key('kyc-requirement-${r.fieldKey}'),
+                    avatar: Icon(
+                      r.status ==
+                              DataVerificationStatus
+                                  .DATA_VERIFICATION_STATUS_VERIFIED
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      size: 16,
+                      color: verificationStatusColor(r.status),
+                    ),
+                    label: Text(
+                      '${r.label.isNotEmpty ? r.label : r.fieldKey}: '
+                      '${r.status == DataVerificationStatus.DATA_VERIFICATION_STATUS_UNSPECIFIED ? 'Missing' : verificationStatusLabel(r.status)}',
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _KycTab extends ConsumerWidget {
   const _KycTab({required this.clientId, required this.canManage});
 
@@ -343,6 +433,7 @@ class _KycTab extends ConsumerWidget {
 
     return Column(
       children: [
+        _RequirementsChecklist(clientId: clientId),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
           child: Row(

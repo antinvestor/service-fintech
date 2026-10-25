@@ -1,6 +1,10 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
-    show ClientDataEntryObject, DataVerificationStatus;
+    show
+        ClientDataEntryObject,
+        ClientKYCRequirementStatus,
+        ClientKYCRequirementsResponse,
+        DataVerificationStatus;
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
 import 'package:connectrpc/connect.dart';
 import 'package:flutter/material.dart';
@@ -94,9 +98,24 @@ Widget _host({
   bool canManage = false,
   STATE state = STATE.ACTIVE,
   ClientNotifier Function()? clientNotifier,
+  bool kycComplete = true,
 }) {
   return ProviderScope(
     overrides: [
+      clientKycRequirementsProvider.overrideWith(
+        (ref, id) async => ClientKYCRequirementsResponse(
+          complete: kycComplete,
+          requirements: [
+            ClientKYCRequirementStatus(
+              fieldKey: 'national_id',
+              label: 'National ID',
+              status: kycComplete
+                  ? DataVerificationStatus.DATA_VERIFICATION_STATUS_VERIFIED
+                  : DataVerificationStatus.DATA_VERIFICATION_STATUS_UNSPECIFIED,
+            ),
+          ],
+        ),
+      ),
       if (clientNotifier != null)
         clientNotifierProvider.overrideWith(clientNotifier),
       clientDetailProvider.overrideWith(
@@ -342,7 +361,35 @@ void main() {
     expect(find.text('Amina Wanjiru is now an active client'), findsNothing);
   });
 
-  testWidgets('activation before KYC is verified is refused', (tester) async {
+  testWidgets('activation waits until the required KYC is verified', (
+    tester,
+  ) async {
+    _wide(tester);
+    final saved = <ClientObject>[];
+    await tester.pumpWidget(
+      _host(
+        entries: const [],
+        log: [],
+        canManage: true,
+        state: STATE.CREATED,
+        kycComplete: false,
+        clientNotifier: () => _ActivatingClientNotifier(saved),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<ButtonStyleButton>(
+      find.byKey(const Key('client-activate')),
+    );
+    expect(button.onPressed, isNull, reason: 'nothing to activate yet');
+
+    await _openKyc(tester);
+    expect(find.text('Required before activation'), findsOneWidget);
+    expect(find.text('National ID: Missing'), findsOneWidget);
+    expect(saved, isEmpty);
+  });
+
+  testWidgets('a refused activation is reported', (tester) async {
     _wide(tester);
     final saved = <ClientObject>[];
     await tester.pumpWidget(

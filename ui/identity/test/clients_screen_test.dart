@@ -1,6 +1,10 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
-    show ClientDataEntryObject;
+    show
+        ClientDataEntryObject,
+        FormFieldDefinition,
+        FormFieldType,
+        FormTemplateObject;
 import 'package:connectrpc/connect.dart';
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
 import 'package:flutter/material.dart';
@@ -80,10 +84,12 @@ Widget _host({
   List<ClientDataEntryObject>? details,
   _Network? network,
   bool listFails = false,
+  FormTemplateObject? template,
 }) {
   final net = network ?? _Network();
   return ProviderScope(
     overrides: [
+      onboardingTemplateProvider.overrideWith((ref) async => template),
       clientPagedListProvider.overrideWith2(
         (params) => listFails
             ? _FailingClientPagedList(params)
@@ -292,5 +298,79 @@ void main() {
     expect(find.text('Phone number is required'), findsOneWidget);
     expect(saved, isEmpty);
     expect(find.byType(ClientFormDialog), findsOneWidget);
+  });
+
+  testWidgets('onboarding asks for the organization\'s own client form', (
+    tester,
+  ) async {
+    _wide(tester);
+    final saved = <ClientObject>[];
+    final details = <ClientDataEntryObject>[];
+    await tester.pumpWidget(
+      _host(
+        calls: [],
+        saved: saved,
+        canManage: true,
+        details: details,
+        template: FormTemplateObject(
+          organizationId: 'org-1',
+          entityType: 'client',
+          fields: [
+            FormFieldDefinition(
+              key: 'national_id',
+              label: 'National ID',
+              required: true,
+              order: 1,
+            ),
+            FormFieldDefinition(
+              key: 'county',
+              label: 'County',
+              fieldType: FormFieldType.FORM_FIELD_TYPE_SELECT,
+              options: ['Nairobi', 'Kiambu'],
+              order: 2,
+            ),
+            FormFieldDefinition(
+              key: 'id_photo',
+              label: 'ID photo',
+              fieldType: FormFieldType.FORM_FIELD_TYPE_PHOTO,
+              required: true,
+              order: 3,
+            ),
+            FormFieldDefinition(key: 'phone_number', label: 'Phone'),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Onboard client'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('client-form-no-template')), findsNothing);
+    expect(find.byKey(const Key('client-form-occupation')), findsNothing);
+    expect(find.byKey(const Key('template-field-phone_number')), findsNothing);
+    expect(find.byKey(const Key('template-field-id_photo')), findsNothing);
+    expect(find.byKey(const Key('client-form-uploads-later')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('client-form-name')), 'Amina');
+    await tester.enterText(
+      find.byKey(const Key('client-form-phone')),
+      '+254700000001',
+    );
+    await tester.enterText(
+      find.byKey(const Key('template-field-national_id')),
+      '998877',
+    );
+    await tester.tap(find.byKey(const Key('template-field-county')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kiambu').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('client-form-submit')));
+    await tester.pumpAndSettle();
+
+    expect(clientNationalId(saved.single), '998877');
+    expect(
+      {for (final d in details) d.fieldKey: d.value},
+      {'national_id': '998877', 'county': 'Kiambu'},
+    );
   });
 }

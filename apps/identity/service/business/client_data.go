@@ -46,6 +46,9 @@ type ClientDataBusiness interface {
 	Reject(ctx context.Context, entryID, reason string) (*models.ClientDataEntry, error)
 	RequestInfo(ctx context.Context, entryID, comment string) (*models.ClientDataEntry, error)
 	History(ctx context.Context, entryID string) ([]*models.ClientDataEntryHistory, error)
+	// Requirements reports what the client's organization requires; with no
+	// client, what a borrower registered into teamID will need.
+	Requirements(ctx context.Context, clientID, teamID string) (*KYCRequirements, error)
 }
 
 type clientDataBusiness struct {
@@ -54,6 +57,8 @@ type clientDataBusiness struct {
 	historyRepo repository.ClientDataEntryHistoryRepository
 	notifier    *ClientNotifier
 	clients     clientLookup
+	guard       *clientGuard
+	kycPolicy   *KYCPolicy
 }
 
 func NewClientDataBusiness(
@@ -70,12 +75,17 @@ func NewClientDataBusiness(
 		historyRepo: historyRepo,
 		notifier:    o.clientNotifier,
 		clients:     o.clientLookup,
+		guard:       o.clientGuard,
+		kycPolicy:   o.kycPolicy,
 	}
 }
 
 func (b *clientDataBusiness) Save(ctx context.Context, entry *models.ClientDataEntry) (*models.ClientDataEntry, error) {
 	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.Save")
 
+	if _, err := b.guard.authorize(ctx, entry.ClientID); err != nil {
+		return nil, err
+	}
 	if entry.GetID() == "" {
 		entry.GenID(ctx)
 	}
@@ -125,6 +135,9 @@ func applyResubmission(ctx context.Context, existing, incoming *models.ClientDat
 }
 
 func (b *clientDataBusiness) Get(ctx context.Context, clientID, fieldKey string) (*models.ClientDataEntry, error) {
+	if _, err := b.guard.authorize(ctx, clientID); err != nil {
+		return nil, err
+	}
 	entry, err := b.entryRepo.GetByClientAndKey(ctx, clientID, fieldKey)
 	if err != nil {
 		return nil, ErrClientDataEntryNotFound
@@ -140,6 +153,9 @@ func (b *clientDataBusiness) List(
 ) ([]*models.ClientDataEntry, error) {
 	if offset < 0 {
 		return nil, ErrInvalidPageToken
+	}
+	if _, err := b.guard.authorize(ctx, clientID); err != nil {
+		return nil, err
 	}
 	if limit <= 0 || limit > maxSearchLimit {
 		limit = defaultSearchLimit
@@ -208,6 +224,9 @@ func (b *clientDataBusiness) review(
 	entry, err := b.entryRepo.GetByID(ctx, entryID)
 	if err != nil {
 		return nil, ErrClientDataEntryNotFound
+	}
+	if _, err = b.guard.authorize(ctx, entry.ClientID); err != nil {
+		return nil, err
 	}
 
 	if !isReviewableStatus(entry.VerificationStatus) {
@@ -309,11 +328,36 @@ func (b *clientDataBusiness) History(
 	ctx context.Context,
 	entryID string,
 ) ([]*models.ClientDataEntryHistory, error) {
-	// Verify entry exists
-	if _, err := b.entryRepo.GetByID(ctx, entryID); err != nil {
+	entry, err := b.entryRepo.GetByID(ctx, entryID)
+	if err != nil {
 		return nil, ErrClientDataEntryNotFound
 	}
+	if _, err = b.guard.authorize(ctx, entry.ClientID); err != nil {
+		return nil, err
+	}
 	return b.historyRepo.GetByEntryID(ctx, entryID)
+}
+
+func (b *clientDataBusiness) Requirements(ctx context.Context, clientID, teamID string) (*KYCRequirements, error) {
+	if b.kycPolicy == nil {
+		return nil, ErrClientKYCNotConfigured
+	}
+	if clientID != "" {
+		client, err := b.guard.authorize(ctx, clientID)
+		if err != nil {
+			return nil, err
+		}
+		return b.kycPolicy.ForClient(ctx, client)
+	}
+	team, err := b.guard.onboardingTeam(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	tmpl, err := b.kycPolicy.TemplateForTeam(ctx, team)
+	if err != nil {
+		return nil, err
+	}
+	return &KYCRequirements{Template: tmpl}, nil
 }
 
 // recordHistory emits a history save event for the given entry action.

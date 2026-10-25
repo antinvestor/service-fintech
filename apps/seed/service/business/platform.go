@@ -23,10 +23,9 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
-	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"github.com/pitabwire/util/moneyx"
@@ -34,80 +33,33 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
 
-// identityKYCVerifier resolves a client's KYC verdict from the verified client
-// data the identity service holds. A client counts as verified when every
-// field key in the deployment's checklist is present and VERIFIED.
-type identityKYCVerifier struct {
-	identityCli identityv1connect.IdentityServiceClient
-	// requiredFields is the deployment's KYC checklist. An empty checklist
-	// means "at least one verified data entry".
-	requiredFields []string
+// clientStandingKYCVerifier reads a client's KYC verdict from identity:
+// a client is activated (ACTIVE) only once every field its organization
+// requires is verified and the person consented. What each organization
+// requires is configured there, on its client form template, not here.
+type clientStandingKYCVerifier struct {
+	fieldCli fieldv1connect.FieldServiceClient
 }
 
-// NewIdentityKYCVerifier builds the production KYC verifier.
-func NewIdentityKYCVerifier(
-	identityCli identityv1connect.IdentityServiceClient,
-	requiredFields []string,
-) KYCVerifier {
-	return &identityKYCVerifier{identityCli: identityCli, requiredFields: requiredFields}
+// NewClientStandingKYCVerifier builds the production KYC verifier.
+func NewClientStandingKYCVerifier(fieldCli fieldv1connect.FieldServiceClient) KYCVerifier {
+	return &clientStandingKYCVerifier{fieldCli: fieldCli}
 }
 
-func (v *identityKYCVerifier) VerifyClient(ctx context.Context, clientID string) (KYCStatus, error) {
-	stream, err := v.identityCli.ClientDataList(ctx, &identityv1.ClientDataListRequest{ClientId: clientID})
+func (v *clientStandingKYCVerifier) VerifyClient(ctx context.Context, clientID string) (KYCStatus, error) {
+	resp, err := v.fieldCli.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
 	if err != nil {
-		return KYCStatusUnknown, fmt.Errorf("list client data: %w", err)
+		return KYCStatusUnknown, fmt.Errorf("client get: %w", err)
 	}
-
-	verified := map[string]bool{}
-	rejected := false
-	anyEntry := false
-	for {
-		msg, streamErr := stream.Receive()
-		if streamErr != nil {
-			if errors.Is(streamErr, io.EOF) {
-				break
-			}
-			return KYCStatusUnknown, fmt.Errorf("list client data: %w", streamErr)
-		}
-		for _, entry := range msg.GetData() {
-			anyEntry = true
-			switch entry.GetVerificationStatus() {
-			case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED:
-				verified[entry.GetFieldKey()] = true
-			case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_REJECTED,
-				identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_EXPIRED:
-				rejected = true
-			case identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNSPECIFIED,
-				identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED,
-				identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNDER_REVIEW,
-				identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_MORE_INFO_NEEDED:
-			}
-		}
-	}
-
-	if len(v.requiredFields) == 0 {
-		if len(verified) > 0 {
-			return KYCStatusVerified, nil
-		}
-		return pendingOrFailed(anyEntry, rejected), nil
-	}
-
-	for _, field := range v.requiredFields {
-		if !verified[field] {
-			return pendingOrFailed(anyEntry, rejected), nil
-		}
-	}
-	return KYCStatusVerified, nil
-}
-
-func pendingOrFailed(anyEntry, rejected bool) KYCStatus {
-	switch {
-	case rejected:
-		return KYCStatusFailed
-	case anyEntry:
-		return KYCStatusPending
+	switch resp.GetData().GetState() {
+	case commonv1.STATE_ACTIVE:
+		return KYCStatusVerified, nil
+	case commonv1.STATE_CREATED, commonv1.STATE_CHECKED:
+		return KYCStatusPending, nil
+	case commonv1.STATE_INACTIVE, commonv1.STATE_DELETED:
+		return KYCStatusFailed, nil
 	default:
-		return KYCStatusUnknown
+		return KYCStatusFailed, nil
 	}
 }
 

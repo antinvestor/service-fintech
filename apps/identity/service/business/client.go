@@ -16,7 +16,6 @@ package business
 
 import (
 	"context"
-	"fmt"
 
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
@@ -25,7 +24,6 @@ import (
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
-	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
@@ -75,7 +73,7 @@ type clientBusiness struct {
 	profiles           profilev1connect.ProfileServiceClient
 	crRepo             repository.ClientRelationshipRepository
 	consentRepo        repository.ClientConsentChallengeRepository
-	clientDataRepo     repository.ClientDataEntryRepository
+	kycPolicy          *KYCPolicy
 }
 
 func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -94,7 +92,7 @@ func NewClientBusiness(_ context.Context, eventsMan fevents.Manager,
 		profiles:           o.profiles,
 		crRepo:             o.relationshipRepo,
 		consentRepo:        o.consentRepo,
-		clientDataRepo:     o.clientDataRepo,
+		kycPolicy:          o.kycPolicy,
 		eventsMan:          eventsMan,
 		clientRepo:         clientRepo,
 		clientHistoryRepo:  clientHistoryRepo,
@@ -377,53 +375,30 @@ func (b *clientBusiness) saveExisting(
 	return presentClient(client, scope == nil), nil
 }
 
-// activate gates moving a CREATED client to ACTIVE: every KYC entry the
-// client has must be verified, and a field agent must also have the
-// person's consent code (confirmActivation). It returns a pending response
-// while a code is awaited.
+// activate gates moving a CREATED client to ACTIVE: every KYC field the
+// client's organization requires must be verified, and a field agent must
+// also have the person's consent code (confirmActivation). It returns a
+// pending response while a code is awaited.
 func (b *clientBusiness) activate(
 	ctx context.Context,
 	client *models.Client,
 	scope *callerScope,
 	consent consentProperties,
 ) (*fieldv1.ClientObject, error) {
-	verified, err := b.kycVerified(ctx, client.GetID())
+	if b.kycPolicy == nil {
+		return nil, ErrClientKYCNotConfigured
+	}
+	reqs, err := b.kycPolicy.ForClient(ctx, client)
 	if err != nil {
 		return nil, err
 	}
-	if !verified {
+	if !reqs.Complete {
 		return nil, ErrClientKYCIncomplete
 	}
 	if scope == nil {
 		return nil, nil //nolint:nilnil // staff activate without a code
 	}
 	return b.confirmActivation(ctx, client, scope, consent)
-}
-
-// kycVerified reports whether a client has KYC data and all of it is
-// verified. Which fields a product needs is the product's own check.
-func (b *clientBusiness) kycVerified(ctx context.Context, clientID string) (bool, error) {
-	if b.clientDataRepo == nil {
-		return false, ErrClientKYCIncomplete
-	}
-	const pageSize = 200
-	verified := int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_VERIFIED)
-	seen := 0
-	for offset := 0; ; offset += pageSize {
-		entries, err := b.clientDataRepo.GetByClientID(ctx, clientID, 0, offset, pageSize)
-		if err != nil {
-			return false, fmt.Errorf("list client data: %w", err)
-		}
-		for _, e := range entries {
-			if e.VerificationStatus != verified {
-				return false, nil
-			}
-		}
-		seen += len(entries)
-		if len(entries) < pageSize {
-			return seen > 0, nil
-		}
-	}
 }
 
 // ensureProfile asks the profile service for the borrower's profile by the

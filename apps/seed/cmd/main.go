@@ -37,7 +37,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
@@ -46,7 +45,6 @@ import (
 
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	"github.com/antinvestor/common/v3"
@@ -159,14 +157,6 @@ func main() {
 
 	auditWriter := audit.NewWriter(evtsMan)
 
-	if cfg.IsRunSecurely() && strings.TrimSpace(cfg.SeedKYCRequiredFields) == "" {
-		// Without named fields any single verified entry passes KYC. That is
-		// a local-development shortcut, never a production policy.
-		log.Error(
-			"main -- SEED_KYC_REQUIRED_FIELDS must name the KYC fields a borrower needs verified; refusing to start",
-		)
-		return
-	}
 	kycVerifier, loanCreator, clientResolver, payouts := buildPeers(ctx, &cfg, log)
 
 	cpBusiness := business.NewCreditProfileBusiness(ctx, cpRepo, tierRepo, evtsMan, auditWriter)
@@ -208,13 +198,6 @@ func buildPeers(
 	cfg *aconfig.SeedConfig,
 	log *util.LogEntry,
 ) (business.KYCVerifier, business.LoanCreator, business.ClientResolver, business.PayoutDestinationResolver) {
-	identityCli, idErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
-		Endpoint:  cfg.IdentityServiceURI,
-		ServiceID: servicecatalog.ServiceIdentity,
-	}, identityv1connect.NewIdentityServiceClient)
-	if idErr != nil {
-		log.WithError(idErr).Fatal("main -- identity client is required but could not be created")
-	}
 	// Clients live on the field service, which the identity binary also serves.
 	fieldCli, fieldErr := connection.NewServiceClient(ctx, cfg, common.ServiceTarget{
 		Endpoint:  cfg.IdentityServiceURI,
@@ -240,7 +223,9 @@ func buildPeers(
 		log.WithError(profileErr).Fatal("main -- profile client is required but could not be created")
 	}
 
-	return business.NewIdentityKYCVerifier(identityCli, splitCSV(cfg.SeedKYCRequiredFields)),
+	// A client may borrow once identity has activated them: their
+	// organization's required KYC verified and their consent given.
+	return business.NewClientStandingKYCVerifier(fieldCli),
 		business.NewLoansLoanCreator(loansCli),
 		business.NewIdentityClientResolver(fieldCli),
 		business.NewProfilePayoutResolver(fieldCli, profileCli)
@@ -323,15 +308,4 @@ func buildHandler(
 	root.Handle("/", secured)
 
 	return httptor.ContextSetupMiddleware(ctx, root)
-}
-
-// splitCSV turns a comma-separated env value into a trimmed slice.
-func splitCSV(value string) []string {
-	var result []string
-	for _, part := range strings.Split(value, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }

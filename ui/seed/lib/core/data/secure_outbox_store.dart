@@ -1,12 +1,13 @@
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart'
-    show RegistrationOutboxStore;
+    show OnboardingFormCache, RegistrationOutboxStore;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show OutboxStore;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Keeps an outbox in the device's secure storage under [_key], so work
 /// recorded offline survives the app closing.
-class SecureOutboxStore implements OutboxStore, RegistrationOutboxStore {
+class SecureOutboxStore
+    implements OutboxStore, RegistrationOutboxStore, OnboardingFormCache {
   const SecureOutboxStore(this._storage, {String key = repayments})
     : _key = key;
 
@@ -15,6 +16,9 @@ class SecureOutboxStore implements OutboxStore, RegistrationOutboxStore {
 
   /// Borrower registrations captured while offline.
   static const registrations = 'identity.registration_outbox';
+
+  /// The organization's client form, so onboarding offline asks for it.
+  static const onboardingForm = 'identity.onboarding_form';
 
   final FlutterSecureStorage _storage;
   final String _key;

@@ -312,9 +312,7 @@ needed the person and a connection at the moment of capture. Registration
 now asks nobody for anything. Every new client starts CREATED, whatever the
 payload says. It becomes ACTIVE only by activation:
 
-- every KYC entry the client has is VERIFIED, and there is at least one
-  (`ErrClientKYCIncomplete` otherwise); which fields a product needs stays
-  the product's own check;
+- the KYC its organization requires is VERIFIED (see §22);
 - a field agent then gets a code sent to the client's consent contact and
   resubmits with it (15-minute TTL, five attempts, bound to the profile and
   the agent). Staff activate without a code.
@@ -337,3 +335,25 @@ before activation.
 Migration 006 marks every stored CREATED client ACTIVE: before this change
 a stored client had either passed consent at registration or been registered
 by staff.
+
+## 22. Addendum 2026-10-25 — KYC requirements per organization
+
+KYC requirements were one list for the whole seed service
+(`SEED_KYC_REQUIRED_FIELDS`). Each organization now sets its own, as the
+required fields of its newest published client form template (`entity_type`
+"client"). An organization without one uses its nearest ancestor's; with
+none anywhere, its clients cannot be activated (`ErrClientKYCNotConfigured`)
+until it publishes one. The same template is the onboarding form the agent
+fills in, so what is captured and what is required cannot drift apart; the
+app caches it for offline onboarding.
+
+`IdentityService.ClientKYCRequirements` returns the template and, for a
+client, the status of each required field. Activation requires every one
+VERIFIED. Seed no longer checks fields itself: a client may borrow when
+identity has activated them, so `SEED_KYC_REQUIRED_FIELDS` is gone.
+
+Found on the way: KYC data was not scoped to the caller. Any member could
+list any client's entries, and field agents (members) lacked
+`client_data_manage`, so the details captured at onboarding were refused on
+sync. KYC reads, writes, reviews and history are now allowed only for staff
+and the agents serving the client, and members hold `client_data_manage`.

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/client_providers.dart';
+import '../providers/kyc_requirements_providers.dart';
 import '../providers/paged_list.dart';
 import '../providers/registration_outbox.dart';
 import '../widgets/async_state_views.dart';
@@ -161,10 +162,14 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
   }
 
   Future<void> _onboard(BuildContext context) async {
+    // The organization's client form, fresh when online and the cached copy
+    // otherwise; the provider never fails.
+    final template = await ref.refresh(onboardingTemplateProvider.future);
+    if (!context.mounted) return;
     final draft = await showDialog<ClientRegistrationDraft>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const ClientFormDialog(),
+      builder: (_) => ClientFormDialog(template: template),
     );
     if (draft == null || !context.mounted) return;
 

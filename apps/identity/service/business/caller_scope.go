@@ -130,3 +130,61 @@ func clientInCallerScope(
 	return err == nil && rel != nil &&
 		(rel.State == int32(commonv1.STATE_ACTIVE) || rel.State == int32(commonv1.STATE_CREATED))
 }
+
+// clientGuard decides whether the caller may act on a client's records:
+// staff may act on any, a field agent only on clients they serve.
+type clientGuard struct {
+	clients       repository.ClientRepository
+	workforce     repository.WorkforceMemberRepository
+	memberships   repository.TeamMembershipRepository
+	relationships repository.ClientRelationshipRepository
+}
+
+// authorize loads the client and checks the caller may act on it. Without
+// a guard nothing is authorised.
+func (g *clientGuard) authorize(ctx context.Context, clientID string) (*models.Client, error) {
+	if g == nil || g.clients == nil {
+		return nil, ErrClientOutsideCallerScope
+	}
+	client, err := g.clients.GetByID(ctx, clientID)
+	if err != nil || client == nil {
+		return nil, ErrClientNotFound
+	}
+	if callerIsStaff(ctx) {
+		return client, nil
+	}
+	scope, err := resolveCallerScope(ctx, g.workforce, g.memberships)
+	if err != nil {
+		return nil, err
+	}
+	if !clientInCallerScope(ctx, client, scope, g.relationships) {
+		return nil, ErrClientOutsideCallerScope
+	}
+	return client, nil
+}
+
+// onboardingTeam is the team a borrower would be registered into: the
+// named one, which a field agent must belong to, or the agent's primary
+// team. Staff must name it.
+func (g *clientGuard) onboardingTeam(ctx context.Context, teamID string) (string, error) {
+	if callerIsStaff(ctx) {
+		if teamID == "" {
+			return "", ErrOwningTeamRequired
+		}
+		return teamID, nil
+	}
+	if g == nil {
+		return "", ErrClientOutsideCallerScope
+	}
+	scope, err := resolveCallerScope(ctx, g.workforce, g.memberships)
+	if err != nil {
+		return "", err
+	}
+	if teamID == "" && len(scope.teamIDs) > 0 {
+		teamID = scope.teamIDs[0]
+	}
+	if !scope.inTeam(teamID) {
+		return "", ErrClientOutsideCallerScope
+	}
+	return teamID, nil
+}
