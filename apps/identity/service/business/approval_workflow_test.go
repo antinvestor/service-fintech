@@ -463,7 +463,7 @@ func (s *approvalWorkflowSuite) newEnv() *approvalWorkflowEnv {
 		WithRelationships(crRepo),
 		WithProfiles(profiles),
 		WithConsentChallenges(repository.NewClientConsentChallengeRepository(dbPool)),
-		WithClientData(clientDataRepo),
+		WithKYCPolicy(NewKYCPolicy(internalTeamRepo, organizationRepo, formTemplateRepo, clientDataRepo)),
 	)
 
 	return &approvalWorkflowEnv{
@@ -731,4 +731,28 @@ func (s *approvalCaseBusinessStub) GetOpenBySubject(
 	_, _, _ string,
 ) (*models.ApprovalCase, error) {
 	panic("unexpected GetOpenBySubject call")
+}
+
+// clientDataBusiness is the KYC flow as production wires it: scoped to the
+// clients the caller may act on, with the organization's requirements.
+func (e *approvalWorkflowEnv) clientDataBusiness() ClientDataBusiness {
+	return NewClientDataBusiness(e.ctx, e.eventsMan, e.clientDataRepo, e.clientDataHist,
+		WithKYCPolicy(NewKYCPolicy(e.internalTeamRepo, e.organizationRepo, e.formTemplateRepo, e.clientDataRepo)),
+		WithClientGuard(e.clientRepo, e.workforceMemberRepo, e.teamMembershipRepo, e.crRepo))
+}
+
+// ensureClient stores a bare client row with id, so KYC data can hang off it.
+func (e *approvalWorkflowEnv) ensureClient(id string) {
+	e.t.Helper()
+	if _, err := e.clientRepo.GetByID(e.ctx, id); err == nil {
+		return
+	}
+	claims := security.ClaimsFromContext(e.ctx)
+	client := &models.Client{Name: id}
+	client.GenID(e.ctx)
+	client.ID = id
+	client.TenantID, client.PartitionID = claims.GetTenantID(), claims.GetPartitionID()
+	if err := e.clientRepo.Create(e.ctx, client); err != nil {
+		e.t.Fatalf("create client: %v", err)
+	}
 }

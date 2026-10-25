@@ -19,6 +19,7 @@ import (
 	"errors"
 	"time"
 
+	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/workerpool"
@@ -41,6 +42,9 @@ type FormTemplateRepository interface {
 		id, actorID string,
 		fromStatus, toStatus int32,
 	) (*models.FormTemplate, error)
+	// LatestPublished returns an organization's newest published template
+	// for entityType, or nil when it has none.
+	LatestPublished(ctx context.Context, organizationID, entityType string) (*models.FormTemplate, error)
 }
 
 type formTemplateRepository struct {
@@ -88,4 +92,24 @@ func (repo *formTemplateRepository) Publish(
 		return nil, err
 	}
 	return published, nil
+}
+
+func (repo *formTemplateRepository) LatestPublished(
+	ctx context.Context,
+	organizationID, entityType string,
+) (*models.FormTemplate, error) {
+	var found []*models.FormTemplate
+	err := repo.Pool().DB(ctx, true).
+		Where("organization_id = ? AND entity_type = ? AND status = ?",
+			organizationID, entityType, int32(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_PUBLISHED)).
+		Order("template_version DESC, modified_at DESC").
+		Limit(1).
+		Find(&found).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(found) == 0 {
+		return nil, nil //nolint:nilnil // no template is an answer, not an error
+	}
+	return found[0], nil
 }

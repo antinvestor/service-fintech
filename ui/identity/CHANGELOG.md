@@ -1,3 +1,14 @@
+## 0.5.0
+
+- KYC requirements come from each organization's published client form
+  template. Onboarding renders that form (`TemplateFieldInput`), cached for
+  offline use (`onboardingTemplateProvider`, `onboardingFormCacheProvider`);
+  without one the usual details are asked for.
+- The client's KYC tab lists what the organization requires and where each
+  field stands (`clientKycRequirementsProvider`); "Activate" is enabled only
+  when all of it is verified.
+- Requires `antinvestor_api_identity ^0.8.0`.
+
 ## 0.4.0
 
 - Consent moves from registration to activation. Registering a borrower

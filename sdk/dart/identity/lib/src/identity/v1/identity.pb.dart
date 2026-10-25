@@ -9266,6 +9266,261 @@ class ClientDataListResponse extends $pb.GeneratedMessage {
   $1.PageCursor ensureNextCursor() => $_ensure(1);
 }
 
+/// ClientKYCRequirementsRequest names either the client whose KYC is being
+/// checked, or (before a client exists) the team a borrower is being
+/// registered into. With neither, a field agent's own primary team is used.
+class ClientKYCRequirementsRequest extends $pb.GeneratedMessage {
+  factory ClientKYCRequirementsRequest({
+    $core.String? clientId,
+    $core.String? owningTeamId,
+  }) {
+    final result = ClientKYCRequirementsRequest._();
+    if (clientId != null) result.clientId = clientId;
+    if (owningTeamId != null) result.owningTeamId = owningTeamId;
+    return result;
+  }
+
+  ClientKYCRequirementsRequest._();
+
+  factory ClientKYCRequirementsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientKYCRequirementsRequest()..mergeFromBuffer(data, registry);
+  factory ClientKYCRequirementsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientKYCRequirementsRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientKYCRequirementsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientKYCRequirementsRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'clientId')
+    ..aOS(2, _omitFieldNames ? '' : 'owningTeamId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientKYCRequirementsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientKYCRequirementsRequest copyWith(
+          void Function(ClientKYCRequirementsRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientKYCRequirementsRequest))
+          as ClientKYCRequirementsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientKYCRequirementsRequest() / ClientKYCRequirementsRequest.new instead')
+  static ClientKYCRequirementsRequest create() =>
+      ClientKYCRequirementsRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientKYCRequirementsRequest._();
+  @$core.override
+  ClientKYCRequirementsRequest createEmptyInstance() =>
+      ClientKYCRequirementsRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ClientKYCRequirementsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientKYCRequirementsRequest>(
+          ClientKYCRequirementsRequest.$_createMessage);
+  static ClientKYCRequirementsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get clientId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set clientId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasClientId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearClientId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get owningTeamId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set owningTeamId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasOwningTeamId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearOwningTeamId() => $_clearField(2);
+}
+
+/// ClientKYCRequirementStatus is one required field and where the client's
+/// entry for it stands. Status is UNSPECIFIED when nothing was collected.
+class ClientKYCRequirementStatus extends $pb.GeneratedMessage {
+  factory ClientKYCRequirementStatus({
+    $core.String? fieldKey,
+    $core.String? label,
+    DataVerificationStatus? status,
+  }) {
+    final result = ClientKYCRequirementStatus._();
+    if (fieldKey != null) result.fieldKey = fieldKey;
+    if (label != null) result.label = label;
+    if (status != null) result.status = status;
+    return result;
+  }
+
+  ClientKYCRequirementStatus._();
+
+  factory ClientKYCRequirementStatus.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientKYCRequirementStatus()..mergeFromBuffer(data, registry);
+  factory ClientKYCRequirementStatus.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientKYCRequirementStatus()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientKYCRequirementStatus',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientKYCRequirementStatus.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'fieldKey')
+    ..aOS(2, _omitFieldNames ? '' : 'label')
+    ..aE<DataVerificationStatus>(3, _omitFieldNames ? '' : 'status',
+        enumValues: DataVerificationStatus.values)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientKYCRequirementStatus clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientKYCRequirementStatus copyWith(
+          void Function(ClientKYCRequirementStatus) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientKYCRequirementStatus))
+          as ClientKYCRequirementStatus;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientKYCRequirementStatus() / ClientKYCRequirementStatus.new instead')
+  static ClientKYCRequirementStatus create() => ClientKYCRequirementStatus._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientKYCRequirementStatus._();
+  @$core.override
+  ClientKYCRequirementStatus createEmptyInstance() =>
+      ClientKYCRequirementStatus._();
+  @$core.pragma('dart2js:noInline')
+  static ClientKYCRequirementStatus getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientKYCRequirementStatus>(
+          ClientKYCRequirementStatus.$_createMessage);
+  static ClientKYCRequirementStatus? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get fieldKey => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set fieldKey($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasFieldKey() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearFieldKey() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get label => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set label($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLabel() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLabel() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  DataVerificationStatus get status => $_getN(2);
+  @$pb.TagNumber(3)
+  set status(DataVerificationStatus value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasStatus() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearStatus() => $_clearField(3);
+}
+
+/// ClientKYCRequirementsResponse carries the organization's published client
+/// form template (the onboarding form) and, for a client, the status of each
+/// required field. A client is activated only when complete is true.
+class ClientKYCRequirementsResponse extends $pb.GeneratedMessage {
+  factory ClientKYCRequirementsResponse({
+    FormTemplateObject? template,
+    $core.Iterable<ClientKYCRequirementStatus>? requirements,
+    $core.bool? complete,
+  }) {
+    final result = ClientKYCRequirementsResponse._();
+    if (template != null) result.template = template;
+    if (requirements != null) result.requirements.addAll(requirements);
+    if (complete != null) result.complete = complete;
+    return result;
+  }
+
+  ClientKYCRequirementsResponse._();
+
+  factory ClientKYCRequirementsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientKYCRequirementsResponse()..mergeFromBuffer(data, registry);
+  factory ClientKYCRequirementsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientKYCRequirementsResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientKYCRequirementsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientKYCRequirementsResponse.$_createMessage)
+    ..aOM<FormTemplateObject>(1, _omitFieldNames ? '' : 'template',
+        subBuilder: FormTemplateObject.$_createMessage)
+    ..pPM<ClientKYCRequirementStatus>(2, _omitFieldNames ? '' : 'requirements',
+        subBuilder: ClientKYCRequirementStatus.$_createMessage)
+    ..aOB(3, _omitFieldNames ? '' : 'complete')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientKYCRequirementsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientKYCRequirementsResponse copyWith(
+          void Function(ClientKYCRequirementsResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientKYCRequirementsResponse))
+          as ClientKYCRequirementsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientKYCRequirementsResponse() / ClientKYCRequirementsResponse.new instead')
+  static ClientKYCRequirementsResponse create() =>
+      ClientKYCRequirementsResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientKYCRequirementsResponse._();
+  @$core.override
+  ClientKYCRequirementsResponse createEmptyInstance() =>
+      ClientKYCRequirementsResponse._();
+  @$core.pragma('dart2js:noInline')
+  static ClientKYCRequirementsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientKYCRequirementsResponse>(
+          ClientKYCRequirementsResponse.$_createMessage);
+  static ClientKYCRequirementsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  FormTemplateObject get template => $_getN(0);
+  @$pb.TagNumber(1)
+  set template(FormTemplateObject value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTemplate() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTemplate() => $_clearField(1);
+  @$pb.TagNumber(1)
+  FormTemplateObject ensureTemplate() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<ClientKYCRequirementStatus> get requirements => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $core.bool get complete => $_getBF(2);
+  @$pb.TagNumber(3)
+  set complete($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasComplete() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearComplete() => $_clearField(3);
+}
+
 /// Verifier approves a data entry
 class ClientDataVerifyRequest extends $pb.GeneratedMessage {
   factory ClientDataVerifyRequest({
@@ -10811,6 +11066,10 @@ class FormSubmissionSearchResponse extends $pb.GeneratedMessage {
 /// and data collection for the platform.
 /// Canonical workforce, hierarchy, team, and access-control concepts live here.
 /// All RPCs require authentication via Bearer token.
+/// IdentityService still binds investor_account_* to its roles although the
+/// investor account RPCs are served by funding: tenancy refuses to drop a
+/// role binding through registration, so removing them needs a deliberate
+/// tenancy-side change rather than a manifest edit.
 class IdentityServiceApi {
   final $pb.RpcClient _client;
 
@@ -11063,6 +11322,15 @@ class IdentityServiceApi {
           $pb.ClientContext? ctx, ClientDataListRequest request) =>
       _client.invoke<ClientDataListResponse>(ctx, 'IdentityService',
           'ClientDataList', request, ClientDataListResponse());
+
+  /// ClientKYCRequirements returns what an organization requires of a
+  /// client: its published client form template, whose required fields must
+  /// be VERIFIED before the client is activated. Each organization sets its
+  /// own; a child organization without one uses its parent's.
+  $async.Future<ClientKYCRequirementsResponse> clientKYCRequirements(
+          $pb.ClientContext? ctx, ClientKYCRequirementsRequest request) =>
+      _client.invoke<ClientKYCRequirementsResponse>(ctx, 'IdentityService',
+          'ClientKYCRequirements', request, ClientKYCRequirementsResponse());
 
   /// ClientDataVerify marks a data entry as verified.
   $async.Future<ClientDataVerifyResponse> clientDataVerify(

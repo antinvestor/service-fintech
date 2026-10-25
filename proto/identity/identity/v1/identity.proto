@@ -1336,6 +1336,39 @@ message ClientDataListResponse {
   common.v1.PageCursor next_cursor = 2;
 }
 
+// ClientKYCRequirementsRequest names either the client whose KYC is being
+// checked, or (before a client exists) the team a borrower is being
+// registered into. With neither, a field agent's own primary team is used.
+message ClientKYCRequirementsRequest {
+  string client_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  string owning_team_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+}
+
+// ClientKYCRequirementStatus is one required field and where the client's
+// entry for it stands. Status is UNSPECIFIED when nothing was collected.
+message ClientKYCRequirementStatus {
+  string field_key = 1;
+  string label = 2;
+  DataVerificationStatus status = 3;
+}
+
+// ClientKYCRequirementsResponse carries the organization's published client
+// form template (the onboarding form) and, for a client, the status of each
+// required field. A client is activated only when complete is true.
+message ClientKYCRequirementsResponse {
+  FormTemplateObject template = 1;
+  repeated ClientKYCRequirementStatus requirements = 2;
+  bool complete = 3;
+}
+
 // Verifier approves a data entry
 message ClientDataVerifyRequest {
   string entry_id = 1 [
@@ -1706,6 +1739,7 @@ service IdentityService {
           "client_group_view",
           "membership_view",
           "client_data_view",
+          "client_data_manage",
           "form_template_view",
           "form_submission_view",
           "investor_account_view"
@@ -2220,6 +2254,23 @@ service IdentityService {
       operation_id: "clientDataList"
       summary: "List client data entries"
       description: "Lists all data entries for a client, optionally filtered by verification status."
+      tags: "ClientData"
+    };
+  }
+
+  // ClientKYCRequirements returns what an organization requires of a
+  // client: its published client form template, whose required fields must
+  // be VERIFIED before the client is activated. Each organization sets its
+  // own; a child organization without one uses its parent's.
+  rpc ClientKYCRequirements(ClientKYCRequirementsRequest) returns (ClientKYCRequirementsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.method_permissions) = {
+      permissions: ["client_data_view"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "clientKYCRequirements"
+      summary: "Get a client's KYC requirements"
+      description: "Returns the organization's client form template and, for a client, the verification status of each required field."
       tags: "ClientData"
     };
   }

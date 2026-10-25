@@ -12,6 +12,7 @@ import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart'
     show
         identityTransportProvider,
         myClientAccessScopeProvider,
+        onboardingFormCacheProvider,
         registrationOutboxProvider,
         registrationOutboxStoreProvider;
 import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
@@ -128,6 +129,12 @@ void main() {
           const SecureOutboxStore(
             _outboxStorage,
             key: SecureOutboxStore.registrations,
+          ),
+        ),
+        onboardingFormCacheProvider.overrideWithValue(
+          const SecureOutboxStore(
+            _outboxStorage,
+            key: SecureOutboxStore.onboardingForm,
           ),
         ),
 

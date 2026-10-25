@@ -25,8 +25,8 @@ import (
 // AlwaysVerifiedKYC treats every client as KYC-verified.
 //
 // It is compiled only under the `dev` build tag and is never part of a
-// production binary: the release build wires NewIdentityKYCVerifier, which
-// reads verified client data from the identity service.
+// production binary: the release build wires NewClientStandingKYCVerifier,
+// which asks identity whether the client has been activated.
 type AlwaysVerifiedKYC struct{}
 
 // VerifyClient returns KYCStatusVerified for every client.

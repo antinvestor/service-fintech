@@ -1,3 +1,12 @@
+## 0.8.0
+
+- `IdentityService.ClientKYCRequirements`: an organization's published client
+  form template and, for a client, the verification status of each required
+  field (`ClientKYCRequirementsRequest`, `ClientKYCRequirementsResponse`,
+  `ClientKYCRequirementStatus`).
+- Field agents (members) may now save KYC data for the clients they serve
+  (`client_data_manage`).
+
 ## 0.7.0
 
 - **Breaking:** regenerated with protoc_plugin 25.1 (`buf.build/protocolbuffers/dart:v25.1.0`)

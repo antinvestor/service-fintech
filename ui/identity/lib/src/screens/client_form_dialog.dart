@@ -1,11 +1,18 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    show FormFieldDefinition, FormTemplateObject;
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
 
 import '../providers/client_providers.dart';
+import '../widgets/template_field_input.dart';
 
-/// KYC fields the onboarding form offers by name; any other detail the
-/// agent captures is added as a free field.
+/// Template keys the form already asks for itself: the borrower's name and
+/// the phone that finds or creates their profile.
+const _coreFieldKeys = {'name', 'full_name', kClientPhoneNumberKey, 'phone'};
+
+/// KYC fields offered by name when the organization's client form is not
+/// known (not published, or never fetched on this device).
 const kClientDateOfBirthKey = 'date_of_birth';
 const kClientResidentialAddressKey = 'residential_address';
 const kClientOccupationKey = 'occupation';
@@ -38,10 +45,14 @@ class ClientRegistrationDraft {
 /// `owning_team_id` is left as it was (empty for a new client): the service
 /// places a field agent's client in the agent's own team.
 class ClientFormDialog extends StatefulWidget {
-  const ClientFormDialog({super.key, this.client});
+  const ClientFormDialog({super.key, this.client, this.template});
 
   /// The client being edited, or null to onboard a new one.
   final ClientObject? client;
+
+  /// The organization's client form. When onboarding, its fields are what
+  /// the agent captures; without it the usual details are offered.
+  final FormTemplateObject? template;
 
   @override
   State<ClientFormDialog> createState() => _ClientFormDialogState();
@@ -56,8 +67,21 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
   final _addressCtrl = TextEditingController();
   final _occupationCtrl = TextEditingController();
   final _extra = <({TextEditingController key, TextEditingController value})>[];
+  final _templateValues = <String, TextEditingController>{};
 
   bool get _isEditing => widget.client != null;
+
+  /// The template fields the agent fills in here, in display order.
+  late final List<FormFieldDefinition> _templateFields = [
+    ...?widget.template?.fields.where(
+      (f) =>
+          f.key.isNotEmpty &&
+          !_coreFieldKeys.contains(f.key) &&
+          templateFieldCapturedInline(f),
+    ),
+  ]..sort((a, b) => a.order.compareTo(b.order));
+
+  bool get _usesTemplate => !_isEditing && widget.template != null;
 
   @override
   void initState() {
@@ -70,6 +94,9 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
     _nationalIdCtrl = TextEditingController(
       text: c == null ? '' : clientNationalId(c),
     );
+    for (final f in _templateFields) {
+      _templateValues[f.key] = TextEditingController(text: f.defaultValue);
+    }
   }
 
   @override
@@ -83,6 +110,9 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
     for (final row in _extra) {
       row.key.dispose();
       row.value.dispose();
+    }
+    for (final c in _templateValues.values) {
+      c.dispose();
     }
     super.dispose();
   }
@@ -125,14 +155,18 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
   }
 
   void _submitRegistration() {
-    final nationalId = _nationalIdCtrl.text.trim();
     final details = <String, String>{
-      kClientNationalIdKey: nationalId,
-      kClientDateOfBirthKey: _dobCtrl.text.trim(),
-      kClientResidentialAddressKey: _addressCtrl.text.trim(),
-      kClientOccupationKey: _occupationCtrl.text.trim(),
+      if (_usesTemplate)
+        for (final e in _templateValues.entries) e.key: e.value.text.trim()
+      else ...{
+        kClientNationalIdKey: _nationalIdCtrl.text.trim(),
+        kClientDateOfBirthKey: _dobCtrl.text.trim(),
+        kClientResidentialAddressKey: _addressCtrl.text.trim(),
+        kClientOccupationKey: _occupationCtrl.text.trim(),
+      },
       for (final row in _extra) row.key.text.trim(): row.value.text.trim(),
-    }..removeWhere((k, v) => k.isEmpty || v.isEmpty);
+    }..removeWhere((k, v) => k.isEmpty || v.isEmpty || v == 'false');
+    final nationalId = details[kClientNationalIdKey] ?? '';
     Navigator.pop(
       context,
       ClientRegistrationDraft(
@@ -159,7 +193,39 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
         '${picked.day.toString().padLeft(2, '0')}';
   }
 
+  /// The organization's client form fields, then any extra detail.
+  List<Widget> _templateDetailFields() => [
+    for (final f in _templateFields)
+      TemplateFieldInput(field: f, controller: _templateValues[f.key]!),
+    if ((widget.template?.fields ?? const []).any(
+      (f) => !templateFieldCapturedInline(f),
+    ))
+      const Padding(
+        key: Key('client-form-uploads-later'),
+        padding: EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Photos, documents and signatures are added on the client\'s KYC '
+          'tab after onboarding.',
+        ),
+      ),
+    ..._extraRows(),
+  ];
+
+  /// The usual details, offered when the organization's form is not known.
   List<Widget> _detailFields() => [
+    FormFieldCard(
+      label: 'National ID',
+      description: 'Optional. Verified later under KYC.',
+      child: TextFormField(
+        key: const Key('client-form-national-id'),
+        controller: _nationalIdCtrl,
+        decoration: const InputDecoration(
+          hintText: 'e.g. 12345678',
+          prefixIcon: Icon(Icons.badge_outlined),
+        ),
+        textInputAction: TextInputAction.next,
+      ),
+    ),
     FormFieldCard(
       label: 'Date of birth',
       description: 'Optional. Verified later under KYC.',
@@ -200,6 +266,10 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
         textInputAction: TextInputAction.next,
       ),
     ),
+    ..._extraRows(),
+  ];
+
+  List<Widget> _extraRows() => [
     for (final (i, row) in _extra.indexed)
       Padding(
         padding: const EdgeInsets.only(bottom: 8),
@@ -343,23 +413,34 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
                       validator: _validatePhone,
                     ),
                   ),
-                FormFieldCard(
-                  label: 'National ID',
-                  description: 'Optional. Verified later under KYC.',
-                  child: TextFormField(
-                    key: const Key('client-form-national-id'),
-                    controller: _nationalIdCtrl,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. 12345678',
-                      prefixIcon: Icon(Icons.badge_outlined),
+                if (_isEditing)
+                  FormFieldCard(
+                    label: 'National ID',
+                    description: 'Optional. Verified later under KYC.',
+                    child: TextFormField(
+                      key: const Key('client-form-national-id'),
+                      controller: _nationalIdCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. 12345678',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _submit(),
                     ),
-                    textInputAction: _isEditing
-                        ? TextInputAction.done
-                        : TextInputAction.next,
-                    onFieldSubmitted: _isEditing ? (_) => _submit() : null,
+                  )
+                else if (_usesTemplate)
+                  ..._templateDetailFields()
+                else ...[
+                  const Padding(
+                    key: Key('client-form-no-template'),
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Your organization\'s client form is not available on '
+                      'this device, so the usual details are asked for.',
+                    ),
                   ),
-                ),
-                if (!_isEditing) ..._detailFields(),
+                  ..._detailFields(),
+                ],
               ],
             ),
           ),

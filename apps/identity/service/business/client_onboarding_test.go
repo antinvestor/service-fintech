@@ -26,6 +26,7 @@ import (
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"connectrpc.com/connect/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/security"
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
@@ -331,6 +332,28 @@ func (s *approvalWorkflowSuite) TestClientAccessScopeResolvesBorrowerAndAgent() 
 	s.Require().Empty(env.searchClients(env.ctx, &fieldv1.ClientSearchRequest{ProfileId: "nobody"}))
 }
 
+// publishClientTemplate publishes org's client form template: the fields
+// it captures, the required ones being what activation needs verified.
+func (e *approvalWorkflowEnv) publishClientTemplate(orgID string, required []string, optional ...string) {
+	e.t.Helper()
+	claims := security.ClaimsFromContext(e.ctx)
+	var items []any
+	for _, k := range required {
+		items = append(items, map[string]any{"key": k, "label": k, "required": true})
+	}
+	for _, k := range optional {
+		items = append(items, map[string]any{"key": k, "label": k, "required": false})
+	}
+	tmpl := &models.FormTemplate{OrganizationID: orgID, Name: "Client KYC", TemplateVersion: 1,
+		EntityType: clientFormEntityType, Fields: data.JSONMap{"items": items},
+		Status: int32(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_PUBLISHED)}
+	tmpl.GenID(e.ctx)
+	tmpl.TenantID, tmpl.PartitionID = claims.GetTenantID(), claims.GetPartitionID()
+	if err := e.formTemplateRepo.Create(e.ctx, tmpl); err != nil {
+		e.t.Fatalf("create template: %v", err)
+	}
+}
+
 // verifyKYC stores a verified KYC entry for the client.
 func (e *approvalWorkflowEnv) verifyKYC(clientID, key string) {
 	e.t.Helper()
@@ -371,15 +394,18 @@ func (s *approvalWorkflowSuite) TestActivationNeedsVerifiedKYCAndConsent() {
 	}
 
 	_, err = activate(asAgent, map[string]any{})
+	s.Require().ErrorIs(err, ErrClientKYCNotConfigured, "the organization has not set its requirements")
+	env.publishClientTemplate(org.GetID(), []string{"national_id", "date_of_birth"}, "occupation")
+	_, err = activate(asAgent, map[string]any{})
 	s.Require().ErrorIs(err, ErrClientKYCIncomplete, "no KYC yet")
 	env.verifyKYC(registered.GetId(), "national_id")
-	pendingEntry := &models.ClientDataEntry{ClientID: registered.GetId(), FieldKey: "address", Revision: 1,
-		VerificationStatus: int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED)}
-	pendingEntry.GenID(env.ctx)
-	s.Require().NoError(env.clientDataRepo.Create(env.ctx, pendingEntry))
 	_, err = activate(asAgent, map[string]any{})
-	s.Require().ErrorIs(err, ErrClientKYCIncomplete, "an unverified entry blocks activation")
-	s.Require().NoError(env.clientDataRepo.Delete(env.ctx, pendingEntry.GetID()))
+	s.Require().ErrorIs(err, ErrClientKYCIncomplete, "date of birth is required and not verified")
+	optionalEntry := &models.ClientDataEntry{ClientID: registered.GetId(), FieldKey: "occupation", Revision: 1,
+		VerificationStatus: int32(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED)}
+	optionalEntry.GenID(env.ctx)
+	s.Require().NoError(env.clientDataRepo.Create(env.ctx, optionalEntry))
+	env.verifyKYC(registered.GetId(), "date_of_birth")
 
 	// An agent cannot reach ACTIVE, or any other state, by an edit.
 	edited, err := env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Id: registered.GetId(),
@@ -414,6 +440,7 @@ func (s *approvalWorkflowSuite) TestActivationNeedsVerifiedKYCAndConsent() {
 		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000666"})})
 	s.Require().NoError(err)
 	env.verifyKYC(guarded.GetId(), "national_id")
+	env.verifyKYC(guarded.GetId(), "date_of_birth")
 	activateGuarded := func(props map[string]any) (*fieldv1.ClientObject, error) {
 		return env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Id: guarded.GetId(), Name: "Guarded",
 			State: commonv1.STATE_ACTIVE, Properties: propertiesStruct(props)})
@@ -442,7 +469,77 @@ func (s *approvalWorkflowSuite) TestActivationNeedsVerifiedKYCAndConsent() {
 	_, err = staffActivate()
 	s.Require().ErrorIs(err, ErrClientKYCIncomplete)
 	env.verifyKYC(staffClient.GetId(), "national_id")
+	env.verifyKYC(staffClient.GetId(), "date_of_birth")
 	staffActive, err := staffActivate()
 	s.Require().NoError(err)
 	s.Require().Equal(commonv1.STATE_ACTIVE, staffActive.GetState())
+}
+
+// Each organization sets its own requirements; a child organization without
+// a template uses its parent's. KYC data is visible only to the agents
+// serving the client.
+func (s *approvalWorkflowSuite) TestKYCRequirementsArePerOrganization() {
+	env := s.newEnv()
+	parent := env.createOrganization("Parent SACCO", "parent-sacco")
+	child := env.createOrganization("Child Branch", "child-branch")
+	child.ParentID = parent.GetID()
+	_, err := env.organizationRepo.Update(env.ctx, child, "parent_id")
+	s.Require().NoError(err)
+	other := env.createOrganization("Other Lender", "other-lender")
+
+	_, _ = env.fieldAgent(child, "agent-child", "child-team")
+	_, _ = env.fieldAgent(other, "agent-other-org", "other-org-team")
+	asChild := env.asRole("agent-child", "member")
+	asOther := env.asRole("agent-other-org", "member")
+	kyc := env.clientDataBusiness()
+
+	_, err = kyc.Requirements(asChild, "", "")
+	s.Require().ErrorIs(err, ErrClientKYCNotConfigured)
+
+	env.publishClientTemplate(parent.GetID(), []string{"national_id"})
+	env.publishClientTemplate(other.GetID(), []string{"passport_number", "employer"})
+
+	got, err := kyc.Requirements(asChild, "", "")
+	s.Require().NoError(err)
+	s.Equal(parent.GetID(), got.Template.OrganizationID, "the child uses its parent's template")
+	got, err = kyc.Requirements(asOther, "", "")
+	s.Require().NoError(err)
+	s.Equal(other.GetID(), got.Template.OrganizationID)
+
+	client, err := env.clientBusiness.Save(asChild, &fieldv1.ClientObject{Name: "Child Borrower",
+		Properties: propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000888"})})
+	s.Require().NoError(err)
+
+	got, err = kyc.Requirements(asChild, client.GetId(), "")
+	s.Require().NoError(err)
+	s.Require().Len(got.Requirements, 1)
+	s.Equal("national_id", got.Requirements[0].GetFieldKey())
+	s.Equal(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_UNSPECIFIED, got.Requirements[0].GetStatus())
+	s.False(got.Complete)
+
+	saved, err := kyc.Save(asChild, &models.ClientDataEntry{ClientID: client.GetId(), FieldKey: "national_id",
+		Value: "CM123", ValueType: "string"})
+	s.Require().NoError(err, "the serving agent records KYC data")
+	got, err = kyc.Requirements(asChild, client.GetId(), "")
+	s.Require().NoError(err)
+	s.Equal(identityv1.DataVerificationStatus_DATA_VERIFICATION_STATUS_COLLECTED, got.Requirements[0].GetStatus())
+
+	// Another lender's agent sees and writes nothing of this client.
+	_, err = kyc.List(asOther, client.GetId(), 0, 0, 50)
+	s.Require().ErrorIs(err, ErrClientOutsideCallerScope)
+	_, err = kyc.Save(asOther, &models.ClientDataEntry{ClientID: client.GetId(), FieldKey: "national_id",
+		Value: "forged", ValueType: "string"})
+	s.Require().ErrorIs(err, ErrClientOutsideCallerScope)
+	_, err = kyc.History(asOther, saved.GetID())
+	s.Require().ErrorIs(err, ErrClientOutsideCallerScope)
+	_, err = kyc.Requirements(asOther, client.GetId(), "")
+	s.Require().ErrorIs(err, ErrClientOutsideCallerScope)
+	_, err = kyc.Requirements(asOther, "", "child-team-id-not-theirs")
+	s.Require().ErrorIs(err, ErrClientOutsideCallerScope, "an agent asks only for their own team's form")
+
+	_, err = kyc.Verify(env.ctx, saved.GetID(), "seen the ID")
+	s.Require().NoError(err)
+	got, err = kyc.Requirements(env.ctx, client.GetId(), "")
+	s.Require().NoError(err)
+	s.True(got.Complete)
 }

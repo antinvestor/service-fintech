@@ -111,6 +111,8 @@ abstract class IdentityServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.ClientDataGetRequest request);
   $async.Future<$3.ClientDataListResponse> clientDataList(
       $pb.ServerContext ctx, $3.ClientDataListRequest request);
+  $async.Future<$3.ClientKYCRequirementsResponse> clientKYCRequirements(
+      $pb.ServerContext ctx, $3.ClientKYCRequirementsRequest request);
   $async.Future<$3.ClientDataVerifyResponse> clientDataVerify(
       $pb.ServerContext ctx, $3.ClientDataVerifyRequest request);
   $async.Future<$3.ClientDataRejectResponse> clientDataReject(
@@ -224,6 +226,8 @@ abstract class IdentityServiceBase extends $pb.GeneratedService {
         return $3.ClientDataGetRequest();
       case 'ClientDataList':
         return $3.ClientDataListRequest();
+      case 'ClientKYCRequirements':
+        return $3.ClientKYCRequirementsRequest();
       case 'ClientDataVerify':
         return $3.ClientDataVerifyRequest();
       case 'ClientDataReject':
@@ -353,6 +357,9 @@ abstract class IdentityServiceBase extends $pb.GeneratedService {
         return clientDataGet(ctx, request as $3.ClientDataGetRequest);
       case 'ClientDataList':
         return clientDataList(ctx, request as $3.ClientDataListRequest);
+      case 'ClientKYCRequirements':
+        return clientKYCRequirements(
+            ctx, request as $3.ClientKYCRequirementsRequest);
       case 'ClientDataVerify':
         return clientDataVerify(ctx, request as $3.ClientDataVerifyRequest);
       case 'ClientDataReject':

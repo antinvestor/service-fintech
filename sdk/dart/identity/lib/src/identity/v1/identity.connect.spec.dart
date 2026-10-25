@@ -11,6 +11,10 @@ import "../../common/v1/common.pb.dart" as commonv1common;
 /// and data collection for the platform.
 /// Canonical workforce, hierarchy, team, and access-control concepts live here.
 /// All RPCs require authentication via Bearer token.
+/// IdentityService still binds investor_account_* to its roles although the
+/// investor account RPCs are served by funding: tenancy refuses to drop a
+/// role binding through registration, so removing them needs a deliberate
+/// tenancy-side change rather than a manifest edit.
 abstract final class IdentityService {
   /// Fully-qualified name of the IdentityService service.
   static const name = 'identity.v1.IdentityService';
@@ -376,6 +380,18 @@ abstract final class IdentityService {
     connect.StreamType.server,
     identityv1identity.ClientDataListRequest.new,
     identityv1identity.ClientDataListResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
+  /// ClientKYCRequirements returns what an organization requires of a
+  /// client: its published client form template, whose required fields must
+  /// be VERIFIED before the client is activated. Each organization sets its
+  /// own; a child organization without one uses its parent's.
+  static const clientKYCRequirements = connect.Spec(
+    '/$name/ClientKYCRequirements',
+    connect.StreamType.unary,
+    identityv1identity.ClientKYCRequirementsRequest.new,
+    identityv1identity.ClientKYCRequirementsResponse.new,
     idempotency: connect.Idempotency.noSideEffects,
   );
 

@@ -12,6 +12,10 @@ import "../../common/v1/common.pb.dart" as commonv1common;
 /// and data collection for the platform.
 /// Canonical workforce, hierarchy, team, and access-control concepts live here.
 /// All RPCs require authentication via Bearer token.
+/// IdentityService still binds investor_account_* to its roles although the
+/// investor account RPCs are served by funding: tenancy refuses to drop a
+/// role binding through registration, so removing them needs a deliberate
+/// tenancy-side change rather than a manifest edit.
 extension type IdentityServiceClient (connect.Transport _transport) {
   /// OrganizationSave creates or updates an organization record.
   Future<identityv1identity.OrganizationSaveResponse> organizationSave(
@@ -786,6 +790,27 @@ extension type IdentityServiceClient (connect.Transport _transport) {
   }) {
     return connect.Client(_transport).server(
       specs.IdentityService.clientDataList,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// ClientKYCRequirements returns what an organization requires of a
+  /// client: its published client form template, whose required fields must
+  /// be VERIFIED before the client is activated. Each organization sets its
+  /// own; a child organization without one uses its parent's.
+  Future<identityv1identity.ClientKYCRequirementsResponse> clientKYCRequirements(
+    identityv1identity.ClientKYCRequirementsRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.IdentityService.clientKYCRequirements,
       input,
       signal: signal,
       headers: headers,

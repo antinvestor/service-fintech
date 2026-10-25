@@ -55,11 +55,10 @@ type SeedConfig struct {
 	// provisions. Entries are comma-separated and shaped
 	// tier:min_successful_repayments:max_loan_amount_minor:interest_bp:term_days[:name].
 	// Empty means repository.DefaultTierLadder.
-	SeedProductID         string `envDefault:"seed"       env:"SEED_PRODUCT_ID"`
-	SeedCurrencyCode      string `envDefault:"KES"        env:"SEED_CURRENCY_CODE"`
-	SeedStaffRole         string `envDefault:"seed_staff" env:"SEED_STAFF_ROLE"`
-	SeedKYCRequiredFields string `envDefault:""           env:"SEED_KYC_REQUIRED_FIELDS"`
-	SeedCreditTierLadder  string `envDefault:""           env:"SEED_CREDIT_TIER_LADDER"`
+	SeedProductID        string `envDefault:"seed"       env:"SEED_PRODUCT_ID"`
+	SeedCurrencyCode     string `envDefault:"KES"        env:"SEED_CURRENCY_CODE"`
+	SeedStaffRole        string `envDefault:"seed_staff" env:"SEED_STAFF_ROLE"`
+	SeedCreditTierLadder string `envDefault:""           env:"SEED_CREDIT_TIER_LADDER"`
 
 	// Tenancy service.
 	TenancyServiceURI                   string `envDefault:"127.0.0.1:7003"              env:"TENANCY_SERVICE_URI"`

@@ -31,7 +31,8 @@ import (
 // showed one revision for several distinct values.
 func (s *approvalWorkflowSuite) TestClientDataSaveConcurrentResubmissionsSerialize() {
 	env := s.newEnv()
-	clientData := NewClientDataBusiness(env.ctx, env.eventsMan, env.clientDataRepo, env.clientDataHist)
+	clientData := env.clientDataBusiness()
+	env.ensureClient("client-race")
 
 	first, err := clientData.Save(env.ctx, &models.ClientDataEntry{
 		ClientID:  "client-race",
@@ -94,7 +95,8 @@ func (s *approvalWorkflowSuite) TestClientDataSaveConcurrentResubmissionsSeriali
 // as a duplicate-key "success"; it must now be reported so the client retries.
 func (s *approvalWorkflowSuite) TestClientDataSaveConcurrentFirstSubmissionsNeverDuplicate() {
 	env := s.newEnv()
-	clientData := NewClientDataBusiness(env.ctx, env.eventsMan, env.clientDataRepo, env.clientDataHist)
+	clientData := env.clientDataBusiness()
+	env.ensureClient("client-first")
 
 	const writers = 3
 	var wg sync.WaitGroup
@@ -187,7 +189,8 @@ func (s *approvalWorkflowSuite) TestFormTemplatePublishConcurrentOnlyOneWins() {
 // the history showed two transitions for one entry.
 func (s *approvalWorkflowSuite) TestClientDataConcurrentVerifyAndRejectOnlyOneWins() {
 	env := s.newEnv()
-	clientData := NewClientDataBusiness(env.ctx, env.eventsMan, env.clientDataRepo, env.clientDataHist)
+	clientData := env.clientDataBusiness()
+	env.ensureClient("client-review-race")
 
 	entry, err := clientData.Save(env.ctx, &models.ClientDataEntry{
 		ClientID:  "client-review-race",

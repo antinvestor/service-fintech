@@ -65,6 +65,7 @@ type authorizationEnv struct {
 	groupRepo        repository.ClientGroupRepository
 	entryRepo        repository.ClientDataEntryRepository
 	formTemplateRepo repository.FormTemplateRepository
+	clientRepo       repository.ClientRepository
 
 	eventsMan fevents.Manager
 
@@ -306,7 +307,7 @@ func (s *authorizationSuite) TestClientDataVerifyRejectedForSubmitter() {
 	env := s.newEnv()
 	entry := env.submitClientData("client-kyc-2", "national_id", "value-2")
 
-	_, err := env.clientDataBusiness.Verify(env.ctx, entry.GetID(), "self approval")
+	_, err := env.clientDataBusiness.Verify(env.asProfile(testSubmitterID), entry.GetID(), "self approval")
 	s.Require().ErrorIs(err, ErrReviewerIsSubmitter)
 }
 
@@ -446,6 +447,7 @@ func (s *authorizationSuite) newEnv() *authorizationEnv {
 		&models.ClientDataEntry{},
 		&models.ClientDataEntryHistory{},
 		&models.FormTemplate{},
+		&models.Client{},
 	}
 
 	superDB := dbPool.DB(ctx, false)
@@ -471,6 +473,7 @@ func (s *authorizationSuite) newEnv() *authorizationEnv {
 	entryRepo := repository.NewClientDataEntryRepository(ctx, dbPool, workMan)
 	historyRepo := repository.NewClientDataEntryHistoryRepository(ctx, dbPool, workMan)
 	formTemplateRepo := repository.NewFormTemplateRepository(ctx, dbPool, workMan)
+	clientRepo := repository.NewClientRepository(ctx, dbPool, workMan)
 
 	evtsMan := newImmediateEventsManager(
 		identityevents.NewOrganizationSave(ctx, organizationRepo, nil),
@@ -492,6 +495,7 @@ func (s *authorizationSuite) newEnv() *authorizationEnv {
 		accessRoleRepo:   accessRoleRepo,
 		groupRepo:        groupRepo,
 		entryRepo:        entryRepo,
+		clientRepo:       clientRepo,
 		formTemplateRepo: formTemplateRepo,
 		eventsMan:        evtsMan,
 		orgBusiness:      NewOrganizationBusiness(ctx, evtsMan, organizationRepo, nil),
@@ -508,8 +512,9 @@ func (s *authorizationSuite) newEnv() *authorizationEnv {
 			accessRoleRepo,
 			nil,
 		),
-		groupBusiness:        NewClientGroupBusiness(ctx, evtsMan, workforceRepo, orgUnitRepo, groupRepo),
-		clientDataBusiness:   NewClientDataBusiness(ctx, evtsMan, entryRepo, historyRepo),
+		groupBusiness: NewClientGroupBusiness(ctx, evtsMan, workforceRepo, orgUnitRepo, groupRepo),
+		clientDataBusiness: NewClientDataBusiness(ctx, evtsMan, entryRepo, historyRepo,
+			WithClientGuard(clientRepo, workforceRepo, teamMembershipRepo, nil)),
 		formTemplateBusiness: NewFormTemplateBusiness(ctx, evtsMan, formTemplateRepo),
 	}
 }
@@ -527,10 +532,12 @@ func (s *authorizationSuite) databaseResource(ctx context.Context) definition.De
 
 // asProfile returns the env context acting as a different profile in the same
 // tenant and partition.
+// asProfile is a member of staff (an operator) signed in as profileID.
 func (e *authorizationEnv) asProfile(profileID string) context.Context {
 	return (&security.AuthenticationClaims{
 		TenantID:    testTenantID,
 		PartitionID: testPartitionID,
+		Roles:       []string{platformRoleOperator},
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject: profileID,
 		},
@@ -593,7 +600,16 @@ func (e *authorizationEnv) grantGlobalAdministrator(member *models.WorkforceMemb
 
 func (e *authorizationEnv) submitClientData(clientID, fieldKey, value string) *models.ClientDataEntry {
 	e.t.Helper()
-	entry, err := e.clientDataBusiness.Save(e.ctx, &models.ClientDataEntry{
+	if _, err := e.clientRepo.GetByID(e.ctx, clientID); err != nil {
+		client := &models.Client{Name: clientID}
+		client.GenID(e.ctx)
+		client.ID = clientID
+		client.TenantID, client.PartitionID = testTenantID, testPartitionID
+		if createErr := e.clientRepo.Create(e.ctx, client); createErr != nil {
+			e.t.Fatalf("create client: %v", createErr)
+		}
+	}
+	entry, err := e.clientDataBusiness.Save(e.asProfile(testSubmitterID), &models.ClientDataEntry{
 		ClientID:  clientID,
 		FieldKey:  fieldKey,
 		Value:     value,
