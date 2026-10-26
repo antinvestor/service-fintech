@@ -20,6 +20,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"buf.build/gen/go/antinvestor/files/connectrpc/go/v2/files/v1/filesv1connect"
@@ -30,6 +32,13 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/identity/service/models"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
+)
+
+// The value types of document entries.
+const (
+	valueTypePhoto     = "photo"
+	valueTypeFile      = "file"
+	valueTypeSignature = "signature"
 )
 
 const (
@@ -52,6 +61,10 @@ var (
 	// ErrNotADocument is returned when a link is asked for an entry that
 	// holds a typed value.
 	ErrNotADocument = apperrors.NewError(apperrors.BadRequest, "the entry is not a document")
+	// ErrDocumentContentRejected is returned when the bytes are not the kind
+	// of file the request says, or not a kind this field takes.
+	ErrDocumentContentRejected = apperrors.NewError(apperrors.BadRequest,
+		"photos and signatures are JPEG, PNG or WebP images; documents may also be PDF, up to 5 MiB")
 	// ErrDocumentUnavailable is returned for a document entry whose file the
 	// service does not hold.
 	ErrDocumentUnavailable = apperrors.NewError(apperrors.NotFound,
@@ -60,10 +73,83 @@ var (
 
 // documentValueTypes are the entry types whose value is a stored file.
 func documentValueTypes() map[string]bool {
-	return map[string]bool{"photo": true, "file": true, "signature": true}
+	return map[string]bool{valueTypePhoto: true, valueTypeFile: true, valueTypeSignature: true}
 }
 
-func isDocumentValueType(valueType string) bool { return documentValueTypes()[valueType] }
+func isDocumentValueType(valueType string) bool {
+	return documentValueTypes()[normalizeValueType(valueType)]
+}
+
+// normalizeValueType compares value types case- and space-insensitively.
+func normalizeValueType(valueType string) string {
+	return strings.ToLower(strings.TrimSpace(valueType))
+}
+
+// maxDocumentBytes bounds one stored document.
+const maxDocumentBytes = 5 << 20
+
+// documentContentTypes are the kinds each document type takes. The bytes
+// must be what they claim: an HTML page sent as an image is refused.
+func documentContentTypes(valueType string) map[string]bool {
+	images := map[string]bool{"image/jpeg": true, "image/png": true, "image/webp": true}
+	if valueType == valueTypeFile {
+		images["application/pdf"] = true
+	}
+	return images
+}
+
+// checkDocumentContent accepts content whose bytes match the declared kind
+// and whose kind the value type takes.
+func checkDocumentContent(valueType, contentType string, content []byte) error {
+	if len(content) == 0 || len(content) > maxDocumentBytes {
+		return ErrDocumentContentRejected
+	}
+	declared := strings.ToLower(strings.TrimSpace(contentType))
+	if !documentContentTypes(valueType)[declared] {
+		return ErrDocumentContentRejected
+	}
+	sniffed, _, _ := strings.Cut(http.DetectContentType(content), ";")
+	if sniffed != declared {
+		return ErrDocumentContentRejected
+	}
+	return nil
+}
+
+// fieldKind is what the client's form declares a field to be.
+type fieldKind int
+
+const (
+	fieldUndeclared fieldKind = iota
+	fieldDocument
+	fieldTyped
+)
+
+// fieldIsDocument reads the field's declared type from the client's form
+// template. A field the form does not declare, or a client without a form,
+// is undeclared.
+func (b *clientDataBusiness) fieldIsDocument(ctx context.Context, client *models.Client, fieldKey string) fieldKind {
+	if b.kycPolicy == nil || client == nil {
+		return fieldUndeclared
+	}
+	tmpl, err := b.kycPolicy.TemplateForTeam(ctx, client.OwningTeamID)
+	if err != nil || tmpl == nil {
+		return fieldUndeclared
+	}
+	for _, f := range models.FieldsToAPI(tmpl.Fields) {
+		if f.GetKey() != fieldKey {
+			continue
+		}
+		switch f.GetFieldType() { //nolint:exhaustive // every other type is typed
+		case identityv1.FormFieldType_FORM_FIELD_TYPE_PHOTO,
+			identityv1.FormFieldType_FORM_FIELD_TYPE_FILE,
+			identityv1.FormFieldType_FORM_FIELD_TYPE_SIGNATURE:
+			return fieldDocument
+		default:
+			return fieldTyped
+		}
+	}
+	return fieldUndeclared
+}
 
 // Document is a KYC file to store.
 type Document struct {
@@ -156,17 +242,22 @@ func (b *clientDataBusiness) UploadDocument(
 	ctx context.Context,
 	req *identityv1.ClientDocumentUploadRequest,
 ) (*models.ClientDataEntry, error) {
-	if _, err := b.guard.authorize(ctx, req.GetClientId()); err != nil {
+	client, err := b.guard.authorize(ctx, req.GetClientId())
+	if err != nil {
 		return nil, err
 	}
-	if !isDocumentValueType(req.GetValueType()) {
+	valueType := normalizeValueType(req.GetValueType())
+	if !isDocumentValueType(valueType) || b.fieldIsDocument(ctx, client, req.GetFieldKey()) == fieldTyped {
 		return nil, ErrNotADocument
+	}
+	if err = checkDocumentContent(valueType, req.GetContentType(), req.GetContent()); err != nil {
+		return nil, err
 	}
 	if b.documents == nil {
 		return nil, ErrDocumentStoreUnavailable
 	}
 	id, err := b.documents.Put(ctx, Document{
-		ContentType: req.GetContentType(),
+		ContentType: strings.ToLower(strings.TrimSpace(req.GetContentType())),
 		Filename:    req.GetFilename(),
 		Content:     req.GetContent(),
 		Key:         documentKey(req.GetClientId(), req.GetFieldKey(), req.GetContent()),
@@ -178,7 +269,7 @@ func (b *clientDataBusiness) UploadDocument(
 		ClientID:       req.GetClientId(),
 		FieldKey:       req.GetFieldKey(),
 		Value:          id,
-		ValueType:      req.GetValueType(),
+		ValueType:      valueType,
 		SourceEntityID: req.GetSourceEntityId(),
 		Properties: data.JSONMap{
 			"content_type": req.GetContentType(),

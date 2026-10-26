@@ -1266,3 +1266,28 @@ It raised these lower-confidence points, all fixed:
    after a refusal (InvalidArgument, FailedPrecondition, NotFound,
    PermissionDenied) and keeps the key after any other failure. The dialog
    also scrolls, so a long error no longer overflows it.
+
+## 46. Addendum 2026-10-26 — KYC document hardening
+
+An automated security review of §44 flagged two points. Neither was
+exploitable as built, but both are hardened:
+
+1. *Document type came from the request alone.*
+   - Before: a document value saved as `"text"` or `" Photo "` could never
+     produce a link and showed only as text.
+   - Now: value types are normalised (trimmed and lower-cased). The client's
+     form template is consulted, so a field it declares a photo, file or
+     signature is refused on `ClientDataSave`, and a field it declares typed
+     refuses `ClientDocumentUpload`.
+   - Test: `TestKYCDocumentFollowsTheFormsFieldType`.
+2. *Upload content was trusted.*
+   - Before: the proto already limited content types and size, and frame's
+     validation interceptor enforced that.
+   - Now identity also checks:
+     - the bytes match the declared type (`http.DetectContentType`), so a
+       page sent as an image is refused;
+     - photos and signatures are images only, and only documents may be PDF;
+     - the size is at most 5 MiB.
+
+     Nothing refused is stored.
+   - Test: `TestKYCDocumentContentMustMatchItsKind`.

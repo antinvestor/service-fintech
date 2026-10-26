@@ -98,10 +98,15 @@ func NewClientDataBusiness(
 }
 
 func (b *clientDataBusiness) Save(ctx context.Context, entry *models.ClientDataEntry) (*models.ClientDataEntry, error) {
-	if _, err := b.guard.authorize(ctx, entry.ClientID); err != nil {
+	client, err := b.guard.authorize(ctx, entry.ClientID)
+	if err != nil {
 		return nil, err
 	}
-	if isDocumentValueType(entry.ValueType) {
+	entry.ValueType = normalizeValueType(entry.ValueType)
+	// A document is recognised by what is sent and by what the client's
+	// form declares the field to be, so neither can be used to slip a value
+	// past the upload.
+	if isDocumentValueType(entry.ValueType) || b.fieldIsDocument(ctx, client, entry.FieldKey) == fieldDocument {
 		return nil, ErrDocumentNeedsUpload
 	}
 	return b.save(ctx, entry)
