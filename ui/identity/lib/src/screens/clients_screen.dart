@@ -1,4 +1,6 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    show InternalTeamObject;
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 import 'package:antinvestor_ui_core/widgets/state_badge.dart';
@@ -10,6 +12,7 @@ import '../providers/client_providers.dart';
 import '../providers/kyc_requirements_providers.dart';
 import '../providers/paged_list.dart';
 import '../providers/registration_outbox.dart';
+import '../providers/team_providers.dart';
 import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
@@ -165,11 +168,20 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
     // The organization's client form, fresh when online and the cached copy
     // otherwise; the provider never fails.
     final template = await ref.refresh(onboardingTemplateProvider.future);
+    // The teams a client may be placed in; offline, the agent's own team.
+    List<InternalTeamObject> teams;
+    try {
+      teams = await ref.read(
+        internalTeamListProvider((query: '', organizationId: '')).future,
+      );
+    } catch (_) {
+      teams = const [];
+    }
     if (!context.mounted) return;
     final draft = await showDialog<ClientRegistrationDraft>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => ClientFormDialog(template: template),
+      builder: (_) => ClientFormDialog(template: template, teams: teams),
     );
     if (draft == null || !context.mounted) return;
 
@@ -181,6 +193,7 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
       phone: draft.phone,
       nationalId: draft.nationalId,
       details: draft.details,
+      owningTeamId: draft.owningTeamId,
     );
     if (!context.mounted) return;
     await _send(context, draft.name, outbox.submit(id));

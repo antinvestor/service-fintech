@@ -82,7 +82,7 @@ type AccessResolver interface {
 // borrower or a field agent and is scoped through the AccessResolver.
 //
 //nolint:gochecknoglobals // immutable default, overridable through NewReadScope
-var defaultStaffRoles = []string{"admin", "operator", "viewer"}
+var defaultStaffRoles = []string{"owner", "admin", "operator", "viewer"}
 
 // ReadScope decides, per request, whether the caller may act on a record
 // owned by a given client. Staff and internal-system callers may act on any

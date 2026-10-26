@@ -775,3 +775,26 @@ Payment covers `TestPaymentFromPrompt*`.
   `TestNotifiedPropertiesCannotPreDecideThePayment`
 - loans `TestLoanAccountDefaultsItsPayoutContact`
 - ui_loans 0.4.0 widget tests (48 pass)
+
+## 33. Addendum 2026-10-26 — onboarding fixes
+
+- *Owning team.* Staff client creation failed with `ErrOwningTeamRequired`
+  because the onboarding form never offered a team. `ClientFormDialog` now
+  offers the teams, with "My team" leaving it to the service for field
+  agents. The offline outbox keeps the choice.
+- *Owner role.* The partition owner was treated as a field agent and
+  scoped. `owner` now counts as staff, in identity `callerIsStaff` and in
+  loans `defaultStaffRoles`.
+- *KYC review gating.* Verify, reject and take-for-review were offered on
+  `client_manage`. They now need `client_data_verify`, the permission the
+  service checks. The seed manifest registers it.
+- *Phone at registration (kept as designed).* The registration still
+  carries the number to identity, which only relays it to the profile
+  service: a field agent's client is bound to the profile the number
+  resolves to, and an agent-supplied profile id is ignored. Resolving the
+  profile on the device would let an agent bind a client to any profile.
+- *Open: KYC documents.* Photo, file, signature and location fields are not
+  captured. Media uploaded through the files service is private to the
+  uploader, and reviewers get access only through per-file grants. Capture
+  needs the files service to share KYC media with the partition's reviewers
+  first; otherwise a reviewer would verify a document they cannot open.

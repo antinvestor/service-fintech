@@ -40,6 +40,8 @@ const PropertyPlatformRole = "platform_role"
 var ErrPlatformAccessNotFound = errors.New("tenancy access not found")
 
 const (
+	// platformRoleOwner is the partition owner's role.
+	platformRoleOwner    = "owner"
 	platformRoleAdmin    = "admin"
 	platformRoleOperator = "operator"
 	platformRoleViewer   = "viewer"

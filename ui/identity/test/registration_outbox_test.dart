@@ -138,4 +138,28 @@ void main() {
     await outbox.dismiss(id);
     expect(await container.read(registrationOutboxProvider.future), isEmpty);
   });
+
+  test('the chosen owning team survives a restart and is sent', () async {
+    final store = InMemoryRegistrationOutboxStore();
+    final service = _Service()
+      ..clientFailure = ConnectException(Code.unavailable, 'offline');
+
+    final first = _container(service, store);
+    final id = await first
+        .read(registrationOutboxProvider.notifier)
+        .capture(
+          name: 'Baraka',
+          phone: '+254700000002',
+          owningTeamId: 'team-9',
+        );
+    expect(
+      await first.read(registrationOutboxProvider.notifier).submit(id),
+      RegistrationOutcome.queued,
+    );
+
+    service.clientFailure = null;
+    final second = _container(service, store);
+    expect(await second.read(registrationOutboxProvider.notifier).flush(), 1);
+    expect(service.clients.single.owningTeamId, 'team-9');
+  });
 }

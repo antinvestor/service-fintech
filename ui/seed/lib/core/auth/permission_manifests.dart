@@ -42,6 +42,11 @@ void registerPermissionManifests() {
           scope: PermissionScope.feature,
         ),
         PermissionEntry(
+          key: 'client_data_verify',
+          label: 'Verify Client KYC Data',
+          scope: PermissionScope.action,
+        ),
+        PermissionEntry(
           key: 'form_template_view',
           label: 'View Form Templates',
           scope: PermissionScope.feature,

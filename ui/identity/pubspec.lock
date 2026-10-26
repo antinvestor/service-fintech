@@ -75,14 +75,14 @@ packages:
       path: "../../sdk/dart/loans"
       relative: true
     source: path
-    version: "0.6.1"
+    version: "0.6.2"
   antinvestor_api_operations:
     dependency: "direct overridden"
     description:
       path: "../../sdk/dart/operations"
       relative: true
     source: path
-    version: "0.4.1"
+    version: "0.4.3"
   antinvestor_api_profile:
     dependency: "direct main"
     description:

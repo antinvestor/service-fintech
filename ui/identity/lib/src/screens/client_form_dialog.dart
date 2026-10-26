@@ -1,6 +1,6 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
-    show FormFieldDefinition, FormTemplateObject;
+    show FormFieldDefinition, FormTemplateObject, InternalTeamObject;
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
 import 'package:flutter/material.dart';
 
@@ -25,9 +25,14 @@ class ClientRegistrationDraft {
     required this.phone,
     this.nationalId = '',
     this.details = const {},
+    this.owningTeamId = '',
   });
 
   final String name;
+
+  /// The team that owns the client. Empty places a field agent's client in
+  /// their own team; staff choose one.
+  final String owningTeamId;
 
   /// Passed to the profile service to find or create the borrower's
   /// profile; never kept on the client.
@@ -42,10 +47,19 @@ class ClientRegistrationDraft {
 /// [ClientRegistrationDraft]; editing pops with the [ClientObject] to save.
 /// The caller performs the save so the list can react to the result.
 ///
-/// `owning_team_id` is left as it was (empty for a new client): the service
-/// places a field agent's client in the agent's own team.
+/// When onboarding, [teams] offers the owning team. Left empty, the service
+/// places a field agent's client in the agent's own team; staff must choose.
+/// An edit leaves the team as it was: moving a client is a transfer.
 class ClientFormDialog extends StatefulWidget {
-  const ClientFormDialog({super.key, this.client, this.template});
+  const ClientFormDialog({
+    super.key,
+    this.client,
+    this.template,
+    this.teams = const [],
+  });
+
+  /// Teams a new client may be placed in.
+  final List<InternalTeamObject> teams;
 
   /// The client being edited, or null to onboard a new one.
   final ClientObject? client;
@@ -68,6 +82,7 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
   final _occupationCtrl = TextEditingController();
   final _extra = <({TextEditingController key, TextEditingController value})>[];
   final _templateValues = <String, TextEditingController>{};
+  String _owningTeamId = '';
 
   bool get _isEditing => widget.client != null;
 
@@ -174,6 +189,7 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
         phone: _phoneCtrl.text.trim(),
         nationalId: nationalId,
         details: details,
+        owningTeamId: _owningTeamId,
       ),
     );
   }
@@ -394,6 +410,30 @@ class _ClientFormDialogState extends State<ClientFormDialog> {
                         : null,
                   ),
                 ),
+                if (!_isEditing && widget.teams.isNotEmpty)
+                  FormFieldCard(
+                    label: 'Owning team',
+                    description:
+                        'Field agents may leave this for their own team; '
+                        'staff choose the team that looks after the client.',
+                    child: DropdownButtonFormField<String>(
+                      key: const Key('client-form-team'),
+                      initialValue: _owningTeamId,
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('My team'),
+                        ),
+                        for (final t in widget.teams)
+                          DropdownMenuItem(
+                            value: t.id,
+                            child: Text(t.name.isNotEmpty ? t.name : t.id),
+                          ),
+                      ],
+                      onChanged: (v) => setState(() => _owningTeamId = v ?? ''),
+                    ),
+                  ),
                 if (!_isEditing)
                   FormFieldCard(
                     label: 'Phone number',

@@ -101,6 +101,7 @@ Widget _host({
   required List<ClientDataEntryObject> entries,
   required List<String> log,
   bool canManage = false,
+  bool canVerifyData = false,
   STATE state = STATE.ACTIVE,
   ClientNotifier Function()? clientNotifier,
   bool kycComplete = true,
@@ -145,7 +146,11 @@ Widget _host({
     ],
     child: MaterialApp(
       home: Scaffold(
-        body: ClientDetailScreen(clientId: 'client-1', canManage: canManage),
+        body: ClientDetailScreen(
+          clientId: 'client-1',
+          canManage: canManage,
+          canVerifyData: canVerifyData,
+        ),
       ),
     ),
   );
@@ -221,7 +226,7 @@ void main() {
           ),
         ],
         log: log,
-        canManage: true,
+        canVerifyData: true,
       ),
     );
     await tester.pumpAndSettle();
@@ -254,7 +259,7 @@ void main() {
           ),
         ],
         log: log,
-        canManage: true,
+        canVerifyData: true,
       ),
     );
     await tester.pumpAndSettle();
@@ -282,7 +287,7 @@ void main() {
           ),
         ],
         log: log,
-        canManage: true,
+        canVerifyData: true,
       ),
     );
     await tester.pumpAndSettle();
@@ -448,5 +453,28 @@ void main() {
 
     expect(find.byType(ConsentCodeDialog), findsNothing);
     expect(find.textContaining('Could not activate'), findsOneWidget);
+  });
+
+  testWidgets('client_manage alone cannot decide on KYC entries', (
+    tester,
+  ) async {
+    _wide(tester);
+    await tester.pumpWidget(
+      _host(
+        entries: [
+          _entry(
+            'e1',
+            DataVerificationStatus.DATA_VERIFICATION_STATUS_COLLECTED,
+          ),
+        ],
+        log: <String>[],
+        canManage: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openKyc(tester);
+
+    expect(find.byKey(const Key('kyc-verify-e1')), findsNothing);
+    expect(find.byKey(const Key('kyc-start-review-e1')), findsNothing);
   });
 }

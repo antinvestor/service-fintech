@@ -27,6 +27,7 @@ class PendingRegistration {
     required this.queuedAt,
     this.clientId = '',
     this.rejection = '',
+    this.owningTeamId = '',
   });
 
   factory PendingRegistration.fromJson(Map<String, dynamic> json) =>
@@ -41,6 +42,7 @@ class PendingRegistration {
         queuedAt: DateTime.parse(json['queued_at'] as String),
         clientId: json['client_id'] as String? ?? '',
         rejection: json['rejection'] as String? ?? '',
+        owningTeamId: json['owning_team_id'] as String? ?? '',
       );
 
   /// Local id; the server never sees it.
@@ -48,6 +50,9 @@ class PendingRegistration {
   final String name;
   final String phone;
   final String nationalId;
+
+  /// The team that owns the client; empty for the registering agent's own.
+  final String owningTeamId;
 
   /// KYC details by field key, saved as COLLECTED entries once the client
   /// exists. Each leaves the map as it is saved.
@@ -75,6 +80,7 @@ class PendingRegistration {
     queuedAt: queuedAt,
     clientId: clientId ?? this.clientId,
     rejection: rejection ?? this.rejection,
+    owningTeamId: owningTeamId,
   );
 
   /// The registration as sent to the service. It needs no consent code:
@@ -86,7 +92,11 @@ class PendingRegistration {
     if (nationalId.isNotEmpty) {
       properties.fields[kClientNationalIdKey] = Value(stringValue: nationalId);
     }
-    return ClientObject(name: name, properties: properties);
+    return ClientObject(
+      name: name,
+      owningTeamId: owningTeamId,
+      properties: properties,
+    );
   }
 
   Map<String, dynamic> toJson() => {
@@ -98,6 +108,7 @@ class PendingRegistration {
     'queued_at': queuedAt.toUtc().toIso8601String(),
     'client_id': clientId,
     'rejection': rejection,
+    'owning_team_id': owningTeamId,
   };
 }
 
@@ -215,12 +226,14 @@ class RegistrationOutbox extends AsyncNotifier<List<PendingRegistration>> {
     required String phone,
     String nationalId = '',
     Map<String, String> details = const {},
+    String owningTeamId = '',
   }) async {
     final item = PendingRegistration(
       id: _localId(),
       name: name,
       phone: phone,
       nationalId: nationalId,
+      owningTeamId: owningTeamId,
       details: {
         for (final e in details.entries)
           if (e.key.trim().isNotEmpty && e.value.trim().isNotEmpty)

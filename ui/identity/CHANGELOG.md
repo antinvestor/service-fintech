@@ -1,3 +1,14 @@
+## 0.6.0
+
+- `ClientFormDialog(teams:)`: onboarding offers the owning team. Left as
+  "My team", a field agent's client goes to their own team; staff choose one
+  (the service requires it for staff). The choice is kept by the
+  registration outbox (`PendingRegistration.owningTeamId`), so it survives
+  offline capture. `ClientsScreen` loads the teams.
+- **Breaking:** KYC entries are verified, rejected or taken for review only
+  with `ClientDetailScreen(canVerifyData:)` (`client_data_verify`).
+  `canManage` (`client_manage`) still edits the client and adds KYC data.
+
 ## 0.5.2
 
 - `FormTemplateDesignerScreen`: builds a form template (name, organization,
