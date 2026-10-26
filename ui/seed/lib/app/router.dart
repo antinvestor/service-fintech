@@ -24,6 +24,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/auth/data/auth_state_provider.dart';
 import '../features/auth/ui/login_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/lending/lending_tab.dart';
 import '../features/limits/limits_feature.dart';
 import '../features/operations/loan_picker_dialog.dart';
 
@@ -272,6 +273,22 @@ final routerProvider = Provider<GoRouter>((ref) {
                     canManage: ref.watch(
                       hasPermissionProvider('client_manage'),
                     ),
+                    extraTabs: [
+                      if (ref.watch(
+                        hasPermissionProvider('seed_credit_profile_view'),
+                      ))
+                        ClientDetailTab(
+                          label: 'Lending',
+                          builder: (context, client) => LendingTab(
+                            clientId: client.id,
+                            canAdmin: ref.watch(
+                              hasPermissionProvider(
+                                'seed_credit_profile_admin',
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

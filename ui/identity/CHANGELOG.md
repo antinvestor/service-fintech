@@ -8,6 +8,8 @@
 - Phone and email are not offered as field types: contacts are kept on the
   client's profile, and the identity service refuses a template that asks for
   them.
+- `ClientDetailScreen.extraTabs` (`ClientDetailTab`): a host adds product tabs
+  after Profile and KYC (Seed adds the client's credit profile and loans).
 
 ## 0.5.1
 

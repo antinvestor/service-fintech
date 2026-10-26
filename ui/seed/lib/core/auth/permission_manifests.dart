@@ -73,6 +73,25 @@ void registerPermissionManifests() {
     ),
   );
 
+  // The seed service's own permits: the client screen's Lending tab.
+  registry.register(
+    const PermissionManifest(
+      namespace: 'service_seed',
+      permissions: [
+        PermissionEntry(
+          key: 'seed_credit_profile_view',
+          label: 'View Credit Profiles',
+          scope: PermissionScope.feature,
+        ),
+        PermissionEntry(
+          key: 'seed_credit_profile_admin',
+          label: 'Suspend, Block and Reinstate Borrowing',
+          scope: PermissionScope.action,
+        ),
+      ],
+    ),
+  );
+
   // The loans package declares every permit its screens gate on.
   registry.register(LoansRouteModule().permissionManifest);
   registry.register(FundingRouteModule().permissionManifest);

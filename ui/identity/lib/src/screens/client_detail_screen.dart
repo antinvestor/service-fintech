@@ -20,15 +20,27 @@ import 'client_form_dialog.dart';
 import 'consent_code_dialog.dart';
 
 /// One borrower: their profile and the KYC data collected about them.
+/// A tab a host app adds to the client screen, after Profile and KYC.
+class ClientDetailTab {
+  const ClientDetailTab({required this.label, required this.builder});
+
+  final String label;
+  final Widget Function(BuildContext context, ClientObject client) builder;
+}
+
 class ClientDetailScreen extends ConsumerWidget {
   const ClientDetailScreen({
     super.key,
     required this.clientId,
     this.canManage = false,
     this.backRoute = '/clients',
+    this.extraTabs = const [],
   });
 
   final String clientId;
+
+  /// Product tabs the host adds (e.g. a lender's credit profile and loans).
+  final List<ClientDetailTab> extraTabs;
 
   /// Whether the caller may edit the client, add KYC data and decide on
   /// collected entries (`client_manage`).
@@ -51,6 +63,7 @@ class ClientDetailScreen extends ConsumerWidget {
         client: client,
         canManage: canManage,
         backRoute: backRoute,
+        extraTabs: extraTabs,
       ),
     );
   }
@@ -61,11 +74,13 @@ class _ClientDetailContent extends ConsumerStatefulWidget {
     required this.client,
     required this.canManage,
     required this.backRoute,
+    required this.extraTabs,
   });
 
   final ClientObject client;
   final bool canManage;
   final String backRoute;
+  final List<ClientDetailTab> extraTabs;
 
   @override
   ConsumerState<_ClientDetailContent> createState() =>
@@ -79,7 +94,7 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 2 + widget.extraTabs.length, vsync: this);
   }
 
   @override
@@ -158,9 +173,10 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
         TabBar(
           controller: _tabs,
           isScrollable: true,
-          tabs: const [
-            Tab(text: 'Profile'),
-            Tab(text: 'KYC'),
+          tabs: [
+            const Tab(text: 'Profile'),
+            const Tab(text: 'KYC'),
+            for (final tab in widget.extraTabs) Tab(text: tab.label),
           ],
         ),
         Expanded(
@@ -169,6 +185,7 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
             children: [
               _ProfileTab(client: _client),
               _KycTab(clientId: _client.id, canManage: widget.canManage),
+              for (final tab in widget.extraTabs) tab.builder(context, _client),
             ],
           ),
         ),
