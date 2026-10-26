@@ -773,3 +773,20 @@ func (r *incomingPaymentRepoStub) ListAwaitingAllocation(
 	}
 	return out, nil
 }
+
+// A notifier names the payment; it never sets what identification and
+// allocation decide.
+func TestNotifiedPropertiesCannotPreDecideThePayment(t *testing.T) {
+	props := incomingPaymentProperties(map[string]interface{}{
+		"properties": data.JSONMap{
+			"reference":               "loan-1",
+			fieldRemainingAmount:      int64(1),
+			fieldClientID:             "client-x",
+			"identification_strategy": "forged",
+		},
+	})
+	assert.Equal(t, "loan-1", props.GetString("reference"))
+	for _, key := range decidedPaymentProperties() {
+		assert.NotContains(t, props, key)
+	}
+}

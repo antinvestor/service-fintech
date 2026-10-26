@@ -3,7 +3,7 @@ description: >
   Loan management UI library for Antinvestor. Embeddable screens and widgets
   for loan products, requests, accounts, disbursements, repayments, penalties,
   schedules, restructuring, portfolio reporting, and dashboard.
-version: 0.3.0
+version: 0.4.0
 repository: https://github.com/antinvestor/service-fintech
 homepage: https://github.com/antinvestor/service-fintech/tree/main/ui/loans
 issue_tracker: https://github.com/antinvestor/service-fintech/issues

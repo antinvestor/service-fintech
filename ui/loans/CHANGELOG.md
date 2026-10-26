@@ -1,3 +1,15 @@
+## 0.4.0
+
+- Staff origination completes in the console:
+  - On a submitted request, staff with `loan_request_manage` confirm the
+    client's data (`data_verification_confirmed`) before approving.
+  - On an approved request, staff with `loan_manage` open the loan account
+    (`LoanRequestDetailScreen.canOpenAccount`).
+- **Breaking:** the disburse dialog no longer asks for a channel or
+  recipient reference. It confirms that the principal is paid to the
+  borrower's own payout contact on the loan, and refuses a loan without one.
+  `_DisbursementFormDialog` takes the loan.
+
 ## 0.3.0
 
 - **Breaking:** field agents and staff no longer record repayments. The

@@ -54,6 +54,8 @@ var (
 		"the loan or savings account belongs to another product than the account the payment was made to")
 	ErrPaymentAssignUnavailable = apperrors.NewError(apperrors.ServiceUnavailable,
 		"loan matching is not configured")
+	ErrPaymentNotifyInternalOnly = apperrors.NewError(apperrors.Forbidden,
+		"incoming payments are announced only by the payment rail")
 )
 
 // AssignPayment ties a payment that matched nobody to the borrower's loan or
@@ -106,12 +108,12 @@ func (b *paymentRoutingBusiness) AssignPayment(
 	assignment := repository.PaymentAssignment{
 		OwnerID: result.ClientID,
 		Properties: data.JSONMap{
-			"identification_strategy": strategyStaffAssigned,
-			fieldClientID:             result.ClientID,
-			fieldProfileID:            result.ProfileID,
-			fieldAssignedBy:           assignedBy,
-			fieldAssignmentNote:       note,
-			fieldAssignedAt:           time.Now().UTC().Format(time.RFC3339),
+			fieldIdentification: strategyStaffAssigned,
+			fieldClientID:       result.ClientID,
+			fieldProfileID:      result.ProfileID,
+			fieldAssignedBy:     assignedBy,
+			fieldAssignmentNote: note,
+			fieldAssignedAt:     time.Now().UTC().Format(time.RFC3339),
 		},
 	}
 	if result.LoanID != "" {

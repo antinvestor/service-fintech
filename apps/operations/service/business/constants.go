@@ -35,6 +35,7 @@ const (
 	fieldTotalAmount          = "total_amount"
 	fieldAllocatedAmount      = "allocated_amount"
 	fieldPaymentState         = "payment_state"
+	fieldIdentification       = "identification_strategy"
 	fieldMemberID             = "member_id"
 	fieldPeriodID             = "period_id"
 	fieldDueDate              = "due_date"

@@ -714,7 +714,7 @@ func (b *paymentRoutingBusiness) buildStoredPaymentResult(payment *models.Incomi
 		fieldMembershipID: payment.OwnerID,
 	}
 	if payment.Properties != nil {
-		if strategy := payment.Properties.GetString("identification_strategy"); strategy != "" {
+		if strategy := payment.Properties.GetString(fieldIdentification); strategy != "" {
 			result[fieldStrategy] = strategy
 		}
 		if groupID := payment.Properties.GetString("group_id"); groupID != "" {
@@ -743,9 +743,9 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 		payment.PayableType = "group"
 	}
 	extra := data.JSONMap{
-		"identification_strategy": result.Strategy,
-		fieldGroupID:              result.GroupID,
-		fieldProfileID:            result.ProfileID,
+		fieldIdentification: result.Strategy,
+		fieldGroupID:        result.GroupID,
+		fieldProfileID:      result.ProfileID,
 	}
 	if result.LoanID != "" {
 		payment.OwnerID = result.ClientID
@@ -1262,6 +1262,11 @@ func extractPaymentReference(paymentData map[string]interface{}, payment *models
 
 func incomingPaymentProperties(paymentData map[string]interface{}) data.JSONMap {
 	properties := jsonMapFromValue(paymentData["properties"])
+	// What identification, allocation and staff assignment decide is never
+	// taken from the notifier.
+	for _, key := range decidedPaymentProperties() {
+		delete(properties, key)
+	}
 	for _, key := range []string{fieldPayerReference, fieldPayerName, fieldProductID, fieldGroupID, fieldReference} {
 		if value := strings.TrimSpace(extractString(paymentData, key)); value != "" {
 			properties[key] = value
@@ -1426,4 +1431,14 @@ func obligationLoanAccountID(obl *models.Obligation) string {
 	}
 	loanID, _ := obl.Properties[fieldLoanAccountID].(string)
 	return strings.TrimSpace(loanID)
+}
+
+// decidedPaymentProperties are the payment properties this service writes
+// itself as it identifies, allocates and assigns a payment.
+func decidedPaymentProperties() []string {
+	return []string{
+		fieldRemainingAmount, fieldClientID, fieldProfileID, fieldLoanID, fieldSavingsAccountID,
+		fieldMembershipID, fieldMemberID, fieldIdentification,
+		fieldAssignedBy, fieldAssignmentNote, fieldAssignedAt,
+	}
 }

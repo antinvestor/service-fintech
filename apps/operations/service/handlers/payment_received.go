@@ -86,9 +86,12 @@ func (h *PaymentReceived) Handle(ctx context.Context, _ map[string]string, messa
 		"rail_transaction_id": p.TransactionID,
 		"payer_contact_id":    p.SenderContactID,
 	}
-	for k, v := range p.Extra {
-		if _, taken := properties[k]; !taken {
-			properties[k] = v
+	// Only named, informational extras are kept: the payment's properties
+	// also carry what identification and allocation decided (owner, profile,
+	// remainder), which nothing on the wire may set.
+	for _, key := range railExtrasKept() {
+		if v := strings.TrimSpace(p.Extra.GetString(key)); v != "" {
+			properties[key] = v
 		}
 	}
 
@@ -108,6 +111,9 @@ func (h *PaymentReceived) Handle(ctx context.Context, _ map[string]string, messa
 	return nil
 }
 
+// railExtrasKept are the extras a received payment's properties keep.
+func railExtrasKept() []string { return []string{"prompt_id", "purpose"} }
+
 // railReference is the account the payer said the money is for: the loan or
 // savings account a collection prompt named, else what the payer quoted.
 func railReference(p railPayment) string {
@@ -119,7 +125,10 @@ func railReference(p railPayment) string {
 	return strings.TrimSpace(p.ReferenceID)
 }
 
-// actIn is ctx as this service acting inside the payment's partition.
+// actIn is ctx as this service acting inside the payment's partition. The
+// topic carries only the payment service's messages, and every lookup that
+// follows runs in this partition: a payment whose partition does not hold
+// the loan or account it names matches nothing and waits for staff.
 func (h *PaymentReceived) actIn(ctx context.Context, p railPayment) context.Context {
 	claims := &security.AuthenticationClaims{
 		TenantID:    p.TenantID,

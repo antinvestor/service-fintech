@@ -2,7 +2,9 @@ import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import '../utils/money_compat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../providers/loan_account_providers.dart';
 import '../providers/loan_request_providers.dart';
 import '../widgets/loan_request_status_badge.dart';
 
@@ -11,6 +13,7 @@ class LoanRequestDetailScreen extends ConsumerWidget {
     super.key,
     required this.requestId,
     this.canManage = false,
+    this.canOpenAccount = false,
   });
 
   final String requestId;
@@ -19,6 +22,10 @@ class LoanRequestDetailScreen extends ConsumerWidget {
   /// (`loan_request_manage`). Without it the decision buttons are not shown
   /// at all rather than offered and refused by the service.
   final bool canManage;
+
+  /// Whether the caller may open the loan account for an approved request
+  /// (`loan_manage`).
+  final bool canOpenAccount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -94,8 +101,35 @@ class LoanRequestDetailScreen extends ConsumerWidget {
           ],
           const SizedBox(height: 24),
           if (canManage &&
-              request.status == LoanRequestStatus.LOAN_REQUEST_STATUS_SUBMITTED)
+              request.status ==
+                  LoanRequestStatus.LOAN_REQUEST_STATUS_SUBMITTED) ...[
+            SwitchListTile(
+              key: const Key('loan-request-kyc-verified'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Client data verified'),
+              subtitle: const Text(
+                'Confirm the client\'s KYC forms were checked. Products that '
+                'require verification cannot be approved without it.',
+              ),
+              value: dataVerified(request),
+              onChanged: (v) => _setDataVerified(context, ref, request, v),
+            ),
+            const SizedBox(height: 12),
             _buildActions(context, ref, request),
+          ],
+          if (canOpenAccount &&
+              request.status ==
+                  LoanRequestStatus.LOAN_REQUEST_STATUS_APPROVED &&
+              request.loanAccountId.isEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const Key('loan-request-open-account'),
+                onPressed: () => _openAccount(context, ref, request.id),
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text('Open loan account'),
+              ),
+            ),
         ],
       ),
     );
@@ -126,6 +160,56 @@ class LoanRequestDetailScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// Whether staff confirmed the client's data on this request.
+  static bool dataVerified(LoanRequestObject request) =>
+      request.hasProperties() &&
+      (request.properties.fields['data_verification_confirmed']?.boolValue ??
+          false);
+
+  Future<void> _setDataVerified(
+    BuildContext context,
+    WidgetRef ref,
+    LoanRequestObject request,
+    bool verified,
+  ) async {
+    final updated = request.deepCopy();
+    updated.ensureProperties().fields['data_verification_confirmed'] = Value(
+      boolValue: verified,
+    );
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(loanRequestNotifierProvider.notifier).save(updated);
+      ref.invalidate(loanRequestDetailProvider(request.id));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not update the request: $e')),
+      );
+    }
+  }
+
+  Future<void> _openAccount(
+    BuildContext context,
+    WidgetRef ref,
+    String requestId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.maybeOf(context);
+    try {
+      final account = await ref
+          .read(loanAccountNotifierProvider.notifier)
+          .createFromRequest(requestId);
+      ref.invalidate(loanRequestDetailProvider(requestId));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Loan account opened')),
+      );
+      router?.go('/loans/${account.id}');
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not open the loan account: $e')),
+      );
+    }
   }
 
   Future<void> _approve(BuildContext context, WidgetRef ref, String id) async {

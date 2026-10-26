@@ -77,6 +77,9 @@ class LoansRouteModule extends RouteModule {
                   canManage: ref.watch(
                     hasPermissionProvider('loan_request_manage'),
                   ),
+                  canOpenAccount: ref.watch(
+                    hasPermissionProvider('loan_manage'),
+                  ),
                 ),
               ),
             ),

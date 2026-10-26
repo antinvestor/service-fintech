@@ -144,6 +144,7 @@ type loanAccountBusiness struct {
 	disbRepo          repository.DisbursementRepository
 	scheduleEntryRepo repository.ScheduleEntryRepository
 	notifier          *LoanNotifier
+	contacts          PayoutDestinationChecker
 }
 
 func NewLoanAccountBusiness(
@@ -181,6 +182,7 @@ func NewLoanAccountBusiness(
 		disbRepo:          o.disbRepo,
 		scheduleEntryRepo: o.scheduleEntryRepo,
 		notifier:          o.notifier,
+		contacts:          o.payoutChecker,
 
 		eventsMan:        eventsMan,
 		loanProductRepo:  loanProductRepo,
@@ -356,6 +358,8 @@ func (b *loanAccountBusiness) populateLoanFromRequest(
 	la.Properties["loan_request_id"] = loanRequestID
 	if paymentAccountRef := loanRequestStringProperty(la.Properties, "payment_account_ref"); paymentAccountRef != "" {
 		la.PaymentAccountRef = paymentAccountRef
+	} else {
+		la.PaymentAccountRef = b.defaultPayoutContact(ctx, logger, la.ClientID)
 	}
 
 	b.applyProductDefaults(ctx, logger, la, lr.ProductID)
@@ -1128,4 +1132,24 @@ func computeFirstRepaymentDays(freq loansv1.RepaymentFrequency) int {
 	default:
 		return daysPerWeek
 	}
+}
+
+// defaultPayoutContact is the borrower's first verified mobile number, by
+// contact id, for a request that named none. Without one the loan opens
+// with no payout contact and cannot be disbursed until it has one.
+func (b *loanAccountBusiness) defaultPayoutContact(
+	ctx context.Context,
+	logger *util.LogEntry,
+	clientID string,
+) string {
+	if b.contacts == nil {
+		return ""
+	}
+	_, contactID, err := b.contacts.CollectionContact(ctx, clientID, "")
+	if err != nil {
+		logger.WithError(err).WithField("client_id", clientID).
+			Warn("loan opened without a payout contact: the borrower has no verified mobile number")
+		return ""
+	}
+	return contactID
 }

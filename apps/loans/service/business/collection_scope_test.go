@@ -20,6 +20,7 @@ import (
 
 	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
 	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
+	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/assert"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -158,4 +159,21 @@ func TestCollectionInitiate_RefusedWithoutPaymentPrompts(t *testing.T) {
 		CollectionAmount: &commonv1.Money{CurrencyCode: "KES", Units: 500},
 	})
 	require.ErrorIs(t, err, ErrCollectionPromptUnavailable)
+}
+
+// A loan opened from a request that named no payout contact pays out to the
+// borrower's first verified mobile number, by id; without one it has none.
+func TestLoanAccountDefaultsItsPayoutContact(t *testing.T) {
+	contacts := NewProfilePayoutChecker(
+		mapResolver{profiles: map[string]string{"client-b": "profile-b"}},
+		payoutProfiles{profile: &profilev1.ProfileObject{Id: "profile-b", Contacts: []*profilev1.ContactObject{
+			{Id: "contact-unverified", Type: profilev1.ContactType_MSISDN},
+			{Id: "contact-b", Type: profilev1.ContactType_MSISDN, Verified: true},
+		}}},
+	)
+	b := &loanAccountBusiness{contacts: contacts}
+	logger := util.Log(t.Context())
+	assert.Equal(t, "contact-b", b.defaultPayoutContact(t.Context(), logger, "client-b"))
+	assert.Empty(t, b.defaultPayoutContact(t.Context(), logger, "client-unknown"))
+	assert.Empty(t, (&loanAccountBusiness{}).defaultPayoutContact(t.Context(), logger, "client-b"))
 }

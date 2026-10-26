@@ -26,6 +26,7 @@ import (
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	audit "github.com/antinvestor/common/audit"
 	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/workerpool"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -286,6 +287,11 @@ func (s *OperationsServer) IncomingPaymentNotify(
 	ctx context.Context,
 	req *operationsv1.IncomingPaymentNotifyRequest,
 ) (*operationsv1.IncomingPaymentNotifyResponse, error) {
+	// Money is announced only by the payment rail. A person announcing a
+	// payment would be typing money into a borrower's loan.
+	if claims := security.ClaimsFromContext(ctx); claims == nil || !claims.IsInternalSystem() {
+		return nil, apperrors.CleanErr(business.ErrPaymentNotifyInternalOnly)
+	}
 	currency := req.GetAmount().GetCurrencyCode()
 	amount := moneyx.ToSmallestUnit(req.GetAmount(), moneyx.Decimals(currency))
 

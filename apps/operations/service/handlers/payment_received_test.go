@@ -19,6 +19,9 @@ import (
 	"errors"
 	"testing"
 
+	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
+	"connectrpc.com/connect/v2"
+
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +60,8 @@ const railPaymentJSON = `{
   "TransactionID": "MTN-77",
   "ReferenceID": "",
   "OutBound": false,
-  "extra": {"product_id": "prod-1", "loan_account_id": "loan-1", "prompt_id": "pay-rail-1"}
+  "extra": {"product_id": "prod-1", "loan_account_id": "loan-1", "prompt_id": "pay-rail-1",
+            "remaining_amount": 1, "client_id": "someone-else", "identification_strategy": "forged"}
 }`
 
 func TestReceivedPaymentIsBookedInItsPartitionByProfile(t *testing.T) {
@@ -77,6 +81,10 @@ func TestReceivedPaymentIsBookedInItsPartitionByProfile(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "contact-1", props.GetString("payer_contact_id"))
 	assert.Equal(t, "MTN-77", props.GetString("rail_transaction_id"))
+	assert.Equal(t, "pay-rail-1", props.GetString("prompt_id"))
+	for _, reserved := range []string{"remaining_amount", "client_id", "identification_strategy"} {
+		assert.NotContains(t, props, reserved, "nothing on the wire sets what allocation decides")
+	}
 
 	require.NotNil(t, rec.claims)
 	assert.True(t, rec.claims.IsInternalSystem())
@@ -103,4 +111,25 @@ func TestReceivedPaymentBookingFailureIsRedelivered(t *testing.T) {
 	rec := &identifyRecorder{err: errors.New("database unavailable")}
 	err := NewPaymentReceived(rec, "svc").Handle(context.Background(), nil, []byte(railPaymentJSON))
 	require.Error(t, err)
+}
+
+// Only the payment rail announces money; a person who could would be typing
+// money into a borrower's loan.
+func TestIncomingPaymentNotifyIsTheRailsAlone(t *testing.T) {
+	rec := &identifyRecorder{}
+	srv := NewOperationsServer(nil, rec, nil, nil, nil)
+	req := &operationsv1.IncomingPaymentNotifyRequest{TransactionId: "txn-1"}
+
+	staff := (&security.AuthenticationClaims{Roles: []string{"operator"}}).ClaimsToContext(context.Background())
+	_, err := srv.IncomingPaymentNotify(staff, req)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	assert.Nil(t, rec.got)
+
+	rail := (&security.AuthenticationClaims{
+		Roles: []string{security.ConstantSystemInternalRole},
+	}).ClaimsToContext(context.Background())
+	_, err = srv.IncomingPaymentNotify(rail, req)
+	require.NoError(t, err)
+	assert.NotNil(t, rec.got)
 }

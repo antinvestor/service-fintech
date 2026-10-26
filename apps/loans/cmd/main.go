@@ -250,6 +250,7 @@ func setupServiceOptions(
 		business.WithReadScope(readScope),
 		business.WithStatementSources(disbRepo, seRepo),
 		business.WithNotifier(loanNotifier),
+		business.WithPayoutDestinationChecker(payoutChecker),
 	)
 	fundingSettlement := business.NewFundingSettlement(repRepo, laRepo, fundingCli)
 	repBusiness := business.NewRepaymentBusiness(

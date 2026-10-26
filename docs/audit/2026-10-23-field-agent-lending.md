@@ -741,3 +741,37 @@ Payment covers `TestPaymentFromPrompt*`.
 - `TestPaidOffNoticeThatFailedIsRetriedUntilAcknowledged`
 - repository `TestPaidOffNoticesAreClaimedUntilNoticed` (Postgres)
 - payment `TestPayerNumber*`
+
+## 32. Addendum 2026-10-26 — staff origination and rail-only payment notices
+
+**Findings.**
+
+- Staff origination stopped at APPROVED. The console could not open the
+  loan account. It had no way to confirm KYC data. Its disburse dialog asked
+  for a free-text channel and "recipient reference / rail transaction code".
+- `IncomingPaymentNotify` was granted to OPERATOR, so staff could announce a
+  payment that the rail would then apply to a loan. The notified properties
+  could also pre-set allocation fields such as `remaining_amount` and
+  `client_id`.
+
+**Change.**
+
+- *Request detail.* A submitted request has a "Client data verified"
+  toggle, which saves `data_verification_confirmed`. An approved request has
+  "Open loan account" (`loan_manage`), which opens the account and goes to
+  it.
+- *Disbursement.* The disburse dialog is a confirmation. The principal goes
+  to the loan's payout contact, and a loan without one cannot be disbursed.
+- *Payout contact.* A loan opened from a request that named none takes the
+  borrower's first verified mobile number, by contact id.
+- *Notify.* `IncomingPaymentNotify` accepts internal service accounts only
+  (`ErrPaymentNotifyInternalOnly`). Notified and rail-received properties
+  never carry the fields identification, allocation and assignment decide.
+  The rail consumer keeps only `prompt_id` and `purpose` from the extras.
+
+**Verified.**
+
+- operations `TestIncomingPaymentNotifyIsTheRailsAlone`,
+  `TestNotifiedPropertiesCannotPreDecideThePayment`
+- loans `TestLoanAccountDefaultsItsPayoutContact`
+- ui_loans 0.4.0 widget tests (48 pass)

@@ -297,15 +297,15 @@ class _LoanAccountDetailScreenState
     showDialog<void>(
       context: context,
       builder: (dialogContext) => _DisbursementFormDialog(
-        loanAccountId: loan.id,
-        onSave: (channel, recipientReference, idempotencyKey) async {
+        loan: loan,
+        onSave: (idempotencyKey) async {
           try {
             await ref
                 .read(disbursementNotifierProvider.notifier)
                 .create(
                   loanAccountId: loan.id,
-                  channel: channel,
-                  recipientReference: recipientReference,
+                  channel: 'mobile_money',
+                  recipientReference: '',
                   idempotencyKey: idempotencyKey,
                 );
             ref.invalidate(loanAccountDetailProvider(widget.loanId));
@@ -1746,55 +1746,33 @@ class _HistoryTab extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _DisbursementFormDialog extends StatefulWidget {
-  const _DisbursementFormDialog({
-    required this.loanAccountId,
-    required this.onSave,
-  });
+  const _DisbursementFormDialog({required this.loan, required this.onSave});
 
-  final String loanAccountId;
-  final Future<void> Function(
-    String channel,
-    String recipientReference,
-    String idempotencyKey,
-  )
-  onSave;
+  final LoanAccountObject loan;
+  final Future<void> Function(String idempotencyKey) onSave;
 
   @override
   State<_DisbursementFormDialog> createState() =>
       _DisbursementFormDialogState();
 }
 
+/// Confirms a disbursement. Staff choose nothing about where the money goes:
+/// the principal is paid to the borrower's own verified mobile-money contact
+/// on the loan, by the payment rail.
 class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _channelCtrl;
-  late final TextEditingController _recipientRefCtrl;
   late final String _idempotencyKey;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _channelCtrl = TextEditingController();
-    _recipientRefCtrl = TextEditingController();
     _idempotencyKey = generateIdempotencyKey();
   }
 
-  @override
-  void dispose() {
-    _channelCtrl.dispose();
-    _recipientRefCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      await widget.onSave(
-        _channelCtrl.text.trim(),
-        _recipientRefCtrl.text.trim(),
-        _idempotencyKey,
-      );
+      await widget.onSave(_idempotencyKey);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _saving = false);
@@ -1803,46 +1781,28 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final loan = widget.loan;
+    final hasDestination = loan.paymentAccountRef.isNotEmpty;
     return AlertDialog(
-      title: const Text('Initiate Disbursement'),
+      title: const Text('Disburse loan'),
       content: SizedBox(
         width: 420,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FormFieldCard(
-                label: 'Channel',
-                description:
-                    'The disbursement channel (e.g. mobile money, bank transfer).',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _channelCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. mobile_money',
-                  ),
-                  textInputAction: TextInputAction.next,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${formatLoanMoney(loan.principalAmount)} is paid to the '
+              'borrower\'s own mobile-money number on this loan.',
+            ),
+            const SizedBox(height: 8),
+            if (!hasDestination)
+              Text(
+                'This loan has no payout contact, so it cannot be disbursed.',
+                key: const Key('disburse-no-destination'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-              FormFieldCard(
-                label: 'Recipient Reference',
-                description: 'External payment reference or transaction ID.',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _recipientRefCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. the rail transaction code',
-                  ),
-                  textInputAction: TextInputAction.done,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
       actions: [
@@ -1851,7 +1811,8 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _saving ? null : _submit,
+          key: const Key('disburse-confirm'),
+          onPressed: _saving || !hasDestination ? null : _submit,
           child: _saving
               ? const SizedBox(
                   width: 20,
