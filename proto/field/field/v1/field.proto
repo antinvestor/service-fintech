@@ -133,6 +133,11 @@ message ClientObject {
     (buf.validate.field).string.max_len = 40
   ]; // Canonical owning internal team
   reserved 8; // was primary_relationship_member_id, now in client_relationships table
+  // tenant_id and partition_id are where the client is registered (output
+  // only). A service acting for the borrower outside a staff request, such
+  // as Seed handling a USSD session, works in that partition.
+  string tenant_id = 9;
+  string partition_id = 10;
 }
 
 // ClientRelationshipObject assigns a workforce member to a client.

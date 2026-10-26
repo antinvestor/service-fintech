@@ -546,3 +546,44 @@ when an app with migrations does not ship them, or names them so Frame would
 misapply them. Every loans and limits up-migration was dry-run against
 production in a rolled-back transaction, and all succeed. Identity, funding
 and savings had applied theirs; operations, seed and stawi have none.
+
+## 28. Addendum 2026-10-26 — borrower self-service on USSD
+
+A borrower dials the lender's USSD code (Africa's Talking) and gets the Seed
+menu from the service-notification USSD engine. Nothing Seed-specific lives
+in the engine.
+
+- **Who is calling.** The engine resolves the number to the caller's profile
+  and contact. The gateway is accepted only with the service's auth key, since
+  the engine acts for whoever the number names.
+- **What they see.** When a known caller opens the menu, the engine calls
+  Seed's `UssdState` (`seed_ussd_state`, engine service account only). Seed
+  answers with the borrower's rows: client, current loan (reference, balance,
+  next instalment and due date) and room to borrow. Borrowing needs an active
+  client with a PIN, no loan running, and an active credit profile. The call
+  goes only to trusted hosts, because it carries the engine's token.
+- **What they can do.** Each completed session reaches Seed on its own
+  Pub/Sub topic, through the notification service's `ussd` receive route.
+  - *Borrow*: amount plus PIN. It runs `RequestLoan` in the borrower's own
+    partition, keyed by the session so a redelivery never borrows twice. A
+    refusal (over the limit, a loan running, KYC incomplete, account paused)
+    is texted back.
+  - *Repay*: next instalment, full balance or another amount. Loans
+    `InitiateCollection` sends the prompt to the contact the borrower dialled
+    from; they approve it with their mobile money PIN. Seed never touches the
+    money.
+  - *Set or change PIN*: a one-time code from the profile service to that
+    contact, then the code and the PIN twice.
+- **PINs.** PIN and code prompts are secret menus. The engine seals what is
+  typed with Seed's public key before keeping it anywhere, so sessions, the
+  notification payload and logs never hold a PIN; only Seed can open it.
+  Seed keeps an argon2id hash and locks the PIN for an hour after five wrong
+  tries. A value that arrives unsealed is refused.
+- **Partition.** `ClientObject` now carries `tenant_id` and `partition_id`.
+  Seed acts as its own service account inside the borrower's partition, so
+  what USSD creates belongs to the lender.
+- **Grants (tenancy).**
+  - New account `service_notification_ussd`: `profile_view`,
+    `notification_send` and `seed_ussd_state`.
+  - Seed gains the `/ussd` and `/notification` audiences, `contact_manage`
+    (to send the code) and `notification_send`, and loses `repayment_manage`.

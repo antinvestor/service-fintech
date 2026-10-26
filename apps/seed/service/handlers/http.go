@@ -79,6 +79,14 @@ type Server struct {
 	clientResolver business.ClientResolver
 	// staffRole is the role that lets a caller act on another client's behalf.
 	staffRole string
+	// ussd answers the USSD engine; nil when USSD is off.
+	ussd business.UssdBusiness
+}
+
+// WithUssd serves the USSD engine's session-start call.
+func (s *Server) WithUssd(ussd business.UssdBusiness) *Server {
+	s.ussd = ussd
+	return s
 }
 
 // NewServer builds a Server with the given business dependencies.
@@ -188,6 +196,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/seed/loan-requests", s.handleRequestLoan)
 	mux.HandleFunc("GET /api/v1/seed/credit-profiles/{clientId}/{currency}", s.handleGetCreditProfile)
 	mux.HandleFunc("POST /api/v1/seed/internal/paid-off", s.handlePaidOff)
+	mux.HandleFunc("POST /api/v1/seed/internal/ussd/state", s.handleUssdState)
 	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/suspend",
 		s.handleSetStatus(models.CreditProfileStatusSuspended))
 	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/block",
@@ -397,6 +406,52 @@ func (s *Server) handlePaidOff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(ctx, w, http.StatusOK, map[string]any{fieldStatus: "ok"})
+}
+
+// UssdStatePayload is the USSD engine's session-start request.
+type UssdStatePayload struct {
+	ServiceID string `json:"service_id"`
+	ProfileID string `json:"profile_id"`
+	ContactID string `json:"contact_id"`
+}
+
+// handleUssdState answers the USSD engine when a borrower opens the Seed
+// menu: the rows the menu shows them now. Only a service account may call
+// it (the engine, holding seed_ussd_state).
+func (s *Server) handleUssdState(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if s.ussd == nil {
+		writeError(ctx, w, apperrors.NewError(apperrors.ServiceUnavailable, "USSD is not enabled"))
+		return
+	}
+
+	caller, callerErr := s.callerPrincipal(r)
+	if callerErr != nil {
+		writeError(ctx, w, callerErr)
+		return
+	}
+	if !caller.isService {
+		writeError(ctx, w, apperrors.NewError(apperrors.Forbidden,
+			"the USSD state call is restricted to the USSD service"))
+		return
+	}
+
+	var payload UssdStatePayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON"))
+		return
+	}
+	if strings.TrimSpace(payload.ProfileID) == "" {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "profile_id is required"))
+		return
+	}
+
+	rows, err := s.ussd.State(ctx, payload.ProfileID)
+	if err != nil {
+		writeError(ctx, w, err)
+		return
+	}
+	writeJSON(ctx, w, http.StatusOK, map[string]any{"rows": rows})
 }
 
 // errorBody is the JSON shape every seed error response uses.

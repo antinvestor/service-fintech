@@ -7,8 +7,8 @@ toolchain go1.26.1
 require (
 	buf.build/gen/go/antinvestor/audit/connectrpc/go/v2 v2.0.2-20260929093104-d5d34f953660.1
 	buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.12-20260509050709-3f270876dbf3.2
-	buf.build/gen/go/antinvestor/field/connectrpc/go/v2 v2.0.2-20261024205209-89cd53e13146.1
-	buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261024205209-89cd53e13146.2
+	buf.build/gen/go/antinvestor/field/connectrpc/go/v2 v2.0.2-20261026032826-8d13ffc64bc8.1
+	buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261026032826-8d13ffc64bc8.2
 	buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac946cc1ed.1
 	buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261025114649-9da866114f22.1
 	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261025114649-9da866114f22.2

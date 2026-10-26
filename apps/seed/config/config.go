@@ -60,6 +60,28 @@ type SeedConfig struct {
 	SeedStaffRole        string `envDefault:"seed_staff" env:"SEED_STAFF_ROLE"`
 	SeedCreditTierLadder string `envDefault:""           env:"SEED_CREDIT_TIER_LADDER"`
 
+	// Notification service — borrowers are texted the outcome of what they
+	// asked for on USSD.
+	NotificationServiceURI                   string `envDefault:""                                         env:"NOTIFICATION_SERVICE_URI"`
+	NotificationServiceWorkloadAPITargetPath string `envDefault:"/ns/notification/sa/service-notification" env:"NOTIFICATION_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
+	// Borrower USSD. Off unless SEED_USSD_SECRET_KEY is set.
+	//
+	// UssdServiceURI is the USSD engine's management API (setup registers
+	// the menu there). UssdSecretKey is Seed's X25519 private key (base64):
+	// the engine seals PINs with its public half. UssdGatewayAuthKey is the
+	// secret the telco gateway (Africa's Talking) puts in its callback URL.
+	// UssdStateURL is this service's session-start endpoint as the engine
+	// reaches it. Completed sessions arrive on UssdInboundURI.
+	UssdServiceURI     string `envDefault:""                        env:"USSD_SERVICE_URI"`
+	UssdServiceID      string `envDefault:"seed"                    env:"SEED_USSD_SERVICE_ID"`
+	UssdSecretKey      string `envDefault:""                        env:"SEED_USSD_SECRET_KEY"`
+	UssdGatewayAuthKey string `envDefault:""                        env:"SEED_USSD_GATEWAY_AUTH_KEY"`
+	UssdStateURL       string `envDefault:""                        env:"SEED_USSD_STATE_URL"`
+	UssdInboundName    string `envDefault:"seed-ussd-inbound"       env:"SEED_USSD_INBOUND_NAME"`
+	UssdInboundURI     string `envDefault:"mem://seed-ussd-inbound" env:"SEED_USSD_INBOUND_URI"`
+	LenderName         string `envDefault:"Seed"                    env:"SEED_LENDER_NAME"`
+
 	// Tenancy service.
 	TenancyServiceURI                   string `envDefault:"127.0.0.1:7003"              env:"TENANCY_SERVICE_URI"`
 	TenancyServiceWorkloadAPITargetPath string `envDefault:"/ns/auth/sa/service-tenancy" env:"TENANCY_SERVICE_WORKLOAD_API_TARGET_PATH"`

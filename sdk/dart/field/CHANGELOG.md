@@ -1,3 +1,8 @@
+## 0.4.1
+
+- `ClientObject.tenant_id` and `partition_id` (output only): where the client
+  is registered.
+
 ## 0.4.0
 
 - **Breaking:** regenerated with protoc_plugin 25.1 (`buf.build/protocolbuffers/dart:v25.1.0`)
