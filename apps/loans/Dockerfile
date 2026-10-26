@@ -34,5 +34,5 @@ WORKDIR /
 COPY --from=builder /app/binary /service
 COPY --from=builder /app/apps/loans/migrations /migrations
 COPY --from=builder /app/products/loans/workflows /workflows
-ENV DATABASE_MIGRATION_PATH=/migrations
+ENV MIGRATION_PATH=/migrations
 ENTRYPOINT ["/service"]

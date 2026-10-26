@@ -518,3 +518,31 @@ Goal: everything a lender's staff must do is reachable from the Seed app.
   amount (`DepositRecord`), and no payment-rail path credits a savings
   account. That conflicts with the rule that clients pay from their own
   contact, so savings stays out of Seed until deposits come from the rail.
+
+## 27. Addendum 2026-10-26 — SQL migrations never reached loans and limits
+
+Frame reads the migration directory from `MIGRATION_PATH`. The loans image
+set `DATABASE_MIGRATION_PATH`, so its setup Job scanned the default
+`./migrations/0001` and applied nothing. The limits image did not carry its
+migrations at all. Its files were also named `.up.sql`/`.down.sql`, and Frame
+skips only `_down.sql`, so the revert files would have been applied too.
+
+Production consequences until this ships:
+
+- Loans kept the global unique indexes (`uq_lp_code`, `uq_rep_idem`,
+  `uq_lr_idempotency`, …) instead of the partition-scoped ones from 0001. A
+  product code or idempotency key used by one lender blocked every other
+  lender.
+- Loans lacked the penalty-per-installment and live-disbursement guards
+  (0003, 0004), the job claim indexes (0006), and the collector column drop
+  (0007).
+- Limits lacked the reservation idempotency unique index and its runtime
+  indexes.
+
+Fix: the loans image sets `MIGRATION_PATH`. The limits image ships its
+migrations and sets it too. The limits files are renamed `_up`/`_down` and
+wrapped in one `DO` block each. `pkg/dbmigrate` now has a test that fails
+when an app with migrations does not ship them, or names them so Frame would
+misapply them. Every loans and limits up-migration was dry-run against
+production in a rolled-back transaction, and all succeed. Identity, funding
+and savings had applied theirs; operations, seed and stawi have none.
