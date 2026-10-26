@@ -70,6 +70,20 @@ func (c *recordingOperationsClient) PaymentAllocate(
 	panic("stub: PaymentAllocate not expected")
 }
 
+func (c *recordingOperationsClient) IncomingPaymentSearch(
+	_ context.Context,
+	_ *operationsv1.IncomingPaymentSearchRequest,
+) (operationsv1connect.OperationsServiceIncomingPaymentSearchClientStream, error) {
+	panic("stub: IncomingPaymentSearch not expected")
+}
+
+func (c *recordingOperationsClient) IncomingPaymentAssign(
+	_ context.Context,
+	_ *operationsv1.IncomingPaymentAssignRequest,
+) (*operationsv1.IncomingPaymentAssignResponse, error) {
+	panic("stub: IncomingPaymentAssign not expected")
+}
+
 func (c *recordingOperationsClient) references() map[string]int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -37,4 +37,22 @@ abstract final class OperationsService {
     operationsv1operations.PaymentAllocateRequest.new,
     operationsv1operations.PaymentAllocateResponse.new,
   );
+
+  /// IncomingPaymentSearch lists received payments, for staff to find the
+  /// ones that matched nobody.
+  static const incomingPaymentSearch = connect.Spec(
+    '/$name/IncomingPaymentSearch',
+    connect.StreamType.server,
+    operationsv1operations.IncomingPaymentSearchRequest.new,
+    operationsv1operations.IncomingPaymentSearchResponse.new,
+  );
+
+  /// IncomingPaymentAssign ties an unmatched payment to its loan and
+  /// allocates it.
+  static const incomingPaymentAssign = connect.Spec(
+    '/$name/IncomingPaymentAssign',
+    connect.StreamType.unary,
+    operationsv1operations.IncomingPaymentAssignRequest.new,
+    operationsv1operations.IncomingPaymentAssignResponse.new,
+  );
 }

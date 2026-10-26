@@ -40,6 +40,7 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		&models.CreditProfile{},
 		&models.CreditTierConfig{},
 		&models.LoanRequest{},
+		&models.UssdPin{},
 		&audit.Event{},
 	); migrateErr != nil {
 		return migrateErr
@@ -55,6 +56,7 @@ func MigrateForTest(ctx context.Context, dbPool pool.Pool) error {
 		&models.CreditProfile{},
 		&models.CreditTierConfig{},
 		&models.LoanRequest{},
+		&models.UssdPin{},
 		&audit.Event{},
 	); err != nil {
 		return err
@@ -80,6 +82,14 @@ func postMigrate(ctx context.Context, dbPool pool.Pool) error {
 		"ON seed_loan_requests (idempotency_key) WHERE idempotency_key <> ''"
 	if err := db.Exec(stmt).Error; err != nil {
 		util.Log(ctx).WithError(err).Error("postMigrate -- could not create idempotency key index")
+		return err
+	}
+
+	// One USSD PIN per borrower profile in a partition.
+	stmt = "CREATE UNIQUE INDEX IF NOT EXISTS uq_seed_ussd_pins_profile " +
+		"ON seed_ussd_pins (partition_id, profile_id) WHERE deleted_at IS NULL"
+	if err := db.Exec(stmt).Error; err != nil {
+		util.Log(ctx).WithError(err).Error("postMigrate -- could not create ussd pin index")
 		return err
 	}
 	return nil

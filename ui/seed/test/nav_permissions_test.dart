@@ -119,6 +119,28 @@ void main() {
       );
     });
 
+    test('gates form templates on form_template_view', () {
+      expect(
+        requiredPermissionsForRoute('/form-templates/new'),
+        equals({'form_template_view'}),
+      );
+    });
+
+    test('gates funding and payment routes on their permits', () {
+      expect(
+        requiredPermissionsForRoute('/funding/accounts/acc-1'),
+        equals({'investor_account_view'}),
+      );
+      expect(
+        requiredPermissionsForRoute('/operations/payments'),
+        equals({'payment_view'}),
+      );
+      expect(
+        requiredPermissionsForRoute('/operations/transfers'),
+        equals({'transfer_view'}),
+      );
+    });
+
     test('leaves ungated routes ungated', () {
       for (final route in ['/', '/organizations', '/limits/ledger']) {
         expect(requiredPermissionsForRoute(route), isEmpty, reason: route);

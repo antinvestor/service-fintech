@@ -17,6 +17,8 @@ import 'dart:typed_data' as $typed_data;
 
 import 'package:protobuf/well_known_types/google/protobuf/struct.pbjson.dart'
     as $1;
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pbjson.dart'
+    as $3;
 
 import '../../common/v1/common.pbjson.dart' as $2;
 import '../../common/v1/money.pbjson.dart' as $0;
@@ -369,6 +371,169 @@ final $typed_data.Uint8List paymentAllocateResponseDescriptor =
         'ChdQYXltZW50QWxsb2NhdGVSZXNwb25zZRIvCgZyZXN1bHQYASABKAsyFy5nb29nbGUucHJvdG'
         '9idWYuU3RydWN0UgZyZXN1bHQ=');
 
+@$core.Deprecated('Use incomingPaymentObjectDescriptor instead')
+const IncomingPaymentObject$json = {
+  '1': 'IncomingPaymentObject',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'transaction_id', '3': 2, '4': 1, '5': 9, '10': 'transactionId'},
+    {
+      '1': 'amount',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'amount'
+    },
+    {'1': 'payer_name', '3': 4, '4': 1, '5': 9, '10': 'payerName'},
+    {'1': 'reference', '3': 5, '4': 1, '5': 9, '10': 'reference'},
+    {'1': 'product_id', '3': 6, '4': 1, '5': 9, '10': 'productId'},
+    {'1': 'matched', '3': 7, '4': 1, '5': 8, '10': 'matched'},
+    {'1': 'client_id', '3': 8, '4': 1, '5': 9, '10': 'clientId'},
+    {'1': 'loan_account_id', '3': 9, '4': 1, '5': 9, '10': 'loanAccountId'},
+    {
+      '1': 'identification_strategy',
+      '3': 10,
+      '4': 1,
+      '5': 9,
+      '10': 'identificationStrategy'
+    },
+    {
+      '1': 'unallocated',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'unallocated'
+    },
+    {
+      '1': 'state',
+      '3': 12,
+      '4': 1,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '10': 'state'
+    },
+    {
+      '1': 'received_at',
+      '3': 13,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'receivedAt'
+    },
+    {'1': 'assigned_by', '3': 14, '4': 1, '5': 9, '10': 'assignedBy'},
+    {'1': 'assignment_note', '3': 15, '4': 1, '5': 9, '10': 'assignmentNote'},
+  ],
+};
+
+/// Descriptor for `IncomingPaymentObject`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List incomingPaymentObjectDescriptor = $convert.base64Decode(
+    'ChVJbmNvbWluZ1BheW1lbnRPYmplY3QSDgoCaWQYASABKAlSAmlkEiUKDnRyYW5zYWN0aW9uX2'
+    'lkGAIgASgJUg10cmFuc2FjdGlvbklkEigKBmFtb3VudBgDIAEoCzIQLmNvbW1vbi52MS5Nb25l'
+    'eVIGYW1vdW50Eh0KCnBheWVyX25hbWUYBCABKAlSCXBheWVyTmFtZRIcCglyZWZlcmVuY2UYBS'
+    'ABKAlSCXJlZmVyZW5jZRIdCgpwcm9kdWN0X2lkGAYgASgJUglwcm9kdWN0SWQSGAoHbWF0Y2hl'
+    'ZBgHIAEoCFIHbWF0Y2hlZBIbCgljbGllbnRfaWQYCCABKAlSCGNsaWVudElkEiYKD2xvYW5fYW'
+    'Njb3VudF9pZBgJIAEoCVINbG9hbkFjY291bnRJZBI3ChdpZGVudGlmaWNhdGlvbl9zdHJhdGVn'
+    'eRgKIAEoCVIWaWRlbnRpZmljYXRpb25TdHJhdGVneRIyCgt1bmFsbG9jYXRlZBgLIAEoCzIQLm'
+    'NvbW1vbi52MS5Nb25leVILdW5hbGxvY2F0ZWQSJgoFc3RhdGUYDCABKA4yEC5jb21tb24udjEu'
+    'U1RBVEVSBXN0YXRlEjsKC3JlY2VpdmVkX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbW'
+    'VzdGFtcFIKcmVjZWl2ZWRBdBIfCgthc3NpZ25lZF9ieRgOIAEoCVIKYXNzaWduZWRCeRInCg9h'
+    'c3NpZ25tZW50X25vdGUYDyABKAlSDmFzc2lnbm1lbnROb3Rl');
+
+@$core.Deprecated('Use incomingPaymentSearchRequestDescriptor instead')
+const IncomingPaymentSearchRequest$json = {
+  '1': 'IncomingPaymentSearchRequest',
+  '2': [
+    {'1': 'query', '3': 1, '4': 1, '5': 9, '10': 'query'},
+    {'1': 'unmatched_only', '3': 2, '4': 1, '5': 8, '10': 'unmatchedOnly'},
+    {'1': 'product_id', '3': 3, '4': 1, '5': 9, '10': 'productId'},
+    {
+      '1': 'cursor',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.PageCursor',
+      '10': 'cursor'
+    },
+  ],
+};
+
+/// Descriptor for `IncomingPaymentSearchRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List incomingPaymentSearchRequestDescriptor = $convert.base64Decode(
+    'ChxJbmNvbWluZ1BheW1lbnRTZWFyY2hSZXF1ZXN0EhQKBXF1ZXJ5GAEgASgJUgVxdWVyeRIlCg'
+    '51bm1hdGNoZWRfb25seRgCIAEoCFINdW5tYXRjaGVkT25seRIdCgpwcm9kdWN0X2lkGAMgASgJ'
+    'Uglwcm9kdWN0SWQSLQoGY3Vyc29yGAQgASgLMhUuY29tbW9uLnYxLlBhZ2VDdXJzb3JSBmN1cn'
+    'Nvcg==');
+
+@$core.Deprecated('Use incomingPaymentSearchResponseDescriptor instead')
+const IncomingPaymentSearchResponse$json = {
+  '1': 'IncomingPaymentSearchResponse',
+  '2': [
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.operations.v1.IncomingPaymentObject',
+      '10': 'data'
+    },
+  ],
+};
+
+/// Descriptor for `IncomingPaymentSearchResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List incomingPaymentSearchResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1JbmNvbWluZ1BheW1lbnRTZWFyY2hSZXNwb25zZRI4CgRkYXRhGAEgAygLMiQub3BlcmF0aW'
+        '9ucy52MS5JbmNvbWluZ1BheW1lbnRPYmplY3RSBGRhdGE=');
+
+@$core.Deprecated('Use incomingPaymentAssignRequestDescriptor instead')
+const IncomingPaymentAssignRequest$json = {
+  '1': 'IncomingPaymentAssignRequest',
+  '2': [
+    {'1': 'payment_id', '3': 1, '4': 1, '5': 9, '10': 'paymentId'},
+    {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '10': 'loanAccountId'},
+    {'1': 'note', '3': 3, '4': 1, '5': 9, '10': 'note'},
+  ],
+};
+
+/// Descriptor for `IncomingPaymentAssignRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List incomingPaymentAssignRequestDescriptor =
+    $convert.base64Decode(
+        'ChxJbmNvbWluZ1BheW1lbnRBc3NpZ25SZXF1ZXN0Eh0KCnBheW1lbnRfaWQYASABKAlSCXBheW'
+        '1lbnRJZBImCg9sb2FuX2FjY291bnRfaWQYAiABKAlSDWxvYW5BY2NvdW50SWQSEgoEbm90ZRgD'
+        'IAEoCVIEbm90ZQ==');
+
+@$core.Deprecated('Use incomingPaymentAssignResponseDescriptor instead')
+const IncomingPaymentAssignResponse$json = {
+  '1': 'IncomingPaymentAssignResponse',
+  '2': [
+    {
+      '1': 'data',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.operations.v1.IncomingPaymentObject',
+      '10': 'data'
+    },
+    {
+      '1': 'allocation',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Struct',
+      '10': 'allocation'
+    },
+  ],
+};
+
+/// Descriptor for `IncomingPaymentAssignResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List incomingPaymentAssignResponseDescriptor =
+    $convert.base64Decode(
+        'Ch1JbmNvbWluZ1BheW1lbnRBc3NpZ25SZXNwb25zZRI4CgRkYXRhGAEgASgLMiQub3BlcmF0aW'
+        '9ucy52MS5JbmNvbWluZ1BheW1lbnRPYmplY3RSBGRhdGESNwoKYWxsb2NhdGlvbhgCIAEoCzIX'
+        'Lmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCmFsbG9jYXRpb24=');
+
 const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
   '1': 'OperationsService',
   '2': [
@@ -395,6 +560,19 @@ const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
       '1': 'PaymentAllocate',
       '2': '.operations.v1.PaymentAllocateRequest',
       '3': '.operations.v1.PaymentAllocateResponse',
+      '4': {}
+    },
+    {
+      '1': 'IncomingPaymentSearch',
+      '2': '.operations.v1.IncomingPaymentSearchRequest',
+      '3': '.operations.v1.IncomingPaymentSearchResponse',
+      '4': {},
+      '6': true
+    },
+    {
+      '1': 'IncomingPaymentAssign',
+      '2': '.operations.v1.IncomingPaymentAssignRequest',
+      '3': '.operations.v1.IncomingPaymentAssignResponse',
       '4': {}
     },
   ],
@@ -424,6 +602,16 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
       IncomingPaymentNotifyResponse$json,
   '.operations.v1.PaymentAllocateRequest': PaymentAllocateRequest$json,
   '.operations.v1.PaymentAllocateResponse': PaymentAllocateResponse$json,
+  '.operations.v1.IncomingPaymentSearchRequest':
+      IncomingPaymentSearchRequest$json,
+  '.operations.v1.IncomingPaymentSearchResponse':
+      IncomingPaymentSearchResponse$json,
+  '.operations.v1.IncomingPaymentObject': IncomingPaymentObject$json,
+  '.google.protobuf.Timestamp': $3.Timestamp$json,
+  '.operations.v1.IncomingPaymentAssignRequest':
+      IncomingPaymentAssignRequest$json,
+  '.operations.v1.IncomingPaymentAssignResponse':
+      IncomingPaymentAssignResponse$json,
 };
 
 /// Descriptor for `OperationsService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -437,12 +625,19 @@ final $typed_data.Uint8List operationsServiceDescriptor = $convert.base64Decode(
     'LkluY29taW5nUGF5bWVudE5vdGlmeVJlcXVlc3QaLC5vcGVyYXRpb25zLnYxLkluY29taW5nUG'
     'F5bWVudE5vdGlmeVJlc3BvbnNlIhSCtRgQCg5wYXltZW50X25vdGlmeRJ4Cg9QYXltZW50QWxs'
     'b2NhdGUSJS5vcGVyYXRpb25zLnYxLlBheW1lbnRBbGxvY2F0ZVJlcXVlc3QaJi5vcGVyYXRpb2'
-    '5zLnYxLlBheW1lbnRBbGxvY2F0ZVJlc3BvbnNlIhaCtRgSChBwYXltZW50X2FsbG9jYXRlGp4D'
-    'grUYmQMKEnNlcnZpY2Vfb3BlcmF0aW9ucxIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbnNmZXJfdm'
-    'lldxIOcGF5bWVudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUaRQgBEhB0cmFuc2Zlcl9leGVj'
-    'dXRlEg10cmFuc2Zlcl92aWV3Eg5wYXltZW50X25vdGlmeRIQcGF5bWVudF9hbGxvY2F0ZRpFCA'
-    'ISEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbnRfbm90aWZ5EhBwYXlt'
-    'ZW50X2FsbG9jYXRlGkUIAxIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbnNmZXJfdmlldxIOcGF5bW'
-    'VudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUaEQgEEg10cmFuc2Zlcl92aWV3GhEIBRINdHJh'
-    'bnNmZXJfdmlldxpFCAYSEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbn'
-    'Rfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRl');
+    '5zLnYxLlBheW1lbnRBbGxvY2F0ZVJlc3BvbnNlIhaCtRgSChBwYXltZW50X2FsbG9jYXRlEogB'
+    'ChVJbmNvbWluZ1BheW1lbnRTZWFyY2gSKy5vcGVyYXRpb25zLnYxLkluY29taW5nUGF5bWVudF'
+    'NlYXJjaFJlcXVlc3QaLC5vcGVyYXRpb25zLnYxLkluY29taW5nUGF5bWVudFNlYXJjaFJlc3Bv'
+    'bnNlIhKCtRgOCgxwYXltZW50X3ZpZXcwARKKAQoVSW5jb21pbmdQYXltZW50QXNzaWduEisub3'
+    'BlcmF0aW9ucy52MS5JbmNvbWluZ1BheW1lbnRBc3NpZ25SZXF1ZXN0Giwub3BlcmF0aW9ucy52'
+    'MS5JbmNvbWluZ1BheW1lbnRBc3NpZ25SZXNwb25zZSIWgrUYEgoQcGF5bWVudF9hbGxvY2F0ZR'
+    'ryA4K1GO0DChJzZXJ2aWNlX29wZXJhdGlvbnMSEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVy'
+    'X3ZpZXcSDnBheW1lbnRfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRlEgxwYXltZW50X3ZpZXcaUw'
+    'gBEhB0cmFuc2Zlcl9leGVjdXRlEg10cmFuc2Zlcl92aWV3Eg5wYXltZW50X25vdGlmeRIQcGF5'
+    'bWVudF9hbGxvY2F0ZRIMcGF5bWVudF92aWV3GlMIAhIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbn'
+    'NmZXJfdmlldxIOcGF5bWVudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDHBheW1lbnRfdmll'
+    'dxpTCAMSEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbnRfbm90aWZ5Eh'
+    'BwYXltZW50X2FsbG9jYXRlEgxwYXltZW50X3ZpZXcaHwgEEg10cmFuc2Zlcl92aWV3EgxwYXlt'
+    'ZW50X3ZpZXcaEQgFEg10cmFuc2Zlcl92aWV3GlMIBhIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbn'
+    'NmZXJfdmlldxIOcGF5bWVudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDHBheW1lbnRfdmll'
+    'dw==');

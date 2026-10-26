@@ -483,3 +483,116 @@ agent or staff member prompts the borrower to pay from their own contact.
 
 Production had no repayments recorded when this shipped, so no cash entries
 or agent cash balances needed unwinding.
+
+## 26. Addendum 2026-10-26 — staff console completeness
+
+Goal: everything a lender's staff must do is reachable from the Seed app.
+
+- **Unmatched payments.** A borrower's payment that matched no loan used to
+  stay unresolved with no screen to see it. Operations now has
+  `IncomingPaymentSearch` (`payment_view`: owner, admin, operator, viewer) and
+  `IncomingPaymentAssign` (`payment_allocate`). Assigning names the loan and a
+  note and nothing else: the payment is applied in full, as the rail received
+  it, from the product's collection account. The loan must take repayments
+  and be of the product the rail credited. The assignment lands only while
+  the payment is still unmatched and unallocated, so two people cannot apply
+  it twice. It records who assigned it and why. The payer reference the rail
+  supplied (often a phone number) is not returned. Seed shows this under
+  Payments → Incoming Payments, with a loan search in the assign dialog.
+- **Funding and transfers mounted.** Investor accounts (`/funding/accounts`)
+  and transfer orders (`/operations/transfers`) are in Seed's navigation.
+  Opening accounts, deposits and withdrawals are offered only with
+  `investor_account_manage`, and Fund Loan only with `fund_manage`.
+- **KYC form templates.** Templates had a list but no way to build one, so no
+  organization could publish its client KYC form. Seed now routes
+  `/form-templates` and a designer. On the server, Save keeps only drafts:
+  a published or archived template is never rewritten (clients filled it
+  in), status changes only through Publish, and the version only through
+  publishing. A change to a published form is a new draft, and publishing it
+  makes it the newest published version, which KYC uses. Save validates the
+  template (name, organization, entity type, unique field keys, options for
+  choice fields) and refuses phone and email fields, because contacts are
+  kept on the profile. Save now writes synchronously, so Publish straight
+  after it finds the row.
+- **Not mounted: savings.** Savings deposits are recorded by staff typing an
+  amount (`DepositRecord`), and no payment-rail path credits a savings
+  account. That conflicts with the rule that clients pay from their own
+  contact, so savings stays out of Seed until deposits come from the rail.
+
+## 27. Addendum 2026-10-26 — SQL migrations never reached loans and limits
+
+Frame reads the migration directory from `MIGRATION_PATH`. The loans image
+set `DATABASE_MIGRATION_PATH`, so its setup Job scanned the default
+`./migrations/0001` and applied nothing. The limits image did not carry its
+migrations at all. Its files were also named `.up.sql`/`.down.sql`, and Frame
+skips only `_down.sql`, so the revert files would have been applied too.
+
+Production consequences until this ships:
+
+- Loans kept the global unique indexes (`uq_lp_code`, `uq_rep_idem`,
+  `uq_lr_idempotency`, …) instead of the partition-scoped ones from 0001. A
+  product code or idempotency key used by one lender blocked every other
+  lender.
+- Loans lacked the penalty-per-installment and live-disbursement guards
+  (0003, 0004), the job claim indexes (0006), and the collector column drop
+  (0007).
+- Limits lacked the reservation idempotency unique index and its runtime
+  indexes.
+
+Fix: the loans image sets `MIGRATION_PATH`. The limits image ships its
+migrations and sets it too. The limits files are renamed `_up`/`_down` and
+wrapped in one `DO` block each. `pkg/dbmigrate` now has a test that fails
+when an app with migrations does not ship them, or names them so Frame would
+misapply them. Every loans and limits up-migration was dry-run against
+production in a rolled-back transaction, and all succeed. Identity, funding
+and savings had applied theirs; operations, seed and stawi have none.
+
+## 28. Addendum 2026-10-26 — borrower self-service on USSD
+
+A borrower dials the lender's USSD code (Africa's Talking) and gets the Seed
+menu from the service-notification USSD engine. Nothing Seed-specific lives
+in the engine.
+
+- **Who is calling.** The engine resolves the number to the caller's profile
+  and contact. The gateway is accepted only with the service's auth key, since
+  the engine acts for whoever the number names.
+- **What they see.** When a known caller opens the menu, the engine calls
+  Seed's `UssdState` (`seed_ussd_state`, engine service account only). Seed
+  answers with the borrower's rows: client, current loan (reference, balance,
+  next instalment and due date) and room to borrow. Borrowing needs an active
+  client with a PIN, no loan running, and an active credit profile. The call
+  goes only to trusted hosts, because it carries the engine's token.
+- **What they can do.** Each completed session reaches Seed on its own
+  Pub/Sub topic, through the notification service's `ussd` receive route.
+  - *Borrow*: amount plus PIN. It runs `RequestLoan` in the borrower's own
+    partition, keyed by the session so a redelivery never borrows twice. A
+    refusal (over the limit, a loan running, KYC incomplete, account paused)
+    is texted back.
+  - *Repay*: next instalment, full balance or another amount. Loans
+    `InitiateCollection` sends the prompt to the contact the borrower dialled
+    from; they approve it with their mobile money PIN. Seed never touches the
+    money.
+  - *Set or change PIN*: a one-time code from the profile service to that
+    contact, then the code and the PIN twice.
+- **PINs.**
+  - PIN and code prompts are secret menus. The engine seals what is typed
+    with Seed's public key before keeping it anywhere, so sessions, the
+    notification payload and logs never hold a PIN; only Seed can open it. A
+    value that arrives unsealed is refused.
+  - Seed keeps an argon2id hash and locks the PIN for an hour after five
+    wrong tries.
+  - A code is good once, for ten minutes, and only from the contact it was
+    sent to. Every session's contact must be a verified mobile contact of
+    the caller's own profile.
+  - A code alone (the phone) never replaces an existing PIN: Change PIN also
+    needs the current PIN. Forgot PIN resets with the code but keeps any lock
+    running and blocks borrowing for 24 hours.
+  - Every PIN change is texted to the profile.
+- **Partition.** `ClientObject` now carries `tenant_id` and `partition_id`.
+  Seed acts as its own service account inside the borrower's partition, so
+  what USSD creates belongs to the lender.
+- **Grants (tenancy).**
+  - New account `service_notification_ussd`: `profile_view`,
+    `notification_send` and `seed_ussd_state`.
+  - Seed gains the `/ussd` and `/notification` audiences, `contact_manage`
+    (to send the code) and `notification_send`, and loses `repayment_manage`.

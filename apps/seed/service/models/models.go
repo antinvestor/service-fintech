@@ -233,3 +233,30 @@ type LoanRequest struct {
 
 // TableName maps the model to seed_loan_requests.
 func (LoanRequest) TableName() string { return "seed_loan_requests" }
+
+// UssdPin is a borrower's USSD PIN, which authorises a loan request made on
+// USSD. Only an argon2id hash is kept. A borrower sets it after proving they
+// hold their phone with a one-time code sent to their profile contact.
+type UssdPin struct {
+	data.BaseModel
+
+	ProfileID string `gorm:"type:varchar(50);index:idx_ussd_pin_profile"`
+	// PinHash is "argon2id$<salt b64>$<hash b64>"; empty until a PIN is set.
+	PinHash string `gorm:"type:varchar(255)"`
+	// FailedAttempts counts wrong PINs since the last good one; at the limit
+	// the PIN locks until LockedUntil.
+	FailedAttempts int32
+	LockedUntil    *time.Time
+	// VerificationID is the profile service's one-time code awaiting entry,
+	// VerificationContactID the contact it was sent to (it is only accepted
+	// from that contact), and VerificationRequestedAt when it was sent.
+	VerificationID          string `gorm:"type:varchar(50)"`
+	VerificationContactID   string `gorm:"type:varchar(50)"`
+	VerificationRequestedAt *time.Time
+	// ResetAt is when a forgotten PIN was last replaced with only a code;
+	// borrowing waits a cooling-off period after it.
+	ResetAt *time.Time
+}
+
+// TableName maps the model to seed_ussd_pins.
+func (UssdPin) TableName() string { return "seed_ussd_pins" }

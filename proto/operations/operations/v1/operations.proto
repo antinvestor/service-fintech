@@ -19,6 +19,7 @@ import "common/v1/common.proto";
 import "common/v1/money.proto";
 import "common/v1/permissions.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/antinvestor/apis/go/operations/v1;operationsv1";
 option java_multiple_files = true;
@@ -128,6 +129,68 @@ message PaymentAllocateResponse {
   google.protobuf.Struct result = 1;
 }
 
+// IncomingPaymentObject is a payment the payment rail received. It carries
+// what the payer quoted and who it was matched to, never the payer's phone
+// or account: the rail's payer reference stays inside operations.
+message IncomingPaymentObject {
+  string id = 1;
+  // transaction_id is the rail's own id for the payment.
+  string transaction_id = 2;
+  common.v1.Money amount = 3;
+  string payer_name = 4;
+  // reference is what the payer quoted, typically a loan account id.
+  string reference = 5;
+  // product_id is the product whose collection account the rail credited.
+  string product_id = 6;
+  // matched is true once the payment is tied to a borrower's loan or a
+  // group member.
+  bool matched = 7;
+  string client_id = 8;
+  string loan_account_id = 9;
+  // identification_strategy says how it was matched; "staff_assigned" when
+  // a person tied an unmatched payment to its loan.
+  string identification_strategy = 10;
+  // unallocated is what is still to be applied; zero once fully allocated.
+  common.v1.Money unallocated = 11;
+  common.v1.STATE state = 12;
+  google.protobuf.Timestamp received_at = 13;
+  // assigned_by is the profile that tied the payment to its loan, when a
+  // person did.
+  string assigned_by = 14;
+  string assignment_note = 15;
+}
+
+// IncomingPaymentSearchRequest lists received payments, newest first.
+message IncomingPaymentSearchRequest {
+  // query matches the transaction id, the quoted reference or the payer's
+  // name.
+  string query = 1;
+  // unmatched_only keeps the payments no borrower or member was found for.
+  bool unmatched_only = 2;
+  string product_id = 3;
+  common.v1.PageCursor cursor = 4;
+}
+
+message IncomingPaymentSearchResponse {
+  repeated IncomingPaymentObject data = 1;
+}
+
+// IncomingPaymentAssignRequest ties an unmatched payment to the loan it was
+// meant for and allocates it. The amount is the rail's; nobody types one.
+// The loan must take repayments and belong to the product the rail credited.
+message IncomingPaymentAssignRequest {
+  string payment_id = 1;
+  string loan_account_id = 2;
+  // note says why the payment belongs to this loan; it is kept on the
+  // payment for audit.
+  string note = 3;
+}
+
+message IncomingPaymentAssignResponse {
+  IncomingPaymentObject data = 1;
+  google.protobuf.Struct allocation = 2;
+}
+
 service OperationsService {
   option (common.v1.service_permissions) = {
     namespace: "service_operations"
@@ -135,7 +198,8 @@ service OperationsService {
       "transfer_execute",
       "transfer_view",
       "payment_notify",
-      "payment_allocate"
+      "payment_allocate",
+      "payment_view"
     ]
     role_bindings: [
       {
@@ -144,7 +208,8 @@ service OperationsService {
           "transfer_execute",
           "transfer_view",
           "payment_notify",
-          "payment_allocate"
+          "payment_allocate",
+          "payment_view"
         ]
       },
       {
@@ -153,7 +218,8 @@ service OperationsService {
           "transfer_execute",
           "transfer_view",
           "payment_notify",
-          "payment_allocate"
+          "payment_allocate",
+          "payment_view"
         ]
       },
       {
@@ -162,12 +228,16 @@ service OperationsService {
           "transfer_execute",
           "transfer_view",
           "payment_notify",
-          "payment_allocate"
+          "payment_allocate",
+          "payment_view"
         ]
       },
       {
         role: ROLE_VIEWER
-        permissions: ["transfer_view"]
+        permissions: [
+          "transfer_view",
+          "payment_view"
+        ]
       },
       {
         role: ROLE_MEMBER
@@ -179,7 +249,8 @@ service OperationsService {
           "transfer_execute",
           "transfer_view",
           "payment_notify",
-          "payment_allocate"
+          "payment_allocate",
+          "payment_view"
         ]
       }
     ]
@@ -201,6 +272,20 @@ service OperationsService {
     };
   }
   rpc PaymentAllocate(PaymentAllocateRequest) returns (PaymentAllocateResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["payment_allocate"]
+    };
+  }
+  // IncomingPaymentSearch lists received payments, for staff to find the
+  // ones that matched nobody.
+  rpc IncomingPaymentSearch(IncomingPaymentSearchRequest) returns (stream IncomingPaymentSearchResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["payment_view"]
+    };
+  }
+  // IncomingPaymentAssign ties an unmatched payment to its loan and
+  // allocates it.
+  rpc IncomingPaymentAssign(IncomingPaymentAssignRequest) returns (IncomingPaymentAssignResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["payment_allocate"]
     };

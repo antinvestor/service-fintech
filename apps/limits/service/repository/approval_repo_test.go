@@ -17,7 +17,6 @@ package repository_test
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -65,27 +64,10 @@ func (s *ApprovalRepoSuite) approvalDBResource(ctx context.Context) definition.D
 // comments don't break the statement splitter.
 func applyRuntimeIndexes(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	sqlBytes, err := os.ReadFile("../../migrations/20260506_runtime_indexes.up.sql")
+	// The migration is one DO block, run whole as the migrator runs it.
+	sqlBytes, err := os.ReadFile("../../migrations/20260506_runtime_indexes_up.sql")
 	require.NoError(t, err)
-
-	// Strip line comments before splitting on semicolons.
-	var noComments strings.Builder
-	for _, line := range strings.Split(string(sqlBytes), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "--") {
-			continue
-		}
-		noComments.WriteString(line)
-		noComments.WriteByte('\n')
-	}
-
-	for _, stmt := range strings.Split(noComments.String(), ";") {
-		stmt = strings.TrimSpace(stmt)
-		if stmt == "" {
-			continue
-		}
-		require.NoError(t, db.Exec(stmt).Error, "failed to execute SQL: %s", stmt)
-	}
+	require.NoError(t, db.Exec(string(sqlBytes)).Error)
 }
 
 func (s *ApprovalRepoSuite) newApprovalEnv(tenantID, partitionID string) (

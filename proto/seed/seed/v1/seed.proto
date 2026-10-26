@@ -73,6 +73,13 @@ message JSONResponse {
   google.protobuf.Struct data = 1;
 }
 
+// UssdStateRequest names the caller of a USSD session opening Seed's menu.
+message UssdStateRequest {
+  string service_id = 1;
+  string profile_id = 2;
+  string contact_id = 3;
+}
+
 // SeedService is the permission manifest for seed's HTTP routes. It is
 // registered with frame for OPL generation and permission publishing; the
 // routes themselves are served by an http.ServeMux in apps/seed.
@@ -83,7 +90,8 @@ service SeedService {
       "seed_loan_request_create",
       "seed_credit_profile_view",
       "seed_credit_profile_admin",
-      "seed_loan_paid_off_notify"
+      "seed_loan_paid_off_notify",
+      "seed_ussd_state"
     ]
     role_bindings: [
       {
@@ -129,7 +137,8 @@ service SeedService {
           "seed_loan_request_create",
           "seed_credit_profile_view",
           "seed_credit_profile_admin",
-          "seed_loan_paid_off_notify"
+          "seed_loan_paid_off_notify",
+          "seed_ussd_state"
         ]
       }
     ]
@@ -184,6 +193,18 @@ service SeedService {
     };
     option (google.api.http) = {
       post: "/api/v1/seed/credit-profiles/{client_id}/{currency}/reinstate"
+      body: "*"
+    };
+  }
+
+  // UssdState is the USSD engine's session-start call: the borrower's
+  // current rows for the Seed menu (loan, borrowing room, PIN status).
+  rpc UssdState(UssdStateRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_ussd_state"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/internal/ussd/state"
       body: "*"
     };
   }

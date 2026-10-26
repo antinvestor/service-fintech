@@ -15,6 +15,8 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 import 'package:protobuf/well_known_types/google/protobuf/struct.pb.dart' as $1;
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart'
+    as $3;
 
 import '../../common/v1/common.pb.dart' as $2;
 import '../../common/v1/money.pb.dart' as $0;
@@ -869,6 +871,594 @@ class PaymentAllocateResponse extends $pb.GeneratedMessage {
   $1.Struct ensureResult() => $_ensure(0);
 }
 
+/// IncomingPaymentObject is a payment the payment rail received. It carries
+/// what the payer quoted and who it was matched to, never the payer's phone
+/// or account: the rail's payer reference stays inside operations.
+class IncomingPaymentObject extends $pb.GeneratedMessage {
+  factory IncomingPaymentObject({
+    $core.String? id,
+    $core.String? transactionId,
+    $0.Money? amount,
+    $core.String? payerName,
+    $core.String? reference,
+    $core.String? productId,
+    $core.bool? matched,
+    $core.String? clientId,
+    $core.String? loanAccountId,
+    $core.String? identificationStrategy,
+    $0.Money? unallocated,
+    $2.STATE? state,
+    $3.Timestamp? receivedAt,
+    $core.String? assignedBy,
+    $core.String? assignmentNote,
+  }) {
+    final result = IncomingPaymentObject._();
+    if (id != null) result.id = id;
+    if (transactionId != null) result.transactionId = transactionId;
+    if (amount != null) result.amount = amount;
+    if (payerName != null) result.payerName = payerName;
+    if (reference != null) result.reference = reference;
+    if (productId != null) result.productId = productId;
+    if (matched != null) result.matched = matched;
+    if (clientId != null) result.clientId = clientId;
+    if (loanAccountId != null) result.loanAccountId = loanAccountId;
+    if (identificationStrategy != null)
+      result.identificationStrategy = identificationStrategy;
+    if (unallocated != null) result.unallocated = unallocated;
+    if (state != null) result.state = state;
+    if (receivedAt != null) result.receivedAt = receivedAt;
+    if (assignedBy != null) result.assignedBy = assignedBy;
+    if (assignmentNote != null) result.assignmentNote = assignmentNote;
+    return result;
+  }
+
+  IncomingPaymentObject._();
+
+  factory IncomingPaymentObject.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentObject()..mergeFromBuffer(data, registry);
+  factory IncomingPaymentObject.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentObject()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IncomingPaymentObject',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: IncomingPaymentObject.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'transactionId')
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOS(4, _omitFieldNames ? '' : 'payerName')
+    ..aOS(5, _omitFieldNames ? '' : 'reference')
+    ..aOS(6, _omitFieldNames ? '' : 'productId')
+    ..aOB(7, _omitFieldNames ? '' : 'matched')
+    ..aOS(8, _omitFieldNames ? '' : 'clientId')
+    ..aOS(9, _omitFieldNames ? '' : 'loanAccountId')
+    ..aOS(10, _omitFieldNames ? '' : 'identificationStrategy')
+    ..aOM<$0.Money>(11, _omitFieldNames ? '' : 'unallocated',
+        subBuilder: $0.Money.$_createMessage)
+    ..aE<$2.STATE>(12, _omitFieldNames ? '' : 'state',
+        enumValues: $2.STATE.values)
+    ..aOM<$3.Timestamp>(13, _omitFieldNames ? '' : 'receivedAt',
+        subBuilder: $3.Timestamp.$_createMessage)
+    ..aOS(14, _omitFieldNames ? '' : 'assignedBy')
+    ..aOS(15, _omitFieldNames ? '' : 'assignmentNote')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentObject clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentObject copyWith(
+          void Function(IncomingPaymentObject) updates) =>
+      super.copyWith((message) => updates(message as IncomingPaymentObject))
+          as IncomingPaymentObject;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use IncomingPaymentObject() / IncomingPaymentObject.new instead')
+  static IncomingPaymentObject create() => IncomingPaymentObject._();
+  static $pb.GeneratedMessage $_createMessage() => IncomingPaymentObject._();
+  @$core.override
+  IncomingPaymentObject createEmptyInstance() => IncomingPaymentObject._();
+  @$core.pragma('dart2js:noInline')
+  static IncomingPaymentObject getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IncomingPaymentObject>(
+          IncomingPaymentObject.$_createMessage);
+  static IncomingPaymentObject? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  /// transaction_id is the rail's own id for the payment.
+  @$pb.TagNumber(2)
+  $core.String get transactionId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set transactionId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTransactionId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTransactionId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $0.Money get amount => $_getN(2);
+  @$pb.TagNumber(3)
+  set amount($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAmount() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAmount() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensureAmount() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  $core.String get payerName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set payerName($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPayerName() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPayerName() => $_clearField(4);
+
+  /// reference is what the payer quoted, typically a loan account id.
+  @$pb.TagNumber(5)
+  $core.String get reference => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set reference($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasReference() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearReference() => $_clearField(5);
+
+  /// product_id is the product whose collection account the rail credited.
+  @$pb.TagNumber(6)
+  $core.String get productId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set productId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasProductId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearProductId() => $_clearField(6);
+
+  /// matched is true once the payment is tied to a borrower's loan or a
+  /// group member.
+  @$pb.TagNumber(7)
+  $core.bool get matched => $_getBF(6);
+  @$pb.TagNumber(7)
+  set matched($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasMatched() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearMatched() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get clientId => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set clientId($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasClientId() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearClientId() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get loanAccountId => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set loanAccountId($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasLoanAccountId() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearLoanAccountId() => $_clearField(9);
+
+  /// identification_strategy says how it was matched; "staff_assigned" when
+  /// a person tied an unmatched payment to its loan.
+  @$pb.TagNumber(10)
+  $core.String get identificationStrategy => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set identificationStrategy($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasIdentificationStrategy() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearIdentificationStrategy() => $_clearField(10);
+
+  /// unallocated is what is still to be applied; zero once fully allocated.
+  @$pb.TagNumber(11)
+  $0.Money get unallocated => $_getN(10);
+  @$pb.TagNumber(11)
+  set unallocated($0.Money value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasUnallocated() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearUnallocated() => $_clearField(11);
+  @$pb.TagNumber(11)
+  $0.Money ensureUnallocated() => $_ensure(10);
+
+  @$pb.TagNumber(12)
+  $2.STATE get state => $_getN(11);
+  @$pb.TagNumber(12)
+  set state($2.STATE value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasState() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearState() => $_clearField(12);
+
+  @$pb.TagNumber(13)
+  $3.Timestamp get receivedAt => $_getN(12);
+  @$pb.TagNumber(13)
+  set receivedAt($3.Timestamp value) => $_setField(13, value);
+  @$pb.TagNumber(13)
+  $core.bool hasReceivedAt() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearReceivedAt() => $_clearField(13);
+  @$pb.TagNumber(13)
+  $3.Timestamp ensureReceivedAt() => $_ensure(12);
+
+  /// assigned_by is the profile that tied the payment to its loan, when a
+  /// person did.
+  @$pb.TagNumber(14)
+  $core.String get assignedBy => $_getSZ(13);
+  @$pb.TagNumber(14)
+  set assignedBy($core.String value) => $_setString(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasAssignedBy() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearAssignedBy() => $_clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get assignmentNote => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set assignmentNote($core.String value) => $_setString(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasAssignmentNote() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearAssignmentNote() => $_clearField(15);
+}
+
+/// IncomingPaymentSearchRequest lists received payments, newest first.
+class IncomingPaymentSearchRequest extends $pb.GeneratedMessage {
+  factory IncomingPaymentSearchRequest({
+    $core.String? query,
+    $core.bool? unmatchedOnly,
+    $core.String? productId,
+    $2.PageCursor? cursor,
+  }) {
+    final result = IncomingPaymentSearchRequest._();
+    if (query != null) result.query = query;
+    if (unmatchedOnly != null) result.unmatchedOnly = unmatchedOnly;
+    if (productId != null) result.productId = productId;
+    if (cursor != null) result.cursor = cursor;
+    return result;
+  }
+
+  IncomingPaymentSearchRequest._();
+
+  factory IncomingPaymentSearchRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentSearchRequest()..mergeFromBuffer(data, registry);
+  factory IncomingPaymentSearchRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentSearchRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IncomingPaymentSearchRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: IncomingPaymentSearchRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'query')
+    ..aOB(2, _omitFieldNames ? '' : 'unmatchedOnly')
+    ..aOS(3, _omitFieldNames ? '' : 'productId')
+    ..aOM<$2.PageCursor>(4, _omitFieldNames ? '' : 'cursor',
+        subBuilder: $2.PageCursor.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentSearchRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentSearchRequest copyWith(
+          void Function(IncomingPaymentSearchRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as IncomingPaymentSearchRequest))
+          as IncomingPaymentSearchRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use IncomingPaymentSearchRequest() / IncomingPaymentSearchRequest.new instead')
+  static IncomingPaymentSearchRequest create() =>
+      IncomingPaymentSearchRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      IncomingPaymentSearchRequest._();
+  @$core.override
+  IncomingPaymentSearchRequest createEmptyInstance() =>
+      IncomingPaymentSearchRequest._();
+  @$core.pragma('dart2js:noInline')
+  static IncomingPaymentSearchRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IncomingPaymentSearchRequest>(
+          IncomingPaymentSearchRequest.$_createMessage);
+  static IncomingPaymentSearchRequest? _defaultInstance;
+
+  /// query matches the transaction id, the quoted reference or the payer's
+  /// name.
+  @$pb.TagNumber(1)
+  $core.String get query => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set query($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasQuery() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearQuery() => $_clearField(1);
+
+  /// unmatched_only keeps the payments no borrower or member was found for.
+  @$pb.TagNumber(2)
+  $core.bool get unmatchedOnly => $_getBF(1);
+  @$pb.TagNumber(2)
+  set unmatchedOnly($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUnmatchedOnly() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUnmatchedOnly() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get productId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set productId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasProductId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearProductId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $2.PageCursor get cursor => $_getN(3);
+  @$pb.TagNumber(4)
+  set cursor($2.PageCursor value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasCursor() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearCursor() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $2.PageCursor ensureCursor() => $_ensure(3);
+}
+
+class IncomingPaymentSearchResponse extends $pb.GeneratedMessage {
+  factory IncomingPaymentSearchResponse({
+    $core.Iterable<IncomingPaymentObject>? data,
+  }) {
+    final result = IncomingPaymentSearchResponse._();
+    if (data != null) result.data.addAll(data);
+    return result;
+  }
+
+  IncomingPaymentSearchResponse._();
+
+  factory IncomingPaymentSearchResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentSearchResponse()..mergeFromBuffer(data, registry);
+  factory IncomingPaymentSearchResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentSearchResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IncomingPaymentSearchResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: IncomingPaymentSearchResponse.$_createMessage)
+    ..pPM<IncomingPaymentObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: IncomingPaymentObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentSearchResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentSearchResponse copyWith(
+          void Function(IncomingPaymentSearchResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as IncomingPaymentSearchResponse))
+          as IncomingPaymentSearchResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use IncomingPaymentSearchResponse() / IncomingPaymentSearchResponse.new instead')
+  static IncomingPaymentSearchResponse create() =>
+      IncomingPaymentSearchResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      IncomingPaymentSearchResponse._();
+  @$core.override
+  IncomingPaymentSearchResponse createEmptyInstance() =>
+      IncomingPaymentSearchResponse._();
+  @$core.pragma('dart2js:noInline')
+  static IncomingPaymentSearchResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IncomingPaymentSearchResponse>(
+          IncomingPaymentSearchResponse.$_createMessage);
+  static IncomingPaymentSearchResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<IncomingPaymentObject> get data => $_getList(0);
+}
+
+/// IncomingPaymentAssignRequest ties an unmatched payment to the loan it was
+/// meant for and allocates it. The amount is the rail's; nobody types one.
+/// The loan must take repayments and belong to the product the rail credited.
+class IncomingPaymentAssignRequest extends $pb.GeneratedMessage {
+  factory IncomingPaymentAssignRequest({
+    $core.String? paymentId,
+    $core.String? loanAccountId,
+    $core.String? note,
+  }) {
+    final result = IncomingPaymentAssignRequest._();
+    if (paymentId != null) result.paymentId = paymentId;
+    if (loanAccountId != null) result.loanAccountId = loanAccountId;
+    if (note != null) result.note = note;
+    return result;
+  }
+
+  IncomingPaymentAssignRequest._();
+
+  factory IncomingPaymentAssignRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentAssignRequest()..mergeFromBuffer(data, registry);
+  factory IncomingPaymentAssignRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentAssignRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IncomingPaymentAssignRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: IncomingPaymentAssignRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'paymentId')
+    ..aOS(2, _omitFieldNames ? '' : 'loanAccountId')
+    ..aOS(3, _omitFieldNames ? '' : 'note')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentAssignRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentAssignRequest copyWith(
+          void Function(IncomingPaymentAssignRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as IncomingPaymentAssignRequest))
+          as IncomingPaymentAssignRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use IncomingPaymentAssignRequest() / IncomingPaymentAssignRequest.new instead')
+  static IncomingPaymentAssignRequest create() =>
+      IncomingPaymentAssignRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      IncomingPaymentAssignRequest._();
+  @$core.override
+  IncomingPaymentAssignRequest createEmptyInstance() =>
+      IncomingPaymentAssignRequest._();
+  @$core.pragma('dart2js:noInline')
+  static IncomingPaymentAssignRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IncomingPaymentAssignRequest>(
+          IncomingPaymentAssignRequest.$_createMessage);
+  static IncomingPaymentAssignRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get paymentId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set paymentId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPaymentId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPaymentId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get loanAccountId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set loanAccountId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLoanAccountId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLoanAccountId() => $_clearField(2);
+
+  /// note says why the payment belongs to this loan; it is kept on the
+  /// payment for audit.
+  @$pb.TagNumber(3)
+  $core.String get note => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set note($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasNote() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearNote() => $_clearField(3);
+}
+
+class IncomingPaymentAssignResponse extends $pb.GeneratedMessage {
+  factory IncomingPaymentAssignResponse({
+    IncomingPaymentObject? data,
+    $1.Struct? allocation,
+  }) {
+    final result = IncomingPaymentAssignResponse._();
+    if (data != null) result.data = data;
+    if (allocation != null) result.allocation = allocation;
+    return result;
+  }
+
+  IncomingPaymentAssignResponse._();
+
+  factory IncomingPaymentAssignResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentAssignResponse()..mergeFromBuffer(data, registry);
+  factory IncomingPaymentAssignResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IncomingPaymentAssignResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IncomingPaymentAssignResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: IncomingPaymentAssignResponse.$_createMessage)
+    ..aOM<IncomingPaymentObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: IncomingPaymentObject.$_createMessage)
+    ..aOM<$1.Struct>(2, _omitFieldNames ? '' : 'allocation',
+        subBuilder: $1.Struct.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentAssignResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IncomingPaymentAssignResponse copyWith(
+          void Function(IncomingPaymentAssignResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as IncomingPaymentAssignResponse))
+          as IncomingPaymentAssignResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use IncomingPaymentAssignResponse() / IncomingPaymentAssignResponse.new instead')
+  static IncomingPaymentAssignResponse create() =>
+      IncomingPaymentAssignResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      IncomingPaymentAssignResponse._();
+  @$core.override
+  IncomingPaymentAssignResponse createEmptyInstance() =>
+      IncomingPaymentAssignResponse._();
+  @$core.pragma('dart2js:noInline')
+  static IncomingPaymentAssignResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IncomingPaymentAssignResponse>(
+          IncomingPaymentAssignResponse.$_createMessage);
+  static IncomingPaymentAssignResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  IncomingPaymentObject get data => $_getN(0);
+  @$pb.TagNumber(1)
+  set data(IncomingPaymentObject value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasData() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearData() => $_clearField(1);
+  @$pb.TagNumber(1)
+  IncomingPaymentObject ensureData() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $1.Struct get allocation => $_getN(1);
+  @$pb.TagNumber(2)
+  set allocation($1.Struct value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAllocation() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAllocation() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $1.Struct ensureAllocation() => $_ensure(1);
+}
+
 class OperationsServiceApi {
   final $pb.RpcClient _client;
 
@@ -890,6 +1480,20 @@ class OperationsServiceApi {
           $pb.ClientContext? ctx, PaymentAllocateRequest request) =>
       _client.invoke<PaymentAllocateResponse>(ctx, 'OperationsService',
           'PaymentAllocate', request, PaymentAllocateResponse());
+
+  /// IncomingPaymentSearch lists received payments, for staff to find the
+  /// ones that matched nobody.
+  $async.Future<IncomingPaymentSearchResponse> incomingPaymentSearch(
+          $pb.ClientContext? ctx, IncomingPaymentSearchRequest request) =>
+      _client.invoke<IncomingPaymentSearchResponse>(ctx, 'OperationsService',
+          'IncomingPaymentSearch', request, IncomingPaymentSearchResponse());
+
+  /// IncomingPaymentAssign ties an unmatched payment to its loan and
+  /// allocates it.
+  $async.Future<IncomingPaymentAssignResponse> incomingPaymentAssign(
+          $pb.ClientContext? ctx, IncomingPaymentAssignRequest request) =>
+      _client.invoke<IncomingPaymentAssignResponse>(ctx, 'OperationsService',
+          'IncomingPaymentAssign', request, IncomingPaymentAssignResponse());
 }
 
 const $core.bool _omitFieldNames =

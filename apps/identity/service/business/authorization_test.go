@@ -146,32 +146,115 @@ func (s *authorizationSuite) TestWorkforceMemberSaveTwicePersistsTheSecondEngage
 
 // --- F1b: the domain version no longer shadows the optimistic lock ----------
 
-func (s *authorizationSuite) TestFormTemplateStaysUpdatableAfterPublish() {
+func (s *authorizationSuite) TestFormTemplateDraftStaysUpdatable() {
 	env := s.newEnv()
 
 	created, err := env.formTemplateBusiness.Save(env.ctx, &identityv1.FormTemplateObject{
-		Name:       "KYC Intake",
-		EntityType: "client",
+		Name:           "KYC Intake",
+		EntityType:     "client",
+		OrganizationId: "org-kyc",
 	})
 	s.Require().NoError(err)
 
-	published, err := env.formTemplateBusiness.Publish(env.ctx, created.GetId())
-	s.Require().NoError(err)
-	s.Equal(int32(1), published.GetVersion())
-
+	// A stale or invented domain version in the request neither blocks the
+	// write nor changes the stored version.
 	_, err = env.formTemplateBusiness.Save(env.ctx, &identityv1.FormTemplateObject{
-		Id:         created.GetId(),
-		Name:       "KYC Intake v2",
-		EntityType: "client",
-		Version:    published.GetVersion(),
-		Status:     identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_PUBLISHED,
+		Id:             created.GetId(),
+		Name:           "KYC Intake v2",
+		EntityType:     "client",
+		OrganizationId: "org-kyc",
+		Version:        7,
 	})
 	s.Require().NoError(err)
 
 	stored, err := env.formTemplateRepo.GetByID(env.ctx, created.GetId())
 	s.Require().NoError(err)
 	s.Equal("KYC Intake v2", stored.Name)
-	s.Equal(int32(1), stored.TemplateVersion, "the domain version must not be the lock column")
+	s.Equal(int32(0), stored.TemplateVersion, "the domain version must not be the lock column")
+}
+
+func (s *authorizationSuite) TestPublishedFormTemplateIsNotRewritten() {
+	env := s.newEnv()
+
+	created, err := env.formTemplateBusiness.Save(env.ctx, &identityv1.FormTemplateObject{
+		Name:           "KYC Intake",
+		EntityType:     "client",
+		OrganizationId: "org-kyc",
+	})
+	s.Require().NoError(err)
+	published, err := env.formTemplateBusiness.Publish(env.ctx, created.GetId())
+	s.Require().NoError(err)
+	s.Equal(int32(1), published.GetVersion())
+
+	_, err = env.formTemplateBusiness.Save(env.ctx, &identityv1.FormTemplateObject{
+		Id:             created.GetId(),
+		Name:           "KYC Intake v2",
+		EntityType:     "client",
+		OrganizationId: "org-kyc",
+	})
+	s.Require().ErrorIs(err, ErrFormTemplateNotDraft)
+
+	stored, err := env.formTemplateRepo.GetByID(env.ctx, created.GetId())
+	s.Require().NoError(err)
+	s.Equal("KYC Intake", stored.Name)
+}
+
+func (s *authorizationSuite) TestFormTemplateSaveIgnoresRequestedStatus() {
+	env := s.newEnv()
+
+	created, err := env.formTemplateBusiness.Save(env.ctx, &identityv1.FormTemplateObject{
+		Name:           "KYC Intake",
+		EntityType:     "client",
+		OrganizationId: "org-kyc",
+		Status:         identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_PUBLISHED,
+	})
+	s.Require().NoError(err)
+	s.Equal(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_DRAFT, created.GetStatus())
+
+	stored, err := env.formTemplateRepo.GetByID(env.ctx, created.GetId())
+	s.Require().NoError(err)
+	s.Equal(int32(identityv1.FormTemplateStatus_FORM_TEMPLATE_STATUS_DRAFT), stored.Status)
+}
+
+func (s *authorizationSuite) TestFormTemplateSaveValidatesFields() {
+	env := s.newEnv()
+	text := identityv1.FormFieldType_FORM_FIELD_TYPE_TEXT
+
+	tests := []struct {
+		name   string
+		fields []*identityv1.FormFieldDefinition
+		want   error
+	}{
+		{"phone is kept on the profile", []*identityv1.FormFieldDefinition{
+			{Key: "mobile", Label: "Mobile", FieldType: identityv1.FormFieldType_FORM_FIELD_TYPE_PHONE},
+		}, ErrFormTemplateContactField},
+		{"email is kept on the profile", []*identityv1.FormFieldDefinition{
+			{Key: "email", Label: "Email", FieldType: identityv1.FormFieldType_FORM_FIELD_TYPE_EMAIL},
+		}, ErrFormTemplateContactField},
+		{"duplicate key", []*identityv1.FormFieldDefinition{
+			{Key: "name", Label: "Name", FieldType: text},
+			{Key: "name", Label: "Other", FieldType: text},
+		}, ErrFormTemplateDuplicateField},
+		{"select without options", []*identityv1.FormFieldDefinition{
+			{Key: "kind", Label: "Kind", FieldType: identityv1.FormFieldType_FORM_FIELD_TYPE_SELECT},
+		}, ErrFormTemplateInvalid},
+		{"field without a type", []*identityv1.FormFieldDefinition{
+			{Key: "x", Label: "X"},
+		}, ErrFormTemplateInvalid},
+	}
+	for _, tc := range tests {
+		s.Run(tc.name, func() {
+			_, err := env.formTemplateBusiness.Save(env.ctx, &identityv1.FormTemplateObject{
+				Name: "KYC", EntityType: "client", OrganizationId: "org-kyc", Fields: tc.fields,
+			})
+			s.Require().ErrorIs(err, tc.want)
+		})
+	}
+
+	_, err := env.formTemplateBusiness.Save(env.ctx, &identityv1.FormTemplateObject{
+		Name: "KYC", EntityType: "client",
+	})
+	s.Require().ErrorIs(err, ErrFormTemplateInvalid, "an organization is required")
 }
 
 // --- F3: the caller may not choose the partition it writes into ------------

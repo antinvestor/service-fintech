@@ -81,6 +81,27 @@ abstract final class AppConfig {
   static String get loansBaseUrl =>
       _loansExplicit.isNotEmpty ? _loansExplicit : '$_apiBaseUrl/loans';
 
+  // ── Seed service endpoint ──────────────────────────────────────────
+
+  static const String _seedExplicit = String.fromEnvironment('SEED_URL');
+  static String get seedBaseUrl =>
+      _seedExplicit.isNotEmpty ? _seedExplicit : '$_apiBaseUrl/seed';
+
+  // ── Funding service endpoint ───────────────────────────────────────
+
+  static const String _fundingExplicit = String.fromEnvironment('FUNDING_URL');
+  static String get fundingBaseUrl =>
+      _fundingExplicit.isNotEmpty ? _fundingExplicit : '$_apiBaseUrl/funding';
+
+  // ── Operations service endpoint ────────────────────────────────────
+
+  static const String _operationsExplicit = String.fromEnvironment(
+    'OPERATIONS_URL',
+  );
+  static String get operationsBaseUrl => _operationsExplicit.isNotEmpty
+      ? _operationsExplicit
+      : '$_apiBaseUrl/operations';
+
   // ── Files service endpoint ─────────────────────────────────────────
 
   static const String _filesExplicit = String.fromEnvironment('FILES_URL');
@@ -115,6 +136,9 @@ abstract final class AppConfig {
     'profile': profileBaseUrl,
     'tenancy': tenancyBaseUrl,
     'loans': loansBaseUrl,
+    'seed': seedBaseUrl,
+    'funding': fundingBaseUrl,
+    'operations': operationsBaseUrl,
     'files': filesBaseUrl,
     'audit': auditBaseUrl,
     'geolocation': geolocationBaseUrl,

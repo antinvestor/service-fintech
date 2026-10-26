@@ -4,8 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
+import 'package:antinvestor_ui_funding/antinvestor_ui_funding.dart'
+    show FundingRouteModule;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show LoansRouteModule;
+import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
+    show OperationsRouteModule;
 
 import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/logging/app_logger.dart';
@@ -20,7 +24,9 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/auth/data/auth_state_provider.dart';
 import '../features/auth/ui/login_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/lending/lending_tab.dart';
 import '../features/limits/limits_feature.dart';
+import '../features/operations/loan_picker_dialog.dart';
 
 /// Notifier that triggers a router refresh when the session or the caller's
 /// capabilities change. Permissions gate routes, so a late-arriving
@@ -220,6 +226,34 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
+            path: '/form-templates',
+            builder: (context, state) => Consumer(
+              builder: (context, ref, _) => FormTemplatesScreen(
+                onNavigateToDesigner: (id) =>
+                    context.go('/form-templates/${id ?? 'new'}'),
+              ),
+            ),
+            routes: [
+              GoRoute(
+                path: ':templateId',
+                builder: (context, state) {
+                  final id = state.pathParameters['templateId']!;
+                  return Consumer(
+                    builder: (context, ref, _) => FormTemplateDesignerScreen(
+                      key: ValueKey(id),
+                      templateId: id == 'new' ? null : id,
+                      canManage: ref.watch(
+                        hasPermissionProvider('form_template_manage'),
+                      ),
+                      onSaved: (savedId) =>
+                          context.go('/form-templates/$savedId'),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          GoRoute(
             path: '/access-roles',
             builder: (context, state) => const AccessRolesScreen(),
           ),
@@ -239,6 +273,25 @@ final routerProvider = Provider<GoRouter>((ref) {
                     canManage: ref.watch(
                       hasPermissionProvider('client_manage'),
                     ),
+                    canAssignStaff: ref.watch(
+                      hasPermissionProvider('client_relationship_manage'),
+                    ),
+                    extraTabs: [
+                      if (ref.watch(
+                        hasPermissionProvider('seed_credit_profile_view'),
+                      ))
+                        ClientDetailTab(
+                          label: 'Lending',
+                          builder: (context, client) => LendingTab(
+                            clientId: client.id,
+                            canAdmin: ref.watch(
+                              hasPermissionProvider(
+                                'seed_credit_profile_admin',
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -246,6 +299,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           ...LimitsFeature.routes(),
           ...LoansRouteModule().buildRoutes(),
+          ...FundingRouteModule().buildRoutes(),
+          ...OperationsRouteModule(pickLoan: pickLoanAccount).buildRoutes(),
         ],
       ),
     ],

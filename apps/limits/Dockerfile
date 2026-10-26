@@ -29,4 +29,6 @@ FROM cgr.dev/chainguard/static:latest@sha256:207a5673ab31ed83332e54ae33d0f1de4ad
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/binary /service
+COPY --from=builder /app/apps/limits/migrations /migrations
+ENV MIGRATION_PATH=/migrations
 ENTRYPOINT ["/service"]

@@ -197,7 +197,7 @@ func setupServiceOptions(
 	// service allocates against. Operations only reads and consumes them.
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo, auditCli)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo, ipRepo, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -280,9 +280,10 @@ func setupConnectServer(
 	toBiz business.TransferOrderBusiness,
 	prBiz business.PaymentRoutingBusiness,
 	toRepo repository.TransferOrderRepository,
+	ipRepo repository.IncomingPaymentRepository,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
-	opsHandler := handlers.NewOperationsServer(toBiz, prBiz, toRepo)
+	opsHandler := handlers.NewOperationsServer(toBiz, prBiz, toRepo, ipRepo)
 
 	auth := sm.GetAuthorizer(ctx)
 

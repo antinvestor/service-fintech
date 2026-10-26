@@ -75,4 +75,42 @@ extension type OperationsServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// IncomingPaymentSearch lists received payments, for staff to find the
+  /// ones that matched nobody.
+  Stream<operationsv1operations.IncomingPaymentSearchResponse> incomingPaymentSearch(
+    operationsv1operations.IncomingPaymentSearchRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).server(
+      specs.OperationsService.incomingPaymentSearch,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// IncomingPaymentAssign ties an unmatched payment to its loan and
+  /// allocates it.
+  Future<operationsv1operations.IncomingPaymentAssignResponse> incomingPaymentAssign(
+    operationsv1operations.IncomingPaymentAssignRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.OperationsService.incomingPaymentAssign,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

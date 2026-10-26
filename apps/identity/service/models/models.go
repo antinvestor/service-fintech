@@ -374,6 +374,8 @@ func (m *Client) ToAPI() *fieldv1.ClientObject {
 		State:        commonv1.STATE(m.State),
 		Properties:   props.ToProtoStruct(),
 		OwningTeamId: m.OwningTeamID,
+		TenantId:     m.TenantID,
+		PartitionId:  m.PartitionID,
 	}
 }
 

@@ -324,6 +324,8 @@ class ClientObject extends $pb.GeneratedMessage {
     $1.STATE? state,
     $0.Struct? properties,
     $core.String? owningTeamId,
+    $core.String? tenantId,
+    $core.String? partitionId,
   }) {
     final result = ClientObject._();
     if (id != null) result.id = id;
@@ -333,6 +335,8 @@ class ClientObject extends $pb.GeneratedMessage {
     if (state != null) result.state = state;
     if (properties != null) result.properties = properties;
     if (owningTeamId != null) result.owningTeamId = owningTeamId;
+    if (tenantId != null) result.tenantId = tenantId;
+    if (partitionId != null) result.partitionId = partitionId;
     return result;
   }
 
@@ -358,6 +362,8 @@ class ClientObject extends $pb.GeneratedMessage {
     ..aOM<$0.Struct>(6, _omitFieldNames ? '' : 'properties',
         subBuilder: $0.Struct.$_createMessage)
     ..aOS(7, _omitFieldNames ? '' : 'owningTeamId')
+    ..aOS(9, _omitFieldNames ? '' : 'tenantId')
+    ..aOS(10, _omitFieldNames ? '' : 'partitionId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -446,6 +452,27 @@ class ClientObject extends $pb.GeneratedMessage {
   $core.bool hasOwningTeamId() => $_has(6);
   @$pb.TagNumber(7)
   void clearOwningTeamId() => $_clearField(7);
+
+  /// tenant_id and partition_id are where the client is registered (output
+  /// only). A service acting for the borrower outside a staff request, such
+  /// as Seed handling a USSD session, works in that partition.
+  @$pb.TagNumber(9)
+  $core.String get tenantId => $_getSZ(7);
+  @$pb.TagNumber(9)
+  set tenantId($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(9)
+  $core.bool hasTenantId() => $_has(7);
+  @$pb.TagNumber(9)
+  void clearTenantId() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get partitionId => $_getSZ(8);
+  @$pb.TagNumber(10)
+  set partitionId($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(10)
+  $core.bool hasPartitionId() => $_has(8);
+  @$pb.TagNumber(10)
+  void clearPartitionId() => $_clearField(10);
 }
 
 /// ClientRelationshipObject assigns a workforce member to a client.

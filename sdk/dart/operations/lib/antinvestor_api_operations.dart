@@ -13,5 +13,6 @@ export 'src/operations/v1/operations.pbserver.dart';
 // Common types
 export 'src/common/v1/common.pb.dart';
 export 'src/common/v1/common.pbenum.dart';
+export 'src/common/v1/money.pb.dart';
 export 'package:protobuf/well_known_types/google/protobuf/struct.pb.dart';
 export 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';

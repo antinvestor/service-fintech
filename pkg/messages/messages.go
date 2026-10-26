@@ -51,6 +51,13 @@ const (
 	AgentApplicationDecision = "template.fintech.agent.application_decision"
 )
 
+// Borrower self-service on USSD. The outcome of a request made on USSD is
+// texted back: the session itself only says it was received.
+const (
+	UssdRequestFailed = "template.fintech.ussd.request_failed"
+	UssdPinSet        = "template.fintech.ussd.pin_set"
+)
+
 // Client onboarding and KYC messages.
 const (
 	ClientOnboarded          = "template.fintech.client.onboarded"
@@ -110,6 +117,22 @@ func init() {
 	registry.MustAdd(agentTemplates()...)
 	registry.MustAdd(clientTemplates()...)
 	registry.MustAdd(caseTemplates()...)
+	registry.MustAdd(ussdTemplates()...)
+}
+
+func ussdTemplates() []notification.Template {
+	return []notification.Template{
+		notification.New(UssdRequestFailed,
+			"Your request was not completed",
+			"{{.lender_name}}: {{.reason}}",
+			"{{.reason}}\n",
+			VarLenderName, VarReason),
+		notification.New(UssdPinSet,
+			"Your PIN is set",
+			"{{.lender_name}}: your USSD PIN has been set. If you did not do this, contact your agent now.",
+			"Your USSD PIN has been set. If you did not do this, contact your agent now.\n",
+			VarLenderName),
+	}
 }
 
 // Registry returns the template catalogue for setup-time registration.

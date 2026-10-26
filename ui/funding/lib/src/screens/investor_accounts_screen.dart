@@ -15,7 +15,11 @@ import '../widgets/async_list_view.dart';
 const _searchDebounce = Duration(milliseconds: 350);
 
 class InvestorAccountsScreen extends ConsumerStatefulWidget {
-  const InvestorAccountsScreen({super.key});
+  const InvestorAccountsScreen({super.key, this.canManage = false});
+
+  /// Whether the caller holds investor_account_manage. Without it the
+  /// "New Account" action is not offered rather than refused afterwards.
+  final bool canManage;
 
   @override
   ConsumerState<InvestorAccountsScreen> createState() =>
@@ -76,7 +80,7 @@ class _InvestorAccountsScreenState
       ],
       items: accounts,
       addLabel: 'New Account',
-      onAdd: () => _showCreateDialog(context),
+      onAdd: widget.canManage ? () => _showCreateDialog(context) : null,
       rowBuilder: (account, selected, onSelect) {
         return DataRow(
           selected: selected,

@@ -19,6 +19,10 @@ import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
     show LimitsCapabilities, limitsCapabilitiesProvider;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show currentAgentIdProvider, loansTransportProvider;
+import 'package:antinvestor_ui_funding/antinvestor_ui_funding.dart'
+    show fundingTransportProvider;
+import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
+    show operationsTransportProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -139,6 +143,16 @@ void main() {
         loansTransportProvider.overrideWith((ref) {
           final auth = ref.watch(authTokenProviderProvider);
           return createTransport(auth, baseUrl: AppConfig.loansBaseUrl);
+        }),
+
+        fundingTransportProvider.overrideWith((ref) {
+          final auth = ref.watch(authTokenProviderProvider);
+          return createTransport(auth, baseUrl: AppConfig.fundingBaseUrl);
+        }),
+
+        operationsTransportProvider.overrideWith((ref) {
+          final auth = ref.watch(authTokenProviderProvider);
+          return createTransport(auth, baseUrl: AppConfig.operationsBaseUrl);
         }),
 
         auditTransportProvider.overrideWith((ref) {

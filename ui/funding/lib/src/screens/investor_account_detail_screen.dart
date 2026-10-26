@@ -11,9 +11,20 @@ import '../widgets/money_amount_dialog.dart';
 import 'investor_accounts_screen.dart' show accountLabel;
 
 class InvestorAccountDetailScreen extends ConsumerWidget {
-  const InvestorAccountDetailScreen({super.key, required this.accountId});
+  const InvestorAccountDetailScreen({
+    super.key,
+    required this.accountId,
+    this.canManage = false,
+    this.canFund = false,
+  });
 
   final String accountId;
+
+  /// investor_account_manage: deposit and withdraw.
+  final bool canManage;
+
+  /// fund_manage: deploy the account's capital into a loan.
+  final bool canFund;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -72,11 +83,15 @@ class InvestorAccountDetailScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Actions
-          _ActionButtons(
-            accountId: accountId,
-            currencyCode: moneyCurrency(account.availableBalance, 'KES'),
-          ),
-          const SizedBox(height: 24),
+          if (canManage || canFund) ...[
+            _ActionButtons(
+              accountId: accountId,
+              currencyCode: moneyCurrency(account.availableBalance, 'KES'),
+              canManage: canManage,
+              canFund: canFund,
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Details
           _AccountDetailsCard(account: account),
@@ -210,9 +225,16 @@ class _MetricCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ActionButtons extends ConsumerWidget {
-  const _ActionButtons({required this.accountId, required this.currencyCode});
+  const _ActionButtons({
+    required this.accountId,
+    required this.currencyCode,
+    required this.canManage,
+    required this.canFund,
+  });
   final String accountId;
   final String currencyCode;
+  final bool canManage;
+  final bool canFund;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -220,24 +242,27 @@ class _ActionButtons extends ConsumerWidget {
       spacing: 12,
       runSpacing: 8,
       children: [
-        FilledButton.icon(
-          key: const Key('funding-action-deposit'),
-          onPressed: () => _showDepositDialog(context, ref),
-          icon: const Icon(Icons.add),
-          label: const Text('Deposit'),
-        ),
-        OutlinedButton.icon(
-          key: const Key('funding-action-withdraw'),
-          onPressed: () => _showWithdrawDialog(context, ref),
-          icon: const Icon(Icons.remove),
-          label: const Text('Withdraw'),
-        ),
-        OutlinedButton.icon(
-          key: const Key('funding-action-fund-loan'),
-          onPressed: () => _showFundLoanDialog(context, ref),
-          icon: const Icon(Icons.send),
-          label: const Text('Fund Loan'),
-        ),
+        if (canManage) ...[
+          FilledButton.icon(
+            key: const Key('funding-action-deposit'),
+            onPressed: () => _showDepositDialog(context, ref),
+            icon: const Icon(Icons.add),
+            label: const Text('Deposit'),
+          ),
+          OutlinedButton.icon(
+            key: const Key('funding-action-withdraw'),
+            onPressed: () => _showWithdrawDialog(context, ref),
+            icon: const Icon(Icons.remove),
+            label: const Text('Withdraw'),
+          ),
+        ],
+        if (canFund)
+          OutlinedButton.icon(
+            key: const Key('funding-action-fund-loan'),
+            onPressed: () => _showFundLoanDialog(context, ref),
+            icon: const Icon(Icons.send),
+            label: const Text('Fund Loan'),
+          ),
       ],
     );
   }

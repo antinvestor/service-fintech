@@ -172,15 +172,26 @@ func main() {
 		business.WithPayoutResolver(payouts),
 	)
 
+	ussdBusiness := buildUssd(ctx, &cfg, dbPool, svc, lrBusiness, cpBusiness, log)
+
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(
-			buildHandler(ctx, sm, manifestSD, lrBusiness, cpBusiness, clientResolver, cfg.SeedStaffRole, auditCli),
+			buildHandler(ctx, sm, manifestSD, lrBusiness, cpBusiness, clientResolver, ussdBusiness,
+				cfg.SeedStaffRole, auditCli),
 		),
 		frame.WithRegisterEvents(
 			seedevents.NewCreditProfileSave(ctx, cpRepo),
 			seedevents.NewLoanRequestSave(ctx, lrRepo),
 			audit.NewEventSave(ctx, auditRepo),
 		),
+	}
+	if ussdBusiness != nil {
+		// Completed borrower USSD sessions, from the notification service's
+		// ussd receive route.
+		serviceOptions = append(serviceOptions, frame.WithRegisterSubscriber(
+			cfg.UssdInboundName, cfg.UssdInboundURI,
+			seedhandlers.NewUssdInbound(ussdBusiness, cfg.UssdServiceID),
+		))
 	}
 
 	svc.Init(ctx, serviceOptions...)
@@ -258,7 +269,8 @@ func runSetup(ctx context.Context, svc *frame.Service, cfg *aconfig.SeedConfig) 
 		return err
 	}
 
-	return nil
+	// The borrower USSD menu and its gateway settings.
+	return installUssdMenu(ctx, svc, cfg)
 }
 
 // buildHandler puts every seed endpoint behind the frame security chain.
@@ -273,11 +285,12 @@ func buildHandler(
 	lrBusiness business.LoanRequestBusiness,
 	cpBusiness business.CreditProfileBusiness,
 	clientResolver business.ClientResolver,
+	ussdBusiness business.UssdBusiness,
 	staffRole string,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	mux := http.NewServeMux()
-	seedhandlers.NewServer(lrBusiness, cpBusiness, clientResolver, staffRole).Register(mux)
+	seedhandlers.NewServer(lrBusiness, cpBusiness, clientResolver, staffRole).WithUssd(ussdBusiness).Register(mux)
 	// Peer services (loans' paid-off hook) call seed over Connect, behind
 	// the same authentication and function-access chain as the HTTP routes.
 	rpc := connect.NewServer()

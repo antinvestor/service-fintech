@@ -45,6 +45,7 @@ func registeredRoutes() []string {
 		"POST /api/v1/seed/credit-profiles/{clientId}/{currency}/suspend",
 		"POST /api/v1/seed/credit-profiles/{clientId}/{currency}/block",
 		"POST /api/v1/seed/credit-profiles/{clientId}/{currency}/reinstate",
+		"POST /api/v1/seed/internal/ussd/state",
 	}
 }
 

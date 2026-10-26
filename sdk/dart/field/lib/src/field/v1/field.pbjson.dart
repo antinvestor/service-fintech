@@ -166,6 +166,8 @@ const ClientObject$json = {
       '8': {},
       '10': 'owningTeamId'
     },
+    {'1': 'tenant_id', '3': 9, '4': 1, '5': 9, '10': 'tenantId'},
+    {'1': 'partition_id', '3': 10, '4': 1, '5': 9, '10': 'partitionId'},
   ],
   '9': [
     {'1': 8, '2': 9},
@@ -179,7 +181,9 @@ final $typed_data.Uint8List clientObjectDescriptor = $convert.base64Decode(
     'aWxlX2lkGAMgASgJQgy6SAnYAQFyBBADGChSCXByb2ZpbGVJZBIbCgRuYW1lGAQgASgJQge6SA'
     'RyAhABUgRuYW1lEiYKBXN0YXRlGAUgASgOMhAuY29tbW9uLnYxLlNUQVRFUgVzdGF0ZRI3Cgpw'
     'cm9wZXJ0aWVzGAYgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdFIKcHJvcGVydGllcxIwCg'
-    '5vd25pbmdfdGVhbV9pZBgHIAEoCUIKukgH2AEBcgIYKFIMb3duaW5nVGVhbUlkSgQICBAJ');
+    '5vd25pbmdfdGVhbV9pZBgHIAEoCUIKukgH2AEBcgIYKFIMb3duaW5nVGVhbUlkEhsKCXRlbmFu'
+    'dF9pZBgJIAEoCVIIdGVuYW50SWQSIQoMcGFydGl0aW9uX2lkGAogASgJUgtwYXJ0aXRpb25JZE'
+    'oECAgQCQ==');
 
 @$core.Deprecated('Use clientRelationshipObjectDescriptor instead')
 const ClientRelationshipObject$json = {

@@ -53,6 +53,8 @@ const (
 	// SeedServiceCreditProfileReinstateProcedure is the procedure name of the SeedService's
 	// CreditProfileReinstate RPC.
 	SeedServiceCreditProfileReinstateProcedure = "/seed.v1.SeedService/CreditProfileReinstate"
+	// SeedServiceUssdStateProcedure is the procedure name of the SeedService's UssdState RPC.
+	SeedServiceUssdStateProcedure = "/seed.v1.SeedService/UssdState"
 	// SeedServiceLoanPaidOffNotifyProcedure is the procedure name of the SeedService's
 	// LoanPaidOffNotify RPC.
 	SeedServiceLoanPaidOffNotifyProcedure = "/seed.v1.SeedService/LoanPaidOffNotify"
@@ -95,6 +97,13 @@ var (
 			Procedure:  SeedServiceCreditProfileReinstateProcedure,
 		}
 	})
+	seedServiceUssdStateSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("UssdState"),
+			Procedure:  SeedServiceUssdStateProcedure,
+		}
+	})
 	seedServiceLoanPaidOffNotifySpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -116,6 +125,9 @@ type SeedServiceClient interface {
 	CreditProfileBlock(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileReinstate returns a suspended or blocked profile to active.
 	CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
+	// UssdState is the USSD engine's session-start call: the borrower's
+	// current rows for the Seed menu (loan, borrowing room, PIN status).
+	UssdState(context.Context, *v1.UssdStateRequest) (*v1.JSONResponse, error)
 	// LoanPaidOffNotify is the internal hook the loans service calls when a
 	// loan reaches PAID_OFF.
 	LoanPaidOffNotify(context.Context, *v1.LoanPaidOffRequest) (*v1.JSONResponse, error)
@@ -139,6 +151,9 @@ type SeedServiceHandler interface {
 	CreditProfileBlock(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileReinstate returns a suspended or blocked profile to active.
 	CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
+	// UssdState is the USSD engine's session-start call: the borrower's
+	// current rows for the Seed menu (loan, borrowing room, PIN status).
+	UssdState(context.Context, *v1.UssdStateRequest) (*v1.JSONResponse, error)
 	// LoanPaidOffNotify is the internal hook the loans service calls when a
 	// loan reaches PAID_OFF.
 	LoanPaidOffNotify(context.Context, *v1.LoanPaidOffRequest) (*v1.JSONResponse, error)
@@ -153,6 +168,7 @@ func RegisterSeedServiceHandler(server *connect.Server, svc SeedServiceHandler) 
 		connect.Method{Spec: seedServiceCreditProfileSuspendSpec(), Handler: adapter.creditProfileSuspend},
 		connect.Method{Spec: seedServiceCreditProfileBlockSpec(), Handler: adapter.creditProfileBlock},
 		connect.Method{Spec: seedServiceCreditProfileReinstateSpec(), Handler: adapter.creditProfileReinstate},
+		connect.Method{Spec: seedServiceUssdStateSpec(), Handler: adapter.ussdState},
 		connect.Method{Spec: seedServiceLoanPaidOffNotifySpec(), Handler: adapter.loanPaidOffNotify},
 	)
 }
@@ -178,6 +194,10 @@ func (UnimplementedSeedServiceHandler) CreditProfileBlock(context.Context, *v1.C
 
 func (UnimplementedSeedServiceHandler) CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileReinstate is not implemented")
+}
+
+func (UnimplementedSeedServiceHandler) UssdState(context.Context, *v1.UssdStateRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.UssdState is not implemented")
 }
 
 func (UnimplementedSeedServiceHandler) LoanPaidOffNotify(context.Context, *v1.LoanPaidOffRequest) (*v1.JSONResponse, error) {
@@ -223,6 +243,14 @@ func (c *seedServiceClient) CreditProfileBlock(ctx context.Context, req *v1.Cred
 func (c *seedServiceClient) CreditProfileReinstate(ctx context.Context, req *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
 	var res v1.JSONResponse
 	if err := c.client.CallUnary(ctx, seedServiceCreditProfileReinstateSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) UssdState(ctx context.Context, req *v1.UssdStateRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceUssdStateSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -292,6 +320,18 @@ func (h seedServiceHandler) creditProfileReinstate(ctx context.Context, _ connec
 		return err
 	}
 	res, err := h.svc.CreditProfileReinstate(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) ussdState(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.UssdStateRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.UssdState(ctx, &req)
 	if err != nil {
 		return err
 	}

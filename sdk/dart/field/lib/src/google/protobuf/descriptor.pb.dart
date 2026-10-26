@@ -2286,6 +2286,7 @@ class FieldOptions_FeatureSupport extends $pb.GeneratedMessage {
     Edition? editionDeprecated,
     $core.String? deprecationWarning,
     Edition? editionRemoved,
+    $core.String? removalError,
   }) {
     final result = FieldOptions_FeatureSupport._();
     if (editionIntroduced != null) result.editionIntroduced = editionIntroduced;
@@ -2293,6 +2294,7 @@ class FieldOptions_FeatureSupport extends $pb.GeneratedMessage {
     if (deprecationWarning != null)
       result.deprecationWarning = deprecationWarning;
     if (editionRemoved != null) result.editionRemoved = editionRemoved;
+    if (removalError != null) result.removalError = removalError;
     return result;
   }
 
@@ -2317,6 +2319,7 @@ class FieldOptions_FeatureSupport extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'deprecationWarning')
     ..aE<Edition>(4, _omitFieldNames ? '' : 'editionRemoved',
         enumValues: Edition.values)
+    ..aOS(5, _omitFieldNames ? '' : 'removalError')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2392,6 +2395,17 @@ class FieldOptions_FeatureSupport extends $pb.GeneratedMessage {
   $core.bool hasEditionRemoved() => $_has(3);
   @$pb.TagNumber(4)
   void clearEditionRemoved() => $_clearField(4);
+
+  /// The removal error text if this feature is used after the edition it was
+  /// removed in.
+  @$pb.TagNumber(5)
+  $core.String get removalError => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set removalError($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasRemovalError() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearRemovalError() => $_clearField(5);
 }
 
 class FieldOptions extends $pb.GeneratedMessage {

@@ -12,10 +12,14 @@
 --- See the License for the specific language governing permissions and
 --- limitations under the License.
 
-DROP INDEX IF EXISTS uq_resv_idempotency;
-DROP INDEX IF EXISTS idx_ledger_window;
-DROP INDEX IF EXISTS idx_resv_ttl_active;
-DROP INDEX IF EXISTS idx_resv_pending_sum;
-DROP INDEX IF EXISTS idx_approval_expiry;
-DROP INDEX IF EXISTS uq_approval_decision;
-DROP INDEX IF EXISTS uq_subject_attribute;
+-- One statement per file: the migrator runs a file as a single command.
+DO $$
+BEGIN
+    DROP INDEX IF EXISTS uq_resv_idempotency;
+    DROP INDEX IF EXISTS idx_ledger_window;
+    DROP INDEX IF EXISTS idx_resv_ttl_active;
+    DROP INDEX IF EXISTS idx_resv_pending_sum;
+    DROP INDEX IF EXISTS idx_approval_expiry;
+    DROP INDEX IF EXISTS uq_approval_decision;
+    DROP INDEX IF EXISTS uq_subject_attribute;
+END $$;
