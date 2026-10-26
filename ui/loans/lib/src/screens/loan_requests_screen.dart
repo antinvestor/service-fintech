@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import '../utils/money_compat.dart';
+import 'package:antinvestor_ui_core/responsive/breakpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/loan_request_providers.dart';
+import '../widgets/compact_entity_list.dart';
 import '../widgets/list_state_view.dart';
 import 'loan_request_form_dialog.dart';
 import '../widgets/load_more_action.dart';
@@ -97,86 +99,120 @@ class _LoanRequestsScreenState extends ConsumerState<LoanRequestsScreen> {
       onRetry: () => ref.invalidate(loanRequestListProvider(params)),
       builder: (page) {
         final requests = page.items;
-        return AdminEntityListPage<LoanRequestObject>(
-          title: widget.pendingOnly ? 'Pending Loan Requests' : 'Loan Requests',
-          breadcrumbs: const ['Loans', 'Requests'],
-          columns: const [
-            DataColumn(label: Text('CLIENT')),
-            DataColumn(label: Text('AMOUNT')),
-            DataColumn(label: Text('TERM')),
-            DataColumn(label: Text('STATUS')),
-          ],
-          items: requests,
-          onSearch: _onSearch,
-          addLabel: widget.canSubmit ? 'New application' : null,
-          onAdd: widget.canSubmit ? () => _showNewApplication(context) : null,
-          actions: [
-            DropdownButton<LoanRequestStatus?>(
-              value: _statusFilter,
-              hint: const Text('All statuses'),
-              underline: const SizedBox.shrink(),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('All')),
-                for (final s in _filterableStatuses)
-                  DropdownMenuItem(
-                    value: s,
-                    child: Text(loanRequestStatusLabel(s)),
-                  ),
-              ],
-              onChanged: (v) => setState(() {
-                _statusFilter = v;
-                _limit = kLoanListPageSize;
-              }),
-            ),
-            LoadMoreAction(
-              loadedCount: requests.length,
-              hasMore: page.hasMore,
-              isLoading: requestsAsync.isLoading,
-              onLoadMore: () => setState(() => _limit += kLoanListPageSize),
-            ),
-          ],
-          rowBuilder: (request, selected, onSelect) {
-            return DataRow(
-              selected: selected,
-              onSelectChanged: (_) => onSelect(),
-              cells: [
-                DataCell(
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer,
-                        child: Icon(
-                          Icons.description_outlined,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(request.clientId),
-                    ],
-                  ),
+        final actions = <Widget>[
+          DropdownButton<LoanRequestStatus?>(
+            value: _statusFilter,
+            hint: const Text('All statuses'),
+            underline: const SizedBox.shrink(),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All')),
+              for (final s in _filterableStatuses)
+                DropdownMenuItem(
+                  value: s,
+                  child: Text(loanRequestStatusLabel(s)),
                 ),
-                DataCell(Text(formatLoanMoney(request.requestedAmount))),
-                DataCell(Text('${request.requestedTermDays} days')),
-                DataCell(LoanRequestStatusBadge(status: request.status)),
+            ],
+            onChanged: (v) => setState(() {
+              _statusFilter = v;
+              _limit = kLoanListPageSize;
+            }),
+          ),
+          LoadMoreAction(
+            loadedCount: requests.length,
+            hasMore: page.hasMore,
+            isLoading: requestsAsync.isLoading,
+            onLoadMore: () => setState(() => _limit += kLoanListPageSize),
+          ),
+        ];
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (AppBreakpoints.isMobile(constraints.maxWidth)) {
+              return CompactEntityList<LoanRequestObject>(
+                title: widget.pendingOnly
+                    ? 'Pending Loan Requests'
+                    : 'Loan Requests',
+                items: requests,
+                onSearch: _onSearch,
+                searchHint: 'Search requests',
+                actions: actions,
+                addLabel: widget.canSubmit ? 'New application' : null,
+                onAdd: widget.canSubmit
+                    ? () => _showNewApplication(context)
+                    : null,
+                tileBuilder: (request) => ListTile(
+                  key: Key('loan-request-tile-${request.id}'),
+                  title: Text(request.clientId),
+                  subtitle: Text(
+                    '${formatLoanMoney(request.requestedAmount)} · '
+                    '${request.requestedTermDays} days',
+                  ),
+                  trailing: LoanRequestStatusBadge(status: request.status),
+                ),
+                onTap: (request) => context.go('/loans/requests/${request.id}'),
+              );
+            }
+            return AdminEntityListPage<LoanRequestObject>(
+              title: widget.pendingOnly
+                  ? 'Pending Loan Requests'
+                  : 'Loan Requests',
+              breadcrumbs: const ['Loans', 'Requests'],
+              columns: const [
+                DataColumn(label: Text('CLIENT')),
+                DataColumn(label: Text('AMOUNT')),
+                DataColumn(label: Text('TERM')),
+                DataColumn(label: Text('STATUS')),
+              ],
+              items: requests,
+              onSearch: _onSearch,
+              addLabel: widget.canSubmit ? 'New application' : null,
+              onAdd: widget.canSubmit
+                  ? () => _showNewApplication(context)
+                  : null,
+              actions: actions,
+              rowBuilder: (request, selected, onSelect) {
+                return DataRow(
+                  selected: selected,
+                  onSelectChanged: (_) => onSelect(),
+                  cells: [
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.description_outlined,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(request.clientId),
+                        ],
+                      ),
+                    ),
+                    DataCell(Text(formatLoanMoney(request.requestedAmount))),
+                    DataCell(Text('${request.requestedTermDays} days')),
+                    DataCell(LoanRequestStatusBadge(status: request.status)),
+                  ],
+                );
+              },
+              onRowNavigate: (request) {
+                context.go('/loans/requests/${request.id}');
+              },
+              detailBuilder: (request) => _LoanRequestDetail(request: request),
+              exportRow: (request) => [
+                request.clientId,
+                formatLoanMoney(request.requestedAmount),
+                '${request.requestedTermDays}',
+                loanRequestStatusLabel(request.status),
+                request.id,
               ],
             );
           },
-          onRowNavigate: (request) {
-            context.go('/loans/requests/${request.id}');
-          },
-          detailBuilder: (request) => _LoanRequestDetail(request: request),
-          exportRow: (request) => [
-            request.clientId,
-            formatLoanMoney(request.requestedAmount),
-            '${request.requestedTermDays}',
-            loanRequestStatusLabel(request.status),
-            request.id,
-          ],
         );
       },
     );

@@ -38,10 +38,14 @@ class LoadMoreAction extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'Showing first $loadedCount',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        // Shrinks on a narrow screen rather than pushing the button off.
+        Flexible(
+          child: Text(
+            'Showing first $loadedCount',
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         const SizedBox(width: 8),

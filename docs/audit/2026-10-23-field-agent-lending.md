@@ -1372,3 +1372,31 @@ exploitable as built, but both are hardened:
 
 **Deploy.** Apply auth migration `20261026_08`, and set
 `TRUSTAGE_SERVICE_URI` on savings for its setup job.
+
+## 48. Addendum 2026-10-26 — maker/checker in the UI; phone-width lists
+
+**Gaps closed (from the §8 UI follow-ups).**
+
+1. *Maker/checker was not shown.* The service already refuses a credit
+   decision by whoever submitted a request (`requireSeparationOfDuties`).
+   The console never showed who submitted or decided a request, and still
+   offered the submitter Approve and Reject, which then failed.
+   - Now: the request page shows *Submitted by* and *Decided by*. When the
+     signed-in profile is the submitter (`currentProfileIdProvider`, which
+     Seed supplies from its sign-in), the page says another staff member
+     must decide, and offers no buttons.
+2. *Lists did not fit a phone.* Field agents' lists (Clients, Loan
+   Accounts, Loan Requests) were wide `DataTable`s at every width.
+   - Now: below the mobile breakpoint they are lists of tiles
+     (`CompactEntityList`) with the same search, filters, actions,
+     load-more and add button.
+   - A phone-width test caught the load-more row overflowing a narrow
+     screen; its label now shrinks.
+   - ui_core's `AdminEntityListPage` has no mobile layout. Fixing it at the
+     root means publishing a new ui_core, so this is done in the fintech
+     packages instead.
+
+**Verified.** ui/loans 61 tests (including `the submitter is not offered a
+decision on their request` and `a phone lists loans as tiles with the
+filters`), ui/identity 55 (`a phone lists clients as tiles and keeps
+onboarding`), ui/seed 64.

@@ -9,15 +9,19 @@ Widget _host({
   bool canOpenAccount = false,
   LoanRequestStatus status = LoanRequestStatus.LOAN_REQUEST_STATUS_SUBMITTED,
   bool verified = false,
+  String? me,
+  String submittedBy = '',
 }) {
   return ProviderScope(
     overrides: [
+      currentProfileIdProvider.overrideWithValue(me),
       loanRequestDetailProvider.overrideWith(
         (ref, id) async => LoanRequestObject(
           id: id,
           clientId: 'client-1',
           status: status,
           requestedTermDays: 30,
+          submittedBy: submittedBy,
           properties: Struct(
             fields: {
               'data_verification_confirmed': Value(boolValue: verified),
@@ -54,6 +58,34 @@ void main() {
 
     expect(find.text('Approve'), findsOneWidget);
     expect(find.text('Reject'), findsOneWidget);
+  });
+
+  // Maker/checker: whoever submitted the request cannot decide it, so they
+  // are told so instead of offered buttons the service refuses.
+  testWidgets('the submitter is not offered a decision on their request', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(canManage: true, me: 'profile-maker', submittedBy: 'profile-maker'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Submitted by'), findsOneWidget);
+    expect(find.text('Approve'), findsNothing);
+    expect(
+      find.byKey(const Key('loan-request-own-submission')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(
+      _host(
+        canManage: true,
+        me: 'profile-checker',
+        submittedBy: 'profile-maker',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Approve'), findsOneWidget);
   });
 
   testWidgets('staff confirm the client data on a submitted request', (

@@ -45,12 +45,16 @@ class LoadMoreAction extends StatelessWidget {
       key: const Key('load-more-action'),
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          errorMessage ?? 'Showing first $loadedCount',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: errorMessage == null
-                ? theme.colorScheme.onSurfaceVariant
-                : theme.colorScheme.error,
+        // Shrinks on a narrow screen rather than pushing the button off.
+        Flexible(
+          child: Text(
+            errorMessage ?? 'Showing first $loadedCount',
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: errorMessage == null
+                  ? theme.colorScheme.onSurfaceVariant
+                  : theme.colorScheme.error,
+            ),
           ),
         ),
         const SizedBox(width: 8),

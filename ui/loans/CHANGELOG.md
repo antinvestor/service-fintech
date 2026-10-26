@@ -20,6 +20,14 @@
   paid out and available, with its payouts. With `commission_payout` it
   offers "Pay out" to an active member's own verified mobile number
   (`CommissionPayoutDialog`, one idempotency key per dialog).
+- The loan request page shows who submitted and who decided a request. With
+  `currentProfileIdProvider` set by the host, the person who submitted a
+  request is told another staff member must decide it, instead of being
+  offered Approve and Reject the service would refuse (maker/checker).
+- On a phone, Loan Accounts and Loan Requests are lists of tiles
+  (`CompactEntityList`) with the same search, filters and actions; the
+  table stays for wider screens. "Load more" no longer overflows a narrow
+  screen.
 
 ## 0.3.0
 

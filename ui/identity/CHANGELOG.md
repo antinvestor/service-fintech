@@ -18,6 +18,9 @@
   (`ClientDocumentLink`); its storage id is never shown.
   `KycDocumentDialog`, `KycDocumentViewer`, `documentPickerProvider`.
   Needs `antinvestor_api_identity` 0.8.2.
+- On a phone, Clients is a list of tiles (`CompactEntityList`) with search,
+  pending registrations and "Onboard client"; the table stays for wider
+  screens. "Load more" no longer overflows a narrow screen.
 
 ## 0.5.2
 

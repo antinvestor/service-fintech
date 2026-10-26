@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../providers/current_agent_provider.dart';
 import '../providers/loan_account_providers.dart';
 import '../providers/loan_request_providers.dart';
 import '../widgets/loan_request_status_badge.dart';
@@ -91,8 +92,12 @@ class LoanRequestDetailScreen extends ConsumerWidget {
           _sectionHeader(theme, 'Timeline'),
           if (request.submittedAt.isNotEmpty)
             _infoRow('Submitted', Text(request.submittedAt)),
+          if (request.submittedBy.isNotEmpty)
+            _infoRow('Submitted by', Text(request.submittedBy)),
           if (request.decidedAt.isNotEmpty)
             _infoRow('Decided', Text(request.decidedAt)),
+          if (request.decidedBy.isNotEmpty)
+            _infoRow('Decided by', Text(request.decidedBy)),
           if (request.rejectionReason.isNotEmpty)
             _infoRow('Rejection Reason', Text(request.rejectionReason)),
           if (request.loanAccountId.isNotEmpty) ...[
@@ -115,7 +120,17 @@ class LoanRequestDetailScreen extends ConsumerWidget {
               onChanged: (v) => _setDataVerified(context, ref, request, v),
             ),
             const SizedBox(height: 12),
-            _buildActions(context, ref, request),
+            if (_submittedByCaller(ref, request))
+              Text(
+                'You submitted this request, so another staff member must '
+                'approve or reject it.',
+                key: const Key('loan-request-own-submission'),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              _buildActions(context, ref, request),
           ],
           if (canOpenAccount &&
               request.status ==
@@ -160,6 +175,13 @@ class LoanRequestDetailScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// Whether the signed-in user submitted the request: the service refuses
+  /// their decision on it (maker/checker).
+  static bool _submittedByCaller(WidgetRef ref, LoanRequestObject request) {
+    final me = ref.watch(currentProfileIdProvider);
+    return me != null && me.isNotEmpty && request.submittedBy == me;
   }
 
   /// Whether staff confirmed the client's data on this request.
