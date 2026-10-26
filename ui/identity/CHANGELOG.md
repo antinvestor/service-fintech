@@ -9,7 +9,11 @@
   client's profile, and the identity service refuses a template that asks for
   them.
 - `ClientDetailScreen.extraTabs` (`ClientDetailTab`): a host adds product tabs
-  after Profile and KYC (Seed adds the client's credit profile and loans).
+  after the built-in ones (Seed adds the client's credit profile and loans).
+- A Relationships tab on the client screen (`ClientRelationshipsTab`): the
+  owning team, with Transfer (`client_manage`, reason required), and the
+  assigned staff, with Assign (`ClientDetailScreen.canAssignStaff`,
+  `client_relationship_manage`).
 
 ## 0.5.1
 

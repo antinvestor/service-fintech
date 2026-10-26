@@ -17,10 +17,11 @@ import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
 import 'client_form_dialog.dart';
+import 'client_relationships_tab.dart';
 import 'consent_code_dialog.dart';
 
 /// One borrower: their profile and the KYC data collected about them.
-/// A tab a host app adds to the client screen, after Profile and KYC.
+/// A tab a host app adds to the client screen, after the built-in ones.
 class ClientDetailTab {
   const ClientDetailTab({required this.label, required this.builder});
 
@@ -34,10 +35,16 @@ class ClientDetailScreen extends ConsumerWidget {
     required this.clientId,
     this.canManage = false,
     this.backRoute = '/clients',
+    this.canAssignStaff = false,
     this.extraTabs = const [],
   });
 
   final String clientId;
+
+  /// Whether the caller may assign staff to the client
+  /// (`client_relationship_manage`). Transferring the client to another team
+  /// needs [canManage].
+  final bool canAssignStaff;
 
   /// Product tabs the host adds (e.g. a lender's credit profile and loans).
   final List<ClientDetailTab> extraTabs;
@@ -63,6 +70,7 @@ class ClientDetailScreen extends ConsumerWidget {
         client: client,
         canManage: canManage,
         backRoute: backRoute,
+        canAssignStaff: canAssignStaff,
         extraTabs: extraTabs,
       ),
     );
@@ -74,12 +82,14 @@ class _ClientDetailContent extends ConsumerStatefulWidget {
     required this.client,
     required this.canManage,
     required this.backRoute,
+    required this.canAssignStaff,
     required this.extraTabs,
   });
 
   final ClientObject client;
   final bool canManage;
   final String backRoute;
+  final bool canAssignStaff;
   final List<ClientDetailTab> extraTabs;
 
   @override
@@ -94,7 +104,7 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2 + widget.extraTabs.length, vsync: this);
+    _tabs = TabController(length: 3 + widget.extraTabs.length, vsync: this);
   }
 
   @override
@@ -176,6 +186,7 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
           tabs: [
             const Tab(text: 'Profile'),
             const Tab(text: 'KYC'),
+            const Tab(text: 'Relationships'),
             for (final tab in widget.extraTabs) Tab(text: tab.label),
           ],
         ),
@@ -185,6 +196,11 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
             children: [
               _ProfileTab(client: _client),
               _KycTab(clientId: _client.id, canManage: widget.canManage),
+              ClientRelationshipsTab(
+                client: _client,
+                canTransfer: widget.canManage,
+                canAssign: widget.canAssignStaff,
+              ),
               for (final tab in widget.extraTabs) tab.builder(context, _client),
             ],
           ),

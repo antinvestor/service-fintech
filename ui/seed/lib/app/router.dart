@@ -273,6 +273,9 @@ final routerProvider = Provider<GoRouter>((ref) {
                     canManage: ref.watch(
                       hasPermissionProvider('client_manage'),
                     ),
+                    canAssignStaff: ref.watch(
+                      hasPermissionProvider('client_relationship_manage'),
+                    ),
                     extraTabs: [
                       if (ref.watch(
                         hasPermissionProvider('seed_credit_profile_view'),

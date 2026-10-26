@@ -69,6 +69,11 @@ void registerPermissionManifests() {
           label: 'Onboard and Manage Clients',
           scope: PermissionScope.action,
         ),
+        PermissionEntry(
+          key: 'client_relationship_manage',
+          label: 'Assign Staff to Clients',
+          scope: PermissionScope.action,
+        ),
       ],
     ),
   );
