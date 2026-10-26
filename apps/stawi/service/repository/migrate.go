@@ -105,12 +105,24 @@ func postMigrate(ctx context.Context, dbPool pool.Pool) error {
 		return err
 	}
 
-	return createPartialUniqueIndexExpr(
+	if err := createPartialUniqueIndexExpr(
 		db,
 		"uq_tenures_active_group",
 		"tenures",
 		"(group_id)",
 		"state = 3",
+	); err != nil {
+		return err
+	}
+
+	// One offer per member per loan window: generating a window's offers
+	// again (a retried window open) must not offer anyone a second loan.
+	return createPartialUniqueIndexExpr(
+		db,
+		"uq_loan_offers_window_member",
+		"loan_offers",
+		"(loan_window_id, membership_id)",
+		"loan_window_id <> ''",
 	)
 }
 

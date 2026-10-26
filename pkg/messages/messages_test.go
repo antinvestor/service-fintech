@@ -82,6 +82,7 @@ func TestReferencedNamesAreRegistered(t *testing.T) {
 		messages.ClientTermsOffered,
 		messages.WorkforceMemberOnboarded,
 		messages.CaseVerificationRequired, messages.CaseApprovalRequired, messages.CaseApproved, messages.CaseRejected,
+		messages.GroupLoanOffered, messages.GroupLoanFailed,
 	} {
 		require.True(t, reg.Has(name), "%s is referenced but not registered", name)
 	}

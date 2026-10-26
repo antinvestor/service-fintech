@@ -230,8 +230,15 @@ func handleRespondOffer(biz Businesses) http.HandlerFunc {
 			return
 		}
 		offerID := r.PathValue("offerId")
-		err := biz.LoanOffer.Respond(r.Context(), r.PathValue(paramGroupID), offerID, body.Response)
-		respond(w, r, "respond-loan-offer", map[string]any{"offer_id": offerID, "response": body.Response}, err)
+		offer, err := biz.LoanOffer.Respond(r.Context(), r.PathValue(paramGroupID), offerID, body.Response)
+		result := map[string]any{"offer_id": offerID, "response": body.Response}
+		if offer != nil {
+			// An accepted offer whose loan is still being made reads
+			// "pending"; the member is told when it is paid or refused.
+			result["origination_status"] = offer.OriginationStatus
+			result["loan_account_id"] = offer.LoanAccountID
+		}
+		respond(w, r, "respond-loan-offer", result, err)
 	}
 }
 
@@ -249,7 +256,7 @@ func handleCreateLoanAccount(biz Businesses) http.HandlerFunc {
 				apperrors.NewError(apperrors.BadRequest, "offer_id is required"))
 			return
 		}
-		result, err := biz.LoanOffer.CreateLoanAccount(r.Context(), req.OfferID)
+		result, err := biz.LoanOffer.CreateLoanAccount(r.Context(), r.PathValue(paramGroupID), req.OfferID)
 		if result != nil {
 			// loan_id is the short name callers read for the loan account.
 			result["loan_id"] = result["loan_account_id"]

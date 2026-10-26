@@ -28,8 +28,8 @@ type LoanWindowBusiness interface {
 
 // LoanOfferBusiness is the subset of loan offer business used by workflow callbacks.
 type LoanOfferBusiness interface {
-	CreateLoanAccount(ctx context.Context, offerID string) (map[string]interface{}, error)
-	Respond(ctx context.Context, groupID, offerID string, response int32) error
+	CreateLoanAccount(ctx context.Context, groupID, offerID string) (map[string]any, error)
+	Respond(ctx context.Context, groupID, offerID string, response int32) (*models.LoanOffer, error)
 }
 
 // GroupObligationBusiness raises and closes a period's member obligations in

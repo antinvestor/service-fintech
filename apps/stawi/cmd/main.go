@@ -53,9 +53,9 @@ import (
 	// Platform clients.
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/clients"
+	"github.com/antinvestor/service-fintech/pkg/messages"
+	"github.com/antinvestor/service-fintech/pkg/notify"
 	"github.com/antinvestor/service-fintech/pkg/trustage"
-
-	fevents "github.com/pitabwire/frame/v3/events"
 )
 
 // namespaceTenancyAccess is the Keto namespace that carries partition-level
@@ -139,7 +139,6 @@ func main() {
 	}
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
-	evtsMan := svc.EventsManager()
 
 	// Get database pool
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
@@ -175,7 +174,7 @@ func main() {
 	}
 
 	repos := initRepositories(ctx, dbPool, workMan)
-	biz := initBusinesses(ctx, evtsMan, identityCli, operationsCli, platformClients, repos, cfg)
+	biz := initBusinesses(ctx, identityCli, operationsCli, platformClients, repos, cfg)
 	handler := buildHandler(ctx, sm, manifestSD, biz, auditCli)
 	serviceOptions := buildServiceOptions(ctx, handler, repos)
 
@@ -201,7 +200,6 @@ func initRepositories(ctx context.Context, dbPool pool.Pool, workMan workerpool.
 
 func initBusinesses(
 	ctx context.Context,
-	evtsMan fevents.Manager,
 	identityCli identityv1connect.IdentityServiceClient,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	platformClients *clients.PlatformClients,
@@ -214,11 +212,21 @@ func initBusinesses(
 	tenureBiz := stawibusiness.NewTenureBusiness(ctx, product, identityCli, repos.tenure, repos.period)
 	periodBiz := stawibusiness.NewPeriodBusiness(ctx, repos.tenure, repos.period)
 
+	// Accepted offers become loans in the loans service and are paid to the
+	// member's own contact; members hear about offers by profile id.
+	loanOfferBiz := stawibusiness.NewLoanOfferBusiness(ctx, stawibusiness.LoanOfferDeps{
+		Product:  product,
+		Offers:   repos.loanOffer,
+		Periods:  repos.period,
+		Members:  membershipBiz,
+		Identity: identityCli,
+		Clients:  platformClients.LenderIdentity,
+		Profiles: platformClients.ProfileClient,
+		Lender:   stawibusiness.NewLoansGroupLender(platformClients.LenderLoanMgmt),
+		Notifier: notify.New(platformClients.NotificationClient, messages.Registry()),
+	})
 	loanWindowBiz := stawibusiness.NewLoanWindowBusiness(
-		ctx, product, identityCli, repos.loanWindow, repos.period, repos.tenure,
-	)
-	loanOfferBiz := stawibusiness.NewLoanOfferBusiness(
-		ctx, product, evtsMan, repos.loanOffer, identityCli, platformClients,
+		ctx, product, identityCli, repos.loanWindow, repos.period, repos.tenure, loanOfferBiz,
 	)
 	obligationBiz := stawibusiness.NewGroupObligationBusiness(
 		ctx, product, groupBiz, membershipBiz, repos.period, operationsCli,

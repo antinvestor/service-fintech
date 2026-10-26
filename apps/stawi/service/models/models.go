@@ -76,10 +76,23 @@ type LoanOffer struct {
 	NotificationID string `gorm:"type:varchar(50)"`
 	Description    string `gorm:"type:text"`
 	LoanAccountID  string `gorm:"type:varchar(50)"` // cross-ref to Lender LoanAccountObject
-	ApplicationID  string `gorm:"type:varchar(50)"` // cross-ref to Lender ApplicationObject
-	State          int32
-	Properties     data.JSONMap
+	ApplicationID  string `gorm:"type:varchar(50)"` // the loans service's loan request id
+	// DisbursementID is the loans service's disbursement of the offer's loan.
+	DisbursementID string `gorm:"type:varchar(50)"`
+	// OriginationStatus is empty until the member accepts; see
+	// OriginationPending and its siblings.
+	OriginationStatus string `gorm:"type:varchar(20);index:idx_lo_origination"`
+	State             int32
+	Properties        data.JSONMap
 }
+
+// Origination statuses of an accepted offer. Pending covers every step from
+// acceptance to a settled disbursement, so a retry resumes where it stopped.
+const (
+	OriginationPending   = "pending"
+	OriginationDisbursed = "disbursed"
+	OriginationFailed    = "failed"
+)
 
 func (m *LoanOffer) TableName() string { return "loan_offers" }
 

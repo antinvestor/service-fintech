@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"time"
 
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 
@@ -70,10 +71,21 @@ type LoanWindowBusiness interface {
 	Open(ctx context.Context, groupID string) (*models.LoanWindow, error)
 }
 
-// LoanOfferBusiness handles loan offer operations.
+// OfferGenerator makes a loan window's offers.
+type OfferGenerator interface {
+	GenerateForWindow(ctx context.Context, group *identityv1.ClientGroupObject, window *models.LoanWindow) (int, error)
+}
+
+// LoanOfferBusiness handles loan offers: making them when a window opens,
+// members' answers, and originating accepted ones through the loans service.
 type LoanOfferBusiness interface {
-	Respond(ctx context.Context, groupID, offerID string, response int32) error
-	CreateLoanAccount(ctx context.Context, offerID string) (map[string]interface{}, error)
+	OfferGenerator
+	Respond(ctx context.Context, groupID, offerID string, response int32) (*models.LoanOffer, error)
+	CreateLoanAccount(ctx context.Context, groupID, offerID string) (map[string]any, error)
+	// ResumePendingOrigination and ExpireStale are bounded, idempotent
+	// sweeps for a scheduled job.
+	ResumePendingOrigination(ctx context.Context, batch int) (OriginationSweep, error)
+	ExpireStale(ctx context.Context, now time.Time, batch int) (int, error)
 }
 
 // GroupObligationBusiness raises and closes a period's member obligations,

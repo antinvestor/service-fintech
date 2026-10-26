@@ -1512,3 +1512,60 @@ With the user's agreement, the group product is rebuilt in six phases on
 - Stawi: the obligation business against fake operations, identity and
   period clients.
 - Lint: 0 issues across operations, stawi, loans, savings, funding and pkg.
+
+## 51. Addendum 2026-10-26 — Stawi phase 3: group loan offers originate through loans
+
+**Gap.** Nothing created loan offers once their workflow was retired, and
+nothing disbursed after a loan account was created.
+
+**Change.**
+
+- *Offers.* Opening a loan window makes offers for eligible members; a
+  retried open finishes the offers instead of repeating them. One offer per
+  window and member (unique index `uq_loan_offers_window_member`).
+  Eligibility:
+  - a regular, active member with a client record;
+  - no open loan in loans, and no other open or originating offer.
+
+  The amount is the window's periodic amount × completed periods in the
+  tenure × the window's leverage. The offer expires at the period's end.
+- *Acceptance originates the loan.* Each step is recorded on the offer, so
+  a retry resumes rather than repeats:
+  1. A short claim makes one call the only one working on the offer.
+  2. The loan request id is chosen and recorded first. Loans' save upserts
+     by id and does not de-duplicate on its key, so this is what prevents a
+     second request.
+  3. The request is read back from loans, then submitted and approved as
+     needed.
+  4. The loan account is created.
+  5. The loan is disbursed under the key `stawi:offer:<id>`, to the member's
+     own payout contact, resolved by id.
+- *Failures.* A transient failure leaves the offer pending.
+  `ResumePendingOrigination` and `ExpireStale` are bounded business methods
+  for the phase 4 job. A permanent refusal marks the offer failed, cancels
+  any undisbursed loan so its funding is released, and tells the member.
+- *Messages.* New templates `GroupLoanOffered` and `GroupLoanFailed`, sent by
+  profile id. Loans already sends the disbursed message.
+- *Group check.* `POST /groups/{groupId}/loans` now refuses an offer of
+  another group's member (not found).
+
+**Open (for later phases).**
+- Offers do not yet reflect each member's actual savings paid; operations
+  has no read API for it.
+- A failed loan cancel is not retried yet; the phase 4 sweep should cover
+  it.
+- New templates reach the notification service when the loans setup Job
+  syncs `pkg/messages`.
+
+**Verified.** Stawi tests cover:
+- offers made once per window and member;
+- accept, accept again, then create and resume pays exactly once;
+- a transient payout failure resumes without a second loan;
+- a lost approval reply is read back, not repeated;
+- a permanent refusal fails the offer and cancels its loan;
+- a member without a payout contact;
+- a claim held by another call, and one that lapsed;
+- expiry and decline;
+- an offer reached through another group is refused.
+
+Lint: 0 issues.

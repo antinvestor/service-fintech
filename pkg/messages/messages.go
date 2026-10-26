@@ -58,6 +58,12 @@ const (
 	UssdPinSet        = "template.fintech.ussd.pin_set"
 )
 
+// Group (chama) lending, sent to the member.
+const (
+	GroupLoanOffered = "template.fintech.group.loan_offered"
+	GroupLoanFailed  = "template.fintech.group.loan_failed"
+)
+
 // Client onboarding and KYC messages.
 const (
 	ClientOnboarded          = "template.fintech.client.onboarded"
@@ -106,6 +112,8 @@ const (
 	VarComment      = "comment"
 	VarMemberName   = "member_name"
 	VarOrganization = "organization_name"
+	VarGroupName    = "group_name"
+	VarExpiresOn    = "expires_on"
 )
 
 //nolint:gochecknoglobals // template registry is declared once at package init
@@ -120,6 +128,33 @@ func init() {
 	registry.MustAdd(clientTemplates()...)
 	registry.MustAdd(caseTemplates()...)
 	registry.MustAdd(ussdTemplates()...)
+	registry.MustAdd(groupTemplates()...)
+}
+
+func groupTemplates() []notification.Template {
+	return []notification.Template{
+		notification.New(
+			GroupLoanOffered,
+			"A loan offer from {{.group_name}}",
+			"{{.group_name}}: you can borrow {{.currency}} {{.amount}}. Accept by {{.expires_on}} and it is sent to your phone.",
+			"You can borrow {{.currency}} {{.amount}} through {{.group_name}}.\n\nAccept the offer by {{.expires_on}} "+
+				"and the money is sent to your registered mobile number.\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarExpiresOn,
+		),
+		notification.New(
+			GroupLoanFailed,
+			"Your {{.group_name}} loan could not be paid",
+			"{{.group_name}}: your loan of {{.currency}} {{.amount}} could not be paid out. {{.reason}}",
+			"Your loan of {{.currency}} {{.amount}} through {{.group_name}} could not be paid out.\n\nReason: {{.reason}}\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarReason,
+		),
+	}
 }
 
 func ussdTemplates() []notification.Template {
