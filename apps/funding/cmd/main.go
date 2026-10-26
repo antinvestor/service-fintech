@@ -146,7 +146,6 @@ func main() {
 	// returns nil and the gate is disabled at runtime regardless of the config flag.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
 	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
-		"funding_deposit":  cfg.LimitsGateEnabledFundingDeposit,
 		"funding_withdraw": cfg.LimitsGateEnabledFundingWithdraw,
 	}); gateErr != nil {
 		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
@@ -232,8 +231,6 @@ func setupServiceOptions(
 		operationsCli,
 		auditWriter,
 		limitsCli,
-		cfg.LimitsGateEnabledFundingDeposit,
-		cfg.LimitsGateModeFundingDeposit,
 		cfg.LimitsGateEnabledFundingWithdraw,
 		cfg.LimitsGateModeFundingWithdraw,
 	)

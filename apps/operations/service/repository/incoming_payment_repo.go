@@ -317,8 +317,10 @@ func (r *incomingPaymentRepository) ReleaseAllocation(ctx context.Context, payme
 }
 
 // individualOwnerTypes are the owners an individual's payment is matched to:
-// their own loan, or their own savings account.
-func individualOwnerTypes() []string { return []string{"client_loan", "client_savings"} }
+// their own loan, savings account or investor account.
+func individualOwnerTypes() []string {
+	return []string{"client_loan", "client_savings", "investor_account"}
+}
 
 func (r *incomingPaymentRepository) ListAwaitingAllocation(
 	ctx context.Context,

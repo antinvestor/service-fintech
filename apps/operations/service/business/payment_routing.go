@@ -127,6 +127,10 @@ type identificationResult struct {
 	// SavingsAccountID is set when an individual's payment was matched to
 	// their own savings account.
 	SavingsAccountID string
+	// InvestorAccountID and InvestorOwnerID are set when an investor's own
+	// payment was matched to their investor account.
+	InvestorAccountID string
+	InvestorOwnerID   string
 }
 
 // identificationStrategy defines one step in the payment identification pipeline.
@@ -181,7 +185,7 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 	// An individual borrower's payment (no group) is matched to their loan
 	// first; group payments keep the membership strategies.
 	if groupID == "" {
-		if result := b.identifyIndividual(ctx, productID, paymentRef, payerRef); result != nil {
+		if result := b.identifyIndividual(ctx, productID, paymentRef, payerRef, payment.Currency); result != nil {
 			if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 				return nil, saveErr
 			}
@@ -242,7 +246,7 @@ func (b *paymentRoutingBusiness) allocateIndividual(
 // credited. It returns nil when neither matches.
 func (b *paymentRoutingBusiness) identifyIndividual(
 	ctx context.Context,
-	productID, paymentRef, payerRef string,
+	productID, paymentRef, payerRef, currency string,
 ) *identificationResult {
 	if b.borrowerLoanMatching() {
 		if result, err := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); err == nil {
@@ -251,6 +255,11 @@ func (b *paymentRoutingBusiness) identifyIndividual(
 	}
 	if b.borrowerSavingsMatching() {
 		if result, err := b.identifySaverAccount(ctx, productID, paymentRef, payerRef); err == nil {
+			return result
+		}
+	}
+	if b.investorDepositMatching() {
+		if result, err := b.identifyInvestorDeposit(ctx, paymentRef, payerRef, currency); err == nil {
 			return result
 		}
 	}
@@ -765,12 +774,27 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 		extra[fieldSavingsAccountID] = result.SavingsAccountID
 		extra[fieldProductID] = result.ProductID
 	}
+	if result.InvestorAccountID != "" {
+		payment.OwnerID = result.InvestorOwnerID
+		payment.OwnerType = ownerTypeInvestorAccount
+		payment.PayableID = result.InvestorAccountID
+		payment.PayableType = payableTypeInvestor
+		extra[fieldInvestorAccountID] = result.InvestorAccountID
+	}
 	payment.Properties = mergeJSONMaps(payment.Properties, extra)
 
-	if emitErr := b.eventsMan.Emit(ctx, events.IncomingPaymentSaveEvent, payment); emitErr != nil {
-		return fmt.Errorf("persist payment identification: %w", emitErr)
+	// Written before returning, and only onto a payment nobody matched yet:
+	// an allocation straight after must read the owner, and two runs
+	// identifying one payment converge on the first.
+	if _, err := b.ipRepo.AssignOwner(ctx, payment.GetID(), repository.PaymentAssignment{
+		OwnerID:     payment.OwnerID,
+		OwnerType:   payment.OwnerType,
+		PayableID:   payment.PayableID,
+		PayableType: payment.PayableType,
+		Properties:  extra,
+	}); err != nil {
+		return fmt.Errorf("persist payment identification: %w", err)
 	}
-
 	return nil
 }
 
@@ -836,6 +860,9 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	}
 	if isBorrowerSavingsPayment(payment) {
 		return b.allocateToSavings(ctx, logger, payment, lease)
+	}
+	if isInvestorDepositPayment(payment) {
+		return b.allocateToInvestor(ctx, logger, payment, lease)
 	}
 
 	membershipID := payment.OwnerID

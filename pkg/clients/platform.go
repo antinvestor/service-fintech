@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 
+	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
+
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	"buf.build/gen/go/antinvestor/files/connectrpc/go/v2/files/v1/filesv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
@@ -40,6 +42,7 @@ type ServiceEndpoints struct {
 	IdentityURI     string
 	LoanMgmtURI     string
 	SavingsURI      string
+	FundingURI      string
 	LedgerURI       string
 	PaymentURI      string
 	NotificationURI string
@@ -54,6 +57,7 @@ type PlatformClients struct {
 	LenderRegistry     identityv1connect.IdentityServiceClient
 	LenderLoanMgmt     loansv1connect.LoanManagementServiceClient
 	LenderSavings      savingsv1connect.SavingsServiceClient
+	LenderFunding      fundingv1connect.FundingServiceClient
 	LedgerClient       ledgerv1connect.LedgerServiceClient
 	PaymentClient      paymentv1connect.PaymentServiceClient
 	NotificationClient notificationv1connect.NotificationServiceClient
@@ -141,6 +145,14 @@ func NewPlatformClients(ctx context.Context, cfg any, ep ServiceEndpoints) (*Pla
 		"lender-savings",
 		func(c savingsv1connect.SavingsServiceClient) { pc.LenderSavings = c },
 		savingsv1connect.NewSavingsServiceClient,
+	)
+	initServiceClient(
+		b,
+		ep.FundingURI,
+		"service_funding",
+		"lender-funding",
+		func(c fundingv1connect.FundingServiceClient) { pc.LenderFunding = c },
+		fundingv1connect.NewFundingServiceClient,
 	)
 	initServiceClient(b, ep.LedgerURI, "service_ledger", "ledger",
 		func(c ledgerv1connect.LedgerServiceClient) { pc.LedgerClient = c }, ledgerv1connect.NewLedgerServiceClient)

@@ -119,8 +119,13 @@ func (s *FundingServer) InvestorDeposit(
 	ctx context.Context,
 	req *fundingv1.InvestorDepositRequest,
 ) (*fundingv1.InvestorDepositResponse, error) {
-	info, _ := connect.CallInfoForServerContext(ctx)
-	idemKey := info.RequestHeader().Get(idempotencyHeader)
+	// Capital arrives only from the payment rail: operations matches an
+	// investor's own payment to their account and records it here. A person
+	// recording a deposit would be typing money into the fund.
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	idemKey := requestIdempotencyKey(ctx, req.GetIdempotencyKey())
 	if idemKey == "" {
 		return nil, apperrors.CleanErr(business.ErrIdempotencyKeyRequired)
 	}
@@ -402,4 +407,15 @@ func fundLoanResultToAPI(result *business.AllocationResult) *fundingv1.FundLoanR
 	}
 
 	return resp
+}
+
+// requestIdempotencyKey is the Idempotency-Key header when present,
+// otherwise the key the request body carries.
+func requestIdempotencyKey(ctx context.Context, bodyKey string) string {
+	if info, ok := connect.CallInfoForServerContext(ctx); ok {
+		if key := info.RequestHeader().Get(idempotencyHeader); key != "" {
+			return key
+		}
+	}
+	return bodyKey
 }

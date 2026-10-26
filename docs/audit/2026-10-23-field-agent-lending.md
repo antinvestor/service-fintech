@@ -880,3 +880,43 @@ rail.
 
 **Verified.** funding `TestReleaseGivesBackReservedCapitalOnce` (Postgres);
 loans `TestCancel*`; ui_loans tests (52 pass).
+
+## 37. Addendum 2026-10-26 — investor capital arrives from the rail
+
+**Finding.**
+
+- Staff with `investor_account_manage` typed an investor deposit amount, and
+  it was credited to the fund without any money arriving.
+- The funding UI's Fund Loan dialog implied it drew on one investor's
+  account, but `FundLoanRequest` has no account: allocation draws on the
+  whole pool, and loans already calls it when an account opens.
+- Separately, operations persisted a payment's identification through an
+  async event, so the inline allocation could read the payment as still
+  unmatched.
+
+**Change.**
+
+- *Deposits.* `InvestorDeposit` is internal-only and honours the body's
+  `idempotency_key` when no header is sent. Deposits are no longer gated by
+  limits (money received).
+- *Matching.* Operations matches a payment quoting an investor account id,
+  but only when the payer is that investor's own profile. Payer by profile id
+  from the rail; by contact, resolved by the profile service, from a
+  notifier. Capital is never credited on a reference alone.
+  - The whole payment is deposited, keyed `payment:<id>:investor:<acct>`.
+  - Matching order: loan, then savings, then investor account.
+  - The settle job covers these payments too.
+- *Identification* is persisted synchronously with the conditional
+  `AssignOwner` (unowned, unleased payments only), so the allocation that
+  follows always reads the owner.
+- *ui_funding 0.5.0.* Deposit and Fund Loan are removed. The account screen
+  says how capital arrives: the investor pays, quoting the account id.
+- *Tenancy* (service-authentication `20261026_06`): operations → `/funding`
+  with `investor_account_view` and `investor_account_manage`. Operations
+  needs `FUNDING_SERVICE_URI`.
+- *Open.* Investor withdrawals post a ledger movement but nothing pays the
+  investor.
+
+**Verified.** operations `TestInvestorsOwnPaymentBecomesCapitalOnce`,
+`TestQuotingAnInvestorAccountFromAnotherProfileCreditsNothing`; funding
+suite; ui_funding tests.

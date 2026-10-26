@@ -78,8 +78,6 @@ type investorAccountBusiness struct {
 	operationsCli         operationsv1connect.OperationsServiceClient
 	auditWriter           *audit.Writer
 	limitsCli             limitsv1connect.LimitsServiceClient
-	limitsDepositEnabled  bool
-	limitsDepositMode     string
 	limitsWithdrawEnabled bool
 	limitsWithdrawMode    string
 }
@@ -92,8 +90,6 @@ func NewInvestorAccountBusiness(
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
 	limitsCli limitsv1connect.LimitsServiceClient,
-	limitsDepositEnabled bool,
-	limitsDepositMode string,
 	limitsWithdrawEnabled bool,
 	limitsWithdrawMode string,
 ) InvestorAccountBusiness {
@@ -104,8 +100,6 @@ func NewInvestorAccountBusiness(
 		operationsCli:         operationsCli,
 		auditWriter:           auditWriter,
 		limitsCli:             limitsCli,
-		limitsDepositEnabled:  limitsDepositEnabled,
-		limitsDepositMode:     limitsDepositMode,
 		limitsWithdrawEnabled: limitsWithdrawEnabled,
 		limitsWithdrawMode:    limitsWithdrawMode,
 	}
@@ -232,8 +226,6 @@ func pageWindow(cursor *commonv1.PageCursor) (int, int) {
 // the original movement without posting again. The ledger reference is
 // derived from that row's id rather than from the account version, so two
 // callers can never collide on one reference or drift onto two.
-//
-//nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Deposit(
 	ctx context.Context,
 	accountID string,
@@ -245,31 +237,10 @@ func (b *investorAccountBusiness) Deposit(
 		return err
 	}
 
-	if !b.limitsDepositEnabled || b.limitsCli == nil || b.limitsDepositMode == "off" {
-		return b.depositInner(ctx, account, minor, idempotencyKey)
-	}
-
-	intent := &limitsv1.LimitIntent{
-		Action:   limitsv1.LimitAction_LIMIT_ACTION_FUNDING_INFLOW,
-		TenantId: account.TenantID,
-		Amount:   moneyx.FromMinorUnitsByCurrency(account.Currency, minor),
-		// The limits service requires the organization for funding actions;
-		// an investor account belongs to the lender that is its tenant.
-		Subjects: []*limitsv1.SubjectRef{
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: accountID},
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: account.TenantID},
-		},
-	}
-	idemKey := "funding_deposit:" + accountID + ":" + idempotencyKey
-
-	return limits.Gate(ctx, b.limitsCli, intent, idemKey, limits.ParseMode(b.limitsDepositMode),
-		func(innerCtx context.Context, reservationID string) error {
-			util.Log(innerCtx).With("limits_reservation_id", reservationID).
-				Info("investor deposit gated by limits")
-			return b.depositInner(innerCtx, account, minor, idempotencyKey)
-		},
-		limits.InPartition(account.TenantID, account.PartitionID),
-	)
+	// No transaction limit applies here: the money has already arrived on
+	// the rail, so refusing to apply it would only strand the investor's
+	// payment. Limits gate money leaving, not money received.
+	return b.depositInner(ctx, account, minor, idempotencyKey)
 }
 
 // prepareMovement resolves and validates the account and amount that a
@@ -415,8 +386,6 @@ func capitalTransferReference(movement *models.InvestorCapitalMovement) string {
 // DebitWithdrawal is the authoritative sufficiency check: two concurrent
 // withdrawals against overlapping funds serialize and one receives
 // ErrInvestorInsufficientFunds.
-//
-//nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Withdraw(
 	ctx context.Context,
 	accountID string,

@@ -1174,6 +1174,9 @@ func (b *loanAccountBusiness) Cancel(
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
 	}
+	if scopeErr := b.scope.AuthorizeClient(ctx, la.ClientID); scopeErr != nil {
+		return nil, scopeErr
+	}
 	if b.disbRepo == nil || b.fundingCli == nil {
 		return nil, ErrFundingServiceUnavailable
 	}
@@ -1205,8 +1208,9 @@ func (b *loanAccountBusiness) Cancel(
 			return nil, ErrLoanCancelDisbursed
 		}
 	case loansv1.LoanStatus_LOAN_STATUS_CLOSED:
-		// Closed and never disbursed: an earlier cancel whose release may
-		// not have finished.
+		// Closed with no disbursement that did not fail: only a cancel
+		// closes such a loan (every other way to CLOSED pays out first), so
+		// this retries a release that may not have finished.
 	default:
 		return nil, ErrLoanCancelDisbursed
 	}
@@ -1222,20 +1226,13 @@ func (b *loanAccountBusiness) Cancel(
 	return result, nil
 }
 
-// maxDisbursementsChecked bounds the disbursement rows a cancel reads.
-const maxDisbursementsChecked = 50
-
 // disbursementUnderway reports whether the loan has a disbursement that did
-// not fail: one processing, or one that paid out.
+// not fail: one processing, or one that paid out. Read exactly, from the
+// primary, so no cancel releases funding behind money that moved.
 func (b *loanAccountBusiness) disbursementUnderway(ctx context.Context, loanAccountID string) (bool, error) {
-	rows, err := b.disbRepo.ListByLoanAccountID(ctx, loanAccountID, maxDisbursementsChecked)
+	underway, err := b.disbRepo.HasUnfailed(ctx, loanAccountID)
 	if err != nil {
 		return false, fmt.Errorf("check disbursements: %w", err)
 	}
-	for _, d := range rows {
-		if d.Status != int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return underway, nil
 }

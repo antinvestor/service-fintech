@@ -2,7 +2,7 @@ name: antinvestor_ui_funding
 description: >
   Funding management UI library for Antinvestor. Embeddable screens and widgets
   for investor accounts, deposits, withdrawals, and loan funding.
-version: 0.4.0
+version: 0.5.0
 repository: https://github.com/antinvestor/service-fintech
 homepage: https://github.com/antinvestor/service-fintech/tree/main/ui/funding
 issue_tracker: https://github.com/antinvestor/service-fintech/issues

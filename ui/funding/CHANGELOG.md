@@ -1,3 +1,13 @@
+## 0.5.0
+
+- **Breaking:** capital is never recorded by hand. Removed the Deposit
+  action and `InvestorAccountNotifier.deposit`. The account screen shows
+  how capital arrives: the investor pays from their own account, quoting
+  the account id, and the payment rail credits it.
+- **Breaking:** removed Fund Loan (`InvestorAccountDetailScreen.canFund`,
+  `InvestorAccountNotifier.fundLoan`). A loan is funded from the whole pool
+  when its account opens; the dialog implied it drew on this account.
+
 ## 0.4.0
 
 - `FundingRouteModule`: routes (`/funding/accounts`, `/funding/accounts/:accountId`),

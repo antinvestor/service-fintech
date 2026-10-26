@@ -246,7 +246,7 @@ func (s *fundingSuite) newEnv() *fundingEnv {
 		workMan: workMan,
 		iaBiz: business.NewInvestorAccountBusiness(
 			ctx, evtsMan, iaRepo, icmRepo, ops,
-			audit.NewWriter(evtsMan), nil, false, "off", false, "off"),
+			audit.NewWriter(evtsMan), nil, false, "off"),
 	}
 }
 

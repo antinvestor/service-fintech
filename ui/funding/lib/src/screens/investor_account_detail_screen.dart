@@ -15,16 +15,13 @@ class InvestorAccountDetailScreen extends ConsumerWidget {
     super.key,
     required this.accountId,
     this.canManage = false,
-    this.canFund = false,
   });
 
   final String accountId;
 
-  /// investor_account_manage: deposit and withdraw.
+  /// investor_account_manage: withdraw. Capital arrives only when the
+  /// investor pays, quoting this account; nobody records it by hand.
   final bool canManage;
-
-  /// fund_manage: deploy the account's capital into a loan.
-  final bool canFund;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -83,12 +80,13 @@ class InvestorAccountDetailScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Actions
-          if (canManage || canFund) ...[
+          _DepositInstructions(accountId: accountId),
+          const SizedBox(height: 16),
+          if (canManage) ...[
             _ActionButtons(
               accountId: accountId,
               currencyCode: moneyCurrency(account.availableBalance, 'KES'),
               canManage: canManage,
-              canFund: canFund,
             ),
             const SizedBox(height: 24),
           ],
@@ -221,6 +219,35 @@ class _MetricCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Deposits
+// ---------------------------------------------------------------------------
+
+/// How capital reaches this account: the investor pays from their own
+/// mobile money or bank, quoting the account, and the payment rail records
+/// it. Staff never record a deposit.
+class _DepositInstructions extends StatelessWidget {
+  const _DepositInstructions({required this.accountId});
+
+  final String accountId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('funding-deposit-instructions'),
+      elevation: 0,
+      child: ListTile(
+        leading: const Icon(Icons.info_outline),
+        title: const Text('Adding capital'),
+        subtitle: SelectableText(
+          'The investor pays from their own account, quoting $accountId as '
+          'the reference. The payment is credited here when it arrives.',
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Action buttons
 // ---------------------------------------------------------------------------
 
@@ -229,12 +256,10 @@ class _ActionButtons extends ConsumerWidget {
     required this.accountId,
     required this.currencyCode,
     required this.canManage,
-    required this.canFund,
   });
   final String accountId;
   final String currencyCode;
   final bool canManage;
-  final bool canFund;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -243,12 +268,6 @@ class _ActionButtons extends ConsumerWidget {
       runSpacing: 8,
       children: [
         if (canManage) ...[
-          FilledButton.icon(
-            key: const Key('funding-action-deposit'),
-            onPressed: () => _showDepositDialog(context, ref),
-            icon: const Icon(Icons.add),
-            label: const Text('Deposit'),
-          ),
           OutlinedButton.icon(
             key: const Key('funding-action-withdraw'),
             onPressed: () => _showWithdrawDialog(context, ref),
@@ -256,37 +275,8 @@ class _ActionButtons extends ConsumerWidget {
             label: const Text('Withdraw'),
           ),
         ],
-        if (canFund)
-          OutlinedButton.icon(
-            key: const Key('funding-action-fund-loan'),
-            onPressed: () => _showFundLoanDialog(context, ref),
-            icon: const Icon(Icons.send),
-            label: const Text('Fund Loan'),
-          ),
       ],
     );
-  }
-
-  Future<void> _showDepositDialog(BuildContext context, WidgetRef ref) async {
-    final done = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => MoneyAmountDialog(
-        title: 'Deposit Funds',
-        confirmLabel: 'Deposit',
-        currencyCode: currencyCode,
-        description: 'Capital added to this investor account.',
-        onSubmit: (amount, _, idempotencyKey) => ref
-            .read(investorAccountNotifierProvider.notifier)
-            .deposit(
-              accountId: accountId,
-              amount: amount,
-              currencyCode: currencyCode,
-              idempotencyKey: idempotencyKey,
-            ),
-      ),
-    );
-    if (!context.mounted) return;
-    _toast(context, done, 'Deposit recorded');
   }
 
   Future<void> _showWithdrawDialog(BuildContext context, WidgetRef ref) async {
@@ -311,31 +301,6 @@ class _ActionButtons extends ConsumerWidget {
     _toast(context, done, 'Withdrawal processed');
   }
 
-  Future<void> _showFundLoanDialog(BuildContext context, WidgetRef ref) async {
-    final loanRequestId = await showDialog<String>(
-      context: context,
-      builder: (ctx) =>
-          const _LoanRequestDialog(title: 'Fund Loan', confirmLabel: 'Fund'),
-    );
-    if (loanRequestId == null || !context.mounted) return;
-
-    try {
-      final result = await ref
-          .read(investorAccountNotifierProvider.notifier)
-          .fundLoan(loanRequestId: loanRequestId, accountId: accountId);
-      if (!context.mounted) return;
-      final message = result.fullyFunded
-          ? 'Loan fully funded (${displayMoney(result.totalAllocated)})'
-          : 'Partially funded, deficit ${displayMoney(result.deficit)}';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
-      if (!context.mounted) return;
-      _toast(context, false, '', error: error);
-    }
-  }
-
   void _toast(
     BuildContext context,
     bool? done,
@@ -356,70 +321,6 @@ class _ActionButtons extends ConsumerWidget {
   }
 }
 
-/// Asks for the loan request an action applies to.
-class _LoanRequestDialog extends StatefulWidget {
-  const _LoanRequestDialog({required this.title, required this.confirmLabel});
-
-  final String title;
-  final String confirmLabel;
-
-  @override
-  State<_LoanRequestDialog> createState() => _LoanRequestDialogState();
-}
-
-class _LoanRequestDialogState extends State<_LoanRequestDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: SizedBox(
-        width: 380,
-        child: Form(
-          key: _formKey,
-          child: FormFieldCard(
-            label: 'Loan Request ID',
-            isRequired: true,
-            child: TextFormField(
-              key: const Key('loan-request-id-field'),
-              controller: _controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Enter loan request ID',
-              ),
-              validator: (v) => validateRequired(v, 'Loan request ID'),
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          key: const Key('loan-request-submit'),
-          onPressed: () {
-            if (!(_formKey.currentState?.validate() ?? false)) return;
-            Navigator.pop(context, _controller.text.trim());
-          },
-          child: Text(widget.confirmLabel),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Account details card
 // ---------------------------------------------------------------------------
 
 class _AccountDetailsCard extends StatelessWidget {

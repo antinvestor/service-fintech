@@ -388,3 +388,30 @@ func (s *migrateSuite) TestPenaltyBalanceChargeIsOnce() {
 	_, marked := reloaded.Properties["balance_applied"]
 	s.Require().False(marked, "the marker rolls back with the failed charge")
 }
+
+// A cancel asks exactly whether money may have moved: any disbursement
+// that did not fail counts, a refused one does not.
+func (s *migrateSuite) TestHasUnfailedDisbursement() {
+	e := s.newEnv()
+	repo := repository.NewDisbursementRepository(e.ctx, e.dbPool, nil)
+
+	has, err := repo.HasUnfailed(e.ctx, "loan-cancel-1")
+	s.Require().NoError(err)
+	s.False(has)
+
+	d := &models.Disbursement{LoanAccountID: "loan-cancel-1", Amount: 1_000, CurrencyCode: "KES",
+		Status: int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_PROCESSING), IdempotencyKey: "key-cancel"}
+	d.GenID(e.ctx)
+	_, _, err = repo.ClaimIdempotencyKey(e.ctx, d)
+	s.Require().NoError(err)
+	has, err = repo.HasUnfailed(e.ctx, "loan-cancel-1")
+	s.Require().NoError(err)
+	s.True(has, "a processing disbursement blocks a cancel")
+
+	_, err = repo.UpdateColumns(e.ctx, d.GetID(), map[string]any{
+		"status": int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED)})
+	s.Require().NoError(err)
+	has, err = repo.HasUnfailed(e.ctx, "loan-cancel-1")
+	s.Require().NoError(err)
+	s.False(has, "a refused payout does not")
+}

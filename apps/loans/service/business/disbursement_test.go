@@ -163,6 +163,15 @@ func (r *stubDisbursementRepo) ListByLoanAccountID(
 	return r.stored, nil
 }
 
+func (r *stubDisbursementRepo) HasUnfailed(_ context.Context, _ string) (bool, error) {
+	for _, d := range r.stored {
+		if d.Status != int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *stubDisbursementRepo) GetLiveByLoanAccountID(
 	_ context.Context,
 	_ string,

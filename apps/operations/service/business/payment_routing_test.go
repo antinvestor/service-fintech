@@ -765,7 +765,8 @@ func (r *incomingPaymentRepoStub) ListAwaitingAllocation(
 ) ([]*models.IncomingPayment, error) {
 	var out []*models.IncomingPayment
 	for _, p := range r.byID {
-		individual := p.OwnerType == ownerTypeClientLoan || p.OwnerType == ownerTypeClientSavings
+		individual := p.OwnerType == ownerTypeClientLoan || p.OwnerType == ownerTypeClientSavings ||
+			p.OwnerType == ownerTypeInvestorAccount
 		if individual && p.OwnerID != "" && p.State == int32(constants.StateJustCreated) &&
 			p.AllocatingAt == nil && len(out) < limit {
 			out = append(out, p)
