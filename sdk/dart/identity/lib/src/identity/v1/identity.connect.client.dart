@@ -762,6 +762,45 @@ extension type IdentityServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// ClientDocumentUpload stores a KYC photo, document or signature and
+  /// records it as the client's entry for the field, as ClientDataSave does
+  /// for typed values.
+  Future<identityv1identity.ClientDocumentUploadResponse> clientDocumentUpload(
+    identityv1identity.ClientDocumentUploadRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.IdentityService.clientDocumentUpload,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// ClientDocumentLink gives a short-lived link to view a KYC document to a
+  /// caller who may see the client.
+  Future<identityv1identity.ClientDocumentLinkResponse> clientDocumentLink(
+    identityv1identity.ClientDocumentLinkRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.IdentityService.clientDocumentLink,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// ClientDataGet retrieves a single data entry by client_id and field_key.
   Future<identityv1identity.ClientDataGetResponse> clientDataGet(
     identityv1identity.ClientDataGetRequest input, {

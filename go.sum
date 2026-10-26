@@ -36,10 +36,14 @@ buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261025064321-d14
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261025064321-d1427d24dff2.1/go.mod h1:3wVloVSgWi5QJ9yd59Io04PIzbUi0UHuLY7tVjcAT+k=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261025174803-fa22ccd6a975.1 h1:rTgmlimRbTOq5BhPyjvYv3CYSQgxl2xisNn1viyL0m8=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261025174803-fa22ccd6a975.1/go.mod h1:OoOgPGI8LQRaponcp40c3PAu/JO8vmgY9+i0wFxdGgE=
+buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261026135017-ed5896b5b4e8.1 h1:6izDAGpiOuGA4+XsCY8gNww+D9Ccu/NRs/lNqaLh51g=
+buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261026135017-ed5896b5b4e8.1/go.mod h1:kJIzzX+Ua6fBYGyKOZPd5vautj2F19kRNsVuSxuBKt8=
 buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261025064321-d1427d24dff2.2 h1:5VvMlmn3SrB6VUhanzT8YNnAo37engg+Pf4CbltVUkY=
 buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261025064321-d1427d24dff2.2/go.mod h1:PKz3I1lmAB2NOOOT1wYN2uXFZs4Wf9qzX5y3ikmkFVI=
 buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261025174803-fa22ccd6a975.2 h1:NseHmYXozsS9MZslPOO2J8+h4CxyAYwn4isoliPIubQ=
 buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261025174803-fa22ccd6a975.2/go.mod h1:PKz3I1lmAB2NOOOT1wYN2uXFZs4Wf9qzX5y3ikmkFVI=
+buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261026135017-ed5896b5b4e8.2 h1:z7TQ8XUk1Y+FKtu2SVTalH9ovWgRbpeUzz4JczTI5BU=
+buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261026135017-ed5896b5b4e8.2/go.mod h1:PKz3I1lmAB2NOOOT1wYN2uXFZs4Wf9qzX5y3ikmkFVI=
 buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2 v2.0.2-20261011184341-460358e58550.1 h1:ljMfkRGQtvfA+mmAm6B7J8apvE8S4MHvrm5s31aGChk=
 buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2 v2.0.2-20261011184341-460358e58550.1/go.mod h1:a8bxvDCqhR8ZSTMS8hETSshfMNraGm3bVP402ENc2xw=
 buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.12-20261011184341-460358e58550.2 h1:n3btReYznxfVquXh8j4da71ctrR4FOWuslmDINqyd4w=

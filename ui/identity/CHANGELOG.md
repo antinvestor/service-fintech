@@ -10,6 +10,14 @@
   `canManage` (`client_manage`) still edits the client and adds KYC data.
 - `TeamDetailScreen(sections:)`: other products add sections to a team's
   page (`TeamSectionBuilder`), given the team and its active member ids.
+- KYC documents on the client's KYC tab. With `client_data_manage`,
+  "Upload document" takes a photo or chooses an image (scaled to at most
+  1600 px), labels it (`photo`, `file` or `signature`) and uploads it
+  through identity (`ClientDocumentUpload`). A document entry shows "View
+  document", which opens it through a five-minute link
+  (`ClientDocumentLink`); its storage id is never shown.
+  `KycDocumentDialog`, `KycDocumentViewer`, `documentPickerProvider`.
+  Needs `antinvestor_api_identity` 0.8.2.
 
 ## 0.5.2
 

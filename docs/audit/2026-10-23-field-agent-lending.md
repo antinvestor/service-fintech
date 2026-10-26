@@ -1176,3 +1176,59 @@ was never paid out.
 - `TestInvestorReadsOnlyTheirOwnAccount`.
 - ui/funding: 26 tests pass, including the statement card and CSV. ui/seed:
   64 tests pass.
+
+## 44. Addendum 2026-10-26 — KYC documents are captured and reviewed
+
+**Gaps closed.**
+
+1. *No capture.* The KYC model has photo, file and signature fields, but
+   nothing could capture one. The onboarding form deferred them to the KYC
+   tab, which only took typed text.
+2. *Arbitrary values.* `ClientDataSave` accepted any string as a "file"
+   value, so an entry could point at a file somebody else holds.
+3. *Earlier blocker.* Files-service media are private to the uploader, so
+   reviewers could not open documents a field agent uploaded.
+
+**Design.** Identity owns the documents. The app sends the image to
+identity, which uploads it privately to service-files as itself. No file is
+shared with anyone, so no sharing model is needed. A reviewer gets a
+five-minute signed link only after identity's own client guard admits them.
+
+**Change.**
+
+- *Identity.*
+  - `ClientDocumentUpload` (`client_data_manage`) takes JPEG, PNG, WebP or
+    PDF up to 5 MiB, validated in the proto.
+    - The client guard runs first: staff, or an agent serving the client.
+    - The file is stored through `filesDocumentStore`. Its upload
+      idempotency key is a hash of client, field and bytes, so a retry
+      stores one file.
+    - The upload is recorded as a new revision of the entry: COLLECTED, with
+      the review decision cleared.
+  - `ClientDocumentLink` (`client_data_view`) returns a signed link valid
+    for five minutes, after the same guard. Asking for a text entry
+    returns `ErrNotADocument`. A file identity does not hold returns
+    `ErrDocumentUnavailable`.
+  - `ClientDataSave` refuses `photo`, `file` and `signature`
+    (`ErrDocumentNeedsUpload`).
+  - Config: `FILES_SERVICE_URI` and `FILES_SERVICE_WORKLOAD_API_TARGET_PATH`.
+    Without them, documents are refused and typed KYC data still works.
+- *Grants.* service-authentication `af24877` (`20261026_07`): the identity
+  SA gets the `/files` audience and `content_upload` and `content_view` in
+  `service_file`.
+- *UI.* ui/identity KYC tab:
+  - "Upload document" takes a photo or chooses an image, scaled to at most
+    1 600 px at quality 80.
+  - Document entries show "View document", which opens the image through
+    the link. The storage id is never shown.
+- *SDK.* Dart identity 0.8.2.
+
+**Verified.**
+- identity `TestKYCDocumentIsStoredAndLinked`,
+  `TestKYCDocumentIsNeverSavedAsAPlainValue` and
+  `TestKYCDocumentRefusedWithoutAStore` (Postgres).
+- The concurrency test now uses a text field.
+- ui/identity: 54 tests pass, including upload and view. ui/seed: 64 pass.
+
+**Deploy.** Set `FILES_SERVICE_URI` on identity, and apply auth migration
+`20261026_07`.

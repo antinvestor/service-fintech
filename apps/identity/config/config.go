@@ -28,6 +28,11 @@ type IdentityConfig struct {
 	ProfileServiceWorkloadAPITargetPath string `envDefault:"/ns/profile/sa/service-profile" env:"PROFILE_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	TenancyServiceWorkloadAPITargetPath string `envDefault:"/ns/auth/sa/service-tenancy"    env:"TENANCY_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
+	// FilesServiceURI is where KYC photos and documents are kept. Empty
+	// refuses documents.
+	FilesServiceURI                   string `envDefault:""                           env:"FILES_SERVICE_URI"`
+	FilesServiceWorkloadAPITargetPath string `envDefault:"/ns/files/sa/service-files" env:"FILES_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
 	NotificationServiceURI                   string `envDefault:"127.0.0.1:7040"                           env:"NOTIFICATION_SERVICE_URI"`
 	NotificationServiceWorkloadAPITargetPath string `envDefault:"/ns/notification/sa/service-notification" env:"NOTIFICATION_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	// LenderDisplayName opens every borrower-facing message.

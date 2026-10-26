@@ -107,6 +107,10 @@ abstract class IdentityServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.InvestorWithdrawRequest request);
   $async.Future<$3.ClientDataSaveResponse> clientDataSave(
       $pb.ServerContext ctx, $3.ClientDataSaveRequest request);
+  $async.Future<$3.ClientDocumentUploadResponse> clientDocumentUpload(
+      $pb.ServerContext ctx, $3.ClientDocumentUploadRequest request);
+  $async.Future<$3.ClientDocumentLinkResponse> clientDocumentLink(
+      $pb.ServerContext ctx, $3.ClientDocumentLinkRequest request);
   $async.Future<$3.ClientDataGetResponse> clientDataGet(
       $pb.ServerContext ctx, $3.ClientDataGetRequest request);
   $async.Future<$3.ClientDataListResponse> clientDataList(
@@ -224,6 +228,10 @@ abstract class IdentityServiceBase extends $pb.GeneratedService {
         return $3.InvestorWithdrawRequest();
       case 'ClientDataSave':
         return $3.ClientDataSaveRequest();
+      case 'ClientDocumentUpload':
+        return $3.ClientDocumentUploadRequest();
+      case 'ClientDocumentLink':
+        return $3.ClientDocumentLinkRequest();
       case 'ClientDataGet':
         return $3.ClientDataGetRequest();
       case 'ClientDataList':
@@ -357,6 +365,11 @@ abstract class IdentityServiceBase extends $pb.GeneratedService {
         return investorWithdraw(ctx, request as $3.InvestorWithdrawRequest);
       case 'ClientDataSave':
         return clientDataSave(ctx, request as $3.ClientDataSaveRequest);
+      case 'ClientDocumentUpload':
+        return clientDocumentUpload(
+            ctx, request as $3.ClientDocumentUploadRequest);
+      case 'ClientDocumentLink':
+        return clientDocumentLink(ctx, request as $3.ClientDocumentLinkRequest);
       case 'ClientDataGet':
         return clientDataGet(ctx, request as $3.ClientDataGetRequest);
       case 'ClientDataList':

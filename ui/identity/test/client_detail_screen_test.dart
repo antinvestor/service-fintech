@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
 import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
     show
@@ -51,7 +53,31 @@ class _RecordingClientDataNotifier extends ClientDataNotifier {
     log.add('save:${entry.fieldKey}=${entry.value}');
     return entry;
   }
+
+  @override
+  Future<ClientDataEntryObject> uploadDocument({
+    required String clientId,
+    required String fieldKey,
+    required String valueType,
+    required String contentType,
+    required String filename,
+    required List<int> content,
+  }) async {
+    log.add('upload:$clientId:$fieldKey:$valueType:$contentType');
+    return ClientDataEntryObject(clientId: clientId, fieldKey: fieldKey);
+  }
+
+  @override
+  Future<String> documentLink(String entryId) async {
+    log.add('link:$entryId');
+    return 'https://files.example/signed/$entryId';
+  }
 }
+
+/// A 1x1 transparent PNG, so the upload preview decodes.
+final _png = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+);
 
 /// Answers activation like the identity service: KYC first, then a code,
 /// then ACTIVE.
@@ -142,6 +168,13 @@ Widget _host({
       ),
       clientDataNotifierProvider.overrideWith(
         () => _RecordingClientDataNotifier(log),
+      ),
+      documentPickerProvider.overrideWithValue(
+        (source) async => PickedDocument(
+          bytes: _png,
+          filename: 'front.png',
+          contentType: 'image/png',
+        ),
       ),
     ],
     child: MaterialApp(
@@ -335,6 +368,67 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(log, ['save:date_of_birth=1990-01-01']);
+  });
+
+  // A document is taken with the camera and uploaded, never typed in.
+  testWidgets('uploading a document sends the image for the client', (
+    tester,
+  ) async {
+    _wide(tester);
+    final log = <String>[];
+    await tester.pumpWidget(
+      _host(entries: const [], log: log, canManage: true),
+    );
+    await tester.pumpAndSettle();
+    await _openKyc(tester);
+
+    await tester.tap(find.byKey(const Key('kyc-upload')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('id_front_photo'));
+    await tester.tap(find.byKey(const Key('kyc-doc-submit')));
+    await tester.pumpAndSettle();
+    expect(find.text('Take or choose the image first.'), findsOneWidget);
+    expect(log, isEmpty);
+
+    await tester.tap(find.byKey(const Key('kyc-doc-camera')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('kyc-doc-preview')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('kyc-doc-submit')));
+    await tester.pumpAndSettle();
+
+    expect(log, ['upload:client-1:id_front_photo:photo:image/png']);
+  });
+
+  // A document entry shows a view action, never its storage id.
+  testWidgets('a document entry is viewed through a short-lived link', (
+    tester,
+  ) async {
+    _wide(tester);
+    final log = <String>[];
+    await tester.pumpWidget(
+      _host(
+        entries: [
+          ClientDataEntryObject(
+            id: 'entry-photo',
+            clientId: 'client-1',
+            fieldKey: 'id_front_photo',
+            value: 'media-secret-id',
+            valueType: 'photo',
+            verificationStatus:
+                DataVerificationStatus.DATA_VERIFICATION_STATUS_COLLECTED,
+          ),
+        ],
+        log: log,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openKyc(tester);
+
+    expect(find.text('media-secret-id'), findsNothing);
+    await tester.tap(find.byKey(const Key('kyc-view-entry-photo')));
+    await tester.pumpAndSettle();
+    expect(log, ['link:entry-photo']);
+    expect(find.byKey(const Key('kyc-doc-image')), findsOneWidget);
   });
 
   testWidgets('an active client offers no activation', (tester) async {

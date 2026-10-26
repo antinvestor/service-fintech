@@ -15,6 +15,7 @@ import '../providers/client_providers.dart';
 import '../providers/kyc_requirements_providers.dart';
 import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
+import '../widgets/kyc_document.dart';
 import '../widgets/load_more_action.dart';
 import 'client_form_dialog.dart';
 import 'client_relationships_tab.dart';
@@ -499,6 +500,13 @@ class _KycTab extends ConsumerWidget {
                 ),
               if (canManage) ...[
                 const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  key: const Key('kyc-upload'),
+                  onPressed: () => _uploadDocument(context, ref),
+                  icon: const Icon(Icons.upload_file_outlined, size: 18),
+                  label: const Text('Upload document'),
+                ),
+                const SizedBox(width: 8),
                 FilledButton.icon(
                   key: const Key('kyc-add'),
                   onPressed: () => _addEntry(context, ref),
@@ -541,6 +549,28 @@ class _KycTab extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _uploadDocument(BuildContext context, WidgetRef ref) async {
+    final upload = await showDialog<DocumentUpload>(
+      context: context,
+      builder: (_) => const KycDocumentDialog(),
+    );
+    if (upload == null || !context.mounted) return;
+    await _run(
+      context,
+      () => ref
+          .read(clientDataNotifierProvider.notifier)
+          .uploadDocument(
+            clientId: clientId,
+            fieldKey: upload.fieldKey,
+            valueType: upload.valueType,
+            contentType: upload.document.contentType,
+            filename: upload.document.filename,
+            content: upload.document.bytes,
+          ),
+      'Document uploaded',
     );
   }
 
@@ -632,7 +662,18 @@ class _KycEntryCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            SelectableText(entry.value, style: theme.textTheme.bodyMedium),
+            if (isKycDocument(entry.valueType))
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: Key('kyc-view-${entry.id}'),
+                  onPressed: () => _viewDocument(context, ref),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('View document'),
+                ),
+              )
+            else
+              SelectableText(entry.value, style: theme.textTheme.bodyMedium),
             if (entry.reviewerComment.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
@@ -712,6 +753,27 @@ class _KycEntryCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _viewDocument(BuildContext context, WidgetRef ref) async {
+    try {
+      final url = await ref
+          .read(clientDataNotifierProvider.notifier)
+          .documentLink(entry.id);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => KycDocumentViewer(url: url, title: entry.fieldKey),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyError(e)),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   Future<void> _withReason(

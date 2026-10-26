@@ -49,6 +49,7 @@ type options struct {
 	teamMembershipRepo repository.TeamMembershipRepository
 	kycPolicy          *KYCPolicy
 	clientGuard        *clientGuard
+	documents          DocumentStore
 }
 
 // WithProfiles lets client registration find or create the borrower's
@@ -66,6 +67,11 @@ func WithConsentChallenges(repo repository.ClientConsentChallengeRepository) Opt
 // checks them and the KYC flow reports them.
 func WithKYCPolicy(p *KYCPolicy) Option {
 	return func(o *options) { o.kycPolicy = p }
+}
+
+// WithDocumentStore keeps KYC photos, documents and signatures.
+func WithDocumentStore(store DocumentStore) Option {
+	return func(o *options) { o.documents = store }
 }
 
 // WithClientGuard limits KYC data to staff and the agents serving the

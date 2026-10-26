@@ -50,3 +50,4 @@ export 'package:antinvestor_ui_profile/antinvestor_ui_profile.dart';
 
 // Re-export geolocation UI for area selection widgets
 export 'package:antinvestor_ui_geolocation/antinvestor_ui_geolocation.dart';
+export 'src/widgets/kyc_document.dart';

@@ -107,9 +107,9 @@ func (s *approvalWorkflowSuite) TestClientDataSaveConcurrentFirstSubmissionsNeve
 			defer wg.Done()
 			_, errs[i] = clientData.Save(env.ctx, &models.ClientDataEntry{
 				ClientID:  "client-first",
-				FieldKey:  "passport_photo",
-				Value:     fmt.Sprintf("https://files.example.com/p%d", i),
-				ValueType: "photo",
+				FieldKey:  "passport_number",
+				Value:     fmt.Sprintf("P%d", i),
+				ValueType: "text",
 			})
 		}()
 	}
@@ -128,7 +128,7 @@ func (s *approvalWorkflowSuite) TestClientDataSaveConcurrentFirstSubmissionsNeve
 
 	var rows []*models.ClientDataEntry
 	s.Require().NoError(env.clientDataRepo.Pool().DB(env.ctx, true).
-		Where("client_id = ? AND field_key = ?", "client-first", "passport_photo").
+		Where("client_id = ? AND field_key = ?", "client-first", "passport_number").
 		Find(&rows).Error)
 	s.Require().Len(rows, 1, "the unique index must hold: one row per (client, field)")
 	s.EqualValues(landed, rows[0].Revision, "the row must carry exactly one revision per landed write")
