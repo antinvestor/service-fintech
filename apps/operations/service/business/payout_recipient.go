@@ -88,7 +88,8 @@ func isPayoutOrderType(orderType int) bool {
 	case constants.TransferTypeDisbursement,
 		constants.TransferTypeDisbursementReversalReroute,
 		constants.TransferTypeLoan,
-		constants.TransferTypeTerminalDisbursement:
+		constants.TransferTypeTerminalDisbursement,
+		constants.TransferTypeInvestorWithdrawal:
 		return true
 	default:
 		return false

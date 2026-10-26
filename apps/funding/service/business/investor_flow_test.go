@@ -44,6 +44,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/funding/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/constants"
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
 )
 
 // countingOperationsClient records every transfer order posted so tests can
@@ -246,7 +247,8 @@ func (s *fundingSuite) newEnv() *fundingEnv {
 		workMan: workMan,
 		iaBiz: business.NewInvestorAccountBusiness(
 			ctx, evtsMan, iaRepo, icmRepo, ops,
-			audit.NewWriter(evtsMan), nil, false, "off"),
+			audit.NewWriter(evtsMan), nil, false, "off",
+			business.WithInvestorPayouts(fixedPayout{})),
 	}
 }
 
@@ -350,6 +352,39 @@ func (s *fundingSuite) TestWithdrawIsIdempotentAndGuardsTheBalance() {
 
 	err = e.iaBiz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 5000), "wdr-over")
 	s.Require().Error(err)
+
+	// The withdrawal is a payout to the investor's own verified contact.
+	order := e.ops.snapshot()[0]
+	s.Equal(int32(constants.TransferTypeInvestorWithdrawal), transferorder.TypeOf(order))
+	extra := order.GetExtraData().AsMap()
+	s.Equal("profile-investor", extra["recipient_profile_id"])
+	s.Equal("contact-investor", extra["payment_account_ref"])
+}
+
+// fixedPayout pays every investor to one known profile and contact.
+type fixedPayout struct{ err error }
+
+func (f fixedPayout) InvestorPayout(context.Context, string) (business.InvestorPayout, error) {
+	if f.err != nil {
+		return business.InvestorPayout{}, f.err
+	}
+	return business.InvestorPayout{ProfileID: "profile-investor", ContactID: "contact-investor"}, nil
+}
+
+// A withdrawal with nowhere checked to pay is refused before anything moves.
+func (s *fundingSuite) TestWithdrawWithoutAPayoutContactMovesNothing() {
+	e := s.newEnv()
+	account := e.seedInvestor(s, "KES", 100000)
+	biz := business.NewInvestorAccountBusiness(e.ctx, nil, e.iaRepo, e.icmRepo, e.ops,
+		audit.NewWriter(nil), nil, false, "off",
+		business.WithInvestorPayouts(fixedPayout{err: business.ErrInvestorNoPayoutContact}))
+
+	err := biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-nowhere")
+	s.Require().ErrorIs(err, business.ErrInvestorNoPayoutContact)
+	fresh, getErr := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(getErr)
+	s.Equal(account.AvailableBalance, fresh.AvailableBalance)
+	s.Empty(e.ops.snapshot())
 }
 
 // TestSaveCannotMintCapital is the regression for the balance-write endpoint:

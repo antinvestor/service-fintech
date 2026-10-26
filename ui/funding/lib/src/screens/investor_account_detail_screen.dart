@@ -286,7 +286,7 @@ class _ActionButtons extends ConsumerWidget {
         title: 'Withdraw Funds',
         confirmLabel: 'Withdraw',
         currencyCode: currencyCode,
-        description: 'Capital returned out of this investor account.',
+        description: "Paid to the investor's own verified mobile-money number.",
         onSubmit: (amount, _, idempotencyKey) => ref
             .read(investorAccountNotifierProvider.notifier)
             .withdraw(

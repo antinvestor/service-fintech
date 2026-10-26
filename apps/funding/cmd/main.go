@@ -233,6 +233,7 @@ func setupServiceOptions(
 		limitsCli,
 		cfg.LimitsGateEnabledFundingWithdraw,
 		cfg.LimitsGateModeFundingWithdraw,
+		business.WithInvestorPayouts(investorPayouts(platformClients)),
 	)
 
 	// ConnectRPC handler
@@ -395,4 +396,13 @@ func setupLimitsClient(
 		WorkloadAPITargetPath: cfg.LimitsServiceWorkloadAPITargetPath,
 		ServiceID:             servicecatalog.ServiceLimits,
 	})
+}
+
+// investorPayouts resolves where an investor's withdrawal is paid; without
+// the identity and profile clients withdrawals are refused.
+func investorPayouts(pc *clients.PlatformClients) business.InvestorPayoutResolver {
+	if pc == nil || pc.LenderRegistry == nil || pc.ProfileClient == nil {
+		return nil
+	}
+	return business.NewInvestorPayoutResolver(pc.LenderRegistry, pc.ProfileClient)
 }

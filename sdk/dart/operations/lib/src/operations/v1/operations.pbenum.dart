@@ -143,6 +143,11 @@ class TransferOrderType extends $pb.ProtobufEnum {
           _omitEnumNames
               ? ''
               : 'TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION');
+
+  /// Investor capital paid out to the investor's own mobile money.
+  static const TransferOrderType TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL =
+      TransferOrderType._(
+          49, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL');
   static const TransferOrderType TRANSFER_ORDER_TYPE_LOAN_INSURANCE =
       TransferOrderType._(
           51, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_LOAN_INSURANCE');
@@ -188,6 +193,7 @@ class TransferOrderType extends $pb.ProtobufEnum {
     TRANSFER_ORDER_TYPE_LOAN_INTEREST,
     TRANSFER_ORDER_TYPE_LOAN_INTEREST_REPAYMENT,
     TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION,
+    TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT,
     TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT,

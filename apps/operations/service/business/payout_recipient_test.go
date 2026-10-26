@@ -215,3 +215,29 @@ func TestPayout_ClaimedPayoutWithBadDestinationIsNotReversed(t *testing.T) {
 	assert.NotEqual(t, int32(constants.StateShutdown), got.State)
 	assert.Nil(t, f.repo.otherByReference(payoutReversalPrefix+got.Reference), "no reversal was written")
 }
+
+// An investor withdrawal is a payout like a disbursement: it reaches the
+// rail only to the investor's own verified contact, and a misdirected one
+// never posts.
+func TestPayout_InvestorWithdrawalGoesToTheInvestorsOwnContact(t *testing.T) {
+	withdrawal := func(destination string) (*executeFixture, *capturingPayment) {
+		f, pay := newDisbursementFixture(t, data.JSONMap{
+			"recipient_profile_id": "profile-1",
+			"payment_account_ref":  destination,
+			"payment_channel":      "mobile_money",
+		})
+		f.repo.order.OrderType = constants.SafeInt32FromInt(constants.TransferTypeInvestorWithdrawal)
+		return f, pay
+	}
+
+	f, pay := withdrawal("contact-1")
+	require.NoError(t, f.biz.Execute(context.Background(), f.repo.order.GetID()))
+	require.NotNil(t, pay.last)
+	assert.Equal(t, "profile-1", pay.last.GetData().GetRecipient().GetProfileId())
+	assert.Equal(t, "contact-1", pay.last.GetData().GetRecipient().GetContactId())
+
+	f, pay = withdrawal("contact-someone-else")
+	require.ErrorIs(t, f.biz.Execute(context.Background(), f.repo.order.GetID()), ErrPayoutDestinationNotRecipient)
+	assert.Equal(t, 0, f.ledger.calls)
+	assert.Nil(t, pay.last)
+}

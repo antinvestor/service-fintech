@@ -80,6 +80,17 @@ type investorAccountBusiness struct {
 	limitsCli             limitsv1connect.LimitsServiceClient
 	limitsWithdrawEnabled bool
 	limitsWithdrawMode    string
+	payouts               InvestorPayoutResolver
+}
+
+// InvestorAccountOption configures optional collaborators.
+type InvestorAccountOption func(*investorAccountBusiness)
+
+// WithInvestorPayouts sets how a withdrawal finds the investor's own payout
+// contact. Without it withdrawals are refused: capital never leaves to a
+// destination nobody checked.
+func WithInvestorPayouts(r InvestorPayoutResolver) InvestorAccountOption {
+	return func(b *investorAccountBusiness) { b.payouts = r }
 }
 
 func NewInvestorAccountBusiness(
@@ -92,8 +103,9 @@ func NewInvestorAccountBusiness(
 	limitsCli limitsv1connect.LimitsServiceClient,
 	limitsWithdrawEnabled bool,
 	limitsWithdrawMode string,
+	opts ...InvestorAccountOption,
 ) InvestorAccountBusiness {
-	return &investorAccountBusiness{
+	b := &investorAccountBusiness{
 		eventsMan:             eventsMan,
 		iaRepo:                iaRepo,
 		icmRepo:               icmRepo,
@@ -103,6 +115,10 @@ func NewInvestorAccountBusiness(
 		limitsWithdrawEnabled: limitsWithdrawEnabled,
 		limitsWithdrawMode:    limitsWithdrawMode,
 	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 // Save creates or updates an investor account's profile: its name, mandate
@@ -329,6 +345,7 @@ func (b *investorAccountBusiness) depositInner(
 		constants.TransferTypeInvestorDeployment,
 		capitalTransferReference(movement),
 		"Investor capital deposit",
+		nil,
 	); toErr != nil {
 		return toErr
 	}
@@ -433,6 +450,16 @@ func (b *investorAccountBusiness) withdrawInner(
 ) error {
 	logger := util.Log(ctx).WithField("method", "InvestorAccountBusiness.Withdraw")
 
+	// The money goes to the investor's own verified mobile number, found
+	// before anything is debited; nobody names where it goes.
+	if b.payouts == nil {
+		return ErrInvestorPayoutUnavailable
+	}
+	dest, payoutErr := b.payouts.InvestorPayout(ctx, account.InvestorID)
+	if payoutErr != nil {
+		return payoutErr
+	}
+
 	movement, created, claimErr := b.claimMovement(
 		ctx, account, amount, models.CapitalMovementWithdraw, idempotencyKey)
 	if claimErr != nil {
@@ -460,9 +487,14 @@ func (b *investorAccountBusiness) withdrawInner(
 		amount,
 		constants.InvestorCapitalAccount(account.GetID()),
 		constants.PlatformExternalCashAccount(),
-		constants.TransferTypeInvestorPrincipalReturn,
+		constants.TransferTypeInvestorWithdrawal,
 		capitalTransferReference(movement),
 		"Investor capital withdrawal",
+		data.JSONMap{
+			"recipient_profile_id": dest.ProfileID,
+			"payment_account_ref":  dest.ContactID,
+			"payment_channel":      "mobile_money",
+		},
 	); toErr != nil {
 		// Hand the funds back and return the movement to pending so a retry
 		// runs the whole flow again from a balance that never moved.
@@ -593,6 +625,7 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 	debitAccount, creditAccount string,
 	orderType int,
 	reference, description string,
+	payout data.JSONMap,
 ) error {
 	if b.operationsCli == nil {
 		return errors.New("operations client is not configured; cannot post investor capital transfer")
@@ -601,6 +634,9 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 	extraData := data.JSONMap{
 		fieldInvestorAccountID: account.GetID(),
 		fieldInvestorID:        account.InvestorID,
+	}
+	for k, v := range payout {
+		extraData[k] = v
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{

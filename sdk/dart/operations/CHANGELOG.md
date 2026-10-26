@@ -1,3 +1,8 @@
+## 0.4.4
+
+- `TransferOrderType.TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL` (49): investor
+  capital paid out to the investor's own mobile money.
+
 ## 0.4.3
 
 - `OperationsService.OperationsJobRun` (`OperationsJob`, permission

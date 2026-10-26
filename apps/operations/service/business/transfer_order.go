@@ -605,6 +605,7 @@ func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 		constants.TransferTypeLoanInterestIncomeDistribution:            noErr(b.handleLoanInterestIncomeDistribution),
 		constants.TransferTypeInvestorDeployment:                        noErr(b.handleInvestorDeployment),
 		constants.TransferTypeInvestorPrincipalReturn:                   noErr(b.handleInvestorPrincipalReturn),
+		constants.TransferTypeInvestorWithdrawal:                        b.handleInvestorWithdrawal,
 		constants.TransferTypeInvestorIncomeDistribution:                noErr(b.handleInvestorIncomeDistribution),
 		constants.TransferTypePlatformFirstLossAbsorption:               noErr(b.handlePlatformFirstLossAbsorption),
 		constants.TransferTypeInvestorLossAbsorption:                    noErr(b.handleInvestorLossAbsorption),
@@ -1632,6 +1633,21 @@ func (b *transferOrderBusiness) handleInvestorPrincipalReturn(
 	logger.WithField("investor_account_id", investorAccountID).
 		WithField("amount", order.Amount).
 		Info("principal returned to investor")
+}
+
+// handleInvestorWithdrawal pays investor capital out to the investor's own
+// verified mobile-money contact. The recipient and destination are checked
+// before the ledger leg posts, and a payout the rail rejects is reversed, as
+// for a loan disbursement.
+func (b *transferOrderBusiness) handleInvestorWithdrawal(ctx context.Context, order *models.TransferOrder) error {
+	route := extraDataString(order, "payment_channel")
+	if route == "" {
+		route = "investor_withdrawal"
+	}
+	if err := b.sendPayment(ctx, order, "", route); err != nil {
+		return fmt.Errorf("investor withdrawal payout: %w", err)
+	}
+	return nil
 }
 
 // handleInvestorIncomeDistribution processes interest/income distribution to an investor.

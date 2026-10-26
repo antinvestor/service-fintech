@@ -920,3 +920,28 @@ loans `TestCancel*`; ui_loans tests (52 pass).
 **Verified.** operations `TestInvestorsOwnPaymentBecomesCapitalOnce`,
 `TestQuotingAnInvestorAccountFromAnotherProfileCreditsNothing`; funding
 suite; ui_funding tests.
+
+## 38. Addendum 2026-10-26 — investor withdrawals are paid out
+
+**Finding.** An investor withdrawal debited the account and posted
+`INVESTOR_PRINCIPAL_RETURN` (investor capital → platform external cash), an
+order type with no payout. Nothing ever paid the investor.
+
+**Change.**
+
+- New transfer type `INVESTOR_WITHDRAWAL` (49), a payout order type in
+  operations. Like a disbursement, the recipient and destination are checked
+  before the ledger posts, the payment goes to the rail, and a payout the
+  rail rejects is reversed.
+- Funding resolves the investor's own payout destination before debiting
+  anything: the profile from identity and its first verified mobile contact,
+  by id (`InvestorPayoutResolver`). It names them on the order. Without a
+  resolver or a contact, the withdrawal is refused and nothing moves.
+- The withdrawal limits gate stays, because this money is leaving.
+- ui_funding: Withdraw says where the money goes.
+- No new grants: funding already holds `investor_view` and `profile_view`.
+
+**Verified.** funding `TestWithdrawIsIdempotentAndGuardsTheBalance` (the
+order is a payout to the investor's contact) and
+`TestWithdrawWithoutAPayoutContactMovesNothing`; operations
+`TestPayout_InvestorWithdrawalGoesToTheInvestorsOwnContact`.

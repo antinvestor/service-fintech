@@ -53,6 +53,7 @@ const (
 	TransferTypeLoanInterest                      = 46
 	TransferTypeLoanInterestRepayment             = 47
 	TransferTypeLoanInterestIncomeDistribution    = 48
+	TransferTypeInvestorWithdrawal                = 49 // investor capital → investor's own mobile money (payout)
 	TransferTypeLoanInsurance                     = 51
 	TransferTypeLoanInsuranceRepayment            = 52
 	TransferTypeInterSubscriptionPayment          = 71
@@ -90,6 +91,7 @@ var transferTypeNames = map[int]string{ //nolint:gochecknoglobals // package-lev
 	TransferTypeLoanInsuranceRepayment:                    "LOAN_INSURANCE_REPAYMENT",
 	TransferTypeInvestorDeployment:                        "INVESTOR_DEPLOYMENT",
 	TransferTypeInvestorPrincipalReturn:                   "INVESTOR_PRINCIPAL_RETURN",
+	TransferTypeInvestorWithdrawal:                        "INVESTOR_WITHDRAWAL",
 	TransferTypeInvestorIncomeDistribution:                "INVESTOR_INCOME_DISTRIBUTION",
 	TransferTypePlatformFirstLossAbsorption:               "PLATFORM_FIRST_LOSS_ABSORPTION",
 	TransferTypeInvestorLossAbsorption:                    "INVESTOR_LOSS_ABSORPTION",
