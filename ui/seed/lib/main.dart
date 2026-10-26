@@ -18,11 +18,7 @@ import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart'
 import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
     show LimitsCapabilities, limitsCapabilitiesProvider;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
-    show
-        currentAgentIdProvider,
-        loansTransportProvider,
-        outboxStoreProvider,
-        repaymentOutboxProvider;
+    show currentAgentIdProvider, loansTransportProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -120,11 +116,7 @@ void main() {
           return (memberId == null || memberId.isEmpty) ? null : memberId;
         }),
 
-        // Repayments and registrations recorded offline are kept on the
-        // device.
-        outboxStoreProvider.overrideWithValue(
-          const SecureOutboxStore(_outboxStorage),
-        ),
+        // Registrations captured offline are kept on the device.
         registrationOutboxStoreProvider.overrideWithValue(
           const SecureOutboxStore(
             _outboxStorage,
@@ -182,22 +174,26 @@ class _SeedAppState extends ConsumerState<SeedApp> {
   @override
   void initState() {
     super.initState();
-    // Repayments and registrations saved offline are sent when the app
-    // comes back to the foreground; a resend of either is harmless.
+    // Registrations saved offline are sent when the app comes back to the
+    // foreground; a resend is harmless.
     _lifecycle = AppLifecycleListener(onResume: _flushOutbox);
     WidgetsBinding.instance.addPostFrameCallback((_) => _flushOutbox());
+    _discardRetiredRepaymentOutbox();
   }
 
   Future<void> _flushOutbox() async {
     try {
-      await ref.read(repaymentOutboxProvider.notifier).flush();
+      await ref.read(registrationOutboxProvider.notifier).flush();
     } catch (_) {
       // Still offline or not signed in: the next resume tries again.
     }
+  }
+
+  Future<void> _discardRetiredRepaymentOutbox() async {
     try {
-      await ref.read(registrationOutboxProvider.notifier).flush();
+      await _outboxStorage.delete(key: SecureOutboxStore.retiredRepayments);
     } catch (_) {
-      // As above.
+      // Storage unavailable; nothing reads the key any more either way.
     }
   }
 

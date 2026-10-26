@@ -48,7 +48,6 @@ const (
 	// Field-agent facing.
 	AgentClientDelinquent    = "template.fintech.agent.client_delinquent"
 	AgentDisbursementFailed  = "template.fintech.agent.disbursement_failed"
-	AgentCollectionRecorded  = "template.fintech.agent.collection_recorded"
 	AgentApplicationDecision = "template.fintech.agent.application_decision"
 )
 
@@ -342,21 +341,6 @@ func agentTemplates() []notification.Template {
 			VarAmount,
 			VarCurrency,
 			VarReason,
-		),
-		notification.New(
-			AgentCollectionRecorded,
-			"Collection recorded for loan {{.loan_ref}}",
-			"{{.lender_name}}: you recorded {{.currency}} {{.amount}} from {{.client_name}} (loan {{.loan_ref}}) via {{.channel}}, ref {{.reference}}.",
-			"Hello {{.agent_name}},\n\nYou recorded a collection of {{.currency}} {{.amount}} from {{.client_name}} on loan {{.loan_ref}} "+
-				"via {{.channel}} (ref {{.reference}}). Cash collected in the field must be remitted by the end of the day.\n",
-			VarLenderName,
-			VarAgentName,
-			VarClientName,
-			VarLoanRef,
-			VarAmount,
-			VarCurrency,
-			VarChannel,
-			VarReference,
 		),
 		notification.New(
 			AgentApplicationDecision,

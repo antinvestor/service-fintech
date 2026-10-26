@@ -22,7 +22,6 @@ class LoanAccountDetailScreen extends ConsumerStatefulWidget {
     super.key,
     required this.loanId,
     this.canManage = false,
-    this.canRecordPayment = false,
     this.canCollectPayment = false,
     this.canDisburse = false,
     this.canWaivePenalty = false,
@@ -35,12 +34,9 @@ class LoanAccountDetailScreen extends ConsumerStatefulWidget {
   /// Host app should set this based on its own authorization logic.
   final bool canManage;
 
-  /// Whether the current user can record repayments (`repayment_manage`).
-  final bool canRecordPayment;
-
-  /// Whether the current user can push a collection prompt to the borrower
-  /// (`collection_manage`). Distinct from recording a payment already in
-  /// hand.
+  /// Whether the current user can prompt the borrower to pay from their own
+  /// contact (`collection_manage`). Nobody records a payment by hand: the
+  /// borrower pays and the payment rail applies it.
   final bool canCollectPayment;
 
   /// Whether the current user can move money out on this loan.
@@ -245,16 +241,6 @@ class _LoanAccountDetailScreenState
                   ),
                 if (loan.status == LoanStatus.LOAN_STATUS_ACTIVE ||
                     loan.status == LoanStatus.LOAN_STATUS_DELINQUENT) ...[
-                  if (widget.canRecordPayment)
-                    FilledButton.icon(
-                      onPressed: () => _showRecordPaymentDialog(
-                        context,
-                        loan,
-                        balanceAsync.value,
-                      ),
-                      icon: const Icon(Icons.payments, size: 18),
-                      label: const Text('Record Payment'),
-                    ),
                   if (widget.canCollectPayment)
                     FilledButton.tonalIcon(
                       onPressed: () => _showCollectPaymentDialog(context, loan),
@@ -342,70 +328,6 @@ class _LoanAccountDetailScreenState
             }
           }
         },
-      ),
-    );
-  }
-
-  void _showRecordPaymentDialog(
-    BuildContext context,
-    LoanAccountObject loan,
-    dynamic balance,
-  ) {
-    String? outstanding;
-    if (balance != null) {
-      outstanding = loanMoneyToAmountString(balance.totalOutstanding);
-    }
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _RecordPaymentFormDialog(
-        loanAccountId: loan.id,
-        currencyCode: loanMoneyCurrency(loan.principalAmount),
-        totalOutstanding: outstanding,
-        onSave:
-            (
-              amount,
-              paymentReference,
-              channel,
-              payerReference,
-              idempotencyKey,
-            ) async {
-              try {
-                final recorded = await ref
-                    .read(repaymentNotifierProvider.notifier)
-                    .record(
-                      loanAccountId: loan.id,
-                      amount: amount,
-                      currencyCode: loanMoneyCurrency(loan.principalAmount),
-                      paymentReference: paymentReference,
-                      channel: channel,
-                      payerReference: payerReference,
-                      idempotencyKey: idempotencyKey,
-                    );
-                ref.invalidate(loanBalanceDetailProvider(widget.loanId));
-                ref.invalidate(repaymentListProvider(widget.loanId));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        recorded == null
-                            ? 'Saved offline; it will be sent when the '
-                                  'connection is back'
-                            : 'Payment recorded successfully',
-                      ),
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to record payment: $e'),
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                  );
-                }
-              }
-            },
       ),
     );
   }
@@ -1945,204 +1867,6 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
 
 // ---------------------------------------------------------------------------
 // Record Payment Form Dialog
-// ---------------------------------------------------------------------------
-
-class _RecordPaymentFormDialog extends StatefulWidget {
-  const _RecordPaymentFormDialog({
-    required this.loanAccountId,
-    required this.currencyCode,
-    required this.onSave,
-    this.totalOutstanding,
-  });
-
-  final String loanAccountId;
-  final String currencyCode;
-  final String? totalOutstanding;
-  final Future<void> Function(
-    String amount,
-    String paymentReference,
-    String channel,
-    String payerReference,
-    String idempotencyKey,
-  )
-  onSave;
-
-  @override
-  State<_RecordPaymentFormDialog> createState() =>
-      _RecordPaymentFormDialogState();
-}
-
-class _RecordPaymentFormDialogState extends State<_RecordPaymentFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _amountCtrl;
-  late final TextEditingController _paymentRefCtrl;
-  late final TextEditingController _payerRefCtrl;
-  late final String _idempotencyKey;
-  String? _channel;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _amountCtrl = TextEditingController();
-    _paymentRefCtrl = TextEditingController();
-    _payerRefCtrl = TextEditingController();
-    _idempotencyKey = generateIdempotencyKey();
-  }
-
-  @override
-  void dispose() {
-    _amountCtrl.dispose();
-    _paymentRefCtrl.dispose();
-    _payerRefCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
-    try {
-      await widget.onSave(
-        _amountCtrl.text.trim(),
-        _paymentRefCtrl.text.trim(),
-        _channel!,
-        _payerRefCtrl.text.trim(),
-        _idempotencyKey,
-      );
-      if (mounted) Navigator.of(context).pop();
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Record Payment (${widget.currencyCode})'),
-      content: SizedBox(
-        width: 420,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.totalOutstanding != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'Outstanding: ${widget.currencyCode} ${widget.totalOutstanding}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              FormFieldCard(
-                label: 'Amount',
-                description: 'The repayment amount received from the borrower.',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _amountCtrl,
-                  decoration: InputDecoration(
-                    hintText: widget.totalOutstanding,
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  textInputAction: TextInputAction.done,
-                  validator: validateAmount,
-                ),
-              ),
-              FormFieldCard(
-                label: 'Payment Reference',
-                description: 'External transaction or receipt reference.',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _paymentRefCtrl,
-                  decoration: const InputDecoration(hintText: 'e.g. TXN-12345'),
-                  textInputAction: TextInputAction.next,
-                  validator: (v) => validateRequired(v, 'Payment reference'),
-                ),
-              ),
-              FormFieldCard(
-                label: 'Channel',
-                description: 'How the payment was received.',
-                isRequired: true,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      key: const Key('record-payment-channel'),
-                      initialValue: _channel,
-                      decoration: const InputDecoration(
-                        hintText: 'Select channel',
-                      ),
-                      items: [
-                        for (final channel in kRepaymentChannels)
-                          DropdownMenuItem(
-                            value: channel,
-                            child: Text(repaymentChannelLabel(channel)),
-                          ),
-                      ],
-                      validator: (v) => validateRequired(v, 'Channel'),
-                      onChanged: (v) => setState(() => _channel = v),
-                    ),
-                    if (_channel == kRepaymentChannelCash)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          kCashCollectionNote,
-                          key: const Key('record-payment-cash-note'),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              FormFieldCard(
-                label: 'Payer Reference',
-                description: 'Identifier for the person making the payment.',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _payerRefCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. the payer profile or transaction code',
-                  ),
-                  textInputAction: TextInputAction.done,
-                  validator: (v) => validateRequired(v, 'Payer reference'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _submit,
-          child: _saving
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Record'),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Collect Payment Form Dialog
 // ---------------------------------------------------------------------------
 
 class _CollectPaymentFormDialog extends StatefulWidget {

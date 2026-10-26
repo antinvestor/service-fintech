@@ -35,6 +35,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -136,21 +137,19 @@ func (b *repaymentBusiness) Record(
 		return nil, ErrIdempotencyKeyRequired
 	}
 
+	// Nobody records a repayment by hand. The borrower pays from their own
+	// contact and the payment rail, having matched the inbound payment,
+	// applies it; field agents and staff never handle the money.
+	if claims := security.ClaimsFromContext(ctx); claims == nil || !claims.IsInternalSystem() {
+		return nil, ErrRepaymentRecordInternalOnly
+	}
+	if NormalizeRepaymentChannel(req.GetChannel()) == RepaymentChannelCash {
+		return nil, ErrCashRepaymentRefused
+	}
+
 	la, err := b.loanAccountRepo.GetByID(ctx, req.GetLoanAccountId())
 	if err != nil {
 		return nil, ErrLoanAccountNotFound
-	}
-	// Recording a repayment credits the loan, so it is a lender-side action:
-	// staff, the payment rail (internal), or the field agent serving the
-	// client who took the cash. A borrower cannot mark their own loan paid.
-	if scopeErr := b.scope.AuthorizeAgent(ctx, la.ClientID); scopeErr != nil {
-		return nil, scopeErr
-	}
-	// A field agent records cash taken in the field. Mobile money, bank and
-	// savings repayments arrive through the payment rail or staff, where the
-	// money is confirmed before the loan is credited.
-	if !b.scope.IsStaff(ctx) && NormalizeRepaymentChannel(req.GetChannel()) != RepaymentChannelCash {
-		return nil, ErrAgentCashOnly
 	}
 
 	// Idempotency short-circuit before the gate, so retries do not consume a
@@ -271,12 +270,6 @@ func (b *repaymentBusiness) recordInner(
 	alloc := b.waterfallAllocate(ctx, req.GetLoanAccountId(), amount, balance)
 
 	channel := NormalizeRepaymentChannel(req.GetChannel())
-	collector := b.collectorFor(ctx, la)
-	if channel == RepaymentChannelCash && collector == "" {
-		// Cash exists only in someone's hands. A cash repayment nobody is
-		// accountable for cannot be booked.
-		return nil, ErrCashRepaymentNeedsCollector
-	}
 
 	r := &models.Repayment{
 		LoanAccountID:    req.GetLoanAccountId(),
@@ -286,7 +279,6 @@ func (b *repaymentBusiness) recordInner(
 		PaymentReference: req.GetPaymentReference(),
 		Channel:          channel,
 		PayerReference:   req.GetPayerReference(),
-		CollectedBy:      collector,
 		PrincipalApplied: alloc.principalApplied,
 		InterestApplied:  alloc.interestApplied,
 		FeesApplied:      alloc.feesApplied,
@@ -369,9 +361,6 @@ func (b *repaymentBusiness) finishRepayment(
 	}
 
 	b.auditRepayment(ctx, logger, la, r, alloc, req)
-	if r.CollectedBy != "" {
-		b.notifier.NotifyAgentCollectionRecorded(ctx, la, r.CollectedBy, r.Amount, r.Channel, r.PaymentReference)
-	}
 
 	currencyAttr := attribute.String("currency", la.CurrencyCode)
 	LoansRepaid.Add(ctx, 1, currencyAttr)
@@ -455,7 +444,6 @@ func (b *repaymentBusiness) auditRepayment(
 			fieldAmount:         r.Amount,
 			fieldCurrency:       la.CurrencyCode,
 			"channel":           r.Channel,
-			"collected_by":      r.CollectedBy,
 			"payment_reference": req.GetPaymentReference(),
 			"payer_reference":   req.GetPayerReference(),
 			fieldIdempotencyKey: req.GetIdempotencyKey(),
@@ -596,14 +584,9 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 	// retry mints a new row, so a row-keyed reference would let components
 	// that already posted post a second time.
 	repRef := repayment.IdempotencyKey
-	// Where the money comes from depends on how it arrived. Cash collected in
-	// the field sits with the agent until remitted, so it is debited from the
-	// agent's cash-in-hand account, which is what the agent then owes the
-	// till. Every other channel reached the borrower's own account first.
+	// The money reached the borrower's own account first: they paid it from
+	// their own contact.
 	memberAccount := constants.MemberLoansAccount(la.ClientID)
-	if repayment.Channel == RepaymentChannelCash && repayment.CollectedBy != "" {
-		memberAccount = constants.AgentCashAccount(repayment.CollectedBy)
-	}
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 	baseExtraData := data.JSONMap{
 		"loan_id":          la.GetID(),
@@ -942,10 +925,6 @@ func (b *repaymentBusiness) searchScope(
 		}
 		filters["created_at < ?"] = t
 	}
-	if collector := strings.TrimSpace(req.GetCollectedBy()); collector != "" {
-		filters["collected_by = ?"] = collector
-	}
-
 	if loanID := req.GetLoanAccountId(); loanID != "" {
 		if err := authorizeLoanAccount(ctx, b.scope, b.loanAccountRepo, loanID); err != nil {
 			return nil, err
@@ -954,22 +933,16 @@ func (b *repaymentBusiness) searchScope(
 		return filters, nil
 	}
 
-	if b.scope.IsStaff(ctx) {
-		return filters, nil
-	}
-	// Without a loan, a non-staff caller lists only what they collected: an
-	// empty collector means "mine", any other collector is refused.
-	subject := callerSubject(ctx)
-	collector := strings.TrimSpace(req.GetCollectedBy())
-	if subject == "" || (collector != "" && collector != subject) {
+	// Without a loan the search spans the partition, which is for staff.
+	if !b.scope.IsStaff(ctx) {
 		return nil, ErrLoanNotOwned
 	}
-	filters["collected_by = ?"] = subject
 	return filters, nil
 }
 
 // Repayment channels as stored. Callers send free text; it is folded onto
-// these so reports, ledger legs and messages agree on what happened.
+// these so reports, ledger legs and messages agree on what happened. Cash is
+// recognised only to be refused: no one hands over cash for a borrower.
 const (
 	RepaymentChannelCash        = "cash"
 	RepaymentChannelMobileMoney = "mobile_money"
@@ -997,18 +970,4 @@ func NormalizeRepaymentChannel(raw string) string {
 	default:
 		return RepaymentChannelOther
 	}
-}
-
-// collectorFor names the staff member or field agent recording the repayment
-// on the borrower's behalf: the caller, unless the caller is the borrower.
-func (b *repaymentBusiness) collectorFor(ctx context.Context, la *models.LoanAccount) string {
-	subject := callerSubject(ctx)
-	if subject == "" {
-		return ""
-	}
-	if b.scope != nil && b.scope.IsBorrowerOf(ctx, la.ClientID) {
-		// The borrower paying for themselves is not a collector.
-		return ""
-	}
-	return subject
 }

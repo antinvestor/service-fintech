@@ -186,7 +186,9 @@ abstract final class LoanManagementService {
     idempotency: connect.Idempotency.noSideEffects,
   );
 
-  /// RepaymentRecord records an incoming payment for a loan.
+  /// RepaymentRecord applies a payment the borrower made from their own
+  /// contact to their loan. Only the payment rail calls it, once it has
+  /// matched the inbound payment; no person records a repayment.
   static const repaymentRecord = connect.Spec(
     '/$name/RepaymentRecord',
     connect.StreamType.unary,

@@ -16,7 +16,6 @@ void main() {
         'loan_request_view',
         'loan_request_submit',
         'loan_request_manage',
-        'repayment_manage',
         'collection_manage',
         'disbursement_manage',
         'penalty_manage',
@@ -25,5 +24,14 @@ void main() {
         'portfolio_export',
       ]),
     );
+  });
+
+  test('no screen offers to record a repayment by hand', () {
+    final module = LoansRouteModule();
+    expect(
+      module.permissionManifest.permissions.map((p) => p.key),
+      isNot(contains('repayment_manage')),
+    );
+    expect(module.routePermissions.keys, isNot(contains('/loans/collections')));
   });
 }

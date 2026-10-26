@@ -2109,7 +2109,7 @@ class RepaymentObject extends $pb.GeneratedMessage {
     $0.Money? excessAmount,
     $core.String? idempotencyKey,
     $1.Struct? properties,
-    $core.String? collectedBy,
+    @$core.Deprecated('This field is deprecated.') $core.String? collectedBy,
   }) {
     final result = RepaymentObject._();
     if (id != null) result.id = id;
@@ -2354,14 +2354,19 @@ class RepaymentObject extends $pb.GeneratedMessage {
   @$pb.TagNumber(17)
   $1.Struct ensureProperties() => $_ensure(15);
 
-  /// collected_by is the profile of the staff member or field agent who
-  /// recorded the repayment. Empty when the borrower paid directly.
+  /// Deprecated and always empty: field agents and staff never handle a
+  /// borrower's money. Every repayment is a payment the borrower made from
+  /// their own contact.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(18)
   $core.String get collectedBy => $_getSZ(16);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(18)
   set collectedBy($core.String value) => $_setString(16, value);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(18)
   $core.bool hasCollectedBy() => $_has(16);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(18)
   void clearCollectedBy() => $_clearField(18);
 }
@@ -4555,7 +4560,7 @@ class RepaymentSearchRequest extends $pb.GeneratedMessage {
     $core.String? loanAccountId,
     RepaymentStatus? status,
     $2.PageCursor? cursor,
-    $core.String? collectedBy,
+    @$core.Deprecated('This field is deprecated.') $core.String? collectedBy,
     $core.String? receivedAfter,
     $core.String? receivedBefore,
   }) {
@@ -4645,15 +4650,18 @@ class RepaymentSearchRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   $2.PageCursor ensureCursor() => $_ensure(2);
 
-  /// collected_by narrows the search to repayments one collector recorded.
-  /// A field agent searching without a loan lists their own collections;
-  /// leaving collected_by empty means "mine".
+  /// Deprecated and ignored: nobody collects repayments on a borrower's
+  /// behalf. A search without a loan is open to staff only.
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(4)
   $core.String get collectedBy => $_getSZ(3);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(4)
   set collectedBy($core.String value) => $_setString(3, value);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(4)
   $core.bool hasCollectedBy() => $_has(3);
+  @$core.Deprecated('This field is deprecated.')
   @$pb.TagNumber(4)
   void clearCollectedBy() => $_clearField(4);
 
@@ -9204,7 +9212,9 @@ class LoanManagementServiceApi {
       _client.invoke<DisbursementSearchResponse>(ctx, 'LoanManagementService',
           'DisbursementSearch', request, DisbursementSearchResponse());
 
-  /// RepaymentRecord records an incoming payment for a loan.
+  /// RepaymentRecord applies a payment the borrower made from their own
+  /// contact to their loan. Only the payment rail calls it, once it has
+  /// matched the inbound payment; no person records a repayment.
   $async.Future<RepaymentRecordResponse> repaymentRecord(
           $pb.ClientContext? ctx, RepaymentRecordRequest request) =>
       _client.invoke<RepaymentRecordResponse>(ctx, 'LoanManagementService',

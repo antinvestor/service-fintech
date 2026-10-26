@@ -76,7 +76,7 @@ func TestReferencedNamesAreRegistered(t *testing.T) {
 		messages.LoanApplicationCancelled, messages.LoanApplicationExpired, messages.LoanDisbursed, messages.LoanRepaymentReceived, messages.LoanPaidOff,
 		messages.LoanPaymentDue, messages.LoanPaymentOverdue, messages.LoanDelinquent, messages.LoanPenaltyApplied,
 		messages.LoanPenaltyWaived, messages.LoanRestructured, messages.LoanWrittenOff, messages.LoanCollectionRequested,
-		messages.AgentClientDelinquent, messages.AgentDisbursementFailed, messages.AgentCollectionRecorded,
+		messages.AgentClientDelinquent, messages.AgentDisbursementFailed,
 		messages.AgentApplicationDecision,
 		messages.ClientOnboarded, messages.ClientKYCVerified, messages.ClientKYCRejected, messages.ClientKYCInfoRequested,
 		messages.WorkforceMemberOnboarded,

@@ -73,7 +73,7 @@ func TestLoanNotifier_AddressesTheClientProfileWithFormattedVariables(t *testing
 	la := testLoan()
 
 	n.NotifyLoanDisbursed(context.Background(), la, "M-PESA")
-	n.NotifyRepaymentReceived(context.Background(), la, 150_000, 2_350_000, "CASH", "RCPT-9")
+	n.NotifyRepaymentReceived(context.Background(), la, 150_000, 2_350_000, "mobile_money", "RCPT-9")
 
 	require.Len(t, sender.got, 2)
 
@@ -97,7 +97,7 @@ func TestLoanNotifier_AddressesTheClientProfileWithFormattedVariables(t *testing
 	received := sender.got[1].GetPayload().AsMap()
 	assert.Equal(t, "1,500.00", received[messages.VarAmount])
 	assert.Equal(t, "23,500.00", received[messages.VarBalance])
-	assert.Equal(t, "CASH", received[messages.VarChannel])
+	assert.Equal(t, "mobile_money", received[messages.VarChannel])
 	assert.Equal(t, "RCPT-9", received[messages.VarReference])
 }
 

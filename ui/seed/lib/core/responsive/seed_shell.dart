@@ -1,4 +1,3 @@
-import 'package:antinvestor_ui_core/permissions/permission_provider.dart';
 import 'package:antinvestor_ui_core/responsive/breakpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +16,7 @@ class PhoneDestination {
 }
 
 /// The field agent's daily work, reachable with one thumb on a phone.
-List<PhoneDestination> phoneDestinations({required bool canCollect}) => [
+List<PhoneDestination> phoneDestinations() => [
   const PhoneDestination('/', 'Home', Icons.home_outlined, Icons.home),
   const PhoneDestination(
     '/clients',
@@ -31,13 +30,6 @@ List<PhoneDestination> phoneDestinations({required bool canCollect}) => [
     Icons.account_balance_wallet_outlined,
     Icons.account_balance_wallet,
   ),
-  if (canCollect)
-    const PhoneDestination(
-      '/loans/collections',
-      'Collections',
-      Icons.payments_outlined,
-      Icons.payments,
-    ),
 ];
 
 /// The bottom-bar index for [location]: the destination with the longest
@@ -77,9 +69,7 @@ class SeedShell extends ConsumerWidget {
         final isMobile = AppBreakpoints.isMobile(constraints.maxWidth);
 
         if (isMobile) {
-          final destinations = phoneDestinations(
-            canCollect: ref.watch(hasPermissionProvider('repayment_manage')),
-          );
+          final destinations = phoneDestinations();
           final selected = phoneDestinationIndex(destinations, currentRoute);
           return Scaffold(
             appBar: AppBar(

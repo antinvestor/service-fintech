@@ -326,7 +326,9 @@ func TestReadScope_ClientFilterConfinesSearches(t *testing.T) {
 	require.True(t, unrestricted)
 }
 
-func TestRepaymentRecord_LenderSideGuards(t *testing.T) {
+// No person records a repayment: borrowers, field agents and staff are all
+// refused, and the payment rail itself cannot book cash.
+func TestRepaymentRecord_PaymentRailOnly(t *testing.T) {
 	loan := &loansmodels.LoanAccount{ClientID: "client-b", CurrencyCode: "KES",
 		Status: int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE)}
 	loan.ID = "loan-1"
@@ -334,11 +336,8 @@ func TestRepaymentRecord_LenderSideGuards(t *testing.T) {
 	otherLoanRepayment.ID = "rep-other"
 
 	scope := NewReadScope(&mapClientResolver{
-		clients: map[string]string{"profile-borrower": "client-b", "profile-agent-borrower": "client-b"},
-		served: map[string][]string{
-			"profile-agent":          {"client-b"},
-			"profile-agent-borrower": {"client-b"},
-		},
+		clients: map[string]string{"profile-borrower": "client-b"},
+		served:  map[string][]string{"profile-agent": {"client-b"}},
 	})
 	build := func(existing *loansmodels.Repayment) RepaymentBusiness {
 		return NewRepaymentBusiness(t.Context(), &noopEventsManager{},
@@ -349,42 +348,44 @@ func TestRepaymentRecord_LenderSideGuards(t *testing.T) {
 	req := func(channel string) *loansv1.RepaymentRecordRequest {
 		return &loansv1.RepaymentRecordRequest{LoanAccountId: "loan-1", Channel: channel, IdempotencyKey: "k-1"}
 	}
+	rail := (&security.AuthenticationClaims{
+		Roles:            []string{security.ConstantSystemInternalRole},
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "service-operations"},
+	}).ClaimsToContext(t.Context())
 
-	_, err := build(nil).Record(claimsContext(t, "profile-borrower"), req("cash"))
-	require.ErrorIs(t, err, ErrNotServingClient, "a borrower cannot mark their own loan paid")
+	for name, ctx := range map[string]context.Context{
+		"borrower":    claimsContext(t, "profile-borrower"),
+		"field agent": claimsContext(t, "profile-agent"),
+		"operator":    claimsContext(t, "profile-x", "operator"),
+		"owner":       claimsContext(t, "profile-y", "owner"),
+	} {
+		for _, channel := range []string{"cash", "mpesa"} {
+			_, err := build(nil).Record(ctx, req(channel))
+			require.ErrorIs(t, err, ErrRepaymentRecordInternalOnly, "%s via %s", name, channel)
+		}
+	}
 
-	_, err = build(nil).Record(claimsContext(t, "profile-agent-borrower"), req("cash"))
-	require.ErrorIs(t, err, ErrNotServingClient, "an agent cannot record on a loan they owe")
+	_, err := build(nil).Record(rail, req("agent cash"))
+	require.ErrorIs(t, err, ErrCashRepaymentRefused, "cash is never booked, even by the rail")
 
-	_, err = build(nil).Record(claimsContext(t, "profile-agent"), req("mpesa"))
-	require.ErrorIs(t, err, ErrAgentCashOnly)
-
-	_, err = build(otherLoanRepayment).Record(claimsContext(t, "profile-agent"), req("cash"))
+	_, err = build(otherLoanRepayment).Record(rail, req("mpesa"))
 	require.ErrorIs(t, err, ErrIdempotencyKeyConflict, "a key from another loan never returns its repayment")
-
-	_, err = build(otherLoanRepayment).Record(claimsContext(t, "profile-x", "operator"), req("mpesa"))
-	require.ErrorIs(t, err, ErrIdempotencyKeyConflict, "staff pass the channel rule and still hit the key check")
 }
 
-// Without a loan, a field agent's repayment search is their own collections:
-// an empty collector means "mine", someone else's is refused.
-func TestRepaymentSearchScope_AgentListsOwnCollections(t *testing.T) {
+// Without a loan, a repayment search spans the partition, which only staff
+// may do; anyone else names a loan they can read.
+func TestRepaymentSearchScope_PartitionWideIsStaffOnly(t *testing.T) {
 	b, ok := NewRepaymentBusiness(t.Context(), &noopEventsManager{},
 		&stubLoanAccountRepo{}, &stubRepaymentRepo{},
 		nil, nil, nil, nil, nil, nil, nil, nil, false, "",
 		WithReadScope(agentScope())).(*repaymentBusiness)
 	require.True(t, ok)
-	agent := claimsContext(t, "profile-agent")
 
-	filters, err := b.searchScope(agent, &loansv1.RepaymentSearchRequest{ReceivedAfter: "2026-10-24T00:00:00Z"})
-	require.NoError(t, err)
-	require.Equal(t, "profile-agent", filters["collected_by = ?"])
-	require.Contains(t, filters, "created_at >= ?")
-
-	_, err = b.searchScope(agent, &loansv1.RepaymentSearchRequest{CollectedBy: "profile-other"})
+	_, err := b.searchScope(claimsContext(t, "profile-agent"), &loansv1.RepaymentSearchRequest{})
 	require.ErrorIs(t, err, ErrLoanNotOwned)
 
-	staffFilters, err := b.searchScope(claimsContext(t, "profile-x", "operator"), &loansv1.RepaymentSearchRequest{})
+	staffFilters, err := b.searchScope(claimsContext(t, "profile-x", "operator"),
+		&loansv1.RepaymentSearchRequest{ReceivedAfter: "2026-10-24T00:00:00Z"})
 	require.NoError(t, err)
-	require.NotContains(t, staffFilters, "collected_by = ?", "staff search the partition")
+	require.Contains(t, staffFilters, "created_at >= ?")
 }

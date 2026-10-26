@@ -109,7 +109,7 @@ func TestRepaymentLedgerReferencesAreKeyedOnTheIdempotencyKey(t *testing.T) {
 
 	b := buildRepBusiness(&stubLoanAccountRepo{account: la}, repRepo, ops, nil, false)
 
-	_, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	_, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
 		IdempotencyKey: "idem-rep-ref",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
@@ -156,7 +156,7 @@ func TestUnscheduledOverpaymentPostsToSuspense(t *testing.T) {
 		&stubRepaymentRepo{findErr: errors.New("not found")}, ops, nil, false)
 
 	// The balance stub carries 100000 minor units of outstanding principal.
-	_, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	_, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
 		IdempotencyKey: "idem-rep-over",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 150000),
@@ -188,7 +188,7 @@ func TestDelinquentLoanSettlesToPaidOff(t *testing.T) {
 
 	// The balance stub reports 100000 minor units outstanding, so this
 	// payment settles the loan in full.
-	_, err := b.Record(context.Background(), &loansv1.RepaymentRecordRequest{
+	_, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
 		IdempotencyKey: "idem-rep-delinquent",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 100000),

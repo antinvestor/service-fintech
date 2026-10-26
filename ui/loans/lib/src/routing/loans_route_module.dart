@@ -14,7 +14,6 @@ import '../screens/loan_product_detail_screen.dart';
 import '../screens/loan_products_screen.dart';
 import '../screens/loan_request_detail_screen.dart';
 import '../screens/loan_requests_screen.dart';
-import '../screens/my_collections_screen.dart';
 import '../screens/portfolio_summary_screen.dart';
 
 class LoansRouteModule extends RouteModule {
@@ -30,10 +29,6 @@ class LoansRouteModule extends RouteModule {
         GoRoute(
           path: 'dashboard',
           builder: (context, state) => const LoansDashboardScreen(),
-        ),
-        GoRoute(
-          path: 'collections',
-          builder: (context, state) => const MyCollectionsScreen(),
         ),
         GoRoute(
           path: 'products',
@@ -96,9 +91,6 @@ class LoansRouteModule extends RouteModule {
             builder: (context, ref, _) => LoanAccountDetailScreen(
               loanId: state.pathParameters['loanId']!,
               canManage: ref.watch(hasPermissionProvider('loan_manage')),
-              canRecordPayment: ref.watch(
-                hasPermissionProvider('repayment_manage'),
-              ),
               canCollectPayment: ref.watch(
                 hasPermissionProvider('collection_manage'),
               ),
@@ -144,21 +136,12 @@ class LoansRouteModule extends RouteModule {
       route: '/loans/dashboard',
       requiredPermissions: {'loan_view'},
     ),
-    const NavItem(
-      id: 'loans_collections',
-      label: 'My collections',
-      icon: Icons.payments_outlined,
-      activeIcon: Icons.payments,
-      route: '/loans/collections',
-      requiredPermissions: {'repayment_manage'},
-    ),
   ];
 
   @override
   Map<String, Set<String>> get routePermissions => {
     '/loans': {'loan_view'},
     '/loans/dashboard': {'loan_view'},
-    '/loans/collections': {'repayment_manage'},
     '/loans/products': {'loan_product_view'},
     '/loans/requests': {'loan_request_view'},
     '/reports/portfolio': {'portfolio_view'},
@@ -202,11 +185,6 @@ class LoansRouteModule extends RouteModule {
       PermissionEntry(
         key: 'loan_request_manage',
         label: 'Decide Loan Requests',
-        scope: PermissionScope.action,
-      ),
-      PermissionEntry(
-        key: 'repayment_manage',
-        label: 'Record Repayments',
         scope: PermissionScope.action,
       ),
       PermissionEntry(
