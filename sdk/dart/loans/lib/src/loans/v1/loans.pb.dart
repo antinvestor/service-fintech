@@ -158,6 +158,7 @@ class LoanProductObject extends $pb.GeneratedMessage {
     $2.STATE? state,
     $1.Struct? properties,
     $core.Iterable<ProductFormRequirement>? requiredForms,
+    $core.String? agentCommissionPercent,
   }) {
     final result = LoanProductObject._();
     if (id != null) result.id = id;
@@ -188,6 +189,8 @@ class LoanProductObject extends $pb.GeneratedMessage {
     if (state != null) result.state = state;
     if (properties != null) result.properties = properties;
     if (requiredForms != null) result.requiredForms.addAll(requiredForms);
+    if (agentCommissionPercent != null)
+      result.agentCommissionPercent = agentCommissionPercent;
     return result;
   }
 
@@ -237,6 +240,7 @@ class LoanProductObject extends $pb.GeneratedMessage {
         subBuilder: $1.Struct.$_createMessage)
     ..pPM<ProductFormRequirement>(23, _omitFieldNames ? '' : 'requiredForms',
         subBuilder: ProductFormRequirement.$_createMessage)
+    ..aOS(24, _omitFieldNames ? '' : 'agentCommissionPercent')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -471,6 +475,17 @@ class LoanProductObject extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(23)
   $pb.PbList<ProductFormRequirement> get requiredForms => $_getList(22);
+
+  /// Share of interest repaid that the serving agent's team earns, as a
+  /// decimal percentage e.g. "10". Empty or zero pays no commission.
+  @$pb.TagNumber(24)
+  $core.String get agentCommissionPercent => $_getSZ(23);
+  @$pb.TagNumber(24)
+  set agentCommissionPercent($core.String value) => $_setString(23, value);
+  @$pb.TagNumber(24)
+  $core.bool hasAgentCommissionPercent() => $_has(23);
+  @$pb.TagNumber(24)
+  void clearAgentCommissionPercent() => $_clearField(24);
 }
 
 /// LoanRequestObject represents a loan request created by a product service.

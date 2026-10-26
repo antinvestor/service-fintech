@@ -145,6 +145,18 @@ func PlatformIncomeAccount(productID string) string {
 	return fmt.Sprintf("platform:%s:income", productID)
 }
 
+// TeamCommissionPayableAccount is the commission a field team has earned on
+// its clients' repaid interest and is owed until it is paid out.
+func TeamCommissionPayableAccount(teamID string) string {
+	return fmt.Sprintf("team:%s:commission_payable", teamID)
+}
+
+// ProductCommissionExpenseAccount is the product's cost of the commission
+// its field teams earn.
+func ProductCommissionExpenseAccount(productID string) string {
+	return fmt.Sprintf("product:%s:commission_expense", productID)
+}
+
 // PlatformExternalCashAccount returns the platform-wide external cash
 // control account. Used as the counter-party for money movements that are
 // not scoped to a specific product — notably investor capital deposits and

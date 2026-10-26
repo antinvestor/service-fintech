@@ -14,6 +14,8 @@
   written-off loans too (a written-off loan's payments are recoveries).
 - The restructure dialog no longer offers a partial waiver, which the
   service refuses (`restructureTypeOffered`).
+- Loan products take an "Agent commission (% of interest)", shown on the
+  product detail.
 
 ## 0.3.0
 

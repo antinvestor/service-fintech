@@ -41,6 +41,14 @@ type FundingSettlement struct {
 	repaymentRepo   repository.RepaymentRepository
 	loanAccountRepo repository.LoanAccountRepository
 	fundingCli      fundingv1connect.FundingServiceClient
+	commission      *AgentCommission
+}
+
+// WithCommission makes settlement credit the serving team's commission on
+// each repayment's interest before sharing it out to the funders.
+func (s *FundingSettlement) WithCommission(c *AgentCommission) *FundingSettlement {
+	s.commission = c
+	return s
 }
 
 // NewFundingSettlement builds the settlement step.
@@ -70,6 +78,11 @@ func (s *FundingSettlement) Settle(ctx context.Context, la *models.LoanAccount, 
 
 	if IsRecovery(r) || la.Status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF) {
 		return s.settleRecovery(ctx, la, r)
+	}
+	// The commission is keyed on the repayment, so a retried settlement
+	// credits it once; until it posts the repayment stays unsettled.
+	if commErr := s.commission.Post(ctx, la, r); commErr != nil {
+		return commErr
 	}
 
 	resp, err := s.fundingCli.LoanRepaymentApply(ctx, &fundingv1.LoanRepaymentApplyRequest{

@@ -209,6 +209,11 @@ class _TermsTab extends StatelessWidget {
                 ),
                 _DetailRow('Insurance Fee', '${product.insuranceFeePercent}%'),
                 _DetailRow('Late Penalty Rate', '${product.latePenaltyRate}%'),
+                if (product.agentCommissionPercent.isNotEmpty)
+                  _DetailRow(
+                    'Agent Commission',
+                    '${product.agentCommissionPercent}% of interest',
+                  ),
               ],
             ),
           ),

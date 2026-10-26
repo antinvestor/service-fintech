@@ -1,3 +1,8 @@
+## 0.6.4
+
+- `LoanProductObject.agent_commission_percent`: the share of each
+  repayment's interest credited to the field team serving the borrower.
+
 ## 0.6.3
 
 - `LoanManagementService.LoanAccountCancel`: closes a loan that was never

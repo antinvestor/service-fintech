@@ -1,3 +1,8 @@
+## 0.4.5
+
+- `TransferOrderType.TRANSFER_ORDER_TYPE_AGENT_COMMISSION` (50): a
+  product's commission accrued to the serving team's payable.
+
 ## 0.4.4
 
 - `TransferOrderType.TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL` (49): investor

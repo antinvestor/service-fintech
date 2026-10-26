@@ -231,6 +231,9 @@ message LoanProductObject {
   common.v1.STATE state = 21;
   google.protobuf.Struct properties = 22;
   repeated ProductFormRequirement required_forms = 23; // Form templates required for this product
+  // Share of interest repaid that the serving agent's team earns, as a
+  // decimal percentage e.g. "10". Empty or zero pays no commission.
+  string agent_commission_percent = 24;
 }
 
 // LoanRequestObject represents a loan request created by a product service.

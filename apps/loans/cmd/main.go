@@ -163,6 +163,7 @@ func main() {
 		peers.operations,
 		peers.limits,
 		peers.payments,
+		peers.teams,
 		peers.readScope,
 		cfg.LimitsGateEnabledLoanDisbursement,
 		cfg.LimitsGateModeLoanDisbursement,
@@ -199,6 +200,7 @@ func setupServiceOptions(
 	operationsCli operationsv1connect.OperationsServiceClient,
 	limitsCli limitsv1connect.LimitsServiceClient,
 	paymentCli paymentv1connect.PaymentServiceClient,
+	teams business.TeamResolver,
 	readScope *business.ReadScope,
 	limitsGateEnabledDisbursement bool,
 	limitsGateModeDisbursement string,
@@ -252,7 +254,8 @@ func setupServiceOptions(
 		business.WithNotifier(loanNotifier),
 		business.WithPayoutDestinationChecker(payoutChecker),
 	)
-	fundingSettlement := business.NewFundingSettlement(repRepo, laRepo, fundingCli)
+	fundingSettlement := business.NewFundingSettlement(repRepo, laRepo, fundingCli).
+		WithCommission(business.NewAgentCommission(lpRepo, teams, operationsCli))
 	repBusiness := business.NewRepaymentBusiness(
 		ctx,
 		evtsMan,
@@ -377,7 +380,9 @@ type peerClients struct {
 	limits         limitsv1connect.LimitsServiceClient
 	// payments raises the prompts that ask a borrower to pay. Nil when the
 	// payment client cannot be built; collection prompts are then refused.
-	payments  paymentv1connect.PaymentServiceClient
+	payments paymentv1connect.PaymentServiceClient
+	// teams names the field team serving a client, for its commission.
+	teams     business.TeamResolver
 	readScope *business.ReadScope
 	// paidOffHook tells seed a loan was repaid in full, so it can complete
 	// its loan request and credit the borrower's profile. Nil when
@@ -465,6 +470,7 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 		paidOffHook:    paidOffHook,
 		payoutChecker:  business.NewProfilePayoutChecker(clientProfiles, profileCli),
 		clientStanding: business.NewFieldClientStanding(fieldCli),
+		teams:          business.NewFieldTeamResolver(fieldCli),
 		agentProfiles:  business.NewIdentityAgentProfileResolver(identityCli),
 		loanNotifier: business.NewLoanNotifier(
 			notify.New(notificationCli, messages.Registry()),

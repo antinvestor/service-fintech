@@ -148,6 +148,11 @@ class TransferOrderType extends $pb.ProtobufEnum {
   static const TransferOrderType TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL =
       TransferOrderType._(
           49, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL');
+
+  /// The serving agent's team's commission on interest a borrower repaid.
+  static const TransferOrderType TRANSFER_ORDER_TYPE_AGENT_COMMISSION =
+      TransferOrderType._(
+          50, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_AGENT_COMMISSION');
   static const TransferOrderType TRANSFER_ORDER_TYPE_LOAN_INSURANCE =
       TransferOrderType._(
           51, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_LOAN_INSURANCE');
@@ -194,6 +199,7 @@ class TransferOrderType extends $pb.ProtobufEnum {
     TRANSFER_ORDER_TYPE_LOAN_INTEREST_REPAYMENT,
     TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION,
     TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL,
+    TRANSFER_ORDER_TYPE_AGENT_COMMISSION,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT,
     TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT,

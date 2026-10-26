@@ -609,6 +609,7 @@ func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 		constants.TransferTypeInvestorIncomeDistribution:                noErr(b.handleInvestorIncomeDistribution),
 		constants.TransferTypePlatformFirstLossAbsorption:               noErr(b.handlePlatformFirstLossAbsorption),
 		constants.TransferTypeInvestorLossAbsorption:                    noErr(b.handleInvestorLossAbsorption),
+		constants.TransferTypeAgentCommission:                           noErr(b.handleAgentCommission),
 	}
 }
 
@@ -1633,6 +1634,17 @@ func (b *transferOrderBusiness) handleInvestorPrincipalReturn(
 	logger.WithField("investor_account_id", investorAccountID).
 		WithField("amount", order.Amount).
 		Info("principal returned to investor")
+}
+
+// handleAgentCommission records a product's commission accrued to the field
+// team serving the borrower. It is a ledger accrual only: the team's
+// payable is settled separately, never from the borrower's money.
+func (b *transferOrderBusiness) handleAgentCommission(ctx context.Context, order *models.TransferOrder) {
+	util.Log(ctx).WithField("handler", "handleAgentCommission").
+		WithField("order_id", order.GetID()).
+		WithField("team_id", extraDataString(order, "team_id")).
+		WithField("amount", order.Amount).
+		Info("commission accrued to the serving team")
 }
 
 // handleInvestorWithdrawal pays investor capital out to the investor's own

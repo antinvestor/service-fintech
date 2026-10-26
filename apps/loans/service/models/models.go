@@ -357,41 +357,45 @@ type LoanProduct struct {
 	ProcessingFeePercent int64 // basis points
 	InsuranceFeePercent  int64 // basis points
 	LatePenaltyRate      int64 // basis points
-	GracePeriodDays      int32
-	FeeStructure         data.JSONMap
-	EligibilityCriteria  data.JSONMap
-	RequiredForms        data.JSONMap // JSON array of ProductFormRequirement
-	State                int32
-	Properties           data.JSONMap
+	// AgentCommissionPercent is the share of repaid interest the serving
+	// agent's team earns, in basis points.
+	AgentCommissionPercent int64
+	GracePeriodDays        int32
+	FeeStructure           data.JSONMap
+	EligibilityCriteria    data.JSONMap
+	RequiredForms          data.JSONMap // JSON array of ProductFormRequirement
+	State                  int32
+	Properties             data.JSONMap
 }
 
 func (m *LoanProduct) TableName() string { return "loan_products" }
 
 func (m *LoanProduct) ToAPI() *loansv1.LoanProductObject {
 	return &loansv1.LoanProductObject{
-		Id:                   m.GetID(),
-		OrganizationId:       m.OrganizationID,
-		Name:                 m.Name,
-		Code:                 m.Code,
-		Description:          m.Description,
-		ProductType:          loansv1.LoanProductType(m.ProductType),
-		CurrencyCode:         m.CurrencyCode,
-		InterestMethod:       loansv1.InterestMethod(m.InterestMethod),
-		RepaymentFrequency:   loansv1.RepaymentFrequency(m.RepaymentFrequency),
-		MinAmount:            MinorUnitsToMoney(m.MinAmount, m.CurrencyCode),
-		MaxAmount:            MinorUnitsToMoney(m.MaxAmount, m.CurrencyCode),
-		MinTermDays:          m.MinTermDays,
-		MaxTermDays:          m.MaxTermDays,
-		AnnualInterestRate:   BasisPointsToString(m.AnnualInterestRate),
-		ProcessingFeePercent: BasisPointsToString(m.ProcessingFeePercent),
-		InsuranceFeePercent:  BasisPointsToString(m.InsuranceFeePercent),
-		LatePenaltyRate:      BasisPointsToString(m.LatePenaltyRate),
-		GracePeriodDays:      m.GracePeriodDays,
-		FeeStructure:         m.FeeStructure.ToProtoStruct(),
-		EligibilityCriteria:  m.EligibilityCriteria.ToProtoStruct(),
-		State:                commonv1.STATE(m.State),
-		Properties:           m.Properties.ToProtoStruct(),
-		RequiredForms:        RequiredFormsToAPI(m.RequiredForms),
+		Id:                     m.GetID(),
+		OrganizationId:         m.OrganizationID,
+		Name:                   m.Name,
+		Code:                   m.Code,
+		Description:            m.Description,
+		ProductType:            loansv1.LoanProductType(m.ProductType),
+		CurrencyCode:           m.CurrencyCode,
+		InterestMethod:         loansv1.InterestMethod(m.InterestMethod),
+		RepaymentFrequency:     loansv1.RepaymentFrequency(m.RepaymentFrequency),
+		MinAmount:              MinorUnitsToMoney(m.MinAmount, m.CurrencyCode),
+		MaxAmount:              MinorUnitsToMoney(m.MaxAmount, m.CurrencyCode),
+		MinTermDays:            m.MinTermDays,
+		MaxTermDays:            m.MaxTermDays,
+		AnnualInterestRate:     BasisPointsToString(m.AnnualInterestRate),
+		ProcessingFeePercent:   BasisPointsToString(m.ProcessingFeePercent),
+		InsuranceFeePercent:    BasisPointsToString(m.InsuranceFeePercent),
+		LatePenaltyRate:        BasisPointsToString(m.LatePenaltyRate),
+		AgentCommissionPercent: BasisPointsToString(m.AgentCommissionPercent),
+		GracePeriodDays:        m.GracePeriodDays,
+		FeeStructure:           m.FeeStructure.ToProtoStruct(),
+		EligibilityCriteria:    m.EligibilityCriteria.ToProtoStruct(),
+		State:                  commonv1.STATE(m.State),
+		Properties:             m.Properties.ToProtoStruct(),
+		RequiredForms:          RequiredFormsToAPI(m.RequiredForms),
 	}
 }
 
@@ -404,25 +408,26 @@ func LoanProductFromAPI(ctx context.Context, obj *loansv1.LoanProductObject) *Lo
 	lpMax, _ := MoneyToMinorUnits(obj.GetMaxAmount())
 
 	model := &LoanProduct{
-		OrganizationID:       obj.GetOrganizationId(),
-		Name:                 obj.GetName(),
-		Code:                 obj.GetCode(),
-		Description:          obj.GetDescription(),
-		ProductType:          int32(obj.GetProductType()),
-		CurrencyCode:         obj.GetCurrencyCode(),
-		InterestMethod:       int32(obj.GetInterestMethod()),
-		RepaymentFrequency:   int32(obj.GetRepaymentFrequency()),
-		MinAmount:            lpMin,
-		MaxAmount:            lpMax,
-		MinTermDays:          obj.GetMinTermDays(),
-		MaxTermDays:          obj.GetMaxTermDays(),
-		AnnualInterestRate:   StringToBasisPoints(obj.GetAnnualInterestRate()),
-		ProcessingFeePercent: StringToBasisPoints(obj.GetProcessingFeePercent()),
-		InsuranceFeePercent:  StringToBasisPoints(obj.GetInsuranceFeePercent()),
-		LatePenaltyRate:      StringToBasisPoints(obj.GetLatePenaltyRate()),
-		GracePeriodDays:      obj.GetGracePeriodDays(),
-		RequiredForms:        RequiredFormsFromAPI(obj.GetRequiredForms()),
-		State:                int32(obj.GetState()),
+		OrganizationID:         obj.GetOrganizationId(),
+		Name:                   obj.GetName(),
+		Code:                   obj.GetCode(),
+		Description:            obj.GetDescription(),
+		ProductType:            int32(obj.GetProductType()),
+		CurrencyCode:           obj.GetCurrencyCode(),
+		InterestMethod:         int32(obj.GetInterestMethod()),
+		RepaymentFrequency:     int32(obj.GetRepaymentFrequency()),
+		MinAmount:              lpMin,
+		MaxAmount:              lpMax,
+		MinTermDays:            obj.GetMinTermDays(),
+		MaxTermDays:            obj.GetMaxTermDays(),
+		AnnualInterestRate:     StringToBasisPoints(obj.GetAnnualInterestRate()),
+		ProcessingFeePercent:   StringToBasisPoints(obj.GetProcessingFeePercent()),
+		InsuranceFeePercent:    StringToBasisPoints(obj.GetInsuranceFeePercent()),
+		LatePenaltyRate:        StringToBasisPoints(obj.GetLatePenaltyRate()),
+		AgentCommissionPercent: StringToBasisPoints(obj.GetAgentCommissionPercent()),
+		GracePeriodDays:        obj.GetGracePeriodDays(),
+		RequiredForms:          RequiredFormsFromAPI(obj.GetRequiredForms()),
+		State:                  int32(obj.GetState()),
 	}
 
 	if obj.GetFeeStructure() != nil {

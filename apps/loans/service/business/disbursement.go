@@ -503,7 +503,7 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 			Description:      "Loan disbursement for " + la.GetID(),
 			State:            commonv1.STATE_ACTIVE,
 			ExtraData: (&data.JSONMap{
-				"loan_id":          la.GetID(),
+				fieldLoanID:        la.GetID(),
 				fieldLoanRequestID: loanRequestID,
 				// Operations resolves the client to its profile and checks
 				// payment_account_ref is one of that profile's contacts

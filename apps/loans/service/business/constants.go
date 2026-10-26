@@ -23,6 +23,7 @@ const (
 	fieldCurrency       = "currency"
 	fieldLoanAccountID  = "loan_account_id"
 	fieldLoanRequestID  = "loan_request_id"
+	fieldLoanID         = "loan_id"
 	fieldStatus         = "status"
 	fieldLedgerTxnID    = "ledger_transaction_id"
 	fieldIdempotencyKey = "idempotency_key"

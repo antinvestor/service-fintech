@@ -296,6 +296,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
   late final TextEditingController _processingFeeCtrl;
   late final TextEditingController _insuranceFeeCtrl;
   late final TextEditingController _latePenaltyCtrl;
+  late final TextEditingController _commissionCtrl;
   late final TextEditingController _gracePeriodCtrl;
   late LoanProductType _productType;
   late InterestMethod _interestMethod;
@@ -333,6 +334,9 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
       text: p?.insuranceFeePercent ?? '',
     );
     _latePenaltyCtrl = TextEditingController(text: p?.latePenaltyRate ?? '');
+    _commissionCtrl = TextEditingController(
+      text: p?.agentCommissionPercent ?? '',
+    );
     _gracePeriodCtrl = TextEditingController(
       text: p != null ? '${p.gracePeriodDays}' : '',
     );
@@ -357,6 +361,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
     _processingFeeCtrl.dispose();
     _insuranceFeeCtrl.dispose();
     _latePenaltyCtrl.dispose();
+    _commissionCtrl.dispose();
     _gracePeriodCtrl.dispose();
     super.dispose();
   }
@@ -388,6 +393,7 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
       processingFeePercent: _processingFeeCtrl.text.trim(),
       insuranceFeePercent: _insuranceFeeCtrl.text.trim(),
       latePenaltyRate: _latePenaltyCtrl.text.trim(),
+      agentCommissionPercent: _commissionCtrl.text.trim(),
       gracePeriodDays: int.tryParse(_gracePeriodCtrl.text.trim()) ?? 0,
       state: _selectedState,
     );
@@ -803,6 +809,28 @@ class _LoanProductFormDialogState extends ConsumerState<LoanProductFormDialog> {
                           ),
                         ),
                       ],
+                    ),
+                    FormFieldCard(
+                      label: 'Agent commission (% of interest)',
+                      description:
+                          'Share of each repayment\'s interest credited to the '
+                          'field team serving the borrower. Empty pays none.',
+                      child: TextFormField(
+                        key: const Key('product-agent-commission'),
+                        controller: _commissionCtrl,
+                        decoration: const InputDecoration(hintText: 'e.g. 10'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        validator: (v) {
+                          final text = (v ?? '').trim();
+                          if (text.isEmpty) return null;
+                          final value = double.tryParse(text);
+                          return value == null || value < 0 || value > 100
+                              ? 'Between 0 and 100'
+                              : null;
+                        },
+                      ),
                     ),
                   ],
                 ),

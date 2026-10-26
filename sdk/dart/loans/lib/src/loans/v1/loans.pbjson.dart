@@ -425,6 +425,13 @@ const LoanProductObject$json = {
       '6': '.loans.v1.ProductFormRequirement',
       '10': 'requiredForms'
     },
+    {
+      '1': 'agent_commission_percent',
+      '3': 24,
+      '4': 1,
+      '5': 9,
+      '10': 'agentCommissionPercent'
+    },
   ],
 };
 
@@ -451,7 +458,8 @@ final $typed_data.Uint8List loanProductObjectDescriptor = $convert.base64Decode(
     'ZWxpZ2liaWxpdHlDcml0ZXJpYRImCgVzdGF0ZRgVIAEoDjIQLmNvbW1vbi52MS5TVEFURVIFc3'
     'RhdGUSNwoKcHJvcGVydGllcxgWIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCnByb3Bl'
     'cnRpZXMSRwoOcmVxdWlyZWRfZm9ybXMYFyADKAsyIC5sb2Fucy52MS5Qcm9kdWN0Rm9ybVJlcX'
-    'VpcmVtZW50Ug1yZXF1aXJlZEZvcm1z');
+    'VpcmVtZW50Ug1yZXF1aXJlZEZvcm1zEjgKGGFnZW50X2NvbW1pc3Npb25fcGVyY2VudBgYIAEo'
+    'CVIWYWdlbnRDb21taXNzaW9uUGVyY2VudA==');
 
 @$core.Deprecated('Use loanRequestObjectDescriptor instead')
 const LoanRequestObject$json = {

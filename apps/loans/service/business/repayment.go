@@ -583,7 +583,7 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 	memberAccount := constants.MemberLoansAccount(la.ClientID)
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 	baseExtraData := data.JSONMap{
-		"loan_id":          la.GetID(),
+		fieldLoanID:        la.GetID(),
 		fieldLoanRequestID: loanRequestID,
 		fieldClientID:      la.ClientID,
 		"repayment_id":     repayment.GetID(),

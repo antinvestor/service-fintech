@@ -80,6 +80,8 @@ var chartByKind = map[string]string{
 	"group:service_fee":                LedgerIncome,
 	"group:savings_interest_income":    LedgerIncome,
 	"product:bad_debt_expense":         LedgerExpense,
+	"product:commission_expense":       LedgerExpense,
+	"team:commission_payable":          LedgerPayables,
 	"product:savings_interest_expense": LedgerExpense,
 	"group:transaction_costs":          LedgerExpense,
 	"investor:capital":                 LedgerCapital,

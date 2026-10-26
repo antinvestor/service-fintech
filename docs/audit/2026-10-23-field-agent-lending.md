@@ -1035,3 +1035,41 @@ lower cap with an expiry, and the effective limit is the lower of the two.
 `TestTemporaryCapIsSetOnlyByStaffOrTheServingAgent`,
 `TestTemporaryCapRefusesAProfileChangedSinceTheCheck`, the manifest route
 tests, and the ui/seed Lending tab tests (64 pass).
+
+## 41. Addendum 2026-10-26 — product commission to the serving team
+
+**Design (2026-10-25 redesign, step 4).** Each loan product sets a
+commission as a percentage of interest. On each repayment, the field team
+serving the borrower earns that share of the interest repaid. It is the
+product's cost; the borrower pays nothing more, and no agent handles money.
+
+**Change.**
+
+- *Product.* `LoanProductObject.agent_commission_percent` (field 24) is held
+  in basis points (`agent_commission_percent`, 0–10 000).
+- *Ledger.* New accounts `product:<id>:commission_expense` (expense) and
+  `team:<id>:commission_payable` (payable), and order type
+  `AGENT_COMMISSION` (50). Operations records it as an accrual only.
+- *Posting.* `FundingSettlement.Settle` calls `AgentCommission.Post` before
+  sharing the repayment with funders:
+  - The amount is interest repaid × rate, credited to the client's owning
+    team, read from field `ClientGet`.
+  - The reference is `commission:<repayment id>`, so a retried settlement
+    posts it once.
+  - Nothing is owed on a recovery, a repayment without interest, a product
+    without a rate, or a client no team serves.
+  - A transient failure leaves the repayment unsettled for retry. A
+    permanent refusal (InvalidArgument, FailedPrecondition, NotFound) is
+    logged and dropped, so it never holds back the funders' share.
+- *UI.* ui/loans product form "Agent commission (% of interest)" and a
+  detail row.
+- *SDKs.* Dart loans 0.6.4, operations 0.4.5.
+- No new grants: loans already executes transfer orders on operations and
+  reads clients on field.
+
+**Open.** Paying the team's payable out (a team payout order type) is not
+built. The accrual is visible on the ledger until it is.
+
+**Verified.** loans `TestCommissionIsTheTeamsShareOfRepaidInterest`,
+`TestNoCommissionWithoutARateATeamInterestOrOnARecovery`,
+`TestCommissionRefusalDoesNotBlockSettlement`; ui/loans 52 tests.
