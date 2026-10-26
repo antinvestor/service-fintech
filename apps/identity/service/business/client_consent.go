@@ -42,6 +42,12 @@ const (
 	consentStatusPending     = "pending"
 	consentCodeTTL           = 15 * time.Minute
 	consentMaxAttempts       = 5
+
+	// termsAcceptedAtKey and termsKey record, on the client, when the person
+	// accepted the lending terms by giving their activation code, and which
+	// terms. They are written only by activation, never taken from a caller.
+	termsAcceptedAtKey = "terms_accepted_at"
+	termsKey           = "terms_accepted"
 )
 
 type consentProperties struct {
@@ -124,6 +130,9 @@ func (b *clientBusiness) startConsent(
 	if err := b.consentRepo.Create(ctx, challenge); err != nil {
 		return nil, err
 	}
+	// The terms go first: the code that follows is how the person accepts
+	// them, once, for every loan after.
+	b.notifier.NotifyTermsOffered(ctx, client)
 	if _, err := b.profiles.CreateContactVerification(ctx, &profilev1.CreateContactVerificationRequest{
 		Id:               challenge.GetID(),
 		ContactId:        client.ConsentContactID,

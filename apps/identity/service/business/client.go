@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"time"
 
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
@@ -332,9 +333,15 @@ func (b *clientBusiness) saveExisting(
 	consent := takeConsentProperties(client.Properties)
 	activating := existing.State == int32(commonv1.STATE_CREATED) &&
 		client.State == int32(commonv1.STATE_ACTIVE)
+	// Acceptance of the terms is recorded by activation alone.
+	delete(client.Properties, termsAcceptedAtKey)
+	delete(client.Properties, termsKey)
 	if activating {
 		if pending, err := b.activate(ctx, existing, scope, consent); err != nil || pending != nil {
 			return pending, err
+		}
+		if scope != nil {
+			b.recordTermsAccepted(client)
 		}
 	} else if scope != nil {
 		// A field agent changes a client's state only by activating it.
@@ -873,4 +880,14 @@ func (b *clientBusiness) GetEffectiveCreditLimit(ctx context.Context, clientID s
 		return 0, "", ErrClientNotFound
 	}
 	return client.EffectiveCreditLimit(), client.CurrencyCode, nil
+}
+
+// recordTermsAccepted notes on the client that the person accepted the
+// lending terms by giving their activation code: once, for every loan after.
+func (b *clientBusiness) recordTermsAccepted(client *models.Client) {
+	if client.Properties == nil {
+		client.Properties = data.JSONMap{}
+	}
+	client.Properties[termsAcceptedAtKey] = time.Now().UTC().Format(time.RFC3339)
+	client.Properties[termsKey] = b.notifier.TermsReference()
 }

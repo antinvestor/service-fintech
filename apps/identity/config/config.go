@@ -32,6 +32,9 @@ type IdentityConfig struct {
 	NotificationServiceWorkloadAPITargetPath string `envDefault:"/ns/notification/sa/service-notification" env:"NOTIFICATION_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	// LenderDisplayName opens every borrower-facing message.
 	LenderDisplayName string `envDefault:"Your lender" env:"LENDER_DISPLAY_NAME"`
+	// LenderTermsURL is where the lending terms a borrower accepts when their
+	// account is opened are published.
+	LenderTermsURL string `envDefault:"" env:"LENDER_TERMS_URL"`
 
 	MaxAgentDepth int `envDefault:"5" env:"MAX_AGENT_DEPTH"`
 

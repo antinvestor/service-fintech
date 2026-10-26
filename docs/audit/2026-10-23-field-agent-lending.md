@@ -820,3 +820,27 @@ the trustage-only scheduling rule and tied reaping to replica lifetimes.
 **Verified.** `TestLimitsJobsRunTheNamedReaperForInternalCallersOnly`. The
 full limits suite passes, including integration tests. Workflows pass
 `TestShippedWorkflowsValidate`.
+
+## 35. Addendum 2026-10-26 — terms accepted once, at onboarding
+
+**Decision (product owner, 2026-10-26).** "Borrowers need to accept terms
+only during the onboarding phase. After that process it should be very
+instantaneous." There is no per-loan offer acceptance; audit gap #11 is
+closed by this decision.
+
+**Change.**
+
+- When a field agent activates a client, the borrower is first sent the
+  lender's terms (`template.fintech.client.terms_offered`, `LENDER_TERMS_URL`
+  on identity). The message tells them that giving the activation code
+  means accepting the terms for every loan after.
+- A successful activation records `terms_accepted_at` and `terms_accepted`
+  (the terms reference) on the client. Only activation writes them; values
+  sent by a caller are dropped.
+- Loans after activation need nothing more from the borrower: the USSD
+  borrow PIN authenticates the borrower but is not an acceptance step.
+- *Open.* Staff still activate without a code, so a staff-activated
+  borrower has no recorded acceptance.
+
+**Verified.** `TestActivationNeedsVerifiedKYCAndConsent` covers recorded
+acceptance and a forged timestamp being dropped.

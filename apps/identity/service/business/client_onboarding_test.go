@@ -420,7 +420,8 @@ func (s *approvalWorkflowSuite) TestActivationNeedsVerifiedKYCAndConsent() {
 	s.Require().NotEmpty(vid)
 	s.Equal("contact-of-profile-existing", env.profiles.sentTo[vid], "the code goes to the person's own contact")
 
-	_, err = activate(asAgent, map[string]any{consentVerificationIDKey: vid, consentCodeKey: "000000"})
+	_, err = activate(asAgent, map[string]any{consentVerificationIDKey: vid, consentCodeKey: "000000",
+		termsAcceptedAtKey: "2020-01-01T00:00:00Z"})
 	s.Require().ErrorIs(err, ErrClientConsentFailed)
 	_, err = activate(asAgent, map[string]any{
 		consentVerificationIDKey: "client-consent-someone-else-x", consentCodeKey: "123456",
@@ -432,6 +433,10 @@ func (s *approvalWorkflowSuite) TestActivationNeedsVerifiedKYCAndConsent() {
 	s.Require().Equal(commonv1.STATE_ACTIVE, active.GetState())
 	s.Equal("profile-existing", active.GetProfileId(), "the profile is visible once they consented")
 	s.NotContains(active.GetProperties().AsMap(), consentCodeKey, "the code is never stored")
+	acceptedAt, _ := active.GetProperties().AsMap()[termsAcceptedAtKey].(string)
+	s.NotEqual("2020-01-01T00:00:00Z", acceptedAt, "acceptance is recorded by activation, never taken from a caller")
+	s.NotEmpty(acceptedAt, "giving the code accepts the lending terms, once, for every loan after")
+	s.NotEmpty(active.GetProperties().AsMap()[termsKey])
 	s.NotContains(active.GetProperties().AsMap(), consentVerificationIDKey)
 
 	// A challenge runs out of attempts; a new person's code goes to the

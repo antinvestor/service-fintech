@@ -79,6 +79,7 @@ func TestReferencedNamesAreRegistered(t *testing.T) {
 		messages.AgentClientDelinquent, messages.AgentDisbursementFailed,
 		messages.AgentApplicationDecision,
 		messages.ClientOnboarded, messages.ClientKYCVerified, messages.ClientKYCRejected, messages.ClientKYCInfoRequested,
+		messages.ClientTermsOffered,
 		messages.WorkforceMemberOnboarded,
 		messages.CaseVerificationRequired, messages.CaseApprovalRequired, messages.CaseApproved, messages.CaseRejected,
 	} {

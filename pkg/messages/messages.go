@@ -64,6 +64,7 @@ const (
 	ClientKYCVerified        = "template.fintech.client.kyc_verified"
 	ClientKYCRejected        = "template.fintech.client.kyc_rejected"
 	ClientKYCInfoRequested   = "template.fintech.client.kyc_info_requested"
+	ClientTermsOffered       = "template.fintech.client.terms_offered"
 	WorkforceMemberOnboarded = "template.fintech.workforce.member_onboarded"
 )
 
@@ -93,6 +94,7 @@ const (
 	VarChannel      = "channel"
 	VarReference    = "reference"
 	VarFieldLabel   = "field_label"
+	VarTermsURL     = "terms_url"
 	VarCaseID       = "case_id"
 	VarCaseType     = "case_type_label"
 	VarCaseStatus   = "case_status_label"
@@ -391,6 +393,18 @@ func clientTemplates() []notification.Template {
 			VarLenderName,
 			VarClientName,
 			VarAgentName,
+		),
+		notification.New(
+			ClientTermsOffered,
+			"Your {{.lender_name}} account terms",
+			"{{.lender_name}}: {{.client_name}}, a code follows to open your account. Giving it to your field officer "+
+				"means you accept our lending terms: {{.terms_url}}. Loans after that are instant.",
+			"Dear {{.client_name}},\n\nA code follows to open your {{.lender_name}} account. Giving it to your field "+
+				"officer means you accept our lending terms ({{.terms_url}}). These terms cover every loan you take; "+
+				"after this, borrowing is instant.\n",
+			VarLenderName,
+			VarClientName,
+			VarTermsURL,
 		),
 		notification.New(ClientKYCVerified,
 			"Your {{.field_label}} has been verified",

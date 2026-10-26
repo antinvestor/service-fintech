@@ -195,7 +195,7 @@ func setupNotifiers(ctx context.Context, cfg aconfig.IdentityConfig) serviceNoti
 	notifier := notify.New(notificationCli, messages.Registry())
 	return serviceNotifiers{
 		notificationCli: notificationCli,
-		client:          business.NewClientNotifier(notifier, cfg.LenderDisplayName),
+		client:          business.NewClientNotifier(notifier, cfg.LenderDisplayName).WithTerms(cfg.LenderTermsURL),
 		workforce:       business.NewWorkforceNotifier(notifier),
 	}
 }
