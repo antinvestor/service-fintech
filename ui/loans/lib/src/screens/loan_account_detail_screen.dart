@@ -1276,10 +1276,7 @@ class _RestructuringTab extends ConsumerWidget {
                     initialValue: type,
                     decoration: const InputDecoration(hintText: 'Select type'),
                     items: RestructureType.values
-                        .where(
-                          (t) =>
-                              t != RestructureType.RESTRUCTURE_TYPE_UNSPECIFIED,
-                        )
+                        .where(restructureTypeOffered)
                         .map(
                           (t) => DropdownMenuItem(
                             value: t,
@@ -1931,3 +1928,10 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
     );
   }
 }
+
+/// Whether staff are offered this restructure type. A partial waiver needs
+/// ledger postings the loans service does not make yet, so it refuses one;
+/// offering it would only lead to a refusal.
+bool restructureTypeOffered(RestructureType t) =>
+    t != RestructureType.RESTRUCTURE_TYPE_UNSPECIFIED &&
+    t != RestructureType.RESTRUCTURE_TYPE_PARTIAL_WAIVER;

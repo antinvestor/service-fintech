@@ -137,4 +137,15 @@ void main() {
     );
     expect(confirm.onPressed, isNull);
   });
+
+  test('a partial waiver is not offered: the service refuses it', () {
+    expect(
+      restructureTypeOffered(RestructureType.RESTRUCTURE_TYPE_PARTIAL_WAIVER),
+      isFalse,
+    );
+    expect(
+      restructureTypeOffered(RestructureType.RESTRUCTURE_TYPE_WRITE_OFF),
+      isTrue,
+    );
+  });
 }

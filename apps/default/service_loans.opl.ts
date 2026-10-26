@@ -194,6 +194,7 @@ class service_loans implements Namespace {
     collection_manage: (ctx: Context): boolean =>
       this.related.admin.includes(ctx.subject) ||
       this.related.member.includes(ctx.subject) ||
+      this.related.operator.includes(ctx.subject) ||
       this.related.owner.includes(ctx.subject) ||
       this.related.service.includes(ctx.subject) ||
       this.related.granted_collection_manage.includes(ctx.subject),

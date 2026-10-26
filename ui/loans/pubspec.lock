@@ -31,7 +31,7 @@ packages:
       path: "../../sdk/dart/field"
       relative: true
     source: path
-    version: "0.4.0"
+    version: "0.4.1"
   antinvestor_api_funding:
     dependency: "direct overridden"
     description:
@@ -52,21 +52,21 @@ packages:
       path: "../../sdk/dart/limits"
       relative: true
     source: path
-    version: "0.3.0"
+    version: "0.3.1"
   antinvestor_api_loans:
     dependency: "direct main"
     description:
       path: "../../sdk/dart/loans"
       relative: true
     source: path
-    version: "0.6.1"
+    version: "0.6.2"
   antinvestor_api_operations:
     dependency: "direct overridden"
     description:
       path: "../../sdk/dart/operations"
       relative: true
     source: path
-    version: "0.4.0"
+    version: "0.4.3"
   antinvestor_api_savings:
     dependency: "direct overridden"
     description:

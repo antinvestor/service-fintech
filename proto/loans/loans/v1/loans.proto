@@ -1268,7 +1268,8 @@ service LoanManagementService {
           "penalty_view",
           "restructure_view",
           "reconciliation_manage",
-          "portfolio_view"
+          "portfolio_view",
+          "collection_manage"
         ]
       },
       {

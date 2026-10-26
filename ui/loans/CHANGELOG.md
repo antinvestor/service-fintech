@@ -9,6 +9,8 @@
   recipient reference. It confirms that the principal is paid to the
   borrower's own payout contact on the loan, and refuses a loan without one.
   `_DisbursementFormDialog` takes the loan.
+- The restructure dialog no longer offers a partial waiver, which the
+  service refuses (`restructureTypeOffered`).
 
 ## 0.3.0
 
