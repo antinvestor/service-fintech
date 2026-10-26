@@ -1279,6 +1279,8 @@ exploitable as built, but both are hardened:
      form template is consulted, so a field it declares a photo, file or
      signature is refused on `ClientDataSave`, and a field it declares typed
      refuses `ClientDocumentUpload`.
+   - A field the form declares is uploaded as its declared kind, whatever
+     the request calls it, so a photo field never holds a PDF.
    - Test: `TestKYCDocumentFollowsTheFormsFieldType`.
 2. *Upload content was trusted.*
    - Before: the proto already limited content types and size, and frame's

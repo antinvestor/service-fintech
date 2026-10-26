@@ -124,31 +124,43 @@ const (
 	fieldTyped
 )
 
-// fieldIsDocument reads the field's declared type from the client's form
-// template. A field the form does not declare, or a client without a form,
-// is undeclared.
+// fieldIsDocument reports what the client's form declares a field to be.
 func (b *clientDataBusiness) fieldIsDocument(ctx context.Context, client *models.Client, fieldKey string) fieldKind {
+	kind, _ := b.declaredField(ctx, client, fieldKey)
+	return kind
+}
+
+// declaredField reads the field's declared type from the client's form
+// template, with the document value type a document field takes. A field
+// the form does not declare, or a client without a form, is undeclared.
+func (b *clientDataBusiness) declaredField(
+	ctx context.Context,
+	client *models.Client,
+	fieldKey string,
+) (fieldKind, string) {
 	if b.kycPolicy == nil || client == nil {
-		return fieldUndeclared
+		return fieldUndeclared, ""
 	}
 	tmpl, err := b.kycPolicy.TemplateForTeam(ctx, client.OwningTeamID)
 	if err != nil || tmpl == nil {
-		return fieldUndeclared
+		return fieldUndeclared, ""
 	}
 	for _, f := range models.FieldsToAPI(tmpl.Fields) {
 		if f.GetKey() != fieldKey {
 			continue
 		}
 		switch f.GetFieldType() { //nolint:exhaustive // every other type is typed
-		case identityv1.FormFieldType_FORM_FIELD_TYPE_PHOTO,
-			identityv1.FormFieldType_FORM_FIELD_TYPE_FILE,
-			identityv1.FormFieldType_FORM_FIELD_TYPE_SIGNATURE:
-			return fieldDocument
+		case identityv1.FormFieldType_FORM_FIELD_TYPE_PHOTO:
+			return fieldDocument, valueTypePhoto
+		case identityv1.FormFieldType_FORM_FIELD_TYPE_FILE:
+			return fieldDocument, valueTypeFile
+		case identityv1.FormFieldType_FORM_FIELD_TYPE_SIGNATURE:
+			return fieldDocument, valueTypeSignature
 		default:
-			return fieldTyped
+			return fieldTyped, ""
 		}
 	}
-	return fieldUndeclared
+	return fieldUndeclared, ""
 }
 
 // Document is a KYC file to store.
@@ -247,8 +259,14 @@ func (b *clientDataBusiness) UploadDocument(
 		return nil, err
 	}
 	valueType := normalizeValueType(req.GetValueType())
-	if !isDocumentValueType(valueType) || b.fieldIsDocument(ctx, client, req.GetFieldKey()) == fieldTyped {
+	kind, declared := b.declaredField(ctx, client, req.GetFieldKey())
+	if !isDocumentValueType(valueType) || kind == fieldTyped {
 		return nil, ErrNotADocument
+	}
+	// The form decides what a declared field takes: a photo field is a
+	// photo whatever the request calls it, so it never holds a PDF.
+	if kind == fieldDocument {
+		valueType = declared
 	}
 	if err = checkDocumentContent(valueType, req.GetContentType(), req.GetContent()); err != nil {
 		return nil, err

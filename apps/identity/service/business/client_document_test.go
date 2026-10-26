@@ -204,8 +204,15 @@ func (s *approvalWorkflowSuite) TestKYCDocumentFollowsTheFormsFieldType() {
 	s.Require().ErrorIs(err, ErrNotADocument, "the form says this field is typed")
 
 	_, err = clientData.UploadDocument(asAgent, &identityv1.ClientDocumentUploadRequest{
-		ClientId: client.GetId(), FieldKey: "id_front_photo", ValueType: "photo",
+		ClientId: client.GetId(), FieldKey: "id_front_photo", ValueType: "file",
+		ContentType: "application/pdf", Content: append([]byte("%PDF-1.7\n"), make([]byte, 32)...),
+	})
+	s.Require().ErrorIs(err, ErrDocumentContentRejected, "a photo field takes a photo, whatever the request calls it")
+
+	stored, err := clientData.UploadDocument(asAgent, &identityv1.ClientDocumentUploadRequest{
+		ClientId: client.GetId(), FieldKey: "id_front_photo", ValueType: "file",
 		ContentType: "image/jpeg", Content: jpegBytes(),
 	})
 	s.Require().NoError(err)
+	s.Equal("photo", stored.ValueType, "recorded as the kind the form declares")
 }
