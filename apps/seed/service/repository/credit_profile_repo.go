@@ -31,6 +31,10 @@ import (
 // ErrCreditProfileNotFound is returned when no profile matches the filter.
 var ErrCreditProfileNotFound = errors.New("seed credit profile not found")
 
+// ErrCreditProfileChanged is returned when a conditional write finds the
+// profile changed since it was read.
+var ErrCreditProfileChanged = errors.New("seed credit profile changed since it was read")
+
 // CreditProfileRepository owns the seed_credit_profiles table. Mutations
 // that change counters or tier go through dedicated atomic methods so
 // two concurrent credit-affecting events (a new loan request and a
@@ -110,10 +114,12 @@ type CreditProfileRepository interface {
 		status models.CreditProfileStatus,
 	) (*models.CreditProfile, error)
 
-	// SetTempCap records (or, with amount 0, lifts) a temporary cap.
+	// SetTempCap records (or, with amount 0, lifts) a temporary cap on the
+	// profile as it stood at version, or returns ErrCreditProfileChanged.
 	SetTempCap(
 		ctx context.Context,
 		profileID string,
+		version uint,
 		amount int64,
 		expiresAt *time.Time,
 		setBy, reason string,
@@ -362,13 +368,14 @@ func (r *creditProfileRepository) AtomicSetStatus(
 func (r *creditProfileRepository) SetTempCap(
 	ctx context.Context,
 	profileID string,
+	version uint,
 	amount int64,
 	expiresAt *time.Time,
 	setBy, reason string,
 ) (*models.CreditProfile, error) {
 	result := r.dbPool.DB(ctx, false).
 		Table(creditProfileTable).
-		Where("deleted_at IS NULL AND id = ?", profileID).
+		Where("deleted_at IS NULL AND id = ? AND version = ?", profileID, version).
 		Updates(map[string]any{
 			"temp_cap_amount":     amount,
 			"temp_cap_expires_at": expiresAt,
@@ -381,7 +388,7 @@ func (r *creditProfileRepository) SetTempCap(
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return nil, ErrCreditProfileNotFound
+		return nil, ErrCreditProfileChanged
 	}
 	return r.GetByID(ctx, profileID)
 }

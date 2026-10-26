@@ -24,6 +24,7 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/seed/service/business"
 	"github.com/antinvestor/service-fintech/apps/seed/service/models"
+	"github.com/antinvestor/service-fintech/apps/seed/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 )
 
@@ -35,11 +36,16 @@ type capRepo struct {
 func (r *capRepo) SetTempCap(
 	_ context.Context,
 	_ string,
+	version uint,
 	amount int64,
 	expiresAt *time.Time,
 	setBy, reason string,
 ) (*models.CreditProfile, error) {
+	if version != r.profile.Version {
+		return nil, repository.ErrCreditProfileChanged
+	}
 	updated := *r.profile
+	updated.Version++
 	updated.TempCapAmount, updated.TempCapExpiresAt = amount, expiresAt
 	updated.TempCapSetBy, updated.TempCapReason = setBy, reason
 	r.profile = &updated
@@ -101,6 +107,43 @@ func TestAnAgentCannotLoosenAnotherOnesCap(t *testing.T) {
 	tighter, err := biz.SetTempCap(ctx, "c-1", "KES", 10_000, week.Add(24*time.Hour), "agent-1", "worse", false)
 	require.NoError(t, err)
 	assert.Equal(t, int64(10_000), tighter.TempCapAmount)
+	assert.Equal(t, "staff-1", tighter.TempCapSetBy, "tightening a cap does not take it over")
 	_, err = biz.SetTempCap(ctx, "c-1", "KES", 0, time.Time{}, "agent-1", "resolved", false)
+	require.ErrorIs(t, err, business.ErrTempCapOverride, "a tightened staff cap is still staff's to lift")
+
+	_, err = biz.SetTempCap(ctx, "c-1", "KES", 0, time.Time{}, "staff-1", "review closed", true)
+	require.NoError(t, err)
+	_, err = biz.SetTempCap(ctx, "c-1", "KES", 30_000, week, "agent-1", "missed visits", false)
+	require.NoError(t, err)
+	_, err = biz.SetTempCap(ctx, "c-1", "KES", 0, time.Time{}, "agent-1", "visits resumed", false)
 	require.NoError(t, err, "an agent lifts a cap they set")
+}
+
+// A cap is written only onto the profile it was checked against.
+func TestTemporaryCapRefusesAProfileChangedSinceTheCheck(t *testing.T) {
+	t.Parallel()
+	repo := &racedCapRepo{capRepo{statusRepo{profile: &models.CreditProfile{ClientID: "c-1", CurrencyCode: "KES",
+		MaxLoanAmount: 100_000, Status: int32(models.CreditProfileStatusActive)}}}}
+	biz := business.NewCreditProfileBusiness(context.Background(), repo, nil, nil, audit.NewWriter(nil))
+
+	_, err := biz.SetTempCap(context.Background(), "c-1", "KES", 20_000,
+		time.Now().Add(24*time.Hour), "agent-1", "missed visits", false)
+	require.ErrorIs(t, err, business.ErrTempCapRaced)
+}
+
+// racedCapRepo moves the profile on between the read and the write.
+type racedCapRepo struct {
+	capRepo
+}
+
+func (r *racedCapRepo) SetTempCap(
+	ctx context.Context,
+	id string,
+	version uint,
+	amount int64,
+	expiresAt *time.Time,
+	setBy, reason string,
+) (*models.CreditProfile, error) {
+	r.profile.Version++
+	return r.capRepo.SetTempCap(ctx, id, version, amount, expiresAt, setBy, reason)
 }

@@ -44,6 +44,11 @@ const (
 var ErrTempCapOverride = apperrors.NewError(apperrors.Forbidden,
 	"only staff, or whoever set it, may lift or loosen an active temporary cap")
 
+// ErrTempCapRaced is returned when the profile changed between the check and
+// the write; the caller retries against the new state.
+var ErrTempCapRaced = apperrors.NewError(apperrors.Conflict,
+	"the credit profile changed while setting its cap; retry")
+
 // ErrTempCapInvalid is returned for a cap that is not a temporary lowering
 // of the client's limit.
 var ErrTempCapInvalid = apperrors.NewError(apperrors.BadRequest,
@@ -53,7 +58,8 @@ var ErrTempCapInvalid = apperrors.NewError(apperrors.BadRequest,
 // cap when amount is 0. The tier ladder stays the permanent limit: a cap can
 // only lower it, never raise it, and it lapses on its own. Only staff may
 // loosen an active cap; a field agent may tighten it, or lift a cap they set
-// themselves.
+// themselves. Tightening does not take a cap over: it stays whoever set it,
+// so an agent cannot tighten a staff cap and then lift it as their own.
 func (b *creditProfileBusiness) SetTempCap(
 	ctx context.Context,
 	clientID, currencyCode string,
@@ -90,8 +96,17 @@ func (b *creditProfileBusiness) SetTempCap(
 		action = actionCreditProfileCapSet
 	}
 
-	updated, err := b.cpRepo.SetTempCap(ctx, profile.GetID(), amount, expires, actor, reason)
+	owner := actor
+	if !byStaff && amount != 0 && profile.TempCapActive(now) && profile.TempCapSetBy != "" {
+		owner = profile.TempCapSetBy
+	}
+
+	// The write applies only to the profile as checked above.
+	updated, err := b.cpRepo.SetTempCap(ctx, profile.GetID(), profile.GetVersion(), amount, expires, owner, reason)
 	if err != nil {
+		if errors.Is(err, repository.ErrCreditProfileChanged) {
+			return nil, ErrTempCapRaced
+		}
 		return nil, fmt.Errorf("set temporary cap: %w", err)
 	}
 	b.auditWriter.RecordOrLog(ctx, audit.Record{

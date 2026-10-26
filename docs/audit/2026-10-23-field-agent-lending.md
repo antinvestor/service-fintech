@@ -1021,11 +1021,17 @@ lower cap with an expiry, and the effective limit is the lower of the two.
   - Each change is audited with the actor and reason.
   - An active cap can be loosened only by staff: lifted, raised or ended
     sooner. A field agent may tighten it, or lift a cap they set themselves.
+  - Tightening does not take a cap over. It keeps whoever set it, so an
+    agent cannot tighten a staff cap and then lift it as their own.
+  - The write applies only to the profile version that was checked. A
+    concurrent change returns Conflict (`ErrTempCapRaced`) and the caller
+    retries against the new state.
 - *UI.* Seed's Lending tab shows "Can borrow up to" as the effective limit,
   plus the active cap with its expiry and reason. With the permit, it offers
   "Set temporary cap" (amount, 7–90 days, reason) and "Lift cap".
 - No new grants: seed already holds `client_view` on field.
 
 **Verified.** seed `TestTemporaryCapOnlyLowersTheLimitUntilItLapses`,
-`TestTemporaryCapIsSetOnlyByStaffOrTheServingAgent`, the manifest route
+`TestTemporaryCapIsSetOnlyByStaffOrTheServingAgent`,
+`TestTemporaryCapRefusesAProfileChangedSinceTheCheck`, the manifest route
 tests, and the ui/seed Lending tab tests (64 pass).
