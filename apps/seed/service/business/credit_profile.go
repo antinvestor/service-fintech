@@ -112,6 +112,7 @@ type CreditProfileBusiness interface {
 		amount int64,
 		expiresAt time.Time,
 		actor, reason string,
+		byStaff bool,
 	) (*models.CreditProfile, error)
 }
 

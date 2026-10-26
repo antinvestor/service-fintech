@@ -39,6 +39,11 @@ const (
 	maxTempCapReasonLen          = 500
 )
 
+// ErrTempCapOverride is returned when a field agent tries to loosen a cap:
+// lift one somebody else set, raise its amount or bring its expiry forward.
+var ErrTempCapOverride = apperrors.NewError(apperrors.Forbidden,
+	"only staff, or whoever set it, may lift or loosen an active temporary cap")
+
 // ErrTempCapInvalid is returned for a cap that is not a temporary lowering
 // of the client's limit.
 var ErrTempCapInvalid = apperrors.NewError(apperrors.BadRequest,
@@ -46,13 +51,16 @@ var ErrTempCapInvalid = apperrors.NewError(apperrors.BadRequest,
 
 // SetTempCap lowers what the client may borrow until expiresAt, or lifts the
 // cap when amount is 0. The tier ladder stays the permanent limit: a cap can
-// only lower it, never raise it, and it lapses on its own.
+// only lower it, never raise it, and it lapses on its own. Only staff may
+// loosen an active cap; a field agent may tighten it, or lift a cap they set
+// themselves.
 func (b *creditProfileBusiness) SetTempCap(
 	ctx context.Context,
 	clientID, currencyCode string,
 	amount int64,
 	expiresAt time.Time,
 	actor, reason string,
+	byStaff bool,
 ) (*models.CreditProfile, error) {
 	reason = strings.TrimSpace(reason)
 	if clientID == "" || currencyCode == "" || reason == "" || len(reason) > maxTempCapReasonLen {
@@ -67,6 +75,9 @@ func (b *creditProfileBusiness) SetTempCap(
 	}
 
 	now := time.Now().UTC()
+	if !byStaff && profile.TempCapActive(now) && loosens(profile, amount, expiresAt, actor) {
+		return nil, ErrTempCapOverride
+	}
 	var expires *time.Time
 	action := actionCreditProfileCapLifted
 	if amount != 0 {
@@ -100,4 +111,13 @@ func (b *creditProfileBusiness) SetTempCap(
 		util.Log(ctx).WithError(auErr).Warn("audit emission failed for temporary cap")
 	})
 	return updated, nil
+}
+
+// loosens reports whether a change weakens the active cap: lifting one
+// somebody else set, raising its amount, or ending it sooner.
+func loosens(profile *models.CreditProfile, amount int64, expiresAt time.Time, actor string) bool {
+	if amount == 0 {
+		return profile.TempCapSetBy != actor
+	}
+	return amount > profile.TempCapAmount || expiresAt.Before(*profile.TempCapExpiresAt)
 }

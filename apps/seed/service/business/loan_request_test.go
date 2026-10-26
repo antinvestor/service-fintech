@@ -169,6 +169,7 @@ func (fakeCreditProfileBusiness) SetTempCap(
 	_ int64,
 	_ time.Time,
 	_, _ string,
+	_ bool,
 ) (*models.CreditProfile, error) {
 	return &models.CreditProfile{ClientID: clientID, CurrencyCode: currencyCode}, nil
 }

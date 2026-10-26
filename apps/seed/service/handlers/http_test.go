@@ -73,6 +73,7 @@ func (f *fakeCreditProfile) SetTempCap(
 	amount int64,
 	_ time.Time,
 	actor, reason string,
+	_ bool,
 ) (*models.CreditProfile, error) {
 	f.lastClientID, f.lastCap, f.lastCapBy, f.lastReason = clientID, amount, actor, reason
 	return &models.CreditProfile{ClientID: clientID, CurrencyCode: currencyCode, TempCapAmount: amount}, nil

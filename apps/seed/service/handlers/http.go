@@ -245,7 +245,7 @@ func (s *Server) handleSetCap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profile, err := s.creditProfile.SetTempCap(ctx, clientID, currency, payload.Amount, expires,
-		caller.actorID, payload.Reason)
+		caller.actorID, payload.Reason, caller.isStaff || caller.isService)
 	if err != nil {
 		writeError(ctx, w, err)
 		return
@@ -267,7 +267,7 @@ func (s *Server) handleClearCap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profile, err := s.creditProfile.SetTempCap(ctx, clientID, currency, 0, time.Time{},
-		caller.actorID, payload.Reason)
+		caller.actorID, payload.Reason, caller.isStaff || caller.isService)
 	if err != nil {
 		writeError(ctx, w, err)
 		return
