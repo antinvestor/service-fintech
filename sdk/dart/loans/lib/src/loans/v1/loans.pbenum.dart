@@ -426,16 +426,22 @@ class LoanJob extends $pb.ProtobufEnum {
   static const LoanJob LOAN_JOB_REQUEST_EXPIRY =
       LoanJob._(4, _omitEnumNames ? '' : 'LOAN_JOB_REQUEST_EXPIRY');
 
+  /// Tells downstream products (seed) about paid-off loans whose pay-off
+  /// notice did not get through, so a repaid borrower is never left blocked.
+  static const LoanJob LOAN_JOB_PAID_OFF_NOTICES =
+      LoanJob._(5, _omitEnumNames ? '' : 'LOAN_JOB_PAID_OFF_NOTICES');
+
   static const $core.List<LoanJob> values = <LoanJob>[
     LOAN_JOB_UNSPECIFIED,
     LOAN_JOB_DELINQUENCY_SCAN,
     LOAN_JOB_DUE_REMINDERS,
     LOAN_JOB_FUNDING_SETTLEMENT,
     LOAN_JOB_REQUEST_EXPIRY,
+    LOAN_JOB_PAID_OFF_NOTICES,
   ];
 
   static final $core.List<LoanJob?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 4);
+      $pb.ProtobufEnum.$_initByValueList(values, 5);
   static LoanJob? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

@@ -255,6 +255,7 @@ const LoanJob$json = {
     {'1': 'LOAN_JOB_DUE_REMINDERS', '2': 2},
     {'1': 'LOAN_JOB_FUNDING_SETTLEMENT', '2': 3},
     {'1': 'LOAN_JOB_REQUEST_EXPIRY', '2': 4},
+    {'1': 'LOAN_JOB_PAID_OFF_NOTICES', '2': 5},
   ],
 };
 
@@ -262,7 +263,8 @@ const LoanJob$json = {
 final $typed_data.Uint8List loanJobDescriptor = $convert.base64Decode(
     'CgdMb2FuSm9iEhgKFExPQU5fSk9CX1VOU1BFQ0lGSUVEEAASHQoZTE9BTl9KT0JfREVMSU5RVU'
     'VOQ1lfU0NBThABEhoKFkxPQU5fSk9CX0RVRV9SRU1JTkRFUlMQAhIfChtMT0FOX0pPQl9GVU5E'
-    'SU5HX1NFVFRMRU1FTlQQAxIbChdMT0FOX0pPQl9SRVFVRVNUX0VYUElSWRAE');
+    'SU5HX1NFVFRMRU1FTlQQAxIbChdMT0FOX0pPQl9SRVFVRVNUX0VYUElSWRAEEh0KGUxPQU5fSk'
+    '9CX1BBSURfT0ZGX05PVElDRVMQBQ==');
 
 @$core.Deprecated('Use productFormRequirementDescriptor instead')
 const ProductFormRequirement$json = {

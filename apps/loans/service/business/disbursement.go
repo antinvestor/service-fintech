@@ -78,6 +78,10 @@ type PayoutDestinationChecker interface {
 	// ContactOfClient returns nil when contactID is one of the client's
 	// payable (verified mobile) contacts on their profile.
 	ContactOfClient(ctx context.Context, clientID, contactID string) error
+	// CollectionContact returns the client's profile and the contact a
+	// payment prompt goes to: contactID when it is one of their payable
+	// contacts, or their first payable contact when contactID is empty.
+	CollectionContact(ctx context.Context, clientID, contactID string) (string, string, error)
 }
 
 func NewDisbursementBusiness(

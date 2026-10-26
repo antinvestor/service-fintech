@@ -40,10 +40,14 @@ buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025121205-399271
 buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025121205-399271319c1b.1/go.mod h1:cM5jpgtpFY+pXP5vGBUBcJd9hipTx88FyHqnRT2Ml8w=
 buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025183903-5ebfe6bc5dae.1 h1:LMydj4twkNhMQdwvqcjvxsnu9n7tnfA6pc0S2AASr+U=
 buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261025183903-5ebfe6bc5dae.1/go.mod h1:uKS1SzqhlBWVK118IfCRE2dLzUcPZpOmHY0XC+As+/w=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261026070450-574bada07cfb.1 h1:p5snSIHNPyhc+IRQvaQaE4sc+BMD6TXOaBdjjcAFK0c=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261026070450-574bada07cfb.1/go.mod h1:e7+1jsiuA6MotZw/6MsUYNyefuZcSP61tr/cbZFNWaA=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025121205-399271319c1b.2 h1:Tx+pjKECfI9R/Fsth3UQtb460rMGNpxqYQzrntuxbOs=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025121205-399271319c1b.2/go.mod h1:S0ESWwia6HXIhZFWOBFGyuP3nj9fJcA7uJ2K1h8/wiQ=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025183903-5ebfe6bc5dae.2 h1:/Ylz18Tnjn/RkjKWXLnKo71XnJO52S+mC+n97rK2/xI=
 buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261025183903-5ebfe6bc5dae.2/go.mod h1:S0ESWwia6HXIhZFWOBFGyuP3nj9fJcA7uJ2K1h8/wiQ=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261026070450-574bada07cfb.2 h1:q8Ja4xJ2b5ZliiybwhhC8f5KllJZkGdFvFqD90UAoZ0=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261026070450-574bada07cfb.2/go.mod h1:S0ESWwia6HXIhZFWOBFGyuP3nj9fJcA7uJ2K1h8/wiQ=
 buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1 h1:rv4s5SZd4NT02LcoqbqgQgmqnNgaxMCxVSc9HkmHOoE=
 buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1/go.mod h1:nDN9duwYKB0jZw4HZMQFgRFY5RIy3YiiA6ULdT2vJKk=
 buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.12-20260831182621-e7d71a2bcc5d.2 h1:a5U+LKghcVsN0YdHmbh3S6h2PRyUclqW6V/30nY0ijw=

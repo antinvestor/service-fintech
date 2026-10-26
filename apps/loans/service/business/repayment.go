@@ -472,8 +472,10 @@ func (b *repaymentBusiness) firePaidOffHook(
 	if b.paidOffHook == nil {
 		return
 	}
-	if hookErr := b.paidOffHook.HandlePaidOff(ctx, la.GetID(), totalPaid); hookErr != nil {
-		logger.WithError(hookErr).WithField("loan_id", la.GetID()).Warn("paid-off hook failed")
+	notices := NewPaidOffNotices(b.loanAccountRepo, b.loanBalanceRepo, b.paidOffHook, "")
+	if err := notices.Notify(ctx, la, totalPaid); err != nil {
+		logger.WithError(err).WithField("loan_id", la.GetID()).
+			Warn("paid-off notice failed; the paid-off notices job retries")
 	}
 }
 

@@ -1,6 +1,6 @@
 name: antinvestor_api_loans
 description: Dart client library for Ant Investor Loans Service
-version: 0.6.1
+version: 0.6.2
 repository: https://github.com/antinvestor/service-fintech
 homepage: https://github.com/antinvestor/service-fintech
 issue_tracker: https://github.com/antinvestor/service-fintech/issues

@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"strings"
 
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
+
 	"github.com/antinvestor/service-fintech/gen/go/seed/connectrpc/go/seed/v1/seedv1connect"
 
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
@@ -160,6 +162,7 @@ func main() {
 		peers.clientStanding,
 		peers.operations,
 		peers.limits,
+		peers.payments,
 		peers.readScope,
 		cfg.LimitsGateEnabledLoanDisbursement,
 		cfg.LimitsGateModeLoanDisbursement,
@@ -170,6 +173,7 @@ func main() {
 		peers.agentProfiles,
 		peers.paidOffHook,
 		cfg.DueReminderDays,
+		cfg.Name(),
 		auditCli,
 	)
 
@@ -194,6 +198,7 @@ func setupServiceOptions(
 	clientStanding business.ClientStandingChecker,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	limitsCli limitsv1connect.LimitsServiceClient,
+	paymentCli paymentv1connect.PaymentServiceClient,
 	readScope *business.ReadScope,
 	limitsGateEnabledDisbursement bool,
 	limitsGateModeDisbursement string,
@@ -204,6 +209,7 @@ func setupServiceOptions(
 	agentProfiles business.AgentProfileResolver,
 	paidOffHook business.PaidOffHook,
 	dueReminderDays int,
+	serviceName string,
 	auditCli auditv1connect.AuditServiceClient,
 ) []frame.Option {
 	lpRepo := repository.NewLoanProductRepository(ctx, dbPool, workMan)
@@ -293,6 +299,7 @@ func setupServiceOptions(
 	collectionBusiness := business.NewCollectionBusiness(
 		ctx, laRepo, lbRepo, loanNotifier, business.WithReadScope(readScope),
 		business.WithPayoutDestinationChecker(payoutChecker),
+		business.WithPaymentClient(paymentCli),
 	)
 
 	// Periodic work runs only when the platform scheduler (trustage) calls
@@ -305,7 +312,9 @@ func setupServiceOptions(
 		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
 	)
 	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, dueReminderDays)
-	loanJobs := business.NewLoanJobs(scanner, reminders, fundingSettlement, loanRequestRepo, loanNotifier)
+	paidOffNotices := business.NewPaidOffNotices(laRepo, lbRepo, paidOffHook, serviceName)
+	loanJobs := business.NewLoanJobs(scanner, reminders, fundingSettlement, loanRequestRepo, loanNotifier,
+		paidOffNotices)
 
 	connectHandler := setupConnectServer(ctx, sm,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
@@ -365,7 +374,10 @@ type peerClients struct {
 	operations     operationsv1connect.OperationsServiceClient
 	funding        fundingv1connect.FundingServiceClient
 	limits         limitsv1connect.LimitsServiceClient
-	readScope      *business.ReadScope
+	// payments raises the prompts that ask a borrower to pay. Nil when the
+	// payment client cannot be built; collection prompts are then refused.
+	payments  paymentv1connect.PaymentServiceClient
+	readScope *business.ReadScope
 	// paidOffHook tells seed a loan was repaid in full, so it can complete
 	// its loan request and credit the borrower's profile. Nil when
 	// SEED_SERVICE_URI is unset.
@@ -388,6 +400,15 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 	if opsErr != nil {
 		log.WithError(opsErr).
 			Warn("main -- Could not setup operations client, transfer orders will be disabled")
+	}
+
+	paymentCli, paymentErr := connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.PaymentServiceURI,
+		WorkloadAPITargetPath: cfg.PaymentServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServicePayment,
+	}, paymentv1connect.NewPaymentServiceClient)
+	if paymentErr != nil {
+		log.WithError(paymentErr).Warn("main -- Could not setup payment client, collection prompts will be refused")
 	}
 
 	fundingCli, fundingErr := setupFundingClient(ctx, cfg)
@@ -452,6 +473,7 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 		operations: operationsCli,
 		funding:    fundingCli,
 		limits:     limitsCli,
+		payments:   paymentCli,
 		readScope: business.NewReadScope(
 			business.NewFieldAccessResolver(fieldCli), splitCSV(cfg.LoansStaffRoles)...,
 		),

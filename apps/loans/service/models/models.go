@@ -64,6 +64,11 @@ type LoanAccount struct {
 	NextAssessmentAt *time.Time `gorm:"default:now()"`
 	// RepaymentLockedAt leases the loan to one repayment at a time.
 	RepaymentLockedAt *time.Time
+	// PaidOffNoticedAt is when downstream products (seed) acknowledged the
+	// loan's pay-off. A paid-off loan without it is noticed again by the
+	// paid-off notices job, leased by PaidOffNoticeClaimedAt.
+	PaidOffNoticedAt       *time.Time
+	PaidOffNoticeClaimedAt *time.Time
 }
 
 func (m *LoanAccount) TableName() string { return "loan_accounts" }

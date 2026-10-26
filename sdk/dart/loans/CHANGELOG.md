@@ -1,3 +1,8 @@
+## 0.6.2
+
+- `LoanJob.LOAN_JOB_PAID_OFF_NOTICES`: the scheduler retries pay-off notices
+  that did not reach downstream products.
+
 ## 0.6.1
 
 - `RepaymentObject.collected_by` and `RepaymentSearchRequest.collected_by`

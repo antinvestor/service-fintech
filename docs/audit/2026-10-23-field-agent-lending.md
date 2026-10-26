@@ -701,3 +701,43 @@ staff assign to savings); ui_operations and ui_savings widget tests.
 Loans tests cover `TestSave_WritesTheRequestBeforeReturning`,
 `TestRepayableStatuses` and `TestRecord_AppliesReceivedMoneyWithoutALimitsCheck`.
 Payment covers `TestPaymentFromPrompt*`.
+
+## 31. Addendum 2026-10-26 — collection prompts and paid-off notices
+
+**Findings.**
+
+- `InitiateCollection` only sent an SMS. Nothing asked the borrower's mobile
+  money to pay, so a collections officer could not collect.
+- A paid-off notice to seed that failed was logged and dropped, which left a
+  repaid borrower blocked from borrowing again.
+
+**Change.**
+
+- *Collection prompts.* `InitiateCollection` raises
+  `PaymentService.InitiatePrompt` on the borrower's own verified mobile
+  number: the contact named by id, or their first payable contact.
+  - The prompt id is derived from the loan and idempotency key.
+  - Extras carry `product_id` and `loan_account_id`, so the money that
+    answers the prompt is matched to the loan by operations (§30).
+  - Without a payment client, prompts are refused (`ErrCollectionPromptUnavailable`).
+  - The SMS still goes out.
+- *Payment service.*
+  - Resolves the contact id to the number only when it publishes to the
+    provider.
+  - Refuses a contact that is not on the payer's profile.
+  - Does not push a second time for a prompt id it already holds.
+- *Paid-off notices.* The pay-off notice records `paid_off_noticed_at` when
+  seed acknowledges it. `LoanJobRun(PAID_OFF_NOTICES)`, fired by trustage
+  every 10 minutes, re-notices paid-off loans that lack it. It leases each
+  loan for 10 minutes and skips pay-offs from the last 2 minutes.
+  Migration `0008_paid_off_notices`.
+- *Tenancy.* service-authentication `20261026_04`: loans → `/payment`
+  `prompt_initiate`.
+
+**Verified.**
+
+- `TestCollectionInitiate_RaisesAPromptOnTheBorrowersOwnContact`
+- `TestCollectionInitiate_RefusedWithoutPaymentPrompts`
+- `TestPaidOffNoticeThatFailedIsRetriedUntilAcknowledged`
+- repository `TestPaidOffNoticesAreClaimedUntilNoticed` (Postgres)
+- payment `TestPayerNumber*`

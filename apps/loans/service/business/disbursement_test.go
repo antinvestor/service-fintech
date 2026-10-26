@@ -766,3 +766,8 @@ func (r *stubLoanAccountRepo) ClaimRepaymentLock(context.Context, string) (bool,
 }
 
 func (r *stubLoanAccountRepo) ReleaseRepaymentLock(context.Context, string) error { return nil }
+
+func (r *stubLoanAccountRepo) ClaimPaidOffUnnoticed(context.Context, int) ([]*loansmodels.LoanAccount, error) {
+	return nil, nil
+}
+func (r *stubLoanAccountRepo) MarkPaidOffNoticed(context.Context, string) error { return nil }

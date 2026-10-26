@@ -232,3 +232,39 @@ func (s *migrateSuite) TestRestructureDecisionIsExclusive() {
 	s.Require().NoError(err)
 	s.True(ok, "released, it can be decided again")
 }
+
+// Paid-off loans whose notice never got through are claimed once per lease,
+// fresh pay-offs are left to the repayment that made them, and a noticed
+// loan is never claimed again.
+func (s *migrateSuite) TestPaidOffNoticesAreClaimedUntilNoticed() {
+	e := s.newEnv()
+	loans := repository.NewLoanAccountRepository(e.ctx, e.dbPool, nil)
+	old1 := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_PAID_OFF)
+	old2 := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_PAID_OFF)
+	s.loan(e, loansv1.LoanStatus_LOAN_STATUS_PAID_OFF) // paid off just now
+	active := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_ACTIVE)
+	db := e.dbPool.DB(e.ctx, false)
+	s.Require().NoError(db.Exec(`UPDATE loan_accounts SET modified_at = now() - interval '1 hour' WHERE id IN ?`,
+		[]string{old1.GetID(), old2.GetID(), active.GetID()}).Error)
+
+	claimed, err := loans.ClaimPaidOffUnnoticed(e.ctx, 10)
+	s.Require().NoError(err)
+	var ids []string
+	for _, la := range claimed {
+		ids = append(ids, la.GetID())
+	}
+	s.ElementsMatch([]string{old1.GetID(), old2.GetID()}, ids)
+
+	again, err := loans.ClaimPaidOffUnnoticed(e.ctx, 10)
+	s.Require().NoError(err)
+	s.Empty(again, "a claimed notice is not handed out twice within its lease")
+
+	s.Require().NoError(loans.MarkPaidOffNoticed(e.ctx, old1.GetID()))
+	s.Require().NoError(db.Exec(
+		`UPDATE loan_accounts SET paid_off_notice_claimed_at = now() - interval '1 hour' WHERE id IN ?`,
+		[]string{old1.GetID(), old2.GetID()}).Error)
+	retried, err := loans.ClaimPaidOffUnnoticed(e.ctx, 10)
+	s.Require().NoError(err)
+	s.Require().Len(retried, 1, "only the unnoticed loan is retried once its lease lapses")
+	s.Equal(old2.GetID(), retried[0].GetID())
+}

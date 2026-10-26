@@ -52,27 +52,59 @@ func (c *profilePayoutChecker) Allowed(ctx context.Context, la *models.LoanAccou
 
 // ContactOfClient checks contactID against the client's own profile.
 func (c *profilePayoutChecker) ContactOfClient(ctx context.Context, clientID, contactID string) error {
+	profile, err := c.profileOf(ctx, clientID)
+	if err != nil {
+		return err
+	}
+	if payout.PayableContact(profile, contactID) != nil {
+		return nil
+	}
+	util.Log(ctx).WithFields(map[string]any{
+		"client_id":  clientID,
+		"profile_id": profile.GetId(),
+	}).Error("contact is not one of the borrower's payable contacts")
+	return ErrPayoutDestinationNotClient
+}
+
+// CollectionContact picks the borrower's own contact a payment prompt goes
+// to. The contact is named by id; its number is never read here.
+func (c *profilePayoutChecker) CollectionContact(
+	ctx context.Context,
+	clientID, contactID string,
+) (string, string, error) {
+	profile, err := c.profileOf(ctx, clientID)
+	if err != nil {
+		return "", "", err
+	}
+	if contactID == "" {
+		contactID = payout.DefaultPayoutContactID(profile)
+		if contactID == "" {
+			return "", "", ErrCollectionNoPayingContact
+		}
+		return profile.GetId(), contactID, nil
+	}
+	if payout.PayableContact(profile, contactID) == nil {
+		return "", "", ErrPayoutDestinationNotClient
+	}
+	return profile.GetId(), contactID, nil
+}
+
+// profileOf loads the client's profile.
+func (c *profilePayoutChecker) profileOf(ctx context.Context, clientID string) (*profilev1.ProfileObject, error) {
 	if c == nil || c.resolver == nil || c.profiles == nil {
-		return ErrPayoutDestinationUnverifiable
+		return nil, ErrPayoutDestinationUnverifiable
 	}
 	profileID, err := c.resolver.ProfileIDForClient(ctx, clientID)
 	if err != nil {
 		util.Log(ctx).WithError(err).WithField("client_id", clientID).
 			Warn("payout destination check: client profile could not be resolved")
-		return ErrPayoutDestinationUnverifiable
+		return nil, ErrPayoutDestinationUnverifiable
 	}
 	resp, err := c.profiles.GetById(ctx, &profilev1.GetByIdRequest{Id: profileID})
 	if err != nil {
 		util.Log(ctx).WithError(err).WithField("profile_id", profileID).
 			Warn("payout destination check: profile could not be loaded")
-		return ErrPayoutDestinationUnverifiable
+		return nil, ErrPayoutDestinationUnverifiable
 	}
-	if payout.PayableContact(resp.GetData(), contactID) != nil {
-		return nil
-	}
-	util.Log(ctx).WithFields(map[string]any{
-		"client_id":  clientID,
-		"profile_id": profileID,
-	}).Error("contact is not one of the borrower's payable contacts")
-	return ErrPayoutDestinationNotClient
+	return resp.GetData(), nil
 }

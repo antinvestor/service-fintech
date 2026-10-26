@@ -909,6 +909,9 @@ enum LoanJob {
   LOAN_JOB_FUNDING_SETTLEMENT = 3;
   // Expires submitted loan requests whose offer lapsed.
   LOAN_JOB_REQUEST_EXPIRY = 4;
+  // Tells downstream products (seed) about paid-off loans whose pay-off
+  // notice did not get through, so a repaid borrower is never left blocked.
+  LOAN_JOB_PAID_OFF_NOTICES = 5;
 }
 
 message LoanJobRunRequest {
