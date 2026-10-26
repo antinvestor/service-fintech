@@ -16,6 +16,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
@@ -42,6 +43,7 @@ type FundingServer struct {
 	faBusiness business.FundingAllocationBusiness
 	rdBusiness business.RepaymentDistributionBusiness
 	rcBusiness *business.LossRecoveryBusiness
+	reads      *business.InvestorReads
 
 	fundingv1connect.UnimplementedFundingServiceHandler
 }
@@ -51,12 +53,14 @@ func NewFundingServer(
 	faBusiness business.FundingAllocationBusiness,
 	rdBusiness business.RepaymentDistributionBusiness,
 	rcBusiness *business.LossRecoveryBusiness,
+	reads *business.InvestorReads,
 ) fundingv1connect.FundingServiceHandler {
 	return &FundingServer{
 		iaBusiness: iaBusiness,
 		faBusiness: faBusiness,
 		rdBusiness: rdBusiness,
 		rcBusiness: rcBusiness,
+		reads:      reads,
 	}
 }
 
@@ -126,6 +130,10 @@ func (s *FundingServer) InvestorAccountGet(
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
+	// An investor reads only their own account.
+	if checkErr := s.reads.CheckInvestor(ctx, result.InvestorID); checkErr != nil {
+		return nil, apperrors.CleanErr(checkErr)
+	}
 
 	return &fundingv1.InvestorAccountGetResponse{
 		Data: investorAccountToAPI(result),
@@ -137,6 +145,9 @@ func (s *FundingServer) InvestorAccountSearch(
 	req *fundingv1.InvestorAccountSearchRequest,
 	stream fundingv1connect.FundingServiceInvestorAccountSearchServerStream,
 ) error {
+	if checkErr := s.reads.CheckSearch(ctx, req.GetInvestorId()); checkErr != nil {
+		return apperrors.CleanErr(checkErr)
+	}
 	accounts, err := s.iaBusiness.Search(ctx, req)
 	if err != nil {
 		return apperrors.CleanErr(err)
@@ -148,6 +159,26 @@ func (s *FundingServer) InvestorAccountSearch(
 	}
 
 	return stream.Send(&fundingv1.InvestorAccountSearchResponse{Data: apiResults})
+}
+
+// InvestorStatement reports what moved an investor account's capital over a
+// period.
+func (s *FundingServer) InvestorStatement(
+	ctx context.Context,
+	req *fundingv1.InvestorStatementRequest,
+) (*fundingv1.InvestorStatementResponse, error) {
+	result, err := s.reads.Statement(ctx, req)
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &fundingv1.InvestorStatementResponse{
+		Account:   investorAccountToAPI(result.Account),
+		From:      result.From.Format(time.RFC3339),
+		To:        result.To.Format(time.RFC3339),
+		Entries:   result.Entries,
+		Totals:    result.Totals,
+		Truncated: result.Truncated,
+	}, nil
 }
 
 // --- Deposit / Withdraw RPCs ---

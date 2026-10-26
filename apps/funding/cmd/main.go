@@ -241,7 +241,12 @@ func setupServiceOptions(
 	)
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, rdBiz, recoveryBiz, auditCli)
+	var investorOwners business.InvestorOwnerResolver
+	if platformClients != nil {
+		investorOwners = business.NewIdentityInvestorOwners(platformClients.LenderRegistry)
+	}
+	reads := business.NewInvestorReads(iaRepo, repository.NewStatementRepository(dbPool), investorOwners)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, rdBiz, recoveryBiz, reads, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -357,9 +362,10 @@ func setupConnectServer(
 	faBiz business.FundingAllocationBusiness,
 	rdBiz business.RepaymentDistributionBusiness,
 	recoveryBiz *business.LossRecoveryBusiness,
+	reads *business.InvestorReads,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
-	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz, rdBiz, recoveryBiz)
+	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz, rdBiz, recoveryBiz, reads)
 
 	auth := sm.GetAuthorizer(ctx)
 

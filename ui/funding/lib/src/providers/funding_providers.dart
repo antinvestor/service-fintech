@@ -123,3 +123,22 @@ final investorAccountNotifierProvider =
     NotifierProvider<InvestorAccountNotifier, AsyncValue<void>>(
       InvestorAccountNotifier.new,
     );
+
+/// A statement period: from inclusive, to exclusive.
+typedef StatementPeriod = ({String accountId, DateTime from, DateTime to});
+
+/// What moved an investor account's capital over a period.
+final investorStatementProvider =
+    FutureProvider.family<InvestorStatementResponse, StatementPeriod>((
+      ref,
+      period,
+    ) async {
+      final client = ref.watch(fundingServiceClientProvider);
+      return client.investorStatement(
+        InvestorStatementRequest(
+          investorAccountId: period.accountId,
+          from: period.from.toUtc().toIso8601String(),
+          to: period.to.toUtc().toIso8601String(),
+        ),
+      );
+    });

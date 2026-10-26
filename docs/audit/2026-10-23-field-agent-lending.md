@@ -1126,3 +1126,53 @@ was never paid out.
   `TestCommissionPayoutRefusedGoesBackUnknownStaysTaken`,
   `TestCommissionAccruesToTheTeamsBalance`.
 - UI: ui/loans (58 tests), ui/identity (52) and ui/seed (64) pass.
+
+## 43. Addendum 2026-10-26 — investor statements, and investors read only their own accounts
+
+**Gaps closed.**
+
+1. *No statement.* Nothing reported what moved an investor's capital over a
+   period.
+2. *Unscoped reads.* Funding binds `investor_account_view` to `ROLE_MEMBER`,
+   and `InvestorAccountGet` and `InvestorAccountSearch` were not scoped. Any
+   member of the partition (a borrower or a field agent) could read every
+   investor's account and balances.
+
+**Change.**
+
+- *Statement.* `FundingService.InvestorStatement` (`investor_account_view`)
+  covers a period of at most 366 days (`from` inclusive, `to` exclusive). It
+  is built from the records that already move capital:
+  - Settled deposits and withdrawals. A withdrawal whose payout is still
+    unconfirmed is shown as pending.
+  - Tranches funded (deployment) and released (a loan cancelled before
+    disbursement).
+  - Each repayment distribution's share for the account: principal, and
+    interest net of the platform fee and withholding tax, which are shown
+    alongside.
+  - Shares of loss absorptions and recoveries.
+
+  Entries are ordered oldest first, with totals. Each kind of record is
+  capped at 2 000 rows per statement; beyond that the response is marked
+  `truncated` and the reader narrows the period. Shares are matched in
+  Postgres with `->'shares' @> [{"investor_account_id": …}]`.
+- *Scoping (`InvestorReads`).*
+  - Staff (owner, admin, operator, viewer) and service principals read any
+    account in the partition.
+  - Anyone else reads an account only when the account's investor (identity
+    `InvestorGet`) has the caller's profile.
+  - Other accounts are answered as not found.
+  - A non-staff search must name the caller's own investor.
+  - Applies to `InvestorAccountGet`, `InvestorAccountSearch` and
+    `InvestorStatement`.
+- *UI.* ui/funding `InvestorStatementCard` on the investor account page
+  offers the last 30 days, this month, last month and year to date. It
+  shows totals and entries, and downloads the statement as CSV.
+- *SDK.* Dart funding 0.5.3.
+
+**Verified.**
+- funding `TestStatementReportsEveryCapitalMovement` runs deposit → funding
+  → repayment → loss → recovery on Postgres and checks every total.
+- `TestInvestorReadsOnlyTheirOwnAccount`.
+- ui/funding: 26 tests pass, including the statement card and CSV. ui/seed:
+  64 tests pass.

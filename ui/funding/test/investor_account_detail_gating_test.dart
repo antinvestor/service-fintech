@@ -10,6 +10,9 @@ Widget _host({required bool canManage}) {
       investorAccountDetailProvider(
         'acc-1',
       ).overrideWith((ref) async => InvestorAccountObject(id: 'acc-1')),
+      investorStatementProvider.overrideWith(
+        (ref, period) async => InvestorStatementResponse(),
+      ),
     ],
     child: MaterialApp(
       home: Scaffold(

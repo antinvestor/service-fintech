@@ -31,6 +31,16 @@ abstract final class FundingService {
     fundingv1funding.InvestorAccountSearchResponse.new,
   );
 
+  /// InvestorStatement reports what moved an investor account's capital over
+  /// a period. Staff read any account; an investor reads only their own.
+  static const investorStatement = connect.Spec(
+    '/$name/InvestorStatement',
+    connect.StreamType.unary,
+    fundingv1funding.InvestorStatementRequest.new,
+    fundingv1funding.InvestorStatementResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
   static const investorDeposit = connect.Spec(
     '/$name/InvestorDeposit',
     connect.StreamType.unary,

@@ -59,6 +59,25 @@ extension type FundingServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// InvestorStatement reports what moved an investor account's capital over
+  /// a period. Staff read any account; an investor reads only their own.
+  Future<fundingv1funding.InvestorStatementResponse> investorStatement(
+    fundingv1funding.InvestorStatementRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.investorStatement,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   Future<fundingv1funding.InvestorDepositResponse> investorDeposit(
     fundingv1funding.InvestorDepositRequest input, {
     connect.Headers? headers,

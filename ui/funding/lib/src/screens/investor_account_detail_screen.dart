@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/funding_providers.dart';
 import '../utils/money_bridge.dart';
 import '../utils/money_display.dart';
+import '../widgets/investor_statement_card.dart';
 import '../widgets/money_amount_dialog.dart';
 import 'investor_accounts_screen.dart' show accountLabel;
 
@@ -90,6 +91,9 @@ class InvestorAccountDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
           ],
+
+          InvestorStatementCard(accountId: accountId),
+          const SizedBox(height: 24),
 
           // Details
           _AccountDetailsCard(account: account),

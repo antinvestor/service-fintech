@@ -27,6 +27,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.InvestorAccountGetRequest request);
   $async.Future<$3.InvestorAccountSearchResponse> investorAccountSearch(
       $pb.ServerContext ctx, $3.InvestorAccountSearchRequest request);
+  $async.Future<$3.InvestorStatementResponse> investorStatement(
+      $pb.ServerContext ctx, $3.InvestorStatementRequest request);
   $async.Future<$3.InvestorDepositResponse> investorDeposit(
       $pb.ServerContext ctx, $3.InvestorDepositRequest request);
   $async.Future<$3.InvestorWithdrawResponse> investorWithdraw(
@@ -50,6 +52,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return $3.InvestorAccountGetRequest();
       case 'InvestorAccountSearch':
         return $3.InvestorAccountSearchRequest();
+      case 'InvestorStatement':
+        return $3.InvestorStatementRequest();
       case 'InvestorDeposit':
         return $3.InvestorDepositRequest();
       case 'InvestorWithdraw':
@@ -80,6 +84,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
       case 'InvestorAccountSearch':
         return investorAccountSearch(
             ctx, request as $3.InvestorAccountSearchRequest);
+      case 'InvestorStatement':
+        return investorStatement(ctx, request as $3.InvestorStatementRequest);
       case 'InvestorDeposit':
         return investorDeposit(ctx, request as $3.InvestorDepositRequest);
       case 'InvestorWithdraw':
