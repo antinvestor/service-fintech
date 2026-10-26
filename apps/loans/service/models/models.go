@@ -858,3 +858,70 @@ func ReconciliationFromAPI(ctx context.Context, obj *loansv1.ReconciliationObjec
 
 	return model
 }
+
+// ---------------------------------------------------------------------------
+// Team commission
+// ---------------------------------------------------------------------------
+
+// TeamCommission is a team's commission in one currency: what it has earned
+// on interest its borrowers repaid and what has been paid out of it.
+type TeamCommission struct {
+	data.BaseModel
+	TeamID       string `gorm:"type:varchar(50);not null"`
+	CurrencyCode string `gorm:"type:varchar(3);not null"`
+	Accrued      int64
+	PaidOut      int64
+}
+
+func (m *TeamCommission) TableName() string { return "team_commissions" }
+
+func (m *TeamCommission) ToAPI() *loansv1.TeamCommissionObject {
+	return &loansv1.TeamCommissionObject{
+		TeamId:    m.TeamID,
+		Accrued:   MinorUnitsToMoney(m.Accrued, m.CurrencyCode),
+		PaidOut:   MinorUnitsToMoney(m.PaidOut, m.CurrencyCode),
+		Available: MinorUnitsToMoney(m.Accrued-m.PaidOut, m.CurrencyCode),
+	}
+}
+
+// TeamCommissionMovementKind tells an accrual from a payout.
+type TeamCommissionMovementKind int32
+
+const (
+	TeamCommissionAccrual TeamCommissionMovementKind = 1
+	TeamCommissionPayout  TeamCommissionMovementKind = 2
+)
+
+// TeamCommissionMovement is one accrual to, or payout from, a team's
+// commission. Its reference is the idempotency record: an accrual is keyed
+// on the repayment that earned it, a payout on its caller's key.
+type TeamCommissionMovement struct {
+	data.BaseModel
+	TeamID        string `gorm:"type:varchar(50);not null"`
+	CurrencyCode  string `gorm:"type:varchar(3);not null"`
+	Kind          int32
+	Amount        int64
+	Reference     string `gorm:"type:varchar(150);not null"`
+	Status        int32  // loansv1.TeamCommissionPayoutStatus; accruals are COMPLETED
+	MemberID      string `gorm:"type:varchar(50)"`
+	Reason        string `gorm:"type:text"`
+	FailureReason string `gorm:"type:text"`
+	CreatedBy     string `gorm:"type:varchar(50)"`
+	Properties    data.JSONMap
+}
+
+func (m *TeamCommissionMovement) TableName() string { return "team_commission_movements" }
+
+func (m *TeamCommissionMovement) ToPayoutAPI() *loansv1.TeamCommissionPayoutObject {
+	return &loansv1.TeamCommissionPayoutObject{
+		Id:            m.GetID(),
+		TeamId:        m.TeamID,
+		MemberId:      m.MemberID,
+		Amount:        MinorUnitsToMoney(m.Amount, m.CurrencyCode),
+		Status:        loansv1.TeamCommissionPayoutStatus(m.Status),
+		FailureReason: m.FailureReason,
+		Reason:        m.Reason,
+		CreatedBy:     m.CreatedBy,
+		CreatedAt:     TimeToString(&m.CreatedAt),
+	}
+}

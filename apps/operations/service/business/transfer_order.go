@@ -610,6 +610,7 @@ func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 		constants.TransferTypePlatformFirstLossAbsorption:               noErr(b.handlePlatformFirstLossAbsorption),
 		constants.TransferTypeInvestorLossAbsorption:                    noErr(b.handleInvestorLossAbsorption),
 		constants.TransferTypeAgentCommission:                           noErr(b.handleAgentCommission),
+		constants.TransferTypeTeamCommissionPayout:                      b.handleTeamCommissionPayout,
 	}
 }
 
@@ -1658,6 +1659,19 @@ func (b *transferOrderBusiness) handleInvestorWithdrawal(ctx context.Context, or
 	}
 	if err := b.sendPayment(ctx, order, "", route); err != nil {
 		return fmt.Errorf("investor withdrawal payout: %w", err)
+	}
+	return nil
+}
+
+// handleTeamCommissionPayout pays a team's commission out to one of its
+// members' own verified mobile-money contact, checked like any payout.
+func (b *transferOrderBusiness) handleTeamCommissionPayout(ctx context.Context, order *models.TransferOrder) error {
+	route := extraDataString(order, "payment_channel")
+	if route == "" {
+		route = "team_commission_payout"
+	}
+	if err := b.sendPayment(ctx, order, "", route); err != nil {
+		return fmt.Errorf("team commission payout: %w", err)
 	}
 	return nil
 }

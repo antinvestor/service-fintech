@@ -8,6 +8,8 @@
 - **Breaking:** KYC entries are verified, rejected or taken for review only
   with `ClientDetailScreen(canVerifyData:)` (`client_data_verify`).
   `canManage` (`client_manage`) still edits the client and adds KYC data.
+- `TeamDetailScreen(sections:)`: other products add sections to a team's
+  page (`TeamSectionBuilder`), given the team and its active member ids.
 
 ## 0.5.2
 

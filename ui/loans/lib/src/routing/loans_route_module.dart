@@ -216,6 +216,16 @@ class LoansRouteModule extends RouteModule {
         scope: PermissionScope.feature,
       ),
       PermissionEntry(
+        key: 'commission_view',
+        label: 'View Team Commission',
+        scope: PermissionScope.feature,
+      ),
+      PermissionEntry(
+        key: 'commission_payout',
+        label: 'Pay Out Team Commission',
+        scope: PermissionScope.action,
+      ),
+      PermissionEntry(
         key: 'portfolio_export',
         label: 'Export the Loan Book',
         scope: PermissionScope.action,

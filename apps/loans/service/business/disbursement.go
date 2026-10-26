@@ -510,8 +510,8 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 				// before any money moves.
 				"recipient_client_id": la.ClientID,
 				fieldClientID:         la.ClientID,
-				"payment_channel":     req.GetChannel(),
-				"payment_account_ref": la.PaymentAccountRef,
+				fieldPaymentChannel:   req.GetChannel(),
+				fieldPaymentAccount:   la.PaymentAccountRef,
 			}).ToProtoStruct(),
 		}, constants.TransferTypeDisbursement),
 	})

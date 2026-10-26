@@ -315,6 +315,33 @@ abstract final class LoanManagementService {
     loansv1loans.InitiateCollectionResponse.new,
   );
 
+  /// TeamCommissionSearch lists teams' commission balances.
+  static const teamCommissionSearch = connect.Spec(
+    '/$name/TeamCommissionSearch',
+    connect.StreamType.server,
+    loansv1loans.TeamCommissionSearchRequest.new,
+    loansv1loans.TeamCommissionSearchResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
+  /// TeamCommissionPayout pays a team's accrued commission to one of its
+  /// members' own verified mobile money.
+  static const teamCommissionPayout = connect.Spec(
+    '/$name/TeamCommissionPayout',
+    connect.StreamType.unary,
+    loansv1loans.TeamCommissionPayoutRequest.new,
+    loansv1loans.TeamCommissionPayoutResponse.new,
+  );
+
+  /// TeamCommissionPayoutSearch lists a team's commission payouts.
+  static const teamCommissionPayoutSearch = connect.Spec(
+    '/$name/TeamCommissionPayoutSearch',
+    connect.StreamType.server,
+    loansv1loans.TeamCommissionPayoutSearchRequest.new,
+    loansv1loans.TeamCommissionPayoutSearchResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
   /// LoanJobRun runs one batch of a periodic job. Called by the platform
   /// scheduler (trustage); only service accounts hold the permission.
   static const loanJobRun = connect.Spec(

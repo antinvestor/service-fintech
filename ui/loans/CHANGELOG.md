@@ -16,6 +16,10 @@
   service refuses (`restructureTypeOffered`).
 - Loan products take an "Agent commission (% of interest)", shown on the
   product detail.
+- `TeamCommissionSection` (`commission_view`): a team's commission earned,
+  paid out and available, with its payouts. With `commission_payout` it
+  offers "Pay out" to an active member's own verified mobile number
+  (`CommissionPayoutDialog`, one idempotency key per dialog).
 
 ## 0.3.0
 

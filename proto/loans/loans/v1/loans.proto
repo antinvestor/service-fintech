@@ -967,6 +967,96 @@ message LoanStatusChangeSearchResponse {
   repeated LoanStatusChangeObject data = 1;
 }
 
+// --- Team commission ---
+
+// TeamCommissionObject is a team's commission in one currency: what it has
+// earned on interest its borrowers repaid, what has been paid out, and what
+// is left to pay.
+message TeamCommissionObject {
+  string team_id = 1;
+  common.v1.Money accrued = 2;
+  common.v1.Money paid_out = 3;
+  common.v1.Money available = 4;
+}
+
+message TeamCommissionSearchRequest {
+  // Empty lists every team with commission in the caller's partition.
+  string team_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ];
+  common.v1.PageCursor cursor = 2;
+}
+
+message TeamCommissionSearchResponse {
+  repeated TeamCommissionObject data = 1;
+}
+
+// TeamCommissionPayoutStatus is where a payout of team commission stands.
+enum TeamCommissionPayoutStatus {
+  TEAM_COMMISSION_PAYOUT_STATUS_UNSPECIFIED = 0;
+  // Claimed; nothing has left the team's balance.
+  TEAM_COMMISSION_PAYOUT_STATUS_PENDING = 1;
+  // Taken from the balance; the payout's outcome is not yet known.
+  TEAM_COMMISSION_PAYOUT_STATUS_PROCESSING = 2;
+  TEAM_COMMISSION_PAYOUT_STATUS_COMPLETED = 3;
+}
+
+// TeamCommissionPayoutObject is one payout of a team's commission to one of
+// its members.
+message TeamCommissionPayoutObject {
+  string id = 1;
+  string team_id = 2;
+  string member_id = 3;
+  common.v1.Money amount = 4;
+  TeamCommissionPayoutStatus status = 5;
+  // Why the last attempt was refused, if it was. A refused payout went back
+  // to the balance and returns to PENDING.
+  string failure_reason = 6;
+  string reason = 7;
+  string created_by = 8;
+  string created_at = 9;
+}
+
+message TeamCommissionPayoutRequest {
+  string team_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // An active member of the team. The money goes to that member's own
+  // verified mobile money; nobody names where it goes.
+  string member_id = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  common.v1.Money amount = 3 [(buf.validate.field).required = true];
+  // Retrying with the same key resumes the same payout and never pays twice.
+  string idempotency_key = 4 [
+    (buf.validate.field).string.min_len = 8,
+    (buf.validate.field).string.max_len = 100
+  ];
+  string reason = 5 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 500
+  ];
+}
+
+message TeamCommissionPayoutResponse {
+  TeamCommissionPayoutObject data = 1;
+}
+
+message TeamCommissionPayoutSearchRequest {
+  string team_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  common.v1.PageCursor cursor = 2;
+}
+
+message TeamCommissionPayoutSearchResponse {
+  repeated TeamCommissionPayoutObject data = 1;
+}
+
 // --- LoanProduct ---
 
 message LoanProductSaveRequest {
@@ -1221,7 +1311,9 @@ service LoanManagementService {
       "portfolio_view",
       "portfolio_export",
       "loan_view_own",
-      "loan_job_run"
+      "loan_job_run",
+      "commission_view",
+      "commission_payout"
     ]
     role_bindings: [
       {
@@ -1246,7 +1338,9 @@ service LoanManagementService {
           "reconciliation_manage",
           "collection_manage",
           "portfolio_view",
-          "portfolio_export"
+          "portfolio_export",
+          "commission_view",
+          "commission_payout"
         ]
       },
       {
@@ -1271,7 +1365,9 @@ service LoanManagementService {
           "reconciliation_manage",
           "collection_manage",
           "portfolio_view",
-          "portfolio_export"
+          "portfolio_export",
+          "commission_view",
+          "commission_payout"
         ]
       },
       {
@@ -1289,7 +1385,8 @@ service LoanManagementService {
           "restructure_view",
           "reconciliation_manage",
           "portfolio_view",
-          "collection_manage"
+          "collection_manage",
+          "commission_view"
         ]
       },
       {
@@ -1303,7 +1400,8 @@ service LoanManagementService {
           "repayment_view",
           "penalty_view",
           "restructure_view",
-          "portfolio_view"
+          "portfolio_view",
+          "commission_view"
         ]
       },
       {
@@ -1841,6 +1939,48 @@ service LoanManagementService {
       summary: "Initiate payment collection"
       description: "Sends an STK push or payment prompt to collect a payment from the client."
       tags: "Collection"
+    };
+  }
+
+  // TeamCommissionSearch lists teams' commission balances.
+  rpc TeamCommissionSearch(TeamCommissionSearchRequest) returns (stream TeamCommissionSearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.method_permissions) = {
+      permissions: ["commission_view"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "teamCommissionSearch"
+      summary: "Search team commission balances"
+      description: "Lists what each team has earned in commission, paid out and has left."
+      tags: "Commission"
+    };
+  }
+
+  // TeamCommissionPayout pays a team's accrued commission to one of its
+  // members' own verified mobile money.
+  rpc TeamCommissionPayout(TeamCommissionPayoutRequest) returns (TeamCommissionPayoutResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["commission_payout"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "teamCommissionPayout"
+      summary: "Pay out team commission"
+      description: "Pays part of a team's commission balance to an active member's own verified mobile money. Idempotent on the key."
+      tags: "Commission"
+    };
+  }
+
+  // TeamCommissionPayoutSearch lists a team's commission payouts.
+  rpc TeamCommissionPayoutSearch(TeamCommissionPayoutSearchRequest) returns (stream TeamCommissionPayoutSearchResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.method_permissions) = {
+      permissions: ["commission_view"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "teamCommissionPayoutSearch"
+      summary: "Search team commission payouts"
+      description: "Lists the payouts made from a team's commission, newest first."
+      tags: "Commission"
     };
   }
 

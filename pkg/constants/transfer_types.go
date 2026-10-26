@@ -56,6 +56,7 @@ const (
 	TransferTypeInvestorWithdrawal                = 49 // investor capital → investor's own mobile money (payout)
 	TransferTypeAgentCommission                   = 50 // product commission expense → serving team's commission payable
 	TransferTypeLoanInsurance                     = 51
+	TransferTypeTeamCommissionPayout              = 53 // serving team's commission payable → a member's own mobile money
 	TransferTypeLoanInsuranceRepayment            = 52
 	TransferTypeInterSubscriptionPayment          = 71
 )
@@ -94,6 +95,7 @@ var transferTypeNames = map[int]string{ //nolint:gochecknoglobals // package-lev
 	TransferTypeInvestorPrincipalReturn:                   "INVESTOR_PRINCIPAL_RETURN",
 	TransferTypeInvestorWithdrawal:                        "INVESTOR_WITHDRAWAL",
 	TransferTypeAgentCommission:                           "AGENT_COMMISSION",
+	TransferTypeTeamCommissionPayout:                      "TEAM_COMMISSION_PAYOUT",
 	TransferTypeInvestorIncomeDistribution:                "INVESTOR_INCOME_DISTRIBUTION",
 	TransferTypePlatformFirstLossAbsorption:               "PLATFORM_FIRST_LOSS_ABSORPTION",
 	TransferTypeInvestorLossAbsorption:                    "INVESTOR_LOSS_ABSORPTION",

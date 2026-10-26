@@ -57,7 +57,7 @@ func commissionLoan() *loansmodels.LoanAccount {
 // paid, once per repayment, as the product's cost.
 func TestCommissionIsTheTeamsShareOfRepaidInterest(t *testing.T) {
 	ops := &recordingOperationsClient{}
-	c := NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam("team-7"), ops)
+	c := NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam("team-7"), ops, nil)
 	r := &loansmodels.Repayment{CurrencyCode: "KES", InterestApplied: 50_000, PrincipalApplied: 100_000}
 	r.ID = "rep-1"
 
@@ -86,10 +86,10 @@ func TestNoCommissionWithoutARateATeamInterestOrOnARecovery(t *testing.T) {
 		c *AgentCommission
 		r *loansmodels.Repayment
 	}{
-		"no rate":     {NewAgentCommission(commissionProducts{}, fixedTeam("team-7"), nil), interest()},
-		"no team":     {NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam(""), nil), interest()},
-		"no interest": {NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam("team-7"), nil), noInterest},
-		"a recovery":  {NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam("team-7"), nil), recovery},
+		"no rate":     {NewAgentCommission(commissionProducts{}, fixedTeam("team-7"), nil, nil), interest()},
+		"no team":     {NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam(""), nil, nil), interest()},
+		"no interest": {NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam("team-7"), nil, nil), noInterest},
+		"a recovery":  {NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam("team-7"), nil, nil), recovery},
 	} {
 		require.NoError(t, tc.c.Post(context.Background(), commissionLoan(), tc.r), name)
 	}
@@ -102,10 +102,10 @@ func TestCommissionRefusalDoesNotBlockSettlement(t *testing.T) {
 	r.ID = "rep-3"
 
 	refused := NewAgentCommission(commissionProducts{rate: 1_000},
-		failingTeams{connect.NewError(connect.CodeNotFound, "no such client")}, nil)
+		failingTeams{connect.NewError(connect.CodeNotFound, "no such client")}, nil, nil)
 	require.NoError(t, refused.Post(context.Background(), commissionLoan(), r))
 
 	transient := NewAgentCommission(commissionProducts{rate: 1_000},
-		failingTeams{connect.NewError(connect.CodeUnavailable, "field is down")}, nil)
+		failingTeams{connect.NewError(connect.CodeUnavailable, "field is down")}, nil, nil)
 	require.Error(t, transient.Post(context.Background(), commissionLoan(), r))
 }

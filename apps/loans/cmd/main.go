@@ -164,6 +164,7 @@ func main() {
 		peers.limits,
 		peers.payments,
 		peers.teams,
+		peers.members,
 		peers.readScope,
 		cfg.LimitsGateEnabledLoanDisbursement,
 		cfg.LimitsGateModeLoanDisbursement,
@@ -201,6 +202,7 @@ func setupServiceOptions(
 	limitsCli limitsv1connect.LimitsServiceClient,
 	paymentCli paymentv1connect.PaymentServiceClient,
 	teams business.TeamResolver,
+	members business.TeamMemberPayoutResolver,
 	readScope *business.ReadScope,
 	limitsGateEnabledDisbursement bool,
 	limitsGateModeDisbursement string,
@@ -254,8 +256,10 @@ func setupServiceOptions(
 		business.WithNotifier(loanNotifier),
 		business.WithPayoutDestinationChecker(payoutChecker),
 	)
+	teamCommissions := business.NewTeamCommissions(
+		repository.NewTeamCommissionRepository(dbPool), members, operationsCli, auditWriter)
 	fundingSettlement := business.NewFundingSettlement(repRepo, laRepo, fundingCli).
-		WithCommission(business.NewAgentCommission(lpRepo, teams, operationsCli))
+		WithCommission(business.NewAgentCommission(lpRepo, teams, operationsCli, teamCommissions))
 	repBusiness := business.NewRepaymentBusiness(
 		ctx,
 		evtsMan,
@@ -323,7 +327,7 @@ func setupServiceOptions(
 	connectHandler := setupConnectServer(ctx, sm,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
 		penaltyBusiness, restructBusiness, reconBusiness, portfolioBusiness, disbBusiness,
-		cpaBusiness, collectionBusiness, lscRepo, loanJobs, auditCli)
+		cpaBusiness, collectionBusiness, lscRepo, loanJobs, teamCommissions, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -382,7 +386,9 @@ type peerClients struct {
 	// payment client cannot be built; collection prompts are then refused.
 	payments paymentv1connect.PaymentServiceClient
 	// teams names the field team serving a client, for its commission.
-	teams     business.TeamResolver
+	teams business.TeamResolver
+	// members finds where a member of a team is paid its commission.
+	members   business.TeamMemberPayoutResolver
 	readScope *business.ReadScope
 	// paidOffHook tells seed a loan was repaid in full, so it can complete
 	// its loan request and credit the borrower's profile. Nil when
@@ -471,6 +477,7 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 		payoutChecker:  business.NewProfilePayoutChecker(clientProfiles, profileCli),
 		clientStanding: business.NewFieldClientStanding(fieldCli),
 		teams:          business.NewFieldTeamResolver(fieldCli),
+		members:        business.NewIdentityMemberPayoutResolver(identityCli, profileCli),
 		agentProfiles:  business.NewIdentityAgentProfileResolver(identityCli),
 		loanNotifier: business.NewLoanNotifier(
 			notify.New(notificationCli, messages.Registry()),
@@ -572,6 +579,7 @@ func setupConnectServer(
 	collectionBusiness business.CollectionBusiness,
 	statusChangeRepo repository.LoanStatusChangeRepository,
 	loanJobs *business.LoanJobs,
+	teamCommissions *business.TeamCommissions,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	// Create handler with injected dependencies
@@ -590,6 +598,7 @@ func setupConnectServer(
 		collectionBusiness,
 		statusChangeRepo,
 		loanJobs,
+		teamCommissions,
 	)
 
 	auth := sm.GetAuthorizer(ctx)

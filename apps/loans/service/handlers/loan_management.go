@@ -49,6 +49,7 @@ type LoanManagementServer struct {
 	collectionBusiness business.CollectionBusiness
 	statusChangeRepo   repository.LoanStatusChangeRepository
 	jobs               *business.LoanJobs
+	commissions        *business.TeamCommissions
 
 	loansv1connect.UnimplementedLoanManagementServiceHandler
 }
@@ -68,6 +69,7 @@ func NewLoanManagementServer(
 	collectionBusiness business.CollectionBusiness,
 	statusChangeRepo repository.LoanStatusChangeRepository,
 	jobs *business.LoanJobs,
+	commissions *business.TeamCommissions,
 ) loansv1connect.LoanManagementServiceHandler {
 	return &LoanManagementServer{
 		lpBusiness:         lpBusiness,
@@ -84,6 +86,7 @@ func NewLoanManagementServer(
 		collectionBusiness: collectionBusiness,
 		statusChangeRepo:   statusChangeRepo,
 		jobs:               jobs,
+		commissions:        commissions,
 	}
 }
 

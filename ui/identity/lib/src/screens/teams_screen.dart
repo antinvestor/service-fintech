@@ -226,15 +226,28 @@ class _TeamInlineDetail extends StatelessWidget {
 // Team detail screen (full page)
 // ---------------------------------------------------------------------------
 
+/// Builds a section another product adds to a team's page, such as its
+/// commission. It is given the team and the ids of its active members.
+typedef TeamSectionBuilder =
+    Widget Function(
+      BuildContext context,
+      InternalTeamObject team,
+      List<String> activeMemberIds,
+    );
+
 class TeamDetailScreen extends ConsumerWidget {
   const TeamDetailScreen({
     super.key,
     required this.teamId,
     this.canManage = true,
+    this.sections = const [],
   });
 
   final String teamId;
   final bool canManage;
+
+  /// Sections other products add below the team's details.
+  final List<TeamSectionBuilder> sections;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -245,15 +258,24 @@ class TeamDetailScreen extends ConsumerWidget {
         error: error,
         onRetry: () => ref.invalidate(internalTeamByIdProvider(teamId)),
       ),
-      data: (team) => _TeamDetailContent(team: team, canManage: canManage),
+      data: (team) => _TeamDetailContent(
+        team: team,
+        canManage: canManage,
+        sections: sections,
+      ),
     );
   }
 }
 
 class _TeamDetailContent extends ConsumerStatefulWidget {
-  const _TeamDetailContent({required this.team, required this.canManage});
+  const _TeamDetailContent({
+    required this.team,
+    required this.canManage,
+    this.sections = const [],
+  });
   final InternalTeamObject team;
   final bool canManage;
+  final List<TeamSectionBuilder> sections;
 
   @override
   ConsumerState<_TeamDetailContent> createState() => _TeamDetailContentState();
@@ -348,6 +370,25 @@ class _TeamDetailContentState extends ConsumerState<_TeamDetailContent> {
                 child: _buildInfoCard(theme),
               ),
             ),
+
+            // Sections other products add, e.g. commission
+            for (final section in widget.sections)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                  child: section(
+                    context,
+                    _team,
+                    membershipsAsync.maybeWhen(
+                      data: (memberships) => [
+                        for (final m in memberships)
+                          if (m.state == STATE.ACTIVE) m.memberId,
+                      ],
+                      orElse: () => const <String>[],
+                    ),
+                  ),
+                ),
+              ),
 
             // Team members section with search
             SliverToBoxAdapter(

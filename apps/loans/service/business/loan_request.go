@@ -71,8 +71,8 @@ type loanRequestBusiness struct {
 func reservedRequestProperties() []string {
 	return []string{
 		"data_verification_confirmed",
-		"payment_account_ref",
-		"payment_channel",
+		fieldPaymentAccount,
+		fieldPaymentChannel,
 		"loan_request_id",
 		"funding_fully_funded",
 		"funding_allocations",

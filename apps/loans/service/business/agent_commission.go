@@ -66,6 +66,7 @@ type AgentCommission struct {
 	products   repository.LoanProductRepository
 	teams      TeamResolver
 	operations operationsv1connect.OperationsServiceClient
+	balances   *TeamCommissions
 }
 
 // NewAgentCommission wires the commission step.
@@ -73,8 +74,9 @@ func NewAgentCommission(
 	products repository.LoanProductRepository,
 	teams TeamResolver,
 	operations operationsv1connect.OperationsServiceClient,
+	balances *TeamCommissions,
 ) *AgentCommission {
-	return &AgentCommission{products: products, teams: teams, operations: operations}
+	return &AgentCommission{products: products, teams: teams, operations: operations, balances: balances}
 }
 
 // Post credits the commission on one repayment. Nothing is owed on a
@@ -103,6 +105,7 @@ func (c *AgentCommission) Post(ctx context.Context, la *models.LoanAccount, r *m
 	if c.operations == nil {
 		return ErrOperationsClientUnavailable
 	}
+	reference := "commission:" + r.GetID()
 	extra := data.JSONMap{
 		fieldLoanID:    la.GetID(),
 		fieldClientID:  la.ClientID,
@@ -114,7 +117,7 @@ func (c *AgentCommission) Post(ctx context.Context, la *models.LoanAccount, r *m
 			DebitAccountRef:  constants.ProductCommissionExpenseAccount(la.ProductID),
 			CreditAccountRef: constants.TeamCommissionPayableAccount(team),
 			Amount:           moneyx.FromMinorUnitsByCurrency(r.CurrencyCode, amount),
-			Reference:        "commission:" + r.GetID(),
+			Reference:        reference,
 			Description:      "Serving team's commission on repaid interest",
 			ExtraData:        extra.ToProtoStruct(),
 		}, constants.TransferTypeAgentCommission),
@@ -122,7 +125,9 @@ func (c *AgentCommission) Post(ctx context.Context, la *models.LoanAccount, r *m
 	if err != nil {
 		return c.retryUnlessRefused(ctx, la, fmt.Errorf("post commission for repayment %s: %w", r.GetID(), err))
 	}
-	return nil
+	// The team's balance follows the ledger: a failure here is retried with
+	// the settlement, and the posting above is idempotent on its reference.
+	return c.balances.Accrue(ctx, la, team, r.CurrencyCode, amount, reference)
 }
 
 // retryUnlessRefused keeps a transient failure for the settlement to retry,

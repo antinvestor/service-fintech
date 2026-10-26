@@ -1,3 +1,8 @@
+## 0.4.6
+
+- `TransferOrderType.TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT` (53): a
+  team's commission paid out to a member.
+
 ## 0.4.5
 
 - `TransferOrderType.TRANSFER_ORDER_TYPE_AGENT_COMMISSION` (50): a

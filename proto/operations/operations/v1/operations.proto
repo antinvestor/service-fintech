@@ -67,6 +67,9 @@ enum TransferOrderType {
   TRANSFER_ORDER_TYPE_AGENT_COMMISSION = 50;
   TRANSFER_ORDER_TYPE_LOAN_INSURANCE = 51;
   TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT = 52;
+  // A team's accrued commission paid out to one of its members' own
+  // verified mobile money.
+  TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT = 53;
   TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT = 71;
 }
 

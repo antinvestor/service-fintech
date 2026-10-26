@@ -1,3 +1,10 @@
+## 0.6.5
+
+- Team commission: `TeamCommissionSearch` and `TeamCommissionPayoutSearch`
+  (`commission_view`), and `TeamCommissionPayout` (`commission_payout`),
+  which pays part of a team's balance to an active member's own verified
+  mobile money.
+
 ## 0.6.4
 
 - `LoanProductObject.agent_commission_percent`: the share of each

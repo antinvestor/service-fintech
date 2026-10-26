@@ -91,6 +91,13 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.ReconciliationSearchRequest request);
   $async.Future<$3.InitiateCollectionResponse> initiateCollection(
       $pb.ServerContext ctx, $3.InitiateCollectionRequest request);
+  $async.Future<$3.TeamCommissionSearchResponse> teamCommissionSearch(
+      $pb.ServerContext ctx, $3.TeamCommissionSearchRequest request);
+  $async.Future<$3.TeamCommissionPayoutResponse> teamCommissionPayout(
+      $pb.ServerContext ctx, $3.TeamCommissionPayoutRequest request);
+  $async.Future<$3.TeamCommissionPayoutSearchResponse>
+      teamCommissionPayoutSearch(
+          $pb.ServerContext ctx, $3.TeamCommissionPayoutSearchRequest request);
   $async.Future<$3.LoanJobRunResponse> loanJobRun(
       $pb.ServerContext ctx, $3.LoanJobRunRequest request);
   $async.Future<$3.LoanStatusChangeSearchResponse> loanStatusChangeSearch(
@@ -172,6 +179,12 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
         return $3.ReconciliationSearchRequest();
       case 'InitiateCollection':
         return $3.InitiateCollectionRequest();
+      case 'TeamCommissionSearch':
+        return $3.TeamCommissionSearchRequest();
+      case 'TeamCommissionPayout':
+        return $3.TeamCommissionPayoutRequest();
+      case 'TeamCommissionPayoutSearch':
+        return $3.TeamCommissionPayoutSearchRequest();
       case 'LoanJobRun':
         return $3.LoanJobRunRequest();
       case 'LoanStatusChangeSearch':
@@ -267,6 +280,15 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
             ctx, request as $3.ReconciliationSearchRequest);
       case 'InitiateCollection':
         return initiateCollection(ctx, request as $3.InitiateCollectionRequest);
+      case 'TeamCommissionSearch':
+        return teamCommissionSearch(
+            ctx, request as $3.TeamCommissionSearchRequest);
+      case 'TeamCommissionPayout':
+        return teamCommissionPayout(
+            ctx, request as $3.TeamCommissionPayoutRequest);
+      case 'TeamCommissionPayoutSearch':
+        return teamCommissionPayoutSearch(
+            ctx, request as $3.TeamCommissionPayoutSearchRequest);
       case 'LoanJobRun':
         return loanJobRun(ctx, request as $3.LoanJobRunRequest);
       case 'LoanStatusChangeSearch':

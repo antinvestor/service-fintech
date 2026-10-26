@@ -1073,3 +1073,56 @@ built. The accrual is visible on the ledger until it is.
 **Verified.** loans `TestCommissionIsTheTeamsShareOfRepaidInterest`,
 `TestNoCommissionWithoutARateATeamInterestOrOnARecovery`,
 `TestCommissionRefusalDoesNotBlockSettlement`; ui/loans 52 tests.
+
+## 42. Addendum 2026-10-26 — team commission is paid out
+
+**Gap closed.** In §41, commission built up on the team's ledger payable but
+was never paid out.
+
+**Change.**
+
+- *Balances (loans).* New tables `team_commissions` (team, currency,
+  accrued, paid_out) and `team_commission_movements` (one row per accrual or
+  payout, unique on partition and reference; migration `0009`).
+  - An accrual is recorded after its ledger order posts, keyed
+    `commission:<repayment id>`. A retried settlement counts it once (insert
+    `ON CONFLICT DO NOTHING`, then an upsert of the balance in the same
+    transaction).
+- *Payout.* `TeamCommissionPayout` (`commission_payout`, owner and admin):
+  - The recipient must be an active member of the team (identity
+    `TeamMembershipSearch`). The money goes to that member's own default
+    payout contact (`WorkforceMemberGet` → profile → contact id). Nobody
+    names a number.
+  - The movement row, keyed `team-payout:<idempotency key>`, is the
+    idempotency record. A replay with different terms returns Conflict.
+  - The balance is taken in the transaction that moves the payout from
+    PENDING to PROCESSING, guarded by `accrued - paid_out >= amount`.
+    Concurrent payouts cannot overdraw.
+  - An operations `TEAM_COMMISSION_PAYOUT` (53) payout order moves the
+    money from the team's payable to external cash. Operations checks the
+    recipient and destination before posting, and reverses a rail
+    rejection.
+  - A refusal (InvalidArgument, FailedPrecondition, NotFound,
+    PermissionDenied) returns the amount to the balance and the payout to
+    PENDING, with its reason. Any other failure keeps it taken; retrying
+    the same key resumes the same order and never pays twice.
+- *Reads.* `TeamCommissionSearch` and `TeamCommissionPayoutSearch`
+  (`commission_view`: owner, admin, operator, viewer).
+- *UI.* Seed's team page shows `TeamCommissionSection` (ui/loans) through
+  `TeamDetailScreen(sections:)` (ui/identity): balances, payouts, and "Pay
+  out" to an active member. The dialog keeps one idempotency key while open
+  and shows a failure in place, so a retry is safe.
+- *SDKs.* Dart loans 0.6.5, operations 0.4.6.
+- No new grants: loans already holds identity (`team_membership_view`,
+  `workforce_member_view`), profile and operations; operations already pays
+  out through payment.
+
+**Verified.**
+- Postgres: loans `TestCommissionAccruesOncePerReference` and
+  `TestCommissionPayoutsNeverOverdraw` (five concurrent payouts of 400 against
+  1 000: exactly two succeed).
+- Business: `TestCommissionPayoutPaysTheMembersOwnContactOnce`,
+  `TestCommissionPayoutNeedsAPayableMember`,
+  `TestCommissionPayoutRefusedGoesBackUnknownStaysTaken`,
+  `TestCommissionAccruesToTheTeamsBalance`.
+- UI: ui/loans (58 tests), ui/identity (52) and ui/seed (64) pass.

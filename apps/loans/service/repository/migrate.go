@@ -63,6 +63,8 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 		&models.LoanStatusChange{},
 		&models.Reconciliation{},
 		&models.Disbursement{},
+		&models.TeamCommission{},
+		&models.TeamCommissionMovement{},
 		&audit.Event{},
 	); migrateErr != nil {
 		return migrateErr

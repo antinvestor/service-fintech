@@ -159,6 +159,12 @@ class TransferOrderType extends $pb.ProtobufEnum {
   static const TransferOrderType TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT =
       TransferOrderType._(52,
           _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT');
+
+  /// A team's accrued commission paid out to one of its members' own
+  /// verified mobile money.
+  static const TransferOrderType TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT =
+      TransferOrderType._(53,
+          _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT');
   static const TransferOrderType
       TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT = TransferOrderType._(
           71,
@@ -202,6 +208,7 @@ class TransferOrderType extends $pb.ProtobufEnum {
     TRANSFER_ORDER_TYPE_AGENT_COMMISSION,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT,
+    TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT,
     TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT,
   ];
 
