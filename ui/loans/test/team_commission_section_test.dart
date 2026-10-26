@@ -1,5 +1,6 @@
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart';
+import 'package:connectrpc/connect.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,6 +95,41 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Not paid'), findsOneWidget);
     expect(find.textContaining('no verified number'), findsOneWidget);
+  });
+
+  // A refused payout moved nothing and is closed, so the next try is a new
+  // payout with a new key.
+  testWidgets('a refused payout is retried as a new payout', (tester) async {
+    final keys = <String>[];
+    var refuse = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommissionPayoutDialog(
+            available: _kes(400),
+            memberIds: const ['member-1'],
+            onSubmit: (member, amount, reason, key) async {
+              keys.add(key);
+              if (refuse) {
+                refuse = false;
+                throw ConnectException(
+                  Code.failedPrecondition,
+                  'no verified number',
+                );
+              }
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byKey(const Key('payout-reason')), 'October');
+    await tester.tap(find.byKey(const Key('payout-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('payout-submit')));
+    await tester.pumpAndSettle();
+
+    expect(keys, hasLength(2));
+    expect(keys[1], isNot(keys[0]));
   });
 
   // A retry after a failure must resume the same payout, so the key the

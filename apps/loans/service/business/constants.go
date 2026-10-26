@@ -24,6 +24,7 @@ const (
 	fieldLoanAccountID  = "loan_account_id"
 	fieldLoanRequestID  = "loan_request_id"
 	fieldLoanID         = "loan_id"
+	fieldTeamID         = "team_id"
 	fieldPaymentAccount = "payment_account_ref"
 	fieldPaymentChannel = "payment_channel"
 	fieldStatus         = "status"

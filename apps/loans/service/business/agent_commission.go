@@ -109,10 +109,10 @@ func (c *AgentCommission) Post(ctx context.Context, la *models.LoanAccount, r *m
 	extra := data.JSONMap{
 		fieldLoanID:    la.GetID(),
 		fieldClientID:  la.ClientID,
-		"team_id":      team,
+		fieldTeamID:    team,
 		"repayment_id": r.GetID(),
 	}
-	_, err = c.operations.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
+	resp, err := c.operations.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
 		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			DebitAccountRef:  constants.ProductCommissionExpenseAccount(la.ProductID),
 			CreditAccountRef: constants.TeamCommissionPayableAccount(team),
@@ -127,6 +127,11 @@ func (c *AgentCommission) Post(ctx context.Context, la *models.LoanAccount, r *m
 	}
 	// The team's balance follows the ledger: a failure here is retried with
 	// the settlement, and the posting above is idempotent on its reference.
+	// A retry credits the team the stored order credited, even if the
+	// client has moved to another team since.
+	if credited, ok := resp.GetData().GetExtraData().AsMap()[fieldTeamID].(string); ok && credited != "" {
+		team = credited
+	}
 	return c.balances.Accrue(ctx, la, team, r.CurrencyCode, amount, reference)
 }
 

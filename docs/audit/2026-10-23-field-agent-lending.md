@@ -1232,3 +1232,37 @@ five-minute signed link only after identity's own client guard admits them.
 
 **Deploy.** Set `FILES_SERVICE_URI` on identity, and apply auth migration
 `20261026_07`.
+
+## 45. Addendum 2026-10-26 — fixes from an independent review of §41–§44
+
+An independent, read-only review of commission, payout, statements and KYC
+documents confirmed no double-payment, lost-money or cross-investor leak.
+It raised these lower-confidence points, all fixed:
+
+1. *A resumed payout could stick.*
+   - Cause: the member was re-checked before the movement was claimed. If
+     the member left the team after a timed-out attempt, which may have
+     paid, the retry was refused before reaching the stored order. The
+     payout then stayed PROCESSING with the balance taken.
+   - Fix: a payout already PROCESSING resumes without re-checking the
+     member (`payoutDestination`). Operations runs the order it stored
+     under the reference, with the recipient it checked.
+   - Test: `TestCommissionPayoutResumesAfterTheMemberLeaves`.
+2. *A commission could accrue to the wrong team.*
+   - Cause: the serving team was re-resolved on every settlement retry. A
+     client reassigned between a successful ledger posting and a failed
+     accrual sent the balance to the new team, while the payable sat with
+     the old one.
+   - Fix: the accrual uses the `team_id` on the order operations returns
+     for the reference.
+   - Test: `TestCommissionAccruesToTheTeamTheLedgerCredited`.
+3. *Funding failed open without claims.* `callerIsStaff` treated a context
+   without claims as staff; it now denies.
+4. *Withdraw had no ownership check.* `InvestorWithdraw` now applies the
+   same `CheckInvestor` as the read RPCs. This is defence in depth: only
+   staff hold `investor_account_manage`.
+5. *A refused payout pinned its key.* A rail-refused order is closed, so
+   retrying its key is refused again. The payout dialog now mints a new key
+   after a refusal (InvalidArgument, FailedPrecondition, NotFound,
+   PermissionDenied) and keeps the key after any other failure. The dialog
+   also scrolls, so a long error no longer overflows it.

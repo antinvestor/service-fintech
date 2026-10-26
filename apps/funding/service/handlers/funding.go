@@ -224,7 +224,16 @@ func (s *FundingServer) InvestorWithdraw(
 		return nil, apperrors.CleanErr(business.ErrIdempotencyKeyRequired)
 	}
 
-	if err := s.iaBusiness.Withdraw(ctx, req.GetAccountId(), req.GetAmount(), idemKey); err != nil {
+	// Only the account's own investor, or staff, may withdraw from it.
+	account, err := s.iaBusiness.Get(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	if checkErr := s.reads.CheckInvestor(ctx, account.InvestorID); checkErr != nil {
+		return nil, apperrors.CleanErr(checkErr)
+	}
+
+	if err = s.iaBusiness.Withdraw(ctx, req.GetAccountId(), req.GetAmount(), idemKey); err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 

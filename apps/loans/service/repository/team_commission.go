@@ -51,6 +51,8 @@ type TeamCommissionRepository interface {
 	// ClaimPayout inserts a pending payout, or hands back the payout that
 	// already holds its reference.
 	ClaimPayout(ctx context.Context, m *models.TeamCommissionMovement) (*models.TeamCommissionMovement, bool, error)
+	// PayoutByReference returns the payout recorded under a reference.
+	PayoutByReference(ctx context.Context, reference string) (*models.TeamCommissionMovement, error)
 	// DebitPayout moves a pending payout to processing and takes it from the
 	// balance, or returns ErrCommissionInsufficient and changes nothing.
 	DebitPayout(ctx context.Context, m *models.TeamCommissionMovement) error
@@ -121,6 +123,20 @@ func (r *teamCommissionRepository) ClaimPayout(
 		return nil, false, readErr
 	}
 	return stored, false, nil
+}
+
+func (r *teamCommissionRepository) PayoutByReference(
+	ctx context.Context,
+	reference string,
+) (*models.TeamCommissionMovement, error) {
+	stored := &models.TeamCommissionMovement{}
+	err := r.dbPool.DB(ctx, false).
+		Where("reference = ? AND kind = ? AND deleted_at IS NULL", reference, int32(models.TeamCommissionPayout)).
+		First(stored).Error
+	if err != nil {
+		return nil, err
+	}
+	return stored, nil
 }
 
 func (r *teamCommissionRepository) DebitPayout(ctx context.Context, m *models.TeamCommissionMovement) error {

@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
@@ -24,6 +25,7 @@ import (
 	moneyx "github.com/pitabwire/util/moneyx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
@@ -61,6 +63,16 @@ func (m *memCommissions) ClaimPayout(
 	mv.ID = "payout-" + mv.Reference
 	m.byRef[mv.Reference] = mv
 	return mv, true, nil
+}
+
+func (m *memCommissions) PayoutByReference(
+	_ context.Context,
+	reference string,
+) (*loansmodels.TeamCommissionMovement, error) {
+	if stored, ok := m.byRef[reference]; ok {
+		return stored, nil
+	}
+	return nil, errors.New("not found")
 }
 
 func (m *memCommissions) DebitPayout(_ context.Context, mv *loansmodels.TeamCommissionMovement) error {
@@ -216,4 +228,55 @@ func TestCommissionAccruesToTheTeamsBalance(t *testing.T) {
 	require.NoError(t, c.Post(context.Background(), commissionLoan(), r))
 	require.NoError(t, c.Post(context.Background(), commissionLoan(), r))
 	assert.Equal(t, int64(5_000), repo.accrued, "a retried settlement accrues once")
+}
+
+// A payout already taken from the balance resumes even if the member has
+// left the team since: the money may have gone, and the order operations
+// stored still names the recipient it checked.
+func TestCommissionPayoutResumesAfterTheMemberLeaves(t *testing.T) {
+	repo := newMemCommissions(10_000)
+	lost := &failingOperations{err: connect.NewError(connect.CodeUnavailable, "timeout")}
+	_, err := NewTeamCommissions(repo, memberDest(), lost, audit.NewWriter(nil)).
+		Payout(context.Background(), payoutRequest("key-00006", 3_000))
+	require.Error(t, err)
+
+	gone := fixedMember{err: ErrCommissionMemberNotOnTeam}
+	got, err := NewTeamCommissions(repo, gone, &recordingOperationsClient{}, audit.NewWriter(nil)).
+		Payout(context.Background(), payoutRequest("key-00006", 3_000))
+	require.NoError(t, err)
+	assert.Equal(t, loansv1.TeamCommissionPayoutStatus_TEAM_COMMISSION_PAYOUT_STATUS_COMPLETED, got.GetStatus())
+	assert.Equal(t, int64(3_000), repo.paidOut)
+}
+
+// storedOrderOperations answers like operations does for a reference it
+// already holds: with the stored order, whatever the request said.
+type storedOrderOperations struct {
+	recordingOperationsClient
+	team string
+}
+
+func (c *storedOrderOperations) TransferOrderExecute(
+	_ context.Context,
+	_ *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
+	extra, _ := structpb.NewStruct(map[string]any{"team_id": c.team})
+	return &operationsv1.TransferOrderExecuteResponse{
+		Data: &operationsv1.TransferOrderObject{Id: "txn-commission", ExtraData: extra},
+	}, nil
+}
+
+// A retried settlement credits the team the ledger posting credited, even
+// when the client has moved to another team in between.
+func TestCommissionAccruesToTheTeamTheLedgerCredited(t *testing.T) {
+	repo := newMemCommissions(0)
+	c := NewAgentCommission(commissionProducts{rate: 1_000}, fixedTeam("team-new"),
+		&storedOrderOperations{team: "team-old"}, NewTeamCommissions(repo, nil, nil, audit.NewWriter(nil)))
+	r := &loansmodels.Repayment{CurrencyCode: "KES", InterestApplied: 50_000}
+	r.ID = "rep-moved"
+
+	require.NoError(t, c.Post(context.Background(), commissionLoan(), r))
+	require.Len(t, repo.byRef, 1)
+	for _, mv := range repo.byRef {
+		assert.Equal(t, "team-old", mv.TeamID)
+	}
 }

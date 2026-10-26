@@ -1,5 +1,6 @@
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import 'package:antinvestor_ui_core/widgets/form_field_card.dart';
+import 'package:connectrpc/connect.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -148,6 +149,17 @@ class TeamCommissionSection extends ConsumerWidget {
 
 bool _positive(Money? m) => m != null && (m.units.toInt() > 0 || m.nanos > 0);
 
+/// Whether a payout error means nothing moved: the refusal codes of the
+/// payout contract.
+bool payoutRefused(Object error) =>
+    error is ConnectException &&
+    const {
+      Code.invalidArgument,
+      Code.failedPrecondition,
+      Code.notFound,
+      Code.permissionDenied,
+    }.contains(error.code);
+
 /// The label shown for a payout's status.
 String payoutStatusLabel(TeamCommissionPayoutStatus status) {
   switch (status) {
@@ -237,7 +249,7 @@ class _CommissionPayoutDialogState extends State<CommissionPayoutDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _amountCtrl;
   final _reasonCtrl = TextEditingController();
-  late final String _idempotencyKey;
+  late String _idempotencyKey;
   String? _memberId;
   String? _error;
   bool _saving = false;
@@ -278,6 +290,10 @@ class _CommissionPayoutDialogState extends State<CommissionPayoutDialog> {
         setState(() {
           _saving = false;
           _error = '$e';
+          // A refusal moved nothing and closes that payout, so the next try
+          // is a new payout. Any other failure may have paid: retry the
+          // same one.
+          if (payoutRefused(e)) _idempotencyKey = generateIdempotencyKey();
         });
       }
     }
@@ -291,67 +307,69 @@ class _CommissionPayoutDialogState extends State<CommissionPayoutDialog> {
         width: 420,
         child: Form(
           key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FormFieldCard(
-                label: 'Member',
-                description: 'Paid to their own verified mobile number.',
-                isRequired: true,
-                child: DropdownButtonFormField<String>(
-                  key: const Key('payout-member'),
-                  initialValue: _memberId,
-                  items: [
-                    for (final id in widget.memberIds)
-                      DropdownMenuItem(value: id, child: Text(id)),
-                  ],
-                  onChanged: _saving
-                      ? null
-                      : (v) => setState(() => _memberId = v),
-                  validator: (v) => v == null ? 'Choose a member' : null,
-                ),
-              ),
-              FormFieldCard(
-                label: 'Amount',
-                description:
-                    'Up to ${formatLoanMoney(widget.available)} available.',
-                isRequired: true,
-                child: TextFormField(
-                  key: const Key('payout-amount'),
-                  controller: _amountCtrl,
-                  enabled: !_saving,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FormFieldCard(
+                  label: 'Member',
+                  description: 'Paid to their own verified mobile number.',
+                  isRequired: true,
+                  child: DropdownButtonFormField<String>(
+                    key: const Key('payout-member'),
+                    initialValue: _memberId,
+                    items: [
+                      for (final id in widget.memberIds)
+                        DropdownMenuItem(value: id, child: Text(id)),
+                    ],
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(() => _memberId = v),
+                    validator: (v) => v == null ? 'Choose a member' : null,
                   ),
-                  validator: validateAmount,
                 ),
-              ),
-              FormFieldCard(
-                label: 'Reason',
-                isRequired: true,
-                child: TextFormField(
-                  key: const Key('payout-reason'),
-                  controller: _reasonCtrl,
-                  enabled: !_saving,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. October commission',
+                FormFieldCard(
+                  label: 'Amount',
+                  description:
+                      'Up to ${formatLoanMoney(widget.available)} available.',
+                  isRequired: true,
+                  child: TextFormField(
+                    key: const Key('payout-amount'),
+                    controller: _amountCtrl,
+                    enabled: !_saving,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    validator: validateAmount,
                   ),
-                  validator: (v) => (v ?? '').trim().length < 3
-                      ? 'Give a reason (3 characters or more)'
-                      : null,
                 ),
-              ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                FormFieldCard(
+                  label: 'Reason',
+                  isRequired: true,
+                  child: TextFormField(
+                    key: const Key('payout-reason'),
+                    controller: _reasonCtrl,
+                    enabled: !_saving,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. October commission',
+                    ),
+                    validator: (v) => (v ?? '').trim().length < 3
+                        ? 'Give a reason (3 characters or more)'
+                        : null,
+                  ),
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -45,7 +45,7 @@ packages:
       path: "../../sdk/dart/identity"
       relative: true
     source: path
-    version: "0.8.1"
+    version: "0.8.2"
   antinvestor_api_limits:
     dependency: "direct overridden"
     description:

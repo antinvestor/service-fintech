@@ -261,11 +261,10 @@ func (t *TeamCommissions) Payout(
 	if t.operations == nil {
 		return nil, ErrOperationsClientUnavailable
 	}
-	logger := util.Log(ctx).WithField("team_id", req.GetTeamId()).WithField("member_id", req.GetMemberId())
+	logger := util.Log(ctx).WithField(fieldTeamID, req.GetTeamId()).WithField("member_id", req.GetMemberId())
 
-	// Where the money goes is settled before anything is taken: the
-	// member's own number, never one somebody names.
-	dest, err := t.members.MemberPayout(ctx, req.GetTeamId(), req.GetMemberId())
+	reference := commissionPayoutPrefix + req.GetIdempotencyKey()
+	dest, err := t.payoutDestination(ctx, reference, req)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +274,7 @@ func (t *TeamCommissions) Payout(
 		CurrencyCode: currency,
 		Kind:         int32(models.TeamCommissionPayout),
 		Amount:       minor,
-		Reference:    commissionPayoutPrefix + req.GetIdempotencyKey(),
+		Reference:    reference,
 		Status:       int32(loansv1.TeamCommissionPayoutStatus_TEAM_COMMISSION_PAYOUT_STATUS_PENDING),
 		MemberID:     req.GetMemberId(),
 		Reason:       req.GetReason(),
@@ -311,7 +310,7 @@ func (t *TeamCommissions) Payout(
 			Reference:        commissionPayoutReference + movement.GetID(),
 			Description:      "Team commission paid to a member",
 			ExtraData: (&data.JSONMap{
-				"team_id":              movement.TeamID,
+				fieldTeamID:            movement.TeamID,
 				"member_id":            movement.MemberID,
 				"recipient_profile_id": dest.ProfileID,
 				fieldPaymentAccount:    dest.ContactID,
@@ -356,6 +355,24 @@ func (t *TeamCommissions) Payout(
 		logger.WithError(auErr).Warn("audit emission failed for commission payout")
 	})
 	return movement.ToPayoutAPI(), nil
+}
+
+// payoutDestination settles where a payout goes before anything is taken:
+// the member's own number, never one somebody names. A payout already taken
+// from the balance may have paid the member, so it resumes on its stored
+// order whatever has happened to the member since; operations re-checks the
+// recipient it stored.
+func (t *TeamCommissions) payoutDestination(
+	ctx context.Context,
+	reference string,
+	req *loansv1.TeamCommissionPayoutRequest,
+) (MemberPayout, error) {
+	existing, err := t.repo.PayoutByReference(ctx, reference)
+	if err == nil &&
+		existing.Status == int32(loansv1.TeamCommissionPayoutStatus_TEAM_COMMISSION_PAYOUT_STATUS_PROCESSING) {
+		return MemberPayout{}, nil
+	}
+	return t.members.MemberPayout(ctx, req.GetTeamId(), req.GetMemberId())
 }
 
 // payoutRefused reports whether a payout error means nothing moved: the

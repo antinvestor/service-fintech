@@ -89,10 +89,14 @@ func (r *identityInvestorOwners) InvestorProfileID(ctx context.Context, investor
 func staffRoles() []string { return []string{"owner", "admin", "operator", "viewer"} }
 
 // callerIsStaff reports whether the caller acts for the lender: a staff role
-// or a service principal. Anyone else is an investor reading their own.
+// or a service principal. Anyone else is an investor reading their own, and
+// a call without claims is nobody's.
 func callerIsStaff(ctx context.Context) bool {
 	claims := security.ClaimsFromContext(ctx)
-	if claims == nil || claims.IsInternalSystem() {
+	if claims == nil {
+		return false
+	}
+	if claims.IsInternalSystem() {
 		return true
 	}
 	for _, role := range claims.GetRoles() {
