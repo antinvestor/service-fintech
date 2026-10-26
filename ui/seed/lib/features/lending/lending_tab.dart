@@ -21,12 +21,20 @@ String formatMinor(int minor, String currency) {
 
 /// The client's lending with this lender: their Seed credit profile (tier,
 /// limit, standing) and their loans. Staff holding seed_credit_profile_admin
-/// may suspend, block or reinstate borrowing, always with a reason.
+/// may suspend, block or reinstate borrowing, always with a reason. The
+/// serving agent or staff holding seed_credit_profile_cap may lower the limit
+/// for a while with a temporary cap.
 class LendingTab extends ConsumerWidget {
-  const LendingTab({super.key, required this.clientId, this.canAdmin = false});
+  const LendingTab({
+    super.key,
+    required this.clientId,
+    this.canAdmin = false,
+    this.canCap = false,
+  });
 
   final String clientId;
   final bool canAdmin;
+  final bool canCap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,6 +67,7 @@ class LendingTab extends ConsumerWidget {
                   clientId: clientId,
                   profile: p,
                   canAdmin: canAdmin,
+                  canCap: canCap,
                 ),
         ),
         const SizedBox(height: 24),
@@ -95,11 +104,67 @@ class _ProfileCard extends ConsumerWidget {
     required this.clientId,
     required this.profile,
     required this.canAdmin,
+    required this.canCap,
   });
 
   final String clientId;
   final CreditProfile profile;
   final bool canAdmin;
+  final bool canCap;
+
+  Future<void> _setCap(BuildContext context, WidgetRef ref) async {
+    final cap = await showDialog<({int amountMinor, int days, String reason})>(
+      context: context,
+      builder: (_) => _CapDialog(limitMinor: profile.maxLoanAmountMinor),
+    );
+    if (cap == null || !context.mounted) return;
+    await _run(
+      context,
+      ref,
+      () => ref
+          .read(seedApiProvider)
+          .setCap(
+            clientId,
+            seedCurrency,
+            amountMinor: cap.amountMinor,
+            expiresAt: DateTime.now().add(Duration(days: cap.days)),
+            reason: cap.reason,
+          ),
+      'Temporary cap set',
+    );
+  }
+
+  Future<void> _liftCap(BuildContext context, WidgetRef ref) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ReasonDialog(title: 'Lift temporary cap'),
+    );
+    if (reason == null || !context.mounted) return;
+    await _run(
+      context,
+      ref,
+      () => ref.read(seedApiProvider).clearCap(clientId, seedCurrency, reason),
+      'Temporary cap lifted',
+    );
+  }
+
+  Future<void> _run(
+    BuildContext context,
+    WidgetRef ref,
+    Future<CreditProfile> Function() call,
+    String done,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await call();
+      ref.invalidate(creditProfileProvider(clientId));
+      messenger.showSnackBar(SnackBar(content: Text(done)));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not update: ${friendlyError(e)}')),
+      );
+    }
+  }
 
   Future<void> _change(
     BuildContext context,
@@ -108,7 +173,7 @@ class _ProfileCard extends ConsumerWidget {
   ) async {
     final reason = await showDialog<String>(
       context: context,
-      builder: (_) => _ReasonDialog(action: action),
+      builder: (_) => _ReasonDialog(title: _actionTitle(action)),
     );
     if (reason == null || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -143,12 +208,42 @@ class _ProfileCard extends ConsumerWidget {
                 _Fact('Tier', '${profile.tier}'),
                 _Fact(
                   'Can borrow up to',
-                  formatMinor(profile.maxLoanAmountMinor, seedCurrency),
+                  formatMinor(profile.borrowLimitMinor, seedCurrency),
                 ),
+                if (profile.capActive)
+                  _Fact(
+                    'Temporary cap',
+                    '${formatMinor(profile.tempCapMinor, seedCurrency)} until '
+                        '${profile.tempCapExpiresAt!.toLocal().toString().split(' ').first}'
+                        '${profile.tempCapReason.isEmpty ? '' : ' (${profile.tempCapReason})'}',
+                  ),
                 _Fact('Loans repaid', '${profile.successfulRepayments}'),
                 _Fact('Loans running', '${profile.outstandingLoanCount}'),
               ],
             ),
+            if (canCap) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                children: [
+                  OutlinedButton(
+                    key: const Key('lending-cap-set'),
+                    onPressed: () => _setCap(context, ref),
+                    child: Text(
+                      profile.capActive
+                          ? 'Change temporary cap'
+                          : 'Set temporary cap',
+                    ),
+                  ),
+                  if (profile.capActive)
+                    TextButton(
+                      key: const Key('lending-cap-lift'),
+                      onPressed: () => _liftCap(context, ref),
+                      child: const Text('Lift cap'),
+                    ),
+                ],
+              ),
+            ],
             if (canAdmin) ...[
               const SizedBox(height: 16),
               Wrap(
@@ -204,8 +299,8 @@ class _Fact extends StatelessWidget {
 }
 
 class _ReasonDialog extends StatefulWidget {
-  const _ReasonDialog({required this.action});
-  final CreditProfileAction action;
+  const _ReasonDialog({required this.title});
+  final String title;
 
   @override
   State<_ReasonDialog> createState() => _ReasonDialogState();
@@ -220,16 +315,10 @@ class _ReasonDialogState extends State<_ReasonDialog> {
     super.dispose();
   }
 
-  String get _title => switch (widget.action) {
-    CreditProfileAction.suspend => 'Suspend borrowing',
-    CreditProfileAction.block => 'Block borrowing',
-    CreditProfileAction.reinstate => 'Reinstate borrowing',
-  };
-
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_title),
+      title: Text(widget.title),
       content: TextField(
         key: const Key('lending-reason'),
         controller: _reason,
@@ -249,6 +338,111 @@ class _ReasonDialogState extends State<_ReasonDialog> {
               ? null
               : () => Navigator.pop(context, _reason.text.trim()),
           child: const Text('Confirm'),
+        ),
+      ],
+    );
+  }
+}
+
+String _actionTitle(CreditProfileAction action) => switch (action) {
+  CreditProfileAction.suspend => 'Suspend borrowing',
+  CreditProfileAction.block => 'Block borrowing',
+  CreditProfileAction.reinstate => 'Reinstate borrowing',
+};
+
+/// Asks for a temporary cap below the tier limit, how long it lasts and why.
+class _CapDialog extends StatefulWidget {
+  const _CapDialog({required this.limitMinor});
+  final int limitMinor;
+
+  @override
+  State<_CapDialog> createState() => _CapDialogState();
+}
+
+class _CapDialogState extends State<_CapDialog> {
+  final _amount = TextEditingController();
+  final _reason = TextEditingController();
+  int _days = 14;
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  /// The cap in minor units, or null when it is not a lowering of the limit.
+  int? get _amountMinor {
+    final major = double.tryParse(_amount.text.trim().replaceAll(',', ''));
+    if (major == null || major <= 0) return null;
+    final minor = (major * 100).round();
+    return minor < widget.limitMinor ? minor : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final valid = _amountMinor != null && _reason.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: const Text('Temporary cap'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Below the tier limit of '
+              '${formatMinor(widget.limitMinor, seedCurrency)}; it lapses on its own.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('lending-cap-amount'),
+              controller: _amount,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(labelText: 'Cap ($seedCurrency)'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              key: const Key('lending-cap-days'),
+              initialValue: _days,
+              decoration: const InputDecoration(labelText: 'For'),
+              items: [
+                for (final d in const [7, 14, 30, 60, 90])
+                  DropdownMenuItem(value: d, child: Text('$d days')),
+              ],
+              onChanged: (v) => setState(() => _days = v ?? _days),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('lending-cap-reason'),
+              controller: _reason,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Reason (kept on record)',
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('lending-cap-submit'),
+          onPressed: valid
+              ? () => Navigator.pop(context, (
+                  amountMinor: _amountMinor!,
+                  days: _days,
+                  reason: _reason.text.trim(),
+                ))
+              : null,
+          child: const Text('Set cap'),
         ),
       ],
     );

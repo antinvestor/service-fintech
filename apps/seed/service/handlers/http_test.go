@@ -20,6 +20,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pitabwire/frame/v3/security"
 
@@ -62,6 +63,19 @@ type fakeCreditProfile struct {
 	lastStatus   models.CreditProfileStatus
 	lastReason   string
 	setStatusErr error
+	lastCap      int64
+	lastCapBy    string
+}
+
+func (f *fakeCreditProfile) SetTempCap(
+	_ context.Context,
+	clientID, currencyCode string,
+	amount int64,
+	_ time.Time,
+	actor, reason string,
+) (*models.CreditProfile, error) {
+	f.lastClientID, f.lastCap, f.lastCapBy, f.lastReason = clientID, amount, actor, reason
+	return &models.CreditProfile{ClientID: clientID, CurrencyCode: currencyCode, TempCapAmount: amount}, nil
 }
 
 func (f *fakeCreditProfile) SetStatus(
@@ -367,4 +381,53 @@ func actedOnClient(loanBusiness *fakeLoanRequest, profileBusiness *fakeCreditPro
 		return loanBusiness.input.ClientID
 	}
 	return profileBusiness.lastClientID
+}
+
+// agentServing serves exactly one client.
+type agentServing struct{ client string }
+
+func (a agentServing) ServesClient(_ context.Context, _, clientID string) (bool, error) {
+	return clientID == a.client, nil
+}
+
+// A temporary cap is set by staff on any client, by a field agent only on a
+// client they serve, and by nobody else.
+func TestTemporaryCapIsSetOnlyByStaffOrTheServingAgent(t *testing.T) {
+	expires := time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	body := `{"amount":20000,"expires_at":"` + expires + `","reason":"missed two visits"}`
+	agent := &security.AuthenticationClaims{ProfileID: "profile-agent", Roles: []string{"member"}}
+
+	for name, tc := range map[string]struct {
+		claims *security.AuthenticationClaims
+		client string
+		want   int
+	}{
+		"staff caps any client":             {staffClaims(), otherClient, http.StatusOK},
+		"the serving agent caps the client": {agent, "client-served", http.StatusOK},
+		"an agent cannot cap another's":     {agent, otherClient, http.StatusForbidden},
+	} {
+		t.Run(name, func(t *testing.T) {
+			profiles := &fakeCreditProfile{}
+			resolver := fakeResolver{}
+			mux := http.NewServeMux()
+			handlers.NewServer(&fakeLoanRequest{}, profiles, &resolver, staffRole).
+				WithAgentScope(agentServing{client: "client-served"}).Register(mux)
+
+			req := httptest.NewRequest(http.MethodPost,
+				"/api/v1/seed/credit-profiles/"+tc.client+"/KES/cap", strings.NewReader(body))
+			req = req.WithContext(tc.claims.ClaimsToContext(req.Context()))
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tc.want, rec.Body.String())
+			}
+			if tc.want == http.StatusOK && (profiles.lastCap != 20000 || profiles.lastCapBy == "") {
+				t.Fatalf("cap reached the business as %d by %q", profiles.lastCap, profiles.lastCapBy)
+			}
+			if tc.want != http.StatusOK && profiles.lastCap != 0 {
+				t.Fatal("a refused cap must not reach the business")
+			}
+		})
+	}
 }

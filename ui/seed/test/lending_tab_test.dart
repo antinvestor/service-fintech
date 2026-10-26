@@ -9,7 +9,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:seed_ui/features/lending/lending_tab.dart';
 import 'package:seed_ui/features/lending/seed_api.dart';
 
-Widget _host({required CreditProfile? profile, required bool canAdmin}) {
+Widget _host({
+  required CreditProfile? profile,
+  required bool canAdmin,
+  bool canCap = false,
+}) {
   return ProviderScope(
     overrides: [
       creditProfileProvider('client-1').overrideWith((ref) async => profile),
@@ -26,7 +30,11 @@ Widget _host({required CreditProfile? profile, required bool canAdmin}) {
     ],
     child: MaterialApp(
       home: Scaffold(
-        body: LendingTab(clientId: 'client-1', canAdmin: canAdmin),
+        body: LendingTab(
+          clientId: 'client-1',
+          canAdmin: canAdmin,
+          canCap: canCap,
+        ),
       ),
     ),
   );
@@ -87,5 +95,32 @@ void main() {
     await tester.pumpWidget(_host(profile: null, canAdmin: true));
     await tester.pumpAndSettle();
     expect(find.textContaining('first loan request'), findsOneWidget);
+  });
+
+  testWidgets('a temporary cap lowers what is shown and is offered only '
+      'with the permit', (tester) async {
+    final capped = CreditProfile(
+      tier: 2,
+      maxLoanAmountMinor: 1250000,
+      status: CreditProfileStatus.active,
+      successfulRepayments: 3,
+      outstandingLoanCount: 0,
+      effectiveLimitMinor: 200000,
+      tempCapMinor: 200000,
+      tempCapExpiresAt: DateTime.now().add(const Duration(days: 7)),
+      tempCapReason: 'missed visits',
+    );
+    await tester.pumpWidget(_host(profile: capped, canAdmin: false));
+    await tester.pumpAndSettle();
+    expect(find.text('KES 2,000.00'), findsOneWidget);
+    expect(find.textContaining('missed visits'), findsOneWidget);
+    expect(find.byKey(const Key('lending-cap-set')), findsNothing);
+
+    await tester.pumpWidget(
+      _host(profile: capped, canAdmin: false, canCap: true),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('lending-cap-set')), findsOneWidget);
+    expect(find.byKey(const Key('lending-cap-lift')), findsOneWidget);
   });
 }

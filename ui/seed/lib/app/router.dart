@@ -294,6 +294,9 @@ final routerProvider = Provider<GoRouter>((ref) {
                                 'seed_credit_profile_admin',
                               ),
                             ),
+                            canCap: ref.watch(
+                              hasPermissionProvider('seed_credit_profile_cap'),
+                            ),
                           ),
                         ),
                     ],

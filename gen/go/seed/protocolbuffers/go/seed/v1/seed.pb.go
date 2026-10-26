@@ -239,6 +239,87 @@ func (x *CreditProfileStatusRequest) GetReason() string {
 	return ""
 }
 
+// CreditProfileCapRequest sets a temporary cap on what a client may borrow:
+// lower than their tier limit, until it expires. The effective limit is the
+// lower of the two.
+type CreditProfileCapRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ClientId string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Currency string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
+	// Cap in minor units. Must be positive and below the tier limit.
+	Amount int64 `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	// When the cap lapses (RFC3339). At most 90 days ahead.
+	ExpiresAt     string `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Reason        string `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreditProfileCapRequest) Reset() {
+	*x = CreditProfileCapRequest{}
+	mi := &file_seed_v1_seed_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreditProfileCapRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreditProfileCapRequest) ProtoMessage() {}
+
+func (x *CreditProfileCapRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_seed_v1_seed_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreditProfileCapRequest.ProtoReflect.Descriptor instead.
+func (*CreditProfileCapRequest) Descriptor() ([]byte, []int) {
+	return file_seed_v1_seed_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CreditProfileCapRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *CreditProfileCapRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CreditProfileCapRequest) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *CreditProfileCapRequest) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *CreditProfileCapRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 // LoanPaidOffRequest is posted by the loans service when a loan is paid off.
 type LoanPaidOffRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -250,7 +331,7 @@ type LoanPaidOffRequest struct {
 
 func (x *LoanPaidOffRequest) Reset() {
 	*x = LoanPaidOffRequest{}
-	mi := &file_seed_v1_seed_proto_msgTypes[3]
+	mi := &file_seed_v1_seed_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -262,7 +343,7 @@ func (x *LoanPaidOffRequest) String() string {
 func (*LoanPaidOffRequest) ProtoMessage() {}
 
 func (x *LoanPaidOffRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_seed_v1_seed_proto_msgTypes[3]
+	mi := &file_seed_v1_seed_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -275,7 +356,7 @@ func (x *LoanPaidOffRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoanPaidOffRequest.ProtoReflect.Descriptor instead.
 func (*LoanPaidOffRequest) Descriptor() ([]byte, []int) {
-	return file_seed_v1_seed_proto_rawDescGZIP(), []int{3}
+	return file_seed_v1_seed_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *LoanPaidOffRequest) GetLoanAccountId() string {
@@ -302,7 +383,7 @@ type JSONResponse struct {
 
 func (x *JSONResponse) Reset() {
 	*x = JSONResponse{}
-	mi := &file_seed_v1_seed_proto_msgTypes[4]
+	mi := &file_seed_v1_seed_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -314,7 +395,7 @@ func (x *JSONResponse) String() string {
 func (*JSONResponse) ProtoMessage() {}
 
 func (x *JSONResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_seed_v1_seed_proto_msgTypes[4]
+	mi := &file_seed_v1_seed_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -327,7 +408,7 @@ func (x *JSONResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JSONResponse.ProtoReflect.Descriptor instead.
 func (*JSONResponse) Descriptor() ([]byte, []int) {
-	return file_seed_v1_seed_proto_rawDescGZIP(), []int{4}
+	return file_seed_v1_seed_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *JSONResponse) GetData() *structpb.Struct {
@@ -349,7 +430,7 @@ type UssdStateRequest struct {
 
 func (x *UssdStateRequest) Reset() {
 	*x = UssdStateRequest{}
-	mi := &file_seed_v1_seed_proto_msgTypes[5]
+	mi := &file_seed_v1_seed_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -361,7 +442,7 @@ func (x *UssdStateRequest) String() string {
 func (*UssdStateRequest) ProtoMessage() {}
 
 func (x *UssdStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_seed_v1_seed_proto_msgTypes[5]
+	mi := &file_seed_v1_seed_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -374,7 +455,7 @@ func (x *UssdStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UssdStateRequest.ProtoReflect.Descriptor instead.
 func (*UssdStateRequest) Descriptor() ([]byte, []int) {
-	return file_seed_v1_seed_proto_rawDescGZIP(), []int{5}
+	return file_seed_v1_seed_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UssdStateRequest) GetServiceId() string {
@@ -417,7 +498,14 @@ const file_seed_v1_seed_proto_rawDesc = "" +
 	"\x1aCreditProfileStatusRequest\x12\x1b\n" +
 	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x1a\n" +
 	"\bcurrency\x18\x02 \x01(\tR\bcurrency\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"_\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"\xa1\x01\n" +
+	"\x17CreditProfileCapRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x1a\n" +
+	"\bcurrency\x18\x02 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x04 \x01(\tR\texpiresAt\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\"_\n" +
 	"\x12LoanPaidOffRequest\x12&\n" +
 	"\x0floan_account_id\x18\x01 \x01(\tR\rloanAccountId\x12!\n" +
 	"\ftotal_repaid\x18\x02 \x01(\x03R\vtotalRepaid\";\n" +
@@ -429,7 +517,7 @@ const file_seed_v1_seed_proto_rawDesc = "" +
 	"\n" +
 	"profile_id\x18\x02 \x01(\tR\tprofileId\x12\x1d\n" +
 	"\n" +
-	"contact_id\x18\x03 \x01(\tR\tcontactId2\xa9\x0e\n" +
+	"contact_id\x18\x03 \x01(\tR\tcontactId2\xb1\x12\n" +
 	"\vSeedService\x12\x92\x01\n" +
 	"\x11LoanRequestCreate\x12!.seed.v1.LoanRequestCreateRequest\x1a\x15.seed.v1.JSONResponse\"C\x82\xb5\x18\x1a\n" +
 	"\x18seed_loan_request_create\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/api/v1/seed/loan-requests\x12\xa6\x01\n" +
@@ -440,12 +528,16 @@ const file_seed_v1_seed_proto_rawDesc = "" +
 	"\x12CreditProfileBlock\x12#.seed.v1.CreditProfileStatusRequest\x1a\x15.seed.v1.JSONResponse\"c\x82\xb5\x18\x1b\n" +
 	"\x19seed_credit_profile_admin\x82\xd3\xe4\x93\x02>:\x01*\"9/api/v1/seed/credit-profiles/{client_id}/{currency}/block\x12\xbd\x01\n" +
 	"\x16CreditProfileReinstate\x12#.seed.v1.CreditProfileStatusRequest\x1a\x15.seed.v1.JSONResponse\"g\x82\xb5\x18\x1b\n" +
-	"\x19seed_credit_profile_admin\x82\xd3\xe4\x93\x02B:\x01*\"=/api/v1/seed/credit-profiles/{client_id}/{currency}/reinstate\x12\x7f\n" +
+	"\x19seed_credit_profile_admin\x82\xd3\xe4\x93\x02B:\x01*\"=/api/v1/seed/credit-profiles/{client_id}/{currency}/reinstate\x12\xaf\x01\n" +
+	"\x13CreditProfileCapSet\x12 .seed.v1.CreditProfileCapRequest\x1a\x15.seed.v1.JSONResponse\"_\x82\xb5\x18\x19\n" +
+	"\x17seed_credit_profile_cap\x82\xd3\xe4\x93\x02<:\x01*\"7/api/v1/seed/credit-profiles/{client_id}/{currency}/cap\x12\xba\x01\n" +
+	"\x15CreditProfileCapClear\x12#.seed.v1.CreditProfileStatusRequest\x1a\x15.seed.v1.JSONResponse\"e\x82\xb5\x18\x19\n" +
+	"\x17seed_credit_profile_cap\x82\xd3\xe4\x93\x02B:\x01*\"=/api/v1/seed/credit-profiles/{client_id}/{currency}/cap/clear\x12\x7f\n" +
 	"\tUssdState\x12\x19.seed.v1.UssdStateRequest\x1a\x15.seed.v1.JSONResponse\"@\x82\xb5\x18\x11\n" +
 	"\x0fseed_ussd_state\x82\xd3\xe4\x93\x02%:\x01*\" /api/v1/seed/internal/ussd/state\x12\x91\x01\n" +
 	"\x11LoanPaidOffNotify\x12\x1b.seed.v1.LoanPaidOffRequest\x1a\x15.seed.v1.JSONResponse\"H\x82\xb5\x18\x1b\n" +
-	"\x19seed_loan_paid_off_notify\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/api/v1/seed/internal/paid-off\x1a\x92\x05\x82\xb5\x18\x8d\x05\n" +
-	"\fservice_seed\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x12\x0fseed_ussd_state\x1al\b\x01\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x1al\b\x02\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x1aQ\b\x03\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x1a\x1c\b\x04\x12\x18seed_credit_profile_view\x1a6\b\x05\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x1a}\b\x06\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x12\x0fseed_ussd_stateB\xab\x01\n" +
+	"\x19seed_loan_paid_off_notify\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/api/v1/seed/internal/paid-off\x1a\xab\x06\x82\xb5\x18\xa6\x06\n" +
+	"\fservice_seed\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x12\x0fseed_ussd_state\x12\x17seed_credit_profile_cap\x1a\x85\x01\b\x01\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x12\x17seed_credit_profile_cap\x1a\x85\x01\b\x02\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x12\x17seed_credit_profile_cap\x1aj\b\x03\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x17seed_credit_profile_cap\x1a\x1c\b\x04\x12\x18seed_credit_profile_view\x1aO\b\x05\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x17seed_credit_profile_cap\x1a\x96\x01\b\x06\x12\x18seed_loan_request_create\x12\x18seed_credit_profile_view\x12\x19seed_credit_profile_admin\x12\x19seed_loan_paid_off_notify\x12\x0fseed_ussd_state\x12\x17seed_credit_profile_capB\xab\x01\n" +
 	"\vcom.seed.v1B\tSeedProtoP\x01ZTgithub.com/antinvestor/service-fintech/gen/go/seed/protocolbuffers/go/seed/v1;seedv1\xa2\x02\x03SXX\xaa\x02\aSeed.V1\xca\x02\aSeed\\V1\xe2\x02\x13Seed\\V1\\GPBMetadata\xea\x02\bSeed::V1b\x06proto3"
 
 var (
@@ -460,37 +552,42 @@ func file_seed_v1_seed_proto_rawDescGZIP() []byte {
 	return file_seed_v1_seed_proto_rawDescData
 }
 
-var file_seed_v1_seed_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_seed_v1_seed_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_seed_v1_seed_proto_goTypes = []any{
 	(*LoanRequestCreateRequest)(nil),   // 0: seed.v1.LoanRequestCreateRequest
 	(*CreditProfileRequest)(nil),       // 1: seed.v1.CreditProfileRequest
 	(*CreditProfileStatusRequest)(nil), // 2: seed.v1.CreditProfileStatusRequest
-	(*LoanPaidOffRequest)(nil),         // 3: seed.v1.LoanPaidOffRequest
-	(*JSONResponse)(nil),               // 4: seed.v1.JSONResponse
-	(*UssdStateRequest)(nil),           // 5: seed.v1.UssdStateRequest
-	(*structpb.Struct)(nil),            // 6: google.protobuf.Struct
+	(*CreditProfileCapRequest)(nil),    // 3: seed.v1.CreditProfileCapRequest
+	(*LoanPaidOffRequest)(nil),         // 4: seed.v1.LoanPaidOffRequest
+	(*JSONResponse)(nil),               // 5: seed.v1.JSONResponse
+	(*UssdStateRequest)(nil),           // 6: seed.v1.UssdStateRequest
+	(*structpb.Struct)(nil),            // 7: google.protobuf.Struct
 }
 var file_seed_v1_seed_proto_depIdxs = []int32{
-	6, // 0: seed.v1.JSONResponse.data:type_name -> google.protobuf.Struct
-	0, // 1: seed.v1.SeedService.LoanRequestCreate:input_type -> seed.v1.LoanRequestCreateRequest
-	1, // 2: seed.v1.SeedService.CreditProfileGet:input_type -> seed.v1.CreditProfileRequest
-	2, // 3: seed.v1.SeedService.CreditProfileSuspend:input_type -> seed.v1.CreditProfileStatusRequest
-	2, // 4: seed.v1.SeedService.CreditProfileBlock:input_type -> seed.v1.CreditProfileStatusRequest
-	2, // 5: seed.v1.SeedService.CreditProfileReinstate:input_type -> seed.v1.CreditProfileStatusRequest
-	5, // 6: seed.v1.SeedService.UssdState:input_type -> seed.v1.UssdStateRequest
-	3, // 7: seed.v1.SeedService.LoanPaidOffNotify:input_type -> seed.v1.LoanPaidOffRequest
-	4, // 8: seed.v1.SeedService.LoanRequestCreate:output_type -> seed.v1.JSONResponse
-	4, // 9: seed.v1.SeedService.CreditProfileGet:output_type -> seed.v1.JSONResponse
-	4, // 10: seed.v1.SeedService.CreditProfileSuspend:output_type -> seed.v1.JSONResponse
-	4, // 11: seed.v1.SeedService.CreditProfileBlock:output_type -> seed.v1.JSONResponse
-	4, // 12: seed.v1.SeedService.CreditProfileReinstate:output_type -> seed.v1.JSONResponse
-	4, // 13: seed.v1.SeedService.UssdState:output_type -> seed.v1.JSONResponse
-	4, // 14: seed.v1.SeedService.LoanPaidOffNotify:output_type -> seed.v1.JSONResponse
-	8, // [8:15] is the sub-list for method output_type
-	1, // [1:8] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	7,  // 0: seed.v1.JSONResponse.data:type_name -> google.protobuf.Struct
+	0,  // 1: seed.v1.SeedService.LoanRequestCreate:input_type -> seed.v1.LoanRequestCreateRequest
+	1,  // 2: seed.v1.SeedService.CreditProfileGet:input_type -> seed.v1.CreditProfileRequest
+	2,  // 3: seed.v1.SeedService.CreditProfileSuspend:input_type -> seed.v1.CreditProfileStatusRequest
+	2,  // 4: seed.v1.SeedService.CreditProfileBlock:input_type -> seed.v1.CreditProfileStatusRequest
+	2,  // 5: seed.v1.SeedService.CreditProfileReinstate:input_type -> seed.v1.CreditProfileStatusRequest
+	3,  // 6: seed.v1.SeedService.CreditProfileCapSet:input_type -> seed.v1.CreditProfileCapRequest
+	2,  // 7: seed.v1.SeedService.CreditProfileCapClear:input_type -> seed.v1.CreditProfileStatusRequest
+	6,  // 8: seed.v1.SeedService.UssdState:input_type -> seed.v1.UssdStateRequest
+	4,  // 9: seed.v1.SeedService.LoanPaidOffNotify:input_type -> seed.v1.LoanPaidOffRequest
+	5,  // 10: seed.v1.SeedService.LoanRequestCreate:output_type -> seed.v1.JSONResponse
+	5,  // 11: seed.v1.SeedService.CreditProfileGet:output_type -> seed.v1.JSONResponse
+	5,  // 12: seed.v1.SeedService.CreditProfileSuspend:output_type -> seed.v1.JSONResponse
+	5,  // 13: seed.v1.SeedService.CreditProfileBlock:output_type -> seed.v1.JSONResponse
+	5,  // 14: seed.v1.SeedService.CreditProfileReinstate:output_type -> seed.v1.JSONResponse
+	5,  // 15: seed.v1.SeedService.CreditProfileCapSet:output_type -> seed.v1.JSONResponse
+	5,  // 16: seed.v1.SeedService.CreditProfileCapClear:output_type -> seed.v1.JSONResponse
+	5,  // 17: seed.v1.SeedService.UssdState:output_type -> seed.v1.JSONResponse
+	5,  // 18: seed.v1.SeedService.LoanPaidOffNotify:output_type -> seed.v1.JSONResponse
+	10, // [10:19] is the sub-list for method output_type
+	1,  // [1:10] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_seed_v1_seed_proto_init() }
@@ -504,7 +601,7 @@ func file_seed_v1_seed_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_seed_v1_seed_proto_rawDesc), len(file_seed_v1_seed_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

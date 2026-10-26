@@ -16,11 +16,21 @@ class CreditProfile {
     required this.status,
     required this.successfulRepayments,
     required this.outstandingLoanCount,
+    this.effectiveLimitMinor,
+    this.tempCapMinor = 0,
+    this.tempCapExpiresAt,
+    this.tempCapReason = '',
   });
 
   factory CreditProfile.fromJson(Map<String, dynamic> json) => CreditProfile(
     tier: (json['tier'] as num?)?.toInt() ?? 0,
     maxLoanAmountMinor: (json['max_loan_amount'] as num?)?.toInt() ?? 0,
+    effectiveLimitMinor: (json['effective_limit'] as num?)?.toInt(),
+    tempCapMinor: (json['temp_cap_amount'] as num?)?.toInt() ?? 0,
+    tempCapExpiresAt: DateTime.tryParse(
+      json['temp_cap_expires_at'] as String? ?? '',
+    ),
+    tempCapReason: json['temp_cap_reason'] as String? ?? '',
     status: CreditProfileStatus.fromCode(
       (json['status'] as num?)?.toInt() ?? 0,
     ),
@@ -34,6 +44,21 @@ class CreditProfile {
   final CreditProfileStatus status;
   final int successfulRepayments;
   final int outstandingLoanCount;
+
+  /// What the client may borrow now: the tier limit, lowered by a
+  /// temporary cap while it lasts.
+  final int? effectiveLimitMinor;
+  final int tempCapMinor;
+  final DateTime? tempCapExpiresAt;
+  final String tempCapReason;
+
+  int get borrowLimitMinor => effectiveLimitMinor ?? maxLoanAmountMinor;
+
+  /// Whether a temporary cap applies now.
+  bool get capActive =>
+      tempCapMinor > 0 &&
+      tempCapExpiresAt != null &&
+      tempCapExpiresAt!.isAfter(DateTime.now());
 }
 
 /// Mirrors models.CreditProfileStatus in the seed service.
@@ -104,6 +129,44 @@ class SeedApi {
     final resp = await _client.post(
       Uri.parse(
         '$_baseUrl/api/v1/seed/credit-profiles/$clientId/$currency/${action.name}',
+      ),
+      headers: await _headers(),
+      body: jsonEncode({'reason': reason}),
+    );
+    return CreditProfile.fromJson(_decode(resp));
+  }
+
+  /// Sets a temporary cap below the tier limit until [expiresAt].
+  Future<CreditProfile> setCap(
+    String clientId,
+    String currency, {
+    required int amountMinor,
+    required DateTime expiresAt,
+    required String reason,
+  }) async {
+    final resp = await _client.post(
+      Uri.parse(
+        '$_baseUrl/api/v1/seed/credit-profiles/$clientId/$currency/cap',
+      ),
+      headers: await _headers(),
+      body: jsonEncode({
+        'amount': amountMinor,
+        'expires_at': expiresAt.toUtc().toIso8601String(),
+        'reason': reason,
+      }),
+    );
+    return CreditProfile.fromJson(_decode(resp));
+  }
+
+  /// Lifts a temporary cap before it lapses.
+  Future<CreditProfile> clearCap(
+    String clientId,
+    String currency,
+    String reason,
+  ) async {
+    final resp = await _client.post(
+      Uri.parse(
+        '$_baseUrl/api/v1/seed/credit-profiles/$clientId/$currency/cap/clear',
       ),
       headers: await _headers(),
       body: jsonEncode({'reason': reason}),

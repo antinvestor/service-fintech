@@ -62,6 +62,19 @@ message CreditProfileStatusRequest {
   string reason = 3;
 }
 
+// CreditProfileCapRequest sets a temporary cap on what a client may borrow:
+// lower than their tier limit, until it expires. The effective limit is the
+// lower of the two.
+message CreditProfileCapRequest {
+  string client_id = 1;
+  string currency = 2;
+  // Cap in minor units. Must be positive and below the tier limit.
+  int64 amount = 3;
+  // When the cap lapses (RFC3339). At most 90 days ahead.
+  string expires_at = 4;
+  string reason = 5;
+}
+
 // LoanPaidOffRequest is posted by the loans service when a loan is paid off.
 message LoanPaidOffRequest {
   string loan_account_id = 1;
@@ -91,7 +104,8 @@ service SeedService {
       "seed_credit_profile_view",
       "seed_credit_profile_admin",
       "seed_loan_paid_off_notify",
-      "seed_ussd_state"
+      "seed_ussd_state",
+      "seed_credit_profile_cap"
     ]
     role_bindings: [
       {
@@ -100,7 +114,8 @@ service SeedService {
           "seed_loan_request_create",
           "seed_credit_profile_view",
           "seed_credit_profile_admin",
-          "seed_loan_paid_off_notify"
+          "seed_loan_paid_off_notify",
+          "seed_credit_profile_cap"
         ]
       },
       {
@@ -109,7 +124,8 @@ service SeedService {
           "seed_loan_request_create",
           "seed_credit_profile_view",
           "seed_credit_profile_admin",
-          "seed_loan_paid_off_notify"
+          "seed_loan_paid_off_notify",
+          "seed_credit_profile_cap"
         ]
       },
       {
@@ -117,7 +133,8 @@ service SeedService {
         permissions: [
           "seed_loan_request_create",
           "seed_credit_profile_view",
-          "seed_credit_profile_admin"
+          "seed_credit_profile_admin",
+          "seed_credit_profile_cap"
         ]
       },
       {
@@ -128,7 +145,8 @@ service SeedService {
         role: ROLE_MEMBER
         permissions: [
           "seed_loan_request_create",
-          "seed_credit_profile_view"
+          "seed_credit_profile_view",
+          "seed_credit_profile_cap"
         ]
       },
       {
@@ -138,7 +156,8 @@ service SeedService {
           "seed_credit_profile_view",
           "seed_credit_profile_admin",
           "seed_loan_paid_off_notify",
-          "seed_ussd_state"
+          "seed_ussd_state",
+          "seed_credit_profile_cap"
         ]
       }
     ]
@@ -193,6 +212,29 @@ service SeedService {
     };
     option (google.api.http) = {
       post: "/api/v1/seed/credit-profiles/{client_id}/{currency}/reinstate"
+      body: "*"
+    };
+  }
+
+  // CreditProfileCapSet sets a temporary lower cap on a client's borrowing.
+  // A field agent may cap only the clients they serve.
+  rpc CreditProfileCapSet(CreditProfileCapRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_credit_profile_cap"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/credit-profiles/{client_id}/{currency}/cap"
+      body: "*"
+    };
+  }
+
+  // CreditProfileCapClear lifts a temporary cap before it expires.
+  rpc CreditProfileCapClear(CreditProfileStatusRequest) returns (JSONResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["seed_credit_profile_cap"]
+    };
+    option (google.api.http) = {
+      post: "/api/v1/seed/credit-profiles/{client_id}/{currency}/cap/clear"
       body: "*"
     };
   }

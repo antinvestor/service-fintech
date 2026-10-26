@@ -288,10 +288,13 @@ func (b *loanRequestBusiness) RequestLoan( //nolint:gocognit,funlen // multi-ste
 
 	// A zero limit means the profile was never provisioned against a tier.
 	// Treating it as "no cap" let any amount through.
-	if profile.MaxLoanAmount <= 0 || req.Amount > profile.MaxLoanAmount {
+	// A temporary cap set by the serving agent or staff lowers it until it
+	// lapses.
+	limit := profile.EffectiveLimit(time.Now())
+	if limit <= 0 || req.Amount > limit {
 		return b.persistEligibilityFailure(ctx, req, ErrAmountExceedsLimit,
-			fmt.Sprintf("requested %d exceeds tier %d limit %d",
-				req.Amount, profile.Tier, profile.MaxLoanAmount))
+			fmt.Sprintf("requested %d exceeds tier %d limit %d (effective %d)",
+				req.Amount, profile.Tier, profile.MaxLoanAmount, limit))
 	}
 
 	tier, tierErr := b.cpBusiness.EvaluateTier(ctx, profile)

@@ -996,3 +996,34 @@ reduced.
   first, then first-loss, the excess not returned, a repeat moves nothing.
 - loans `TestRecoveryOnAWrittenOffLoanReversesTheBadDebt`,
   `TestRecoveredPrincipalGoesBackToTheFunders`, `TestRepayableStatuses`.
+
+## 40. Addendum 2026-10-26 — temporary borrowing caps
+
+**Design (2026-10-25 redesign, step 3).** The product credit profile (the
+tier ladder) is the permanent limit. The serving agent may set a temporary
+lower cap with an expiry, and the effective limit is the lower of the two.
+
+**Change.**
+
+- *Seed credit profile.* New fields `temp_cap_amount`,
+  `temp_cap_expires_at`, `temp_cap_set_by` and `temp_cap_reason`.
+  `EffectiveLimit(now)` returns the tier limit, lowered by an unexpired cap.
+- *Enforcement.* Borrowing in the app and by USSD is checked against the
+  effective limit, and USSD shows the effective limit.
+- *Setting a cap.*
+  `POST /api/v1/seed/credit-profiles/{client}/{currency}/cap` and
+  `/cap/clear` (`seed_credit_profile_cap`, bound to member, operator, admin,
+  owner and service).
+  - A cap must be below the tier limit, expire within 90 days and give a
+    reason. It never raises a limit.
+  - Staff may cap any client. A field agent may cap only a client they serve,
+    checked through field `ClientAccessScope`.
+  - Each change is audited with the actor and reason.
+- *UI.* Seed's Lending tab shows "Can borrow up to" as the effective limit,
+  plus the active cap with its expiry and reason. With the permit, it offers
+  "Set temporary cap" (amount, 7–90 days, reason) and "Lift cap".
+- No new grants: seed already holds `client_view` on field.
+
+**Verified.** seed `TestTemporaryCapOnlyLowersTheLimitUntilItLapses`,
+`TestTemporaryCapIsSetOnlyByStaffOrTheServingAgent`, the manifest route
+tests, and the ui/seed Lending tab tests (64 pass).

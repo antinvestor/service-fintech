@@ -19,6 +19,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -160,6 +161,16 @@ func (fakeCreditProfileBusiness) EvaluateTier(
 	_ *models.CreditProfile,
 ) (*models.CreditTierConfig, error) {
 	return &models.CreditTierConfig{Tier: 1, InterestRate: 1200, TermDays: 30}, nil
+}
+
+func (fakeCreditProfileBusiness) SetTempCap(
+	_ context.Context,
+	clientID, currencyCode string,
+	_ int64,
+	_ time.Time,
+	_, _ string,
+) (*models.CreditProfile, error) {
+	return &models.CreditProfile{ClientID: clientID, CurrencyCode: currencyCode}, nil
 }
 
 func (fakeCreditProfileBusiness) SetStatus(

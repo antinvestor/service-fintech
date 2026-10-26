@@ -100,6 +100,11 @@ void registerPermissionManifests() {
           label: 'Suspend, Block and Reinstate Borrowing',
           scope: PermissionScope.action,
         ),
+        PermissionEntry(
+          key: 'seed_credit_profile_cap',
+          label: 'Set Temporary Borrowing Caps',
+          scope: PermissionScope.action,
+        ),
       ],
     ),
   );

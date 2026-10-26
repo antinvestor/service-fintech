@@ -109,6 +109,15 @@ type CreditProfileRepository interface {
 		profileID string,
 		status models.CreditProfileStatus,
 	) (*models.CreditProfile, error)
+
+	// SetTempCap records (or, with amount 0, lifts) a temporary cap.
+	SetTempCap(
+		ctx context.Context,
+		profileID string,
+		amount int64,
+		expiresAt *time.Time,
+		setBy, reason string,
+	) (*models.CreditProfile, error)
 }
 
 type creditProfileRepository struct {
@@ -340,6 +349,33 @@ func (r *creditProfileRepository) AtomicSetStatus(
 			"status":      int32(status),
 			colModifiedAt: now,
 			colVersion:    gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrCreditProfileNotFound
+	}
+	return r.GetByID(ctx, profileID)
+}
+
+func (r *creditProfileRepository) SetTempCap(
+	ctx context.Context,
+	profileID string,
+	amount int64,
+	expiresAt *time.Time,
+	setBy, reason string,
+) (*models.CreditProfile, error) {
+	result := r.dbPool.DB(ctx, false).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ?", profileID).
+		Updates(map[string]any{
+			"temp_cap_amount":     amount,
+			"temp_cap_expires_at": expiresAt,
+			"temp_cap_set_by":     setBy,
+			"temp_cap_reason":     reason,
+			colModifiedAt:         time.Now().UTC(),
+			colVersion:            gorm.Expr("version + 1"),
 		})
 	if result.Error != nil {
 		return nil, result.Error
