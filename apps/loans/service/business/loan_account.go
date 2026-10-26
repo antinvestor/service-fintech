@@ -57,9 +57,11 @@ const (
 // validTransitions defines the allowed loan status transitions.
 var validTransitions = map[loansv1.LoanStatus][]loansv1.LoanStatus{ //nolint:gochecknoglobals // state machine
 	loansv1.LoanStatus_LOAN_STATUS_UNSPECIFIED: {},
+	// A loan never disbursed can be cancelled: it closes, owing nothing.
 	loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT: {
 		loansv1.LoanStatus_LOAN_STATUS_ACTIVE,
 		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
+		loansv1.LoanStatus_LOAN_STATUS_CLOSED,
 	},
 	loansv1.LoanStatus_LOAN_STATUS_ACTIVE: {
 		loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
@@ -124,6 +126,9 @@ type LoanAccountBusiness interface {
 		newStatus loansv1.LoanStatus,
 		changedBy, reason string,
 	) (*loansv1.LoanAccountObject, error)
+	// Cancel closes a loan that was opened but never disbursed and gives
+	// its funders back the capital reserved for it.
+	Cancel(ctx context.Context, loanAccountID, reason string) (*loansv1.LoanAccountObject, error)
 }
 
 type loanAccountBusiness struct {
@@ -1152,4 +1157,85 @@ func (b *loanAccountBusiness) defaultPayoutContact(
 		return ""
 	}
 	return contactID
+}
+
+// Cancel closes a loan that was opened but never disbursed. A loan with a
+// disbursement that is processing or completed is refused: its money may
+// have moved, and only a reversal settles that. One whose disbursements all
+// failed (the rail refused the payout) can be cancelled. The status is claimed
+// first, so no disbursement can start once the cancel has begun; the
+// funding release follows and is safe to repeat, so cancelling again a loan
+// this closed retries a release that did not finish.
+func (b *loanAccountBusiness) Cancel(
+	ctx context.Context,
+	loanAccountID, reason string,
+) (*loansv1.LoanAccountObject, error) {
+	la, err := b.loanAccountRepo.GetByID(ctx, loanAccountID)
+	if err != nil {
+		return nil, ErrLoanAccountNotFound
+	}
+	if b.disbRepo == nil || b.fundingCli == nil {
+		return nil, ErrFundingServiceUnavailable
+	}
+	paying, err := b.disbursementUnderway(ctx, la.GetID())
+	if err != nil {
+		return nil, err
+	}
+	if paying {
+		return nil, ErrLoanCancelDisbursed
+	}
+
+	result := la.ToAPI()
+	switch loansv1.LoanStatus(la.Status) { //nolint:exhaustive // every other status has been disbursed
+	case loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT:
+		result, err = b.TransitionStatus(ctx, la.GetID(), loansv1.LoanStatus_LOAN_STATUS_CLOSED,
+			callerSubject(ctx), "cancelled before disbursement: "+reason)
+		if err != nil {
+			return nil, err
+		}
+		// A disbursement that claimed its row before the close may still
+		// pay out: reopen the loan for it rather than release its funding.
+		if raced, raceErr := b.disbursementUnderway(ctx, la.GetID()); raced || raceErr != nil {
+			if _, reopenErr := b.loanAccountRepo.ClaimStatus(ctx, la.GetID(),
+				int32(loansv1.LoanStatus_LOAN_STATUS_CLOSED),
+				int32(loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT)); reopenErr != nil {
+				util.Log(ctx).WithError(reopenErr).WithField("loan_id", la.GetID()).
+					Error("could not reopen a loan a disbursement raced the cancel of")
+			}
+			return nil, ErrLoanCancelDisbursed
+		}
+	case loansv1.LoanStatus_LOAN_STATUS_CLOSED:
+		// Closed and never disbursed: an earlier cancel whose release may
+		// not have finished.
+	default:
+		return nil, ErrLoanCancelDisbursed
+	}
+
+	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
+	if _, relErr := b.fundingCli.FundingRelease(ctx, &fundingv1.FundingReleaseRequest{
+		LoanRequestId: loanRequestID,
+	}); relErr != nil {
+		util.Log(ctx).WithError(relErr).WithField("loan_id", la.GetID()).
+			Error("loan cancelled but its funding was not released; cancel again to retry")
+		return nil, ErrFundingAllocationUnavailable
+	}
+	return result, nil
+}
+
+// maxDisbursementsChecked bounds the disbursement rows a cancel reads.
+const maxDisbursementsChecked = 50
+
+// disbursementUnderway reports whether the loan has a disbursement that did
+// not fail: one processing, or one that paid out.
+func (b *loanAccountBusiness) disbursementUnderway(ctx context.Context, loanAccountID string) (bool, error) {
+	rows, err := b.disbRepo.ListByLoanAccountID(ctx, loanAccountID, maxDisbursementsChecked)
+	if err != nil {
+		return false, fmt.Errorf("check disbursements: %w", err)
+	}
+	for _, d := range rows {
+		if d.Status != int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

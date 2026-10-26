@@ -849,3 +849,34 @@ closed by this decision.
 acceptance, a forged timestamp being dropped, staff waiting for the code and
 recording acceptance, and an agent being unable to redeem a staff member's
 code.
+
+## 36. Addendum 2026-10-26 — cancelling an undisbursed loan releases its funding
+
+**Finding.** Funding is reserved when a loan account opens (`FundLoan`). A
+loan that was never disbursed could not be cancelled: PENDING_DISBURSEMENT
+led only to ACTIVE or RESTRUCTURED. Its investors' capital therefore stayed
+reserved forever, for example when the borrower's number was refused by the
+rail.
+
+**Change.**
+
+- `LoanManagementService.LoanAccountCancel(id, reason)` (`loan_manage`)
+  moves PENDING_DISBURSEMENT to CLOSED, then calls
+  `FundingService.FundingRelease`.
+  - It refuses while a disbursement is processing or completed. Failed
+    disbursements, refused by the rail, do not block it.
+  - Calling it again on a loan this closed retries the release.
+- *Race with a starting disbursement.*
+  - A disbursement re-reads the loan after claiming its row and abandons the
+    row if the loan was closed.
+  - A cancel re-checks after closing, and reopens the loan if a disbursement
+    slipped in.
+- *Funding.* `FundingRelease` is internal-only. Each active funding record is
+  voided by a conditional write before its investor reservation is returned,
+  so a reservation is released once however often it is called. The
+  allocation lock is then dropped.
+- *UI.* ui_loans offers "Cancel loan" on undisbursed loans and Collect
+  Payment on defaulted ones.
+
+**Verified.** funding `TestReleaseGivesBackReservedCapitalOnce` (Postgres);
+loans `TestCancel*`; ui_loans tests (52 pass).

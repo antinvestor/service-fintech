@@ -191,6 +191,10 @@ var (
 		apperrors.Unprocessable,
 		"the loan has nothing outstanding to collect",
 	)
+	ErrLoanCancelDisbursed = apperrors.NewError(
+		apperrors.Unprocessable,
+		"only a loan that was never disbursed can be cancelled",
+	)
 	ErrCollectionPromptUnavailable = apperrors.NewError(
 		apperrors.ServiceUnavailable,
 		"payment prompts are not configured; the borrower cannot be asked to pay",

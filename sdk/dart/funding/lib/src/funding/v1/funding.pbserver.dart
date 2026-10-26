@@ -35,6 +35,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.FundLoanRequest request);
   $async.Future<$3.AbsorbLossResponse> absorbLoss(
       $pb.ServerContext ctx, $3.AbsorbLossRequest request);
+  $async.Future<$3.FundingReleaseResponse> fundingRelease(
+      $pb.ServerContext ctx, $3.FundingReleaseRequest request);
   $async.Future<$3.LoanRepaymentApplyResponse> loanRepaymentApply(
       $pb.ServerContext ctx, $3.LoanRepaymentApplyRequest request);
 
@@ -54,6 +56,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return $3.FundLoanRequest();
       case 'AbsorbLoss':
         return $3.AbsorbLossRequest();
+      case 'FundingRelease':
+        return $3.FundingReleaseRequest();
       case 'LoanRepaymentApply':
         return $3.LoanRepaymentApplyRequest();
       default:
@@ -80,6 +84,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return fundLoan(ctx, request as $3.FundLoanRequest);
       case 'AbsorbLoss':
         return absorbLoss(ctx, request as $3.AbsorbLossRequest);
+      case 'FundingRelease':
+        return fundingRelease(ctx, request as $3.FundingReleaseRequest);
       case 'LoanRepaymentApply':
         return loanRepaymentApply(ctx, request as $3.LoanRepaymentApplyRequest);
       default:

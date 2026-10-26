@@ -46,6 +46,11 @@ type FundingAllocationBusiness interface {
 	// they actually covered. It is idempotent on the loss reference: a repeat
 	// returns the first call's split rather than eating further tranches.
 	AbsorbLoss(ctx context.Context, loss LossApplication) (*LossResult, error)
+
+	// ReleaseForRequest gives back the capital reserved for a loan request
+	// whose loan was cancelled before disbursement, and returns how much.
+	// Each funding record is released once, however often it is called.
+	ReleaseForRequest(ctx context.Context, loanRequestID string) (int64, string, error)
 }
 
 // LossApplication is a loss on a loan to charge to its funders.

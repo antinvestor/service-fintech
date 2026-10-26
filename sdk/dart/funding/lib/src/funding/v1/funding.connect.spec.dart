@@ -59,6 +59,16 @@ abstract final class FundingService {
     fundingv1funding.AbsorbLossResponse.new,
   );
 
+  /// FundingRelease returns the capital reserved for a loan request whose
+  /// loan was cancelled before disbursement. Repeating it releases nothing
+  /// more.
+  static const fundingRelease = connect.Spec(
+    '/$name/FundingRelease',
+    connect.StreamType.unary,
+    fundingv1funding.FundingReleaseRequest.new,
+    fundingv1funding.FundingReleaseResponse.new,
+  );
+
   /// LoanRepaymentApply shares a loan repayment out to the loan's funders:
   /// principal back to their capital, interest net of fee and tax as income.
   static const loanRepaymentApply = connect.Spec(

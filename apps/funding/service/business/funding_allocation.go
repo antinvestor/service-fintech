@@ -870,3 +870,56 @@ func fundingSourceOwnerType(sourceType int32) string {
 		return "unknown"
 	}
 }
+
+// ReleaseForRequest gives back the capital reserved for a loan request whose
+// loan was cancelled before it was disbursed. Each active funding record is
+// voided by a conditional write before its investor reservation is returned,
+// so a repeated or concurrent release returns each reservation once. The
+// allocation lock is then dropped, so the request could be funded afresh.
+func (b *fundingAllocationBusiness) ReleaseForRequest(
+	ctx context.Context,
+	loanRequestID string,
+) (int64, string, error) {
+	logger := util.Log(ctx).WithField("method", "FundingAllocationBusiness.ReleaseForRequest").
+		WithField("loan_request_id", loanRequestID)
+
+	fundings, err := b.lfRepo.GetByLoanRequestID(ctx, loanRequestID)
+	if err != nil {
+		return 0, "", fmt.Errorf("load loan funding: %w", err)
+	}
+	var released int64
+	currency := ""
+	for _, funding := range fundings {
+		if funding.State != int32(constants.StateActive) {
+			continue
+		}
+		won, voidErr := b.lfRepo.VoidIfActive(ctx, funding.GetID())
+		if voidErr != nil {
+			return released, currency, fmt.Errorf("void loan funding %s: %w", funding.GetID(), voidErr)
+		}
+		if !won {
+			continue
+		}
+		currency = funding.Currency
+		tranches, trErr := b.ftRepo.GetByLoanFundingID(ctx, funding.GetID())
+		if trErr != nil {
+			return released, currency, fmt.Errorf("load tranches of %s: %w", funding.GetID(), trErr)
+		}
+		var reserved []reservation
+		for _, t := range tranches {
+			if t.InvestorAccountID != "" && t.State == int32(constants.StateActive) {
+				reserved = append(reserved, reservation{investorAccountID: t.InvestorAccountID, amount: t.Amount})
+			}
+		}
+		b.rollbackReservations(ctx, logger, reserved)
+		b.voidRecords(ctx, logger, writtenRecords{tranches: tranches})
+		released += funding.Amount
+	}
+	if releaseErr := b.claimRepo.Release(ctx, loanRequestID); releaseErr != nil {
+		logger.WithError(releaseErr).Error("could not release the allocation lock")
+	}
+	if released > 0 {
+		logger.WithField("released", released).Info("funding released for a cancelled loan")
+	}
+	return released, currency, nil
+}

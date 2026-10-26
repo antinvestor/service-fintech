@@ -287,6 +287,10 @@ func (s *stubLoanAccountBusiness) TransitionStatus(
 	return &loansv1.LoanAccountObject{}, nil
 }
 
+func (s *stubLoanAccountBusiness) Cancel(_ context.Context, _, _ string) (*loansv1.LoanAccountObject, error) {
+	return &loansv1.LoanAccountObject{}, nil
+}
+
 // Compile-time check.
 var _ LoanAccountBusiness = (*stubLoanAccountBusiness)(nil)
 

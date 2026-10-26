@@ -496,6 +496,47 @@ final $typed_data.Uint8List fundLoanResponseDescriptor = $convert.base64Decode(
     'AuY29tbW9uLnYxLk1vbmV5UgdkZWZpY2l0EiEKDGZ1bGx5X2Z1bmRlZBgEIAEoCFILZnVsbHlG'
     'dW5kZWQ=');
 
+@$core.Deprecated('Use fundingReleaseRequestDescriptor instead')
+const FundingReleaseRequest$json = {
+  '1': 'FundingReleaseRequest',
+  '2': [
+    {
+      '1': 'loan_request_id',
+      '3': 1,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'loanRequestId'
+    },
+  ],
+};
+
+/// Descriptor for `FundingReleaseRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List fundingReleaseRequestDescriptor = $convert.base64Decode(
+    'ChVGdW5kaW5nUmVsZWFzZVJlcXVlc3QSMQoPbG9hbl9yZXF1ZXN0X2lkGAEgASgJQgm6SAZyBB'
+    'ADGChSDWxvYW5SZXF1ZXN0SWQ=');
+
+@$core.Deprecated('Use fundingReleaseResponseDescriptor instead')
+const FundingReleaseResponse$json = {
+  '1': 'FundingReleaseResponse',
+  '2': [
+    {
+      '1': 'released',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'released'
+    },
+  ],
+};
+
+/// Descriptor for `FundingReleaseResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List fundingReleaseResponseDescriptor =
+    $convert.base64Decode(
+        'ChZGdW5kaW5nUmVsZWFzZVJlc3BvbnNlEiwKCHJlbGVhc2VkGAEgASgLMhAuY29tbW9uLnYxLk'
+        '1vbmV5UghyZWxlYXNlZA==');
+
 @$core.Deprecated('Use absorbLossRequestDescriptor instead')
 const AbsorbLossRequest$json = {
   '1': 'AbsorbLossRequest',
@@ -747,6 +788,12 @@ const $core.Map<$core.String, $core.dynamic> FundingServiceBase$json = {
       '4': {}
     },
     {
+      '1': 'FundingRelease',
+      '2': '.funding.v1.FundingReleaseRequest',
+      '3': '.funding.v1.FundingReleaseResponse',
+      '4': {}
+    },
+    {
       '1': 'LoanRepaymentApply',
       '2': '.funding.v1.LoanRepaymentApplyRequest',
       '3': '.funding.v1.LoanRepaymentApplyResponse',
@@ -782,6 +829,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.funding.v1.FundingAllocationObject': FundingAllocationObject$json,
   '.funding.v1.AbsorbLossRequest': AbsorbLossRequest$json,
   '.funding.v1.AbsorbLossResponse': AbsorbLossResponse$json,
+  '.funding.v1.FundingReleaseRequest': FundingReleaseRequest$json,
+  '.funding.v1.FundingReleaseResponse': FundingReleaseResponse$json,
   '.funding.v1.LoanRepaymentApplyRequest': LoanRepaymentApplyRequest$json,
   '.funding.v1.LoanRepaymentApplyResponse': LoanRepaymentApplyResponse$json,
   '.funding.v1.RepaymentShareObject': RepaymentShareObject$json,
@@ -804,13 +853,15 @@ final $typed_data.Uint8List fundingServiceDescriptor = $convert.base64Decode(
     'dF9tYW5hZ2USWAoIRnVuZExvYW4SGy5mdW5kaW5nLnYxLkZ1bmRMb2FuUmVxdWVzdBocLmZ1bm'
     'RpbmcudjEuRnVuZExvYW5SZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2USXgoKQWJzb3JiTG9z'
     'cxIdLmZ1bmRpbmcudjEuQWJzb3JiTG9zc1JlcXVlc3QaHi5mdW5kaW5nLnYxLkFic29yYkxvc3'
-    'NSZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2USdgoSTG9hblJlcGF5bWVudEFwcGx5EiUuZnVu'
-    'ZGluZy52MS5Mb2FuUmVwYXltZW50QXBwbHlSZXF1ZXN0GiYuZnVuZGluZy52MS5Mb2FuUmVwYX'
-    'ltZW50QXBwbHlSZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2Ua9AKCtRjvAgoPc2VydmljZV9m'
-    'dW5kaW5nEhVpbnZlc3Rvcl9hY2NvdW50X3ZpZXcSF2ludmVzdG9yX2FjY291bnRfbWFuYWdlEg'
-    'tmdW5kX21hbmFnZRo/CAESFWludmVzdG9yX2FjY291bnRfdmlldxIXaW52ZXN0b3JfYWNjb3Vu'
-    'dF9tYW5hZ2USC2Z1bmRfbWFuYWdlGj8IAhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3'
-    'Rvcl9hY2NvdW50X21hbmFnZRILZnVuZF9tYW5hZ2UaJggDEhVpbnZlc3Rvcl9hY2NvdW50X3Zp'
-    'ZXcSC2Z1bmRfbWFuYWdlGhkIBBIVaW52ZXN0b3JfYWNjb3VudF92aWV3GhkIBRIVaW52ZXN0b3'
-    'JfYWNjb3VudF92aWV3Gj8IBhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3Rvcl9hY2Nv'
-    'dW50X21hbmFnZRILZnVuZF9tYW5hZ2U=');
+    'NSZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2USagoORnVuZGluZ1JlbGVhc2USIS5mdW5kaW5n'
+    'LnYxLkZ1bmRpbmdSZWxlYXNlUmVxdWVzdBoiLmZ1bmRpbmcudjEuRnVuZGluZ1JlbGVhc2VSZX'
+    'Nwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2USdgoSTG9hblJlcGF5bWVudEFwcGx5EiUuZnVuZGlu'
+    'Zy52MS5Mb2FuUmVwYXltZW50QXBwbHlSZXF1ZXN0GiYuZnVuZGluZy52MS5Mb2FuUmVwYXltZW'
+    '50QXBwbHlSZXNwb25zZSIRgrUYDQoLZnVuZF9tYW5hZ2Ua9AKCtRjvAgoPc2VydmljZV9mdW5k'
+    'aW5nEhVpbnZlc3Rvcl9hY2NvdW50X3ZpZXcSF2ludmVzdG9yX2FjY291bnRfbWFuYWdlEgtmdW'
+    '5kX21hbmFnZRo/CAESFWludmVzdG9yX2FjY291bnRfdmlldxIXaW52ZXN0b3JfYWNjb3VudF9t'
+    'YW5hZ2USC2Z1bmRfbWFuYWdlGj8IAhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3Rvcl'
+    '9hY2NvdW50X21hbmFnZRILZnVuZF9tYW5hZ2UaJggDEhVpbnZlc3Rvcl9hY2NvdW50X3ZpZXcS'
+    'C2Z1bmRfbWFuYWdlGhkIBBIVaW52ZXN0b3JfYWNjb3VudF92aWV3GhkIBRIVaW52ZXN0b3JfYW'
+    'Njb3VudF92aWV3Gj8IBhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3Rvcl9hY2NvdW50'
+    'X21hbmFnZRILZnVuZF9tYW5hZ2U=');

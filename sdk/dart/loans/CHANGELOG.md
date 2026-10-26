@@ -1,3 +1,9 @@
+## 0.6.3
+
+- `LoanManagementService.LoanAccountCancel`: closes a loan that was never
+  disbursed and releases its funding (`loan_manage`).
+- ROLE_OPERATOR holds `collection_manage`.
+
 ## 0.6.2
 
 - `LoanJob.LOAN_JOB_PAID_OFF_NOTICES`: the scheduler retries pay-off notices

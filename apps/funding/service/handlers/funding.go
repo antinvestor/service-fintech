@@ -222,6 +222,27 @@ func (s *FundingServer) AbsorbLoss(
 	}, nil
 }
 
+// FundingRelease gives back the capital reserved for a loan cancelled before
+// disbursement. Only the loans service cancels loans, so only an internal
+// caller may release their funding.
+func (s *FundingServer) FundingRelease(
+	ctx context.Context,
+	req *fundingv1.FundingReleaseRequest,
+) (*fundingv1.FundingReleaseResponse, error) {
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	released, currency, err := s.faBusiness.ReleaseForRequest(ctx, req.GetLoanRequestId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceFundingAllocation, req.GetLoanRequestId())
+	audit.WithAction(ctx, "release")
+	return &fundingv1.FundingReleaseResponse{
+		Released: moneyx.FromMinorUnitsByCurrency(currency, released),
+	}, nil
+}
+
 // LoanRepaymentApply shares a loan repayment out to the loan's funders.
 func (s *FundingServer) LoanRepaymentApply(
 	ctx context.Context,

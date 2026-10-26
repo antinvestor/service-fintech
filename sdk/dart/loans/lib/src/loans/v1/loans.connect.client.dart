@@ -246,6 +246,25 @@ extension type LoanManagementServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// LoanAccountCancel closes a loan that was opened but never disbursed and
+  /// gives its funders back the capital reserved for it.
+  Future<loansv1loans.LoanAccountCancelResponse> loanAccountCancel(
+    loansv1loans.LoanAccountCancelRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LoanManagementService.loanAccountCancel,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// LoanAccountGet retrieves a loan account by its ID.
   Future<loansv1loans.LoanAccountGetResponse> loanAccountGet(
     loansv1loans.LoanAccountGetRequest input, {

@@ -1,6 +1,6 @@
 name: antinvestor_api_funding
 description: Dart client library for Ant Investor Funding Service
-version: 0.5.0
+version: 0.5.1
 repository: https://github.com/antinvestor/service-fintech
 homepage: https://github.com/antinvestor/service-fintech
 issue_tracker: https://github.com/antinvestor/service-fintech/issues

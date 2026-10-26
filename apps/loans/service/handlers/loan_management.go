@@ -242,6 +242,20 @@ func (s *LoanManagementServer) LoanAccountCreate(
 	return &loansv1.LoanAccountCreateResponse{Data: result}, nil
 }
 
+func (s *LoanManagementServer) LoanAccountCancel(
+	ctx context.Context,
+	req *loansv1.LoanAccountCancelRequest,
+) (*loansv1.LoanAccountCancelResponse, error) {
+	result, err := s.laBusiness.Cancel(ctx, req.GetId(), req.GetReason())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceLoanAccount, req.GetId())
+	audit.WithAction(ctx, "cancel")
+	audit.WithDetail(ctx, "reason", req.GetReason())
+	return &loansv1.LoanAccountCancelResponse{Data: result}, nil
+}
+
 func (s *LoanManagementServer) LoanAccountGet(
 	ctx context.Context,
 	req *loansv1.LoanAccountGetRequest,

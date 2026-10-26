@@ -234,6 +234,20 @@ func (b *disbursementBusiness) createInner(
 		disb = stored
 	}
 
+	// A loan cancelled while this row was being claimed must not be paid:
+	// cancellation closes the loan first, so a fresh read settles it.
+	if created {
+		if current, getErr := b.loanAccountRepo.GetByID(ctx, la.GetID()); getErr != nil ||
+			loansv1.LoanStatus(current.Status) != loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT {
+			if _, upErr := b.disbRepo.UpdateColumns(ctx, disb.GetID(), map[string]any{
+				fieldStatus: int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED),
+			}); upErr != nil {
+				logger.WithError(upErr).Error("could not abandon disbursement of a cancelled loan")
+			}
+			return nil, ErrLoanNotPendingDisbursement
+		}
+	}
+
 	toResp, toErr := b.executeDisbursementTransfer(ctx, req, la, disb)
 	if toErr != nil {
 		return nil, b.handleTransferFailure(ctx, logger, disb, toErr)

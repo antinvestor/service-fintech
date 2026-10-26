@@ -47,6 +47,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.ClientProductAccessSearchRequest request);
   $async.Future<$3.LoanAccountCreateResponse> loanAccountCreate(
       $pb.ServerContext ctx, $3.LoanAccountCreateRequest request);
+  $async.Future<$3.LoanAccountCancelResponse> loanAccountCancel(
+      $pb.ServerContext ctx, $3.LoanAccountCancelRequest request);
   $async.Future<$3.LoanAccountGetResponse> loanAccountGet(
       $pb.ServerContext ctx, $3.LoanAccountGetRequest request);
   $async.Future<$3.LoanAccountSearchResponse> loanAccountSearch(
@@ -126,6 +128,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
         return $3.ClientProductAccessSearchRequest();
       case 'LoanAccountCreate':
         return $3.LoanAccountCreateRequest();
+      case 'LoanAccountCancel':
+        return $3.LoanAccountCancelRequest();
       case 'LoanAccountGet':
         return $3.LoanAccountGetRequest();
       case 'LoanAccountSearch':
@@ -213,6 +217,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
             ctx, request as $3.ClientProductAccessSearchRequest);
       case 'LoanAccountCreate':
         return loanAccountCreate(ctx, request as $3.LoanAccountCreateRequest);
+      case 'LoanAccountCancel':
+        return loanAccountCancel(ctx, request as $3.LoanAccountCancelRequest);
       case 'LoanAccountGet':
         return loanAccountGet(ctx, request as $3.LoanAccountGetRequest);
       case 'LoanAccountSearch':

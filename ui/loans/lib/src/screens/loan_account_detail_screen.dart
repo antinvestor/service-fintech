@@ -239,8 +239,18 @@ class _LoanAccountDetailScreenState
                     icon: const Icon(Icons.send, size: 18),
                     label: const Text('Disburse'),
                   ),
+                if (loan.status ==
+                        LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT &&
+                    widget.canManage)
+                  OutlinedButton.icon(
+                    key: const Key('loan-cancel'),
+                    onPressed: () => _cancelLoan(context, loan),
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: const Text('Cancel loan'),
+                  ),
                 if (loan.status == LoanStatus.LOAN_STATUS_ACTIVE ||
-                    loan.status == LoanStatus.LOAN_STATUS_DELINQUENT) ...[
+                    loan.status == LoanStatus.LOAN_STATUS_DELINQUENT ||
+                    loan.status == LoanStatus.LOAN_STATUS_DEFAULT) ...[
                   if (widget.canCollectPayment)
                     FilledButton.tonalIcon(
                       onPressed: () => _showCollectPaymentDialog(context, loan),
@@ -291,6 +301,60 @@ class _LoanAccountDetailScreenState
         ],
       ),
     );
+  }
+
+  /// Cancels a loan that was never disbursed, giving its funders back the
+  /// capital reserved for it. The service refuses once money is moving.
+  Future<void> _cancelLoan(BuildContext context, LoanAccountObject loan) async {
+    final reasonCtrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel loan'),
+        content: TextField(
+          key: const Key('loan-cancel-reason'),
+          controller: reasonCtrl,
+          maxLength: 500,
+          decoration: const InputDecoration(
+            labelText: 'Why the loan is cancelled (kept on record)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Keep loan'),
+          ),
+          FilledButton(
+            key: const Key('loan-cancel-confirm'),
+            onPressed: () {
+              final text = reasonCtrl.text.trim();
+              if (text.length >= 3) Navigator.pop(dialogContext, text);
+            },
+            child: const Text('Cancel loan'),
+          ),
+        ],
+      ),
+    );
+    reasonCtrl.dispose();
+    if (reason == null || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(loanManagementServiceClientProvider)
+          .loanAccountCancel(
+            LoanAccountCancelRequest(id: loan.id, reason: reason),
+          );
+      ref.invalidate(loanAccountDetailProvider(widget.loanId));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Loan cancelled; its funding is released'),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not cancel the loan: $e')),
+      );
+    }
   }
 
   void _showDisbursementDialog(BuildContext context, LoanAccountObject loan) {

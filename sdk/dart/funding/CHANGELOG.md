@@ -1,3 +1,8 @@
+## 0.5.1
+
+- `FundingService.FundingRelease`: returns the capital reserved for a loan
+  cancelled before disbursement. Internal callers only.
+
 ## 0.5.0
 
 - `FundingService.LoanRepaymentApply`: shares a loan repayment out to its funders (`RepaymentShareObject`).

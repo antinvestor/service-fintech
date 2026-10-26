@@ -578,6 +578,23 @@ message LoanAccountCreateResponse {
   LoanAccountObject data = 1;
 }
 
+// LoanAccountCancelRequest cancels a loan that was opened but never
+// disbursed.
+message LoanAccountCancelRequest {
+  string id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  string reason = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 500
+  ];
+}
+
+message LoanAccountCancelResponse {
+  LoanAccountObject data = 1;
+}
+
 message LoanAccountGetRequest {
   string id = 1 [
     (buf.validate.field).string.min_len = 3,
@@ -1519,6 +1536,20 @@ service LoanManagementService {
       operation_id: "loanAccountCreate"
       summary: "Create a loan account"
       description: "Creates a new loan account from an approved loan request."
+      tags: "LoanAccounts"
+    };
+  }
+
+  // LoanAccountCancel closes a loan that was opened but never disbursed and
+  // gives its funders back the capital reserved for it.
+  rpc LoanAccountCancel(LoanAccountCancelRequest) returns (LoanAccountCancelResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["loan_manage"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "loanAccountCancel"
+      summary: "Cancel an undisbursed loan"
+      description: "Closes a loan that was never disbursed and releases the funding reserved for it."
       tags: "LoanAccounts"
     };
   }

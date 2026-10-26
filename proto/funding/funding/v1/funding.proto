@@ -160,6 +160,20 @@ message FundLoanResponse {
   bool fully_funded = 4;
 }
 
+// FundingReleaseRequest gives back the capital reserved for a loan that was
+// never disbursed.
+message FundingReleaseRequest {
+  string loan_request_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+}
+
+message FundingReleaseResponse {
+  // Capital this call returned to the funders' available balances.
+  common.v1.Money released = 1;
+}
+
 message AbsorbLossRequest {
   string loan_request_id = 1 [
     (buf.validate.field).string.min_len = 3,
@@ -322,6 +336,14 @@ service FundingService {
     };
   }
   rpc AbsorbLoss(AbsorbLossRequest) returns (AbsorbLossResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["fund_manage"]
+    };
+  }
+  // FundingRelease returns the capital reserved for a loan request whose
+  // loan was cancelled before disbursement. Repeating it releases nothing
+  // more.
+  rpc FundingRelease(FundingReleaseRequest) returns (FundingReleaseResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["fund_manage"]
     };

@@ -124,6 +124,15 @@ abstract final class LoanManagementService {
     loansv1loans.LoanAccountCreateResponse.new,
   );
 
+  /// LoanAccountCancel closes a loan that was opened but never disbursed and
+  /// gives its funders back the capital reserved for it.
+  static const loanAccountCancel = connect.Spec(
+    '/$name/LoanAccountCancel',
+    connect.StreamType.unary,
+    loansv1loans.LoanAccountCancelRequest.new,
+    loansv1loans.LoanAccountCancelResponse.new,
+  );
+
   /// LoanAccountGet retrieves a loan account by its ID.
   static const loanAccountGet = connect.Spec(
     '/$name/LoanAccountGet',

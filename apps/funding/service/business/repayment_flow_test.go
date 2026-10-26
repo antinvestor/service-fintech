@@ -190,3 +190,34 @@ func (s *fundingSuite) TestLossIsAbsorbedOnceAgainstWhatIsStillLent() {
 	}
 	s.EqualValues(4_500, toCapital)
 }
+
+// A loan cancelled before disbursement gives its funders back exactly what
+// was reserved for it, once, however often the release is asked for.
+func (s *fundingSuite) TestReleaseGivesBackReservedCapitalOnce() {
+	e := s.newEnv()
+	investor, _ := e.fundLoan(s, "lr-cancel")
+	fa := business.NewFundingAllocationBusiness(e.ctx, nil,
+		repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan),
+		repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan),
+		repository.NewLossAbsorptionRepository(e.ctx, e.dbPool, e.workMan),
+		nil, e.iaRepo,
+		repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan),
+		nil, &recordingPoster{})
+
+	released, currency, err := fa.ReleaseForRequest(e.ctx, "lr-cancel")
+	s.Require().NoError(err)
+	s.EqualValues(10_000, released, "the platform's 1 000 and the investor's 9 000")
+	s.Equal("KES", currency)
+
+	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Zero(acct.ReservedBalance, "nothing stays reserved for a loan that will not be disbursed")
+	s.EqualValues(50_000, acct.AvailableBalance)
+
+	again, _, err := fa.ReleaseForRequest(e.ctx, "lr-cancel")
+	s.Require().NoError(err)
+	s.Zero(again)
+	acct2, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Equal(acct.AvailableBalance, acct2.AvailableBalance, "a repeat gives back nothing more")
+}

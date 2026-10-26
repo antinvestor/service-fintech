@@ -3376,6 +3376,144 @@ class LoanAccountCreateResponse extends $pb.GeneratedMessage {
   LoanAccountObject ensureData() => $_ensure(0);
 }
 
+/// LoanAccountCancelRequest cancels a loan that was opened but never
+/// disbursed.
+class LoanAccountCancelRequest extends $pb.GeneratedMessage {
+  factory LoanAccountCancelRequest({
+    $core.String? id,
+    $core.String? reason,
+  }) {
+    final result = LoanAccountCancelRequest._();
+    if (id != null) result.id = id;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  LoanAccountCancelRequest._();
+
+  factory LoanAccountCancelRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelRequest()..mergeFromBuffer(data, registry);
+  factory LoanAccountCancelRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanAccountCancelRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: LoanAccountCancelRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelRequest copyWith(
+          void Function(LoanAccountCancelRequest) updates) =>
+      super.copyWith((message) => updates(message as LoanAccountCancelRequest))
+          as LoanAccountCancelRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanAccountCancelRequest() / LoanAccountCancelRequest.new instead')
+  static LoanAccountCancelRequest create() => LoanAccountCancelRequest._();
+  static $pb.GeneratedMessage $_createMessage() => LoanAccountCancelRequest._();
+  @$core.override
+  LoanAccountCancelRequest createEmptyInstance() =>
+      LoanAccountCancelRequest._();
+  @$core.pragma('dart2js:noInline')
+  static LoanAccountCancelRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanAccountCancelRequest>(
+          LoanAccountCancelRequest.$_createMessage);
+  static LoanAccountCancelRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get reason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set reason($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => $_clearField(2);
+}
+
+class LoanAccountCancelResponse extends $pb.GeneratedMessage {
+  factory LoanAccountCancelResponse({
+    LoanAccountObject? data,
+  }) {
+    final result = LoanAccountCancelResponse._();
+    if (data != null) result.data = data;
+    return result;
+  }
+
+  LoanAccountCancelResponse._();
+
+  factory LoanAccountCancelResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelResponse()..mergeFromBuffer(data, registry);
+  factory LoanAccountCancelResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanAccountCancelResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: LoanAccountCancelResponse.$_createMessage)
+    ..aOM<LoanAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: LoanAccountObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelResponse copyWith(
+          void Function(LoanAccountCancelResponse) updates) =>
+      super.copyWith((message) => updates(message as LoanAccountCancelResponse))
+          as LoanAccountCancelResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanAccountCancelResponse() / LoanAccountCancelResponse.new instead')
+  static LoanAccountCancelResponse create() => LoanAccountCancelResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      LoanAccountCancelResponse._();
+  @$core.override
+  LoanAccountCancelResponse createEmptyInstance() =>
+      LoanAccountCancelResponse._();
+  @$core.pragma('dart2js:noInline')
+  static LoanAccountCancelResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanAccountCancelResponse>(
+          LoanAccountCancelResponse.$_createMessage);
+  static LoanAccountCancelResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  LoanAccountObject get data => $_getN(0);
+  @$pb.TagNumber(1)
+  set data(LoanAccountObject value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasData() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearData() => $_clearField(1);
+  @$pb.TagNumber(1)
+  LoanAccountObject ensureData() => $_ensure(0);
+}
+
 class LoanAccountGetRequest extends $pb.GeneratedMessage {
   factory LoanAccountGetRequest({
     $core.String? id,
@@ -9169,6 +9307,13 @@ class LoanManagementServiceApi {
           $pb.ClientContext? ctx, LoanAccountCreateRequest request) =>
       _client.invoke<LoanAccountCreateResponse>(ctx, 'LoanManagementService',
           'LoanAccountCreate', request, LoanAccountCreateResponse());
+
+  /// LoanAccountCancel closes a loan that was opened but never disbursed and
+  /// gives its funders back the capital reserved for it.
+  $async.Future<LoanAccountCancelResponse> loanAccountCancel(
+          $pb.ClientContext? ctx, LoanAccountCancelRequest request) =>
+      _client.invoke<LoanAccountCancelResponse>(ctx, 'LoanManagementService',
+          'LoanAccountCancel', request, LoanAccountCancelResponse());
 
   /// LoanAccountGet retrieves a loan account by its ID.
   $async.Future<LoanAccountGetResponse> loanAccountGet(

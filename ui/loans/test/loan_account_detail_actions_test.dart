@@ -11,6 +11,7 @@ Money _kes(int units) =>
 Widget _host({
   required bool canCollectPayment,
   bool canDisburse = false,
+  bool canManage = false,
   LoanStatus status = LoanStatus.LOAN_STATUS_ACTIVE,
   String paymentAccountRef = '',
 }) {
@@ -48,6 +49,7 @@ Widget _host({
           loanId: 'loan-1',
           canCollectPayment: canCollectPayment,
           canDisburse: canDisburse,
+          canManage: canManage,
         ),
       ),
     ),
@@ -147,5 +149,47 @@ void main() {
       restructureTypeOffered(RestructureType.RESTRUCTURE_TYPE_WRITE_OFF),
       isTrue,
     );
+  });
+
+  testWidgets('an undisbursed loan can be cancelled with loan_manage', (
+    tester,
+  ) async {
+    wide(tester);
+    await tester.pumpWidget(
+      _host(
+        canCollectPayment: false,
+        status: LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('loan-cancel')), findsNothing);
+
+    await tester.pumpWidget(
+      _host(
+        canCollectPayment: false,
+        canManage: true,
+        status: LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('loan-cancel')), findsOneWidget);
+  });
+
+  testWidgets('a disbursed loan is never offered for cancelling', (
+    tester,
+  ) async {
+    wide(tester);
+    await tester.pumpWidget(_host(canCollectPayment: false, canManage: true));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('loan-cancel')), findsNothing);
+  });
+
+  testWidgets('a defaulted loan can still be collected', (tester) async {
+    wide(tester);
+    await tester.pumpWidget(
+      _host(canCollectPayment: true, status: LoanStatus.LOAN_STATUS_DEFAULT),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Collect Payment'), findsOneWidget);
   });
 }

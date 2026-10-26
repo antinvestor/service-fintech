@@ -1306,6 +1306,130 @@ class FundLoanResponse extends $pb.GeneratedMessage {
   void clearFullyFunded() => $_clearField(4);
 }
 
+/// FundingReleaseRequest gives back the capital reserved for a loan that was
+/// never disbursed.
+class FundingReleaseRequest extends $pb.GeneratedMessage {
+  factory FundingReleaseRequest({
+    $core.String? loanRequestId,
+  }) {
+    final result = FundingReleaseRequest._();
+    if (loanRequestId != null) result.loanRequestId = loanRequestId;
+    return result;
+  }
+
+  FundingReleaseRequest._();
+
+  factory FundingReleaseRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundingReleaseRequest()..mergeFromBuffer(data, registry);
+  factory FundingReleaseRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundingReleaseRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FundingReleaseRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: FundingReleaseRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'loanRequestId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundingReleaseRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundingReleaseRequest copyWith(
+          void Function(FundingReleaseRequest) updates) =>
+      super.copyWith((message) => updates(message as FundingReleaseRequest))
+          as FundingReleaseRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use FundingReleaseRequest() / FundingReleaseRequest.new instead')
+  static FundingReleaseRequest create() => FundingReleaseRequest._();
+  static $pb.GeneratedMessage $_createMessage() => FundingReleaseRequest._();
+  @$core.override
+  FundingReleaseRequest createEmptyInstance() => FundingReleaseRequest._();
+  @$core.pragma('dart2js:noInline')
+  static FundingReleaseRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FundingReleaseRequest>(
+          FundingReleaseRequest.$_createMessage);
+  static FundingReleaseRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get loanRequestId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set loanRequestId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasLoanRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearLoanRequestId() => $_clearField(1);
+}
+
+class FundingReleaseResponse extends $pb.GeneratedMessage {
+  factory FundingReleaseResponse({
+    $0.Money? released,
+  }) {
+    final result = FundingReleaseResponse._();
+    if (released != null) result.released = released;
+    return result;
+  }
+
+  FundingReleaseResponse._();
+
+  factory FundingReleaseResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundingReleaseResponse()..mergeFromBuffer(data, registry);
+  factory FundingReleaseResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FundingReleaseResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FundingReleaseResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: FundingReleaseResponse.$_createMessage)
+    ..aOM<$0.Money>(1, _omitFieldNames ? '' : 'released',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundingReleaseResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FundingReleaseResponse copyWith(
+          void Function(FundingReleaseResponse) updates) =>
+      super.copyWith((message) => updates(message as FundingReleaseResponse))
+          as FundingReleaseResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use FundingReleaseResponse() / FundingReleaseResponse.new instead')
+  static FundingReleaseResponse create() => FundingReleaseResponse._();
+  static $pb.GeneratedMessage $_createMessage() => FundingReleaseResponse._();
+  @$core.override
+  FundingReleaseResponse createEmptyInstance() => FundingReleaseResponse._();
+  @$core.pragma('dart2js:noInline')
+  static FundingReleaseResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FundingReleaseResponse>(
+          FundingReleaseResponse.$_createMessage);
+  static FundingReleaseResponse? _defaultInstance;
+
+  /// Capital this call returned to the funders' available balances.
+  @$pb.TagNumber(1)
+  $0.Money get released => $_getN(0);
+  @$pb.TagNumber(1)
+  set released($0.Money value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReleased() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReleased() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $0.Money ensureReleased() => $_ensure(0);
+}
+
 class AbsorbLossRequest extends $pb.GeneratedMessage {
   factory AbsorbLossRequest({
     $core.String? loanRequestId,
@@ -1882,6 +2006,14 @@ class FundingServiceApi {
           $pb.ClientContext? ctx, AbsorbLossRequest request) =>
       _client.invoke<AbsorbLossResponse>(
           ctx, 'FundingService', 'AbsorbLoss', request, AbsorbLossResponse());
+
+  /// FundingRelease returns the capital reserved for a loan request whose
+  /// loan was cancelled before disbursement. Repeating it releases nothing
+  /// more.
+  $async.Future<FundingReleaseResponse> fundingRelease(
+          $pb.ClientContext? ctx, FundingReleaseRequest request) =>
+      _client.invoke<FundingReleaseResponse>(ctx, 'FundingService',
+          'FundingRelease', request, FundingReleaseResponse());
 
   /// LoanRepaymentApply shares a loan repayment out to the loan's funders:
   /// principal back to their capital, interest net of fee and tax as income.
