@@ -579,7 +579,7 @@ func (b *fundingAllocationBusiness) settleLoss(
 			Description: "Funder share of a written-off loan",
 			Extra: data.JSONMap{
 				fieldLoanRequestID:     stored.LoanRequestID,
-				"tranche_id":           s.TrancheID,
+				fieldTrancheID:         s.TrancheID,
 				fieldInvestorAccountID: s.InvestorAccountID,
 			},
 		}

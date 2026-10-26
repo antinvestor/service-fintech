@@ -23,6 +23,7 @@ const (
 	fieldCurrency          = "currency"
 	fieldInvestorID        = "investor_id"
 	fieldInvestorAccountID = "investor_account_id"
+	fieldTrancheID         = "tranche_id"
 	fieldLoanRequestID     = "loan_request_id"
 	metricUnitCount        = "count"
 	metricUnitCurrency     = "currency_unit"

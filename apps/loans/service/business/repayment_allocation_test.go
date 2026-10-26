@@ -221,8 +221,8 @@ func TestDelinquentLoanSettlesToPaidOff(t *testing.T) {
 	assert.Equal(t, int32(loansv1.LoanStatus_LOAN_STATUS_PAID_OFF), laRepo.claimedTo)
 }
 
-// A borrower can pay back a loan in any status that still owes: a defaulted
-// loan included, since recovering it is what the status is for.
+// A borrower can pay back a loan in any status that still owes: defaulted
+// and written-off loans included, since recovering them is the point.
 func TestRepayableStatuses(t *testing.T) {
 	for status, want := range map[loansv1.LoanStatus]bool{
 		loansv1.LoanStatus_LOAN_STATUS_ACTIVE:               true,
@@ -231,7 +231,7 @@ func TestRepayableStatuses(t *testing.T) {
 		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:         true,
 		loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT: false,
 		loansv1.LoanStatus_LOAN_STATUS_PAID_OFF:             false,
-		loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF:          false,
+		loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF:          true,
 		loansv1.LoanStatus_LOAN_STATUS_CLOSED:               false,
 	} {
 		assert.Equal(t, want, isRepayableStatus(int32(status)), status.String())

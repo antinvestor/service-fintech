@@ -10,7 +10,8 @@
   borrower's own payout contact on the loan, and refuses a loan without one.
   `_DisbursementFormDialog` takes the loan.
 - "Cancel loan" (`loan_manage`) on a loan never disbursed: closes it and
-  releases its funding. Collect Payment is offered on defaulted loans too.
+  releases its funding. Collect Payment is offered on defaulted and
+  written-off loans too (a written-off loan's payments are recoveries).
 - The restructure dialog no longer offers a partial waiver, which the
   service refuses (`restructureTypeOffered`).
 

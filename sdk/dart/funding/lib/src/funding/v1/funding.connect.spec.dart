@@ -77,4 +77,13 @@ abstract final class FundingService {
     fundingv1funding.LoanRepaymentApplyRequest.new,
     fundingv1funding.LoanRepaymentApplyResponse.new,
   );
+
+  /// LoanRecoveryApply returns principal recovered from a written-off loan to
+  /// the funders who absorbed its loss, most senior tranche first.
+  static const loanRecoveryApply = connect.Spec(
+    '/$name/LoanRecoveryApply',
+    connect.StreamType.unary,
+    fundingv1funding.LoanRecoveryApplyRequest.new,
+    fundingv1funding.LoanRecoveryApplyResponse.new,
+  );
 }

@@ -208,7 +208,8 @@ func (b *paymentRoutingBusiness) repayableLoansOf(
 func loanTakesRepayments(loan *loansv1.LoanAccountObject) bool {
 	switch loan.GetStatus() { //nolint:exhaustive // only repayable statuses matter
 	case loansv1.LoanStatus_LOAN_STATUS_ACTIVE, loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
-		loansv1.LoanStatus_LOAN_STATUS_DEFAULT, loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:
+		loansv1.LoanStatus_LOAN_STATUS_DEFAULT, loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
+		loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF:
 		return true
 	default:
 		return false

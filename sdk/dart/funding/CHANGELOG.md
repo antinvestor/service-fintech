@@ -1,3 +1,9 @@
+## 0.5.2
+
+- `FundingService.LoanRecoveryApply`: principal recovered from a written-off
+  loan returned to its funders, most senior tranche first. Internal callers
+  only.
+
 ## 0.5.1
 
 - `FundingService.FundingRelease`: returns the capital reserved for a loan

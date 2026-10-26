@@ -39,6 +39,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.FundingReleaseRequest request);
   $async.Future<$3.LoanRepaymentApplyResponse> loanRepaymentApply(
       $pb.ServerContext ctx, $3.LoanRepaymentApplyRequest request);
+  $async.Future<$3.LoanRecoveryApplyResponse> loanRecoveryApply(
+      $pb.ServerContext ctx, $3.LoanRecoveryApplyRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -60,6 +62,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return $3.FundingReleaseRequest();
       case 'LoanRepaymentApply':
         return $3.LoanRepaymentApplyRequest();
+      case 'LoanRecoveryApply':
+        return $3.LoanRecoveryApplyRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -88,6 +92,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return fundingRelease(ctx, request as $3.FundingReleaseRequest);
       case 'LoanRepaymentApply':
         return loanRepaymentApply(ctx, request as $3.LoanRepaymentApplyRequest);
+      case 'LoanRecoveryApply':
+        return loanRecoveryApply(ctx, request as $3.LoanRecoveryApplyRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

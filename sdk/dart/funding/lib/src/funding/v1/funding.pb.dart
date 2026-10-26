@@ -1758,6 +1758,190 @@ class LoanRepaymentApplyRequest extends $pb.GeneratedMessage {
   $0.Money ensureInterest() => $_ensure(5);
 }
 
+/// Principal recovered from a written-off loan, to be returned to the funders
+/// who absorbed its loss, most senior tranche first.
+class LoanRecoveryApplyRequest extends $pb.GeneratedMessage {
+  factory LoanRecoveryApplyRequest({
+    $core.String? loanRequestId,
+    $core.String? productId,
+    $core.String? recoveryReference,
+    $0.Money? principal,
+  }) {
+    final result = LoanRecoveryApplyRequest._();
+    if (loanRequestId != null) result.loanRequestId = loanRequestId;
+    if (productId != null) result.productId = productId;
+    if (recoveryReference != null) result.recoveryReference = recoveryReference;
+    if (principal != null) result.principal = principal;
+    return result;
+  }
+
+  LoanRecoveryApplyRequest._();
+
+  factory LoanRecoveryApplyRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRecoveryApplyRequest()..mergeFromBuffer(data, registry);
+  factory LoanRecoveryApplyRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRecoveryApplyRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanRecoveryApplyRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: LoanRecoveryApplyRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'loanRequestId')
+    ..aOS(2, _omitFieldNames ? '' : 'productId')
+    ..aOS(3, _omitFieldNames ? '' : 'recoveryReference')
+    ..aOM<$0.Money>(4, _omitFieldNames ? '' : 'principal',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRecoveryApplyRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRecoveryApplyRequest copyWith(
+          void Function(LoanRecoveryApplyRequest) updates) =>
+      super.copyWith((message) => updates(message as LoanRecoveryApplyRequest))
+          as LoanRecoveryApplyRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanRecoveryApplyRequest() / LoanRecoveryApplyRequest.new instead')
+  static LoanRecoveryApplyRequest create() => LoanRecoveryApplyRequest._();
+  static $pb.GeneratedMessage $_createMessage() => LoanRecoveryApplyRequest._();
+  @$core.override
+  LoanRecoveryApplyRequest createEmptyInstance() =>
+      LoanRecoveryApplyRequest._();
+  @$core.pragma('dart2js:noInline')
+  static LoanRecoveryApplyRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanRecoveryApplyRequest>(
+          LoanRecoveryApplyRequest.$_createMessage);
+  static LoanRecoveryApplyRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get loanRequestId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set loanRequestId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasLoanRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearLoanRequestId() => $_clearField(1);
+
+  /// Product whose bad-debt expense the loss was charged against.
+  @$pb.TagNumber(2)
+  $core.String get productId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set productId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProductId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProductId() => $_clearField(2);
+
+  /// Identifies the recovery. A repeated call with the same reference applies
+  /// once and finishes any ledger posting an earlier call left undone.
+  @$pb.TagNumber(3)
+  $core.String get recoveryReference => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set recoveryReference($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRecoveryReference() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRecoveryReference() => $_clearField(3);
+
+  /// Principal the borrower paid back after the write-off.
+  @$pb.TagNumber(4)
+  $0.Money get principal => $_getN(3);
+  @$pb.TagNumber(4)
+  set principal($0.Money value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPrincipal() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPrincipal() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $0.Money ensurePrincipal() => $_ensure(3);
+}
+
+class LoanRecoveryApplyResponse extends $pb.GeneratedMessage {
+  factory LoanRecoveryApplyResponse({
+    $0.Money? recovered,
+    $core.bool? settled,
+  }) {
+    final result = LoanRecoveryApplyResponse._();
+    if (recovered != null) result.recovered = recovered;
+    if (settled != null) result.settled = settled;
+    return result;
+  }
+
+  LoanRecoveryApplyResponse._();
+
+  factory LoanRecoveryApplyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRecoveryApplyResponse()..mergeFromBuffer(data, registry);
+  factory LoanRecoveryApplyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanRecoveryApplyResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanRecoveryApplyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'funding.v1'),
+      createEmptyInstance: LoanRecoveryApplyResponse.$_createMessage)
+    ..aOM<$0.Money>(1, _omitFieldNames ? '' : 'recovered',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOB(2, _omitFieldNames ? '' : 'settled')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRecoveryApplyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanRecoveryApplyResponse copyWith(
+          void Function(LoanRecoveryApplyResponse) updates) =>
+      super.copyWith((message) => updates(message as LoanRecoveryApplyResponse))
+          as LoanRecoveryApplyResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanRecoveryApplyResponse() / LoanRecoveryApplyResponse.new instead')
+  static LoanRecoveryApplyResponse create() => LoanRecoveryApplyResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      LoanRecoveryApplyResponse._();
+  @$core.override
+  LoanRecoveryApplyResponse createEmptyInstance() =>
+      LoanRecoveryApplyResponse._();
+  @$core.pragma('dart2js:noInline')
+  static LoanRecoveryApplyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanRecoveryApplyResponse>(
+          LoanRecoveryApplyResponse.$_createMessage);
+  static LoanRecoveryApplyResponse? _defaultInstance;
+
+  /// Returned to funders. What exceeds the loss they still carry is the
+  /// lender's recovery income.
+  @$pb.TagNumber(1)
+  $0.Money get recovered => $_getN(0);
+  @$pb.TagNumber(1)
+  set recovered($0.Money value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRecovered() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRecovered() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $0.Money ensureRecovered() => $_ensure(0);
+
+  /// True once every ledger posting for this recovery is done.
+  @$pb.TagNumber(2)
+  $core.bool get settled => $_getBF(1);
+  @$pb.TagNumber(2)
+  set settled($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSettled() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSettled() => $_clearField(2);
+}
+
 /// One funding source's share of a repayment.
 class RepaymentShareObject extends $pb.GeneratedMessage {
   factory RepaymentShareObject({
@@ -2021,6 +2205,13 @@ class FundingServiceApi {
           $pb.ClientContext? ctx, LoanRepaymentApplyRequest request) =>
       _client.invoke<LoanRepaymentApplyResponse>(ctx, 'FundingService',
           'LoanRepaymentApply', request, LoanRepaymentApplyResponse());
+
+  /// LoanRecoveryApply returns principal recovered from a written-off loan to
+  /// the funders who absorbed its loss, most senior tranche first.
+  $async.Future<LoanRecoveryApplyResponse> loanRecoveryApply(
+          $pb.ClientContext? ctx, LoanRecoveryApplyRequest request) =>
+      _client.invoke<LoanRecoveryApplyResponse>(ctx, 'FundingService',
+          'LoanRecoveryApply', request, LoanRecoveryApplyResponse());
 }
 
 const $core.bool _omitFieldNames =

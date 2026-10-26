@@ -951,3 +951,48 @@ order is a payout to the investor's contact) and
 `TestWithdrawWithoutAPayoutContactMovesNothing`,
 `TestWithdrawKeepsFundsDebitedUntilThePayoutIsKnown`; operations
 `TestPayout_InvestorWithdrawalGoesToTheInvestorsOwnContact`.
+
+## 39. Addendum 2026-10-26 — recoveries on written-off loans
+
+**Decision (product owner, 2026-10-26).** Money a borrower pays after a
+write-off goes back to the funders who absorbed the loss, most senior tranche
+first: the reverse of the order the loss was charged in. Anything beyond the
+loss they still carry is the lender's recovery income.
+
+**Finding.** A written-off loan refused payments. A borrower who paid had
+their money sit unmatched, and the funders' realised loss could never be
+reduced.
+
+**Change.**
+
+- *Loans.* WRITTEN_OFF is repayable, in loans and in operations matching.
+  Allocation is unchanged: the loan's balance still records what is owed.
+  - The recovered principal and penalties are credited to the product's
+    bad-debt expense, reversing the write-off. They are not credited to the
+    loan asset and penalty receivable, because the write-off already cleared
+    those.
+  - Recovered interest and fees are income.
+  - A fully recovered loan moves to CLOSED. It is not a pay-off, so no
+    paid-off notice restores the borrower's standing.
+- *Settlement.* Funding settlement calls `FundingService.LoanRecoveryApply`
+  with the principal for a written-off loan. It does not use the repayment
+  share. It runs through the same settlement job, so it is retried.
+- *Funding.*
+  - `LoanRecoveryApply` (internal only) walks the loss's absorbed shares from
+    the most senior tranche down.
+  - Each tranche gets back what it lost and has not yet recovered
+    (`funding_tranches.loss_recovered`).
+  - Investors' available capital rises and `total_lost` falls, in one
+    transaction with the `loss_recoveries` row, which is unique per
+    reference.
+  - The ledger posts bad-debt expense → investor capital, or → platform
+    first-loss reserve.
+  - Migration `20261026_loss_recovery`.
+- *UI.* ui_loans offers Collect Payment on written-off loans.
+
+**Verified.**
+
+- funding `TestRecoveryReturnsTheLossSeniorFirstOnce` (Postgres): senior
+  first, then first-loss, the excess not returned, a repeat moves nothing.
+- loans `TestRecoveryOnAWrittenOffLoanReversesTheBadDebt`,
+  `TestRecoveredPrincipalGoesBackToTheFunders`, `TestRepayableStatuses`.

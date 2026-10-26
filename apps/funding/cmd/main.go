@@ -210,6 +210,10 @@ func setupServiceOptions(
 		lfRepo, ftRepo, poster, cfg.PlatformFeeBP, cfg.WithholdingTaxBP,
 	)
 
+	recoveryBiz := business.NewLossRecoveryBusiness(
+		lossRepo, repository.NewLossRecoveryRepository(ctx, dbPool, workMan), ftRepo, poster,
+	)
+
 	// Business logic
 	faBiz := business.NewFundingAllocationBusiness(
 		ctx,
@@ -237,7 +241,7 @@ func setupServiceOptions(
 	)
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, rdBiz, auditCli)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, rdBiz, recoveryBiz, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -352,9 +356,10 @@ func setupConnectServer(
 	iaBiz business.InvestorAccountBusiness,
 	faBiz business.FundingAllocationBusiness,
 	rdBiz business.RepaymentDistributionBusiness,
+	recoveryBiz *business.LossRecoveryBusiness,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
-	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz, rdBiz)
+	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz, rdBiz, recoveryBiz)
 
 	auth := sm.GetAuthorizer(ctx)
 

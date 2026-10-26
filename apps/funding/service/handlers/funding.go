@@ -41,6 +41,7 @@ type FundingServer struct {
 	iaBusiness business.InvestorAccountBusiness
 	faBusiness business.FundingAllocationBusiness
 	rdBusiness business.RepaymentDistributionBusiness
+	rcBusiness *business.LossRecoveryBusiness
 
 	fundingv1connect.UnimplementedFundingServiceHandler
 }
@@ -49,12 +50,48 @@ func NewFundingServer(
 	iaBusiness business.InvestorAccountBusiness,
 	faBusiness business.FundingAllocationBusiness,
 	rdBusiness business.RepaymentDistributionBusiness,
+	rcBusiness *business.LossRecoveryBusiness,
 ) fundingv1connect.FundingServiceHandler {
 	return &FundingServer{
 		iaBusiness: iaBusiness,
 		faBusiness: faBusiness,
 		rdBusiness: rdBusiness,
+		rcBusiness: rcBusiness,
 	}
+}
+
+// LoanRecoveryApply returns principal recovered from a written-off loan to
+// its funders. Only the loans service records recoveries.
+func (s *FundingServer) LoanRecoveryApply(
+	ctx context.Context,
+	req *fundingv1.LoanRecoveryApplyRequest,
+) (*fundingv1.LoanRecoveryApplyResponse, error) {
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	if s.rcBusiness == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "loss recovery is not configured")
+	}
+	currency := req.GetPrincipal().GetCurrencyCode()
+	result, err := s.rcBusiness.Apply(ctx, business.Recovery{
+		LoanRequestID: req.GetLoanRequestId(),
+		ProductID:     req.GetProductId(),
+		Reference:     req.GetRecoveryReference(),
+		Principal:     moneyx.ToSmallestUnit(req.GetPrincipal(), moneyx.Decimals(currency)),
+		Currency:      currency,
+	})
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	if result.Currency == "" {
+		result.Currency = currency
+	}
+	audit.WithResource(ctx, audit.ResourceFundingAllocation, req.GetLoanRequestId())
+	audit.WithAction(ctx, "recover_loss")
+	return &fundingv1.LoanRecoveryApplyResponse{
+		Recovered: moneyx.FromMinorUnitsByCurrency(result.Currency, result.Recovered),
+		Settled:   result.Settled,
+	}, nil
 }
 
 // --- InvestorAccount RPCs ---

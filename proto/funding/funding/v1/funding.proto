@@ -235,6 +235,36 @@ message LoanRepaymentApplyRequest {
   common.v1.Money interest = 6 [(buf.validate.field).required = true];
 }
 
+// Principal recovered from a written-off loan, to be returned to the funders
+// who absorbed its loss, most senior tranche first.
+message LoanRecoveryApplyRequest {
+  string loan_request_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // Product whose bad-debt expense the loss was charged against.
+  string product_id = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // Identifies the recovery. A repeated call with the same reference applies
+  // once and finishes any ledger posting an earlier call left undone.
+  string recovery_reference = 3 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 128
+  ];
+  // Principal the borrower paid back after the write-off.
+  common.v1.Money principal = 4 [(buf.validate.field).required = true];
+}
+
+message LoanRecoveryApplyResponse {
+  // Returned to funders. What exceeds the loss they still carry is the
+  // lender's recovery income.
+  common.v1.Money recovered = 1;
+  // True once every ledger posting for this recovery is done.
+  bool settled = 2;
+}
+
 // One funding source's share of a repayment.
 message RepaymentShareObject {
   string source_id = 1;
@@ -351,6 +381,13 @@ service FundingService {
   // LoanRepaymentApply shares a loan repayment out to the loan's funders:
   // principal back to their capital, interest net of fee and tax as income.
   rpc LoanRepaymentApply(LoanRepaymentApplyRequest) returns (LoanRepaymentApplyResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["fund_manage"]
+    };
+  }
+  // LoanRecoveryApply returns principal recovered from a written-off loan to
+  // the funders who absorbed its loss, most senior tranche first.
+  rpc LoanRecoveryApply(LoanRecoveryApplyRequest) returns (LoanRecoveryApplyResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["fund_manage"]
     };

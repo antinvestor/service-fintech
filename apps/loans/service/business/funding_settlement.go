@@ -21,6 +21,7 @@ import (
 
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
+	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
@@ -67,6 +68,10 @@ func (s *FundingSettlement) Settle(ctx context.Context, la *models.LoanAccount, 
 		return s.repaymentRepo.MarkFundingSettled(ctx, r.GetID(), "nothing to share")
 	}
 
+	if la.Status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF) {
+		return s.settleRecovery(ctx, la, r)
+	}
+
 	resp, err := s.fundingCli.LoanRepaymentApply(ctx, &fundingv1.LoanRepaymentApplyRequest{
 		LoanRequestId:      loanRequestIDFromProperties(la.Properties, la.LoanRequestID),
 		LoanAccountId:      la.GetID(),
@@ -85,6 +90,34 @@ func (s *FundingSettlement) Settle(ctx context.Context, la *models.LoanAccount, 
 	}
 	if !resp.GetSettled() {
 		return fmt.Errorf("repayment %s shared but not yet posted", r.GetID())
+	}
+	return s.repaymentRepo.MarkFundingSettled(ctx, r.GetID(), "")
+}
+
+// settleRecovery hands principal recovered on a written-off loan back to the
+// funders who absorbed its loss. Interest and fees recovered are the
+// lender's: the funders' share of them was never owed once the loan was
+// written off.
+func (s *FundingSettlement) settleRecovery(ctx context.Context, la *models.LoanAccount, r *models.Repayment) error {
+	if r.PrincipalApplied <= 0 {
+		return s.repaymentRepo.MarkFundingSettled(ctx, r.GetID(), "recovery without principal")
+	}
+	resp, err := s.fundingCli.LoanRecoveryApply(ctx, &fundingv1.LoanRecoveryApplyRequest{
+		LoanRequestId:     loanRequestIDFromProperties(la.Properties, la.LoanRequestID),
+		ProductId:         la.ProductID,
+		RecoveryReference: "recovery:" + r.GetID(),
+		Principal:         moneyx.FromMinorUnitsByCurrency(r.CurrencyCode, r.PrincipalApplied),
+	})
+	if err != nil {
+		if permanentFundingRefusal(err) {
+			util.Log(ctx).WithError(err).WithField("repayment_id", r.GetID()).
+				Error("funding refused the recovery; recorded and not retried")
+			return s.repaymentRepo.MarkFundingSettled(ctx, r.GetID(), "refused: "+err.Error())
+		}
+		return fmt.Errorf("return recovery %s to funders: %w", r.GetID(), err)
+	}
+	if !resp.GetSettled() {
+		return fmt.Errorf("recovery %s returned but not yet posted", r.GetID())
 	}
 	return s.repaymentRepo.MarkFundingSettled(ctx, r.GetID(), "")
 }

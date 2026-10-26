@@ -164,7 +164,7 @@ func (r *repaymentDistributionRepository) MarkSettled(ctx context.Context, id st
 		Table("repayment_distributions").
 		Where("id = ? AND settled_at IS NULL AND deleted_at IS NULL", id).
 		Updates(map[string]any{
-			"settled_at":  gormNow(),
+			colSettledAt:  gormNow(),
 			colModifiedAt: gormNow(),
 			colVersion:    gormVersionIncrement(),
 		}).Error

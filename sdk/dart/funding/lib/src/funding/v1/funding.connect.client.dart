@@ -165,4 +165,23 @@ extension type FundingServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// LoanRecoveryApply returns principal recovered from a written-off loan to
+  /// the funders who absorbed its loss, most senior tranche first.
+  Future<fundingv1funding.LoanRecoveryApplyResponse> loanRecoveryApply(
+    fundingv1funding.LoanRecoveryApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.loanRecoveryApply,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

@@ -101,8 +101,11 @@ type FundingTranche struct {
 	PrincipalRepaid   int64  // tracking repayment
 	InterestEarned    int64  // tracking earnings
 	LossAbsorbed      int64  // tracking losses taken
-	State             int32
-	Properties        data.JSONMap
+	// LossRecovered is the part of LossAbsorbed returned to the tranche when
+	// the borrower paid after the write-off. It never exceeds LossAbsorbed.
+	LossRecovered int64
+	State         int32
+	Properties    data.JSONMap
 }
 
 func (m *FundingTranche) TableName() string { return "funding_tranches" }
@@ -179,6 +182,24 @@ type LossAbsorption struct {
 }
 
 func (m *LossAbsorption) TableName() string { return "loss_absorptions" }
+
+// LossRecovery records principal recovered from a written-off loan and given
+// back to the funders who absorbed its loss. It is unique on Reference: the
+// row is written in the same transaction that moves the tranche and investor
+// counters, so a repeated recovery applies once.
+type LossRecovery struct {
+	data.BaseModel
+	LoanRequestID string       `gorm:"type:varchar(50);index:idx_recovery_request;not null"`
+	Reference     string       `gorm:"type:varchar(255);not null"`
+	Principal     int64        // minor units the borrower paid back
+	Recovered     int64        // minor units returned to funders
+	Currency      string       `gorm:"type:varchar(3)"`
+	ProductID     string       `gorm:"type:varchar(50)"`
+	Properties    data.JSONMap // {"shares": [RepaymentShare...]}
+	SettledAt     *time.Time
+}
+
+func (m *LossRecovery) TableName() string { return "loss_recoveries" }
 
 // RepaymentDistribution records one loan repayment shared out to the loan's
 // funders. It is unique on Reference: the row is written in the same

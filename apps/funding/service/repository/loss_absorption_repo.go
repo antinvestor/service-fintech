@@ -180,7 +180,7 @@ func applyLossMovement(tx *gorm.DB, m TrancheMovement) error {
 		Updates(map[string]any{
 			colReservedBalance:  gorm.Expr("GREATEST(reserved_balance - ?, 0)", m.Principal),
 			colAvailableBalance: gorm.Expr("GREATEST(available_balance - ?, 0)", m.Principal),
-			"total_lost":        gorm.Expr("total_lost + ?", m.Principal),
+			colTotalLost:        gorm.Expr("total_lost + ?", m.Principal),
 			colModifiedAt:       gormNow(),
 			colVersion:          gormVersionIncrement(),
 		})
@@ -198,7 +198,7 @@ func (r *lossAbsorptionRepository) MarkSettled(ctx context.Context, id string) e
 		Table("loss_absorptions").
 		Where("id = ? AND settled_at IS NULL AND deleted_at IS NULL", id).
 		Updates(map[string]any{
-			"settled_at":  gormNow(),
+			colSettledAt:  gormNow(),
 			colModifiedAt: gormNow(),
 			colVersion:    gormVersionIncrement(),
 		}).Error

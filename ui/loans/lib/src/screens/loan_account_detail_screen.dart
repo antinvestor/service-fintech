@@ -250,7 +250,8 @@ class _LoanAccountDetailScreenState
                   ),
                 if (loan.status == LoanStatus.LOAN_STATUS_ACTIVE ||
                     loan.status == LoanStatus.LOAN_STATUS_DELINQUENT ||
-                    loan.status == LoanStatus.LOAN_STATUS_DEFAULT) ...[
+                    loan.status == LoanStatus.LOAN_STATUS_DEFAULT ||
+                    loan.status == LoanStatus.LOAN_STATUS_WRITTEN_OFF) ...[
                   if (widget.canCollectPayment)
                     FilledButton.tonalIcon(
                       onPressed: () => _showCollectPaymentDialog(context, loan),

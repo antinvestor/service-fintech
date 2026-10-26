@@ -407,12 +407,21 @@ func (b *repaymentBusiness) auditRepayment(
 
 // isRepayableStatus reports whether a loan in this status can take money. A
 // defaulted loan still can: a borrower paying it back is the recovery the
-// status exists for, and paying it in full moves it to PAID_OFF.
+// status exists for, and paying it in full moves it to PAID_OFF. So can a
+// written-off one: what the borrower pays is a recovery, returned to the
+// funders who absorbed the loss.
 func isRepayableStatus(status int32) bool {
 	return status == int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE) ||
 		status == int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT) ||
 		status == int32(loansv1.LoanStatus_LOAN_STATUS_DEFAULT) ||
-		status == int32(loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED)
+		status == int32(loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED) ||
+		status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF)
+}
+
+// isWrittenOff reports whether a repayment on this loan is a recovery: the
+// loan's principal and penalties were already moved to bad debt.
+func isWrittenOff(la *models.LoanAccount) bool {
+	return la.Status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF)
 }
 
 // afterRepaymentApplied tells the borrower and, when the repayment cleared
@@ -428,6 +437,18 @@ func (b *repaymentBusiness) afterRepaymentApplied(
 	paid := r.PrincipalApplied + r.InterestApplied + r.FeesApplied + r.PenaltiesApplied
 	b.notifier.NotifyRepaymentReceived(ctx, la, paid, fresh.TotalOutstanding, r.Channel, r.PaymentReference)
 
+	if fresh.TotalOutstanding <= 0 && isWrittenOff(la) {
+		// Fully recovered after a write-off: the loan closes. It is not a
+		// pay-off, so no paid-off notice restores the borrower's standing.
+		if closed, claimErr := b.loanAccountRepo.ClaimStatus(ctx, la.GetID(), la.Status,
+			int32(loansv1.LoanStatus_LOAN_STATUS_CLOSED)); claimErr != nil {
+			logger.WithError(claimErr).Error("could not close a fully recovered written-off loan")
+		} else if closed {
+			la.Status = int32(loansv1.LoanStatus_LOAN_STATUS_CLOSED)
+			logger.WithField("loan_id", la.GetID()).Info("written-off loan fully recovered and closed")
+		}
+		return
+	}
 	if fresh.TotalOutstanding <= 0 {
 		// The automatic pay-off goes through the same state machine as an
 		// operator-driven transition, so a status the machine does not allow
@@ -551,9 +572,19 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 		"repayment_id":     repayment.GetID(),
 	}
 
+	// On a written-off loan the principal and penalties were moved to the
+	// product's bad-debt expense; recovering them reverses that, rather than
+	// crediting a loan asset and a receivable that were already cleared.
+	principalAccount := la.LedgerAssetAccountID
+	penaltyAccount := constants.MemberPenaltyReceivableAccount(la.ClientID)
+	if isWrittenOff(la) {
+		principalAccount = constants.ProductBadDebtExpenseAccount(la.ProductID)
+		penaltyAccount = principalAccount
+	}
+
 	if alloc.principalApplied > 0 {
 		if err := b.emitTransferOrder(ctx, logger,
-			memberAccount, la.LedgerAssetAccountID,
+			memberAccount, principalAccount,
 			alloc.principalApplied, la.CurrencyCode,
 			constants.TransferTypeLoanRepayment,
 			fmt.Sprintf("repayment:%s:principal", repRef),
@@ -596,7 +627,7 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 		// clears that receivable; crediting income again would count the
 		// same penalty twice and leave the receivable open for ever.
 		if err := b.emitTransferOrder(ctx, logger,
-			memberAccount, constants.MemberPenaltyReceivableAccount(la.ClientID),
+			memberAccount, penaltyAccount,
 			alloc.penaltiesApplied, la.CurrencyCode,
 			constants.TransferTypePenaltyRepayment,
 			fmt.Sprintf("repayment:%s:penalties", repRef),

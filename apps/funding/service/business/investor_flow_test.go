@@ -215,8 +215,10 @@ func (s *fundingSuite) newEnv() *fundingEnv {
 	s.Require().NoError(dbPool.DB(ctx, false).AutoMigrate(
 		&models.LoanFunding{}, &models.InvestorAccount{}, &models.FundingTranche{},
 		&models.InvestorCapitalMovement{}, &models.LoanFundingClaim{}, &models.LossAbsorption{},
-		&models.RepaymentDistribution{},
+		&models.RepaymentDistribution{}, &models.LossRecovery{},
 	))
+	s.Require().NoError(dbPool.DB(ctx, false).Exec(
+		`CREATE UNIQUE INDEX uq_recovery_reference ON loss_recoveries (reference) WHERE deleted_at IS NULL`).Error)
 	s.Require().NoError(dbPool.DB(ctx, false).Exec(
 		`CREATE UNIQUE INDEX uq_rd_reference ON repayment_distributions (reference) WHERE deleted_at IS NULL`).Error)
 	s.Require().NoError(dbPool.DB(ctx, false).Exec(

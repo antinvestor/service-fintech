@@ -263,7 +263,7 @@ func repaymentPostings(dist *models.RepaymentDistribution, shares []RepaymentSha
 		return data.JSONMap{
 			fieldLoanRequestID:     dist.LoanRequestID,
 			"loan_account_id":      dist.LoanAccountID,
-			"tranche_id":           s.TrancheID,
+			fieldTrancheID:         s.TrancheID,
 			fieldInvestorAccountID: s.InvestorAccountID,
 		}
 	}
