@@ -1322,7 +1322,10 @@ exploitable as built, but both are hardened:
     - An order that never completed is resumed (the existing confirm path).
     - A completed order is looked up at the payment service. SUCCESSFUL
       becomes confirmed.
-    - FAILED is marked failed and its ledger leg reversed
+    - FAILED is marked failed and its ledger leg reversed, but only for the
+      order's own payout: its recorded payment id, or, with none recorded,
+      an outbound payment of exactly its amount. Any other answer stays
+      undecided and goes to an operator.
       (`reverseRejectedPayout`).
     - Still undecided after a day is logged at error for operators.
   - Late-failed orders are then reported to their originator by reference

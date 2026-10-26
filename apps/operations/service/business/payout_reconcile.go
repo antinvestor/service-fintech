@@ -74,7 +74,13 @@ func (b *transferOrderBusiness) ReconcilePayout(ctx context.Context, orderID str
 		_ = b.toRepo.TouchPayoutChecked(ctx, orderID)
 		return fmt.Errorf("look up payout: %w", err)
 	}
-	if payment == nil || (order.PaymentID != "" && payment.GetId() != order.PaymentID) {
+	// Act only on this order's own payout: the payment id it recorded, or,
+	// with none recorded, an outbound payment of exactly its amount. Any
+	// other answer is not ours to reverse or confirm; it stays undecided
+	// and, after a day, goes to an operator.
+	if payment == nil ||
+		(order.PaymentID != "" && payment.GetId() != order.PaymentID) ||
+		(order.PaymentID == "" && !payoutMatchesOrder(payment, order)) {
 		_ = b.toRepo.TouchPayoutChecked(ctx, orderID)
 		b.reportUndecided(logger, order)
 		return nil

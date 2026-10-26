@@ -21,6 +21,7 @@ import (
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
+	utilmoney "github.com/pitabwire/util/moneyx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -93,4 +94,20 @@ func TestReconcile_ConfirmsPaidAndKeepsUndecidedPending(t *testing.T) {
 	require.NoError(t, f.biz.ReconcilePayout(context.Background(), f.repo.order.GetID()))
 	assert.Equal(t, models.PayoutStatusConfirmed, f.repo.snapshot().PayoutStatus)
 	assert.Nil(t, f.repo.otherByReference("payout-reversal:"+f.repo.order.Reference), "nothing reversed")
+}
+
+// A payment found by reference that is not this order's payout is never
+// acted on: without a recorded payment id, only an outbound payment of the
+// order's amount counts.
+func TestReconcile_UnmatchedPaymentIsNotActedOn(t *testing.T) {
+	f := paidOut(t)
+	f.repo.order.PaymentID = ""
+	other := matchingPayout(f.repo.order, "pay-other", commonv1.STATUS_FAILED)
+	other.SetAmount(utilmoney.FromMinorUnitsByCurrency(f.repo.order.Currency, f.repo.order.Amount+1))
+	f.locator.found = other
+
+	require.NoError(t, f.biz.ReconcilePayout(context.Background(), f.repo.order.GetID()))
+	got := f.repo.snapshot()
+	assert.NotEqual(t, models.PayoutStatusFailed, got.PayoutStatus, "a foreign payment's failure is not ours")
+	assert.Nil(t, f.repo.otherByReference("payout-reversal:"+got.Reference), "nothing reversed")
 }
