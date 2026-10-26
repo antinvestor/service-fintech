@@ -14,6 +14,7 @@ RUN go mod download
 
 COPY ./apps/limits ./apps/limits
 COPY ./pkg ./pkg
+COPY ./products/limits/workflows ./products/limits/workflows
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -trimpath \
@@ -30,5 +31,6 @@ USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/binary /service
 COPY --from=builder /app/apps/limits/migrations /migrations
+COPY --from=builder /app/products/limits/workflows /workflows
 ENV MIGRATION_PATH=/migrations
 ENTRYPOINT ["/service"]

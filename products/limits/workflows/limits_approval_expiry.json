@@ -1,0 +1,88 @@
+{
+  "version": "1.2",
+  "name": "limits_approval_expiry",
+  "description": "Every minute: LimitsJobRun(APPROVAL_EXPIRY) expires approval requests nobody decided in time.",
+  "input": {
+    "schedule_name": "limits_approval_expiry"
+  },
+  "config": {
+    "process_commands": [
+      "limits.v1.LimitsAdminService/LimitsJobRun"
+    ],
+    "terminal_states": [
+      "stalled"
+    ],
+    "owner": "fintech"
+  },
+  "schedules": [
+    {
+      "name": "limits_approval_expiry",
+      "cron_expr": "* * * * *",
+      "timezone": "UTC",
+      "input_payload": {}
+    }
+  ],
+  "steps": [
+    {
+      "id": "run",
+      "type": "call",
+      "name": "RUN \u2014 one pass of the reaper",
+      "call": {
+        "action": "connect.call",
+        "input": {
+          "service": "limits.v1.LimitsAdminService",
+          "rpc": "LimitsJobRun",
+          "request": {
+            "job": "LIMITS_JOB_APPROVAL_EXPIRY"
+          }
+        },
+        "output_var": "batch"
+      },
+      "retry": {
+        "max_attempts": 3,
+        "initial_interval": "10s",
+        "backoff_coefficient": 2.0,
+        "max_interval": "2m"
+      },
+      "on_success": [
+        {
+          "condition": "true",
+          "target": "end"
+        }
+      ],
+      "on_failure": "stalled"
+    },
+    {
+      "id": "stalled",
+      "type": "call",
+      "name": "STALLED (terminal) \u2014 the job failed after retries; the next schedule tries again",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "error",
+          "message": "limits_approval_expiry stalled after retries",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}",
+            "execution_id": "{{ metadata.execution_id }}"
+          }
+        }
+      },
+      "on_success": "end"
+    },
+    {
+      "id": "end",
+      "type": "call",
+      "name": "END \u2014 instance terminal",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "info",
+          "message": "limits_approval_expiry done",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -264,4 +264,24 @@ extension type LimitsAdminServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// LimitsJobRun runs one pass of a periodic job. Called by the platform
+  /// scheduler (trustage); the permission is bound to no role and granted to
+  /// the scheduler's service account.
+  Future<limitsv1limits.LimitsJobRunResponse> limitsJobRun(
+    limitsv1limits.LimitsJobRunRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LimitsAdminService.limitsJobRun,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

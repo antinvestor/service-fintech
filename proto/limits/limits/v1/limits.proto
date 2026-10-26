@@ -448,6 +448,21 @@ service LimitsService {
   }
 }
 
+// LimitsJob names the periodic work the scheduler asks limits to do.
+enum LimitsJob {
+  LIMITS_JOB_UNSPECIFIED = 0;
+  // Expires active reservations past their deadline, returning their hold.
+  LIMITS_JOB_RESERVATION_EXPIRY = 1;
+  // Expires approval requests nobody decided in time.
+  LIMITS_JOB_APPROVAL_EXPIRY = 2;
+}
+
+message LimitsJobRunRequest {
+  LimitsJob job = 1;
+}
+
+message LimitsJobRunResponse {}
+
 service LimitsAdminService {
   option (common.v1.service_permissions) = {
     namespace: "service_limits"
@@ -460,7 +475,8 @@ service LimitsAdminService {
       "limits_approval_override",
       "limits_ledger_view",
       "limits_audit_view",
-      "limits_archive"
+      "limits_archive",
+      "limits_job_run"
     ]
     role_bindings: [
       {
@@ -576,6 +592,15 @@ service LimitsAdminService {
   rpc LimitsAuditSearch(LimitsAuditSearchRequest) returns (stream LimitsAuditSearchResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["limits_audit_view"]
+    };
+  }
+
+  // LimitsJobRun runs one pass of a periodic job. Called by the platform
+  // scheduler (trustage); the permission is bound to no role and granted to
+  // the scheduler's service account.
+  rpc LimitsJobRun(LimitsJobRunRequest) returns (LimitsJobRunResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["limits_job_run"]
     };
   }
 }

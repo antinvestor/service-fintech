@@ -119,4 +119,14 @@ abstract final class LimitsAdminService {
     limitsv1limits.LimitsAuditSearchRequest.new,
     limitsv1limits.LimitsAuditSearchResponse.new,
   );
+
+  /// LimitsJobRun runs one pass of a periodic job. Called by the platform
+  /// scheduler (trustage); the permission is bound to no role and granted to
+  /// the scheduler's service account.
+  static const limitsJobRun = connect.Spec(
+    '/$name/LimitsJobRun',
+    connect.StreamType.unary,
+    limitsv1limits.LimitsJobRunRequest.new,
+    limitsv1limits.LimitsJobRunResponse.new,
+  );
 }

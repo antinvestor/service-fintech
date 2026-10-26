@@ -798,3 +798,25 @@ Payment covers `TestPaymentFromPrompt*`.
   uploader, and reviewers get access only through per-file grants. Capture
   needs the files service to share KYC media with the partition's reviewers
   first; otherwise a reviewer would verify a document they cannot open.
+
+## 34. Addendum 2026-10-26 — limits reapers on trustage
+
+**Finding.** The limits service expired reservations and approvals from two
+goroutines on a 30-second in-process ticker (`runPeriodically`). That broke
+the trustage-only scheduling rule and tied reaping to replica lifetimes.
+
+**Change.**
+
+- The tickers are gone. `LimitsAdminService.LimitsJobRun(job)` runs one pass
+  of `RESERVATION_EXPIRY` or `APPROVAL_EXPIRY` under the existing advisory
+  lock, for internal service accounts only.
+- The permission is `limits_job_run`, bound to no role.
+- Two trustage workflows fire every minute (`products/limits/workflows`).
+  The limits setup job syncs them, and the image ships them at `/workflows`.
+- Tenancy (service-authentication `20261026_05`): limits → trustage
+  (workflow_manage, workflow_view); trustage → `service_limits`
+  `limits_job_run`.
+
+**Verified.** `TestLimitsJobsRunTheNamedReaperForInternalCallersOnly`. The
+full limits suite passes, including integration tests. Workflows pass
+`TestShippedWorkflowsValidate`.

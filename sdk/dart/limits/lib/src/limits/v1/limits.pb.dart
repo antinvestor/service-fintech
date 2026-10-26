@@ -4162,6 +4162,107 @@ class ReverseResponse extends $pb.GeneratedMessage {
   ReservationObject ensureReversalReservation() => $_ensure(1);
 }
 
+class LimitsJobRunRequest extends $pb.GeneratedMessage {
+  factory LimitsJobRunRequest({
+    LimitsJob? job,
+  }) {
+    final result = LimitsJobRunRequest._();
+    if (job != null) result.job = job;
+    return result;
+  }
+
+  LimitsJobRunRequest._();
+
+  factory LimitsJobRunRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LimitsJobRunRequest()..mergeFromBuffer(data, registry);
+  factory LimitsJobRunRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LimitsJobRunRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LimitsJobRunRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'),
+      createEmptyInstance: LimitsJobRunRequest.$_createMessage)
+    ..aE<LimitsJob>(1, _omitFieldNames ? '' : 'job',
+        enumValues: LimitsJob.values)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LimitsJobRunRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LimitsJobRunRequest copyWith(void Function(LimitsJobRunRequest) updates) =>
+      super.copyWith((message) => updates(message as LimitsJobRunRequest))
+          as LimitsJobRunRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use LimitsJobRunRequest() / LimitsJobRunRequest.new instead')
+  static LimitsJobRunRequest create() => LimitsJobRunRequest._();
+  static $pb.GeneratedMessage $_createMessage() => LimitsJobRunRequest._();
+  @$core.override
+  LimitsJobRunRequest createEmptyInstance() => LimitsJobRunRequest._();
+  @$core.pragma('dart2js:noInline')
+  static LimitsJobRunRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LimitsJobRunRequest>(
+          LimitsJobRunRequest.$_createMessage);
+  static LimitsJobRunRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  LimitsJob get job => $_getN(0);
+  @$pb.TagNumber(1)
+  set job(LimitsJob value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasJob() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearJob() => $_clearField(1);
+}
+
+class LimitsJobRunResponse extends $pb.GeneratedMessage {
+  factory LimitsJobRunResponse() => LimitsJobRunResponse._();
+
+  LimitsJobRunResponse._();
+
+  factory LimitsJobRunResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LimitsJobRunResponse()..mergeFromBuffer(data, registry);
+  factory LimitsJobRunResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LimitsJobRunResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LimitsJobRunResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'limits.v1'),
+      createEmptyInstance: LimitsJobRunResponse.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LimitsJobRunResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LimitsJobRunResponse copyWith(void Function(LimitsJobRunResponse) updates) =>
+      super.copyWith((message) => updates(message as LimitsJobRunResponse))
+          as LimitsJobRunResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LimitsJobRunResponse() / LimitsJobRunResponse.new instead')
+  static LimitsJobRunResponse create() => LimitsJobRunResponse._();
+  static $pb.GeneratedMessage $_createMessage() => LimitsJobRunResponse._();
+  @$core.override
+  LimitsJobRunResponse createEmptyInstance() => LimitsJobRunResponse._();
+  @$core.pragma('dart2js:noInline')
+  static LimitsJobRunResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LimitsJobRunResponse>(
+          LimitsJobRunResponse.$_createMessage);
+  static LimitsJobRunResponse? _defaultInstance;
+}
+
 class LimitsServiceApi {
   final $pb.RpcClient _client;
 
@@ -4236,6 +4337,14 @@ class LimitsAdminServiceApi {
           $pb.ClientContext? ctx, LimitsAuditSearchRequest request) =>
       _client.invoke<LimitsAuditSearchResponse>(ctx, 'LimitsAdminService',
           'LimitsAuditSearch', request, LimitsAuditSearchResponse());
+
+  /// LimitsJobRun runs one pass of a periodic job. Called by the platform
+  /// scheduler (trustage); the permission is bound to no role and granted to
+  /// the scheduler's service account.
+  $async.Future<LimitsJobRunResponse> limitsJobRun(
+          $pb.ClientContext? ctx, LimitsJobRunRequest request) =>
+      _client.invoke<LimitsJobRunResponse>(ctx, 'LimitsAdminService',
+          'LimitsJobRun', request, LimitsJobRunResponse());
 }
 
 const $core.bool _omitFieldNames =

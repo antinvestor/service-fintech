@@ -93,6 +93,8 @@ abstract class LimitsAdminServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $5.LedgerSearchRequest request);
   $async.Future<$5.LimitsAuditSearchResponse> limitsAuditSearch(
       $pb.ServerContext ctx, $5.LimitsAuditSearchRequest request);
+  $async.Future<$5.LimitsJobRunResponse> limitsJobRun(
+      $pb.ServerContext ctx, $5.LimitsJobRunRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -116,6 +118,8 @@ abstract class LimitsAdminServiceBase extends $pb.GeneratedService {
         return $5.LedgerSearchRequest();
       case 'LimitsAuditSearch':
         return $5.LimitsAuditSearchRequest();
+      case 'LimitsJobRun':
+        return $5.LimitsJobRunRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -146,6 +150,8 @@ abstract class LimitsAdminServiceBase extends $pb.GeneratedService {
         return ledgerSearch(ctx, request as $5.LedgerSearchRequest);
       case 'LimitsAuditSearch':
         return limitsAuditSearch(ctx, request as $5.LimitsAuditSearchRequest);
+      case 'LimitsJobRun':
+        return limitsJobRun(ctx, request as $5.LimitsJobRunRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

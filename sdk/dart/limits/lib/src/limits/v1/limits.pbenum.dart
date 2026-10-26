@@ -247,5 +247,32 @@ class ApprovalStatus extends $pb.ProtobufEnum {
   const ApprovalStatus._(super.value, super.name);
 }
 
+/// LimitsJob names the periodic work the scheduler asks limits to do.
+class LimitsJob extends $pb.ProtobufEnum {
+  static const LimitsJob LIMITS_JOB_UNSPECIFIED =
+      LimitsJob._(0, _omitEnumNames ? '' : 'LIMITS_JOB_UNSPECIFIED');
+
+  /// Expires active reservations past their deadline, returning their hold.
+  static const LimitsJob LIMITS_JOB_RESERVATION_EXPIRY =
+      LimitsJob._(1, _omitEnumNames ? '' : 'LIMITS_JOB_RESERVATION_EXPIRY');
+
+  /// Expires approval requests nobody decided in time.
+  static const LimitsJob LIMITS_JOB_APPROVAL_EXPIRY =
+      LimitsJob._(2, _omitEnumNames ? '' : 'LIMITS_JOB_APPROVAL_EXPIRY');
+
+  static const $core.List<LimitsJob> values = <LimitsJob>[
+    LIMITS_JOB_UNSPECIFIED,
+    LIMITS_JOB_RESERVATION_EXPIRY,
+    LIMITS_JOB_APPROVAL_EXPIRY,
+  ];
+
+  static final $core.List<LimitsJob?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 2);
+  static LimitsJob? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const LimitsJob._(super.value, super.name);
+}
+
 const $core.bool _omitEnumNames =
     $core.bool.fromEnvironment('protobuf.omit_enum_names');
