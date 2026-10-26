@@ -719,6 +719,25 @@ extension type LoanManagementServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  Future<loansv1loans.PayoutFailedApplyResponse> payoutFailedApply(
+    loansv1loans.PayoutFailedApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LoanManagementService.payoutFailedApply,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.
   Stream<loansv1loans.LoanStatusChangeSearchResponse> loanStatusChangeSearch(
     loansv1loans.LoanStatusChangeSearchRequest input, {

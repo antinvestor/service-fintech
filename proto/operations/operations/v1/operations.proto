@@ -210,6 +210,10 @@ enum OperationsJob {
   // Allocates individuals' matched payments whose allocation did not finish
   // and posts borrower repayment orders raised but never executed.
   OPERATIONS_JOB_SETTLE_PAYMENTS = 1;
+  // Asks the payment service how payouts it accepted ended. A payout the
+  // rail failed afterwards is reversed on the ledger and its originator is
+  // told; one still undecided past a day is reported to operators.
+  OPERATIONS_JOB_RECONCILE_PAYOUTS = 2;
 }
 
 message OperationsJobRunRequest {

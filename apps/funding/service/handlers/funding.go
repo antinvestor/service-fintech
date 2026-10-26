@@ -377,6 +377,24 @@ func (s *FundingServer) LoanRepaymentApply(
 var errInternalOnly = apperrors.NewError(apperrors.Forbidden,
 	"this operation is performed by the lending services, not by a person")
 
+// PayoutFailedApply returns the funds of an investor withdrawal the payment
+// rail failed after it completed. Only operations calls it.
+func (s *FundingServer) PayoutFailedApply(
+	ctx context.Context,
+	req *fundingv1.PayoutFailedApplyRequest,
+) (*fundingv1.PayoutFailedApplyResponse, error) {
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	applied, err := s.iaBusiness.WithdrawalFailed(ctx, req.GetReference())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceInvestorAccount, req.GetReference())
+	audit.WithAction(ctx, "withdrawal_failed")
+	return &fundingv1.PayoutFailedApplyResponse{Applied: applied}, nil
+}
+
 // requireInternalCaller admits only internal service accounts. The RPC
 // permission alone is not enough: operators hold fund_manage too.
 func requireInternalCaller(ctx context.Context) error {

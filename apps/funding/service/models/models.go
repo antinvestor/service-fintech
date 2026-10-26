@@ -146,6 +146,9 @@ const (
 	// investor balance but whose ledger transfer has not been posted yet.
 	// A resumed attempt reads it to know the debit must not be repeated.
 	CapitalMovementDebited int32 = 3
+	// CapitalMovementReverted marks a withdrawal the payment rail failed
+	// after it completed: the funds are back in the investor's balance.
+	CapitalMovementReverted int32 = 4
 )
 
 // LoanFundingClaim is the synchronous idempotency lock for allocating a loan

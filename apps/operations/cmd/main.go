@@ -201,6 +201,9 @@ func setupServiceOptions(
 		business.WithOrderExecutor(toBiz),
 	)
 	jobs := business.NewOperationsJobs(prBiz, toBiz, ipRepo, toRepo, cfg.Name())
+	if reconciler, ok := toBiz.(business.PayoutReconciler); ok {
+		jobs.WithPayoutReconciler(reconciler)
+	}
 	// Obligations are owned by stawi: it is the process that wires
 	// ObligationBusiness into its workflow callbacks and creates the rows this
 	// service allocates against. Operations only reads and consumes them.

@@ -1,3 +1,8 @@
+## 0.6.6
+
+- `PayoutFailedApply` (`payout_outcome_apply`, operations only): undoes this
+  service's record of a payout the payment rail failed after accepting it.
+
 ## 0.6.5
 
 - Team commission: `TeamCommissionSearch` and `TeamCommissionPayoutSearch`

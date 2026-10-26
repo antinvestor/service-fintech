@@ -96,4 +96,13 @@ abstract final class FundingService {
     fundingv1funding.LoanRecoveryApplyRequest.new,
     fundingv1funding.LoanRecoveryApplyResponse.new,
   );
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  static const payoutFailedApply = connect.Spec(
+    '/$name/PayoutFailedApply',
+    connect.StreamType.unary,
+    fundingv1funding.PayoutFailedApplyRequest.new,
+    fundingv1funding.PayoutFailedApplyResponse.new,
+  );
 }

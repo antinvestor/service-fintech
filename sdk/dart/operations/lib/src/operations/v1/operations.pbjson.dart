@@ -111,13 +111,15 @@ const OperationsJob$json = {
   '2': [
     {'1': 'OPERATIONS_JOB_UNSPECIFIED', '2': 0},
     {'1': 'OPERATIONS_JOB_SETTLE_PAYMENTS', '2': 1},
+    {'1': 'OPERATIONS_JOB_RECONCILE_PAYOUTS', '2': 2},
   ],
 };
 
 /// Descriptor for `OperationsJob`. Decode as a `google.protobuf.EnumDescriptorProto`.
 final $typed_data.Uint8List operationsJobDescriptor = $convert.base64Decode(
     'Cg1PcGVyYXRpb25zSm9iEh4KGk9QRVJBVElPTlNfSk9CX1VOU1BFQ0lGSUVEEAASIgoeT1BFUk'
-    'FUSU9OU19KT0JfU0VUVExFX1BBWU1FTlRTEAE=');
+    'FUSU9OU19KT0JfU0VUVExFX1BBWU1FTlRTEAESJAogT1BFUkFUSU9OU19KT0JfUkVDT05DSUxF'
+    'X1BBWU9VVFMQAg==');
 
 @$core.Deprecated('Use transferOrderObjectDescriptor instead')
 const TransferOrderObject$json = {

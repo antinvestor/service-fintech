@@ -370,4 +370,42 @@ extension type SavingsServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  Future<savingsv1savings.PayoutFailedApplyResponse> payoutFailedApply(
+    savingsv1savings.PayoutFailedApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.SavingsService.payoutFailedApply,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// SavingsJobRun runs one batch of a periodic job. Called by the platform
+  /// scheduler (trustage); nothing in the service runs on a timer.
+  Future<savingsv1savings.SavingsJobRunResponse> savingsJobRun(
+    savingsv1savings.SavingsJobRunRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.SavingsService.savingsJobRun,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

@@ -1,3 +1,8 @@
+## 0.5.4
+
+- `PayoutFailedApply` (`payout_outcome_apply`, operations only): undoes this
+  service's record of a payout the payment rail failed after accepting it.
+
 ## 0.5.3
 
 - `FundingService.InvestorStatement` (`investor_account_view`): what moved an

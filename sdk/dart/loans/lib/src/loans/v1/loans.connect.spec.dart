@@ -351,6 +351,15 @@ abstract final class LoanManagementService {
     loansv1loans.LoanJobRunResponse.new,
   );
 
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  static const payoutFailedApply = connect.Spec(
+    '/$name/PayoutFailedApply',
+    connect.StreamType.unary,
+    loansv1loans.PayoutFailedApplyRequest.new,
+    loansv1loans.PayoutFailedApplyResponse.new,
+  );
+
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.
   static const loanStatusChangeSearch = connect.Spec(
     '/$name/LoanStatusChangeSearch',

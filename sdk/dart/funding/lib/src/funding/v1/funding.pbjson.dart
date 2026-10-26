@@ -521,6 +521,34 @@ final $typed_data.Uint8List investorStatementResponseDescriptor = $convert.base6
     'b3JTdGF0ZW1lbnRUb3RhbHNSBnRvdGFscxIcCgl0cnVuY2F0ZWQYBiABKAhSCXRydW5jYXRlZA'
     '==');
 
+@$core.Deprecated('Use payoutFailedApplyRequestDescriptor instead')
+const PayoutFailedApplyRequest$json = {
+  '1': 'PayoutFailedApplyRequest',
+  '2': [
+    {'1': 'reference', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'reference'},
+    {'1': 'reason', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'reason'},
+  ],
+};
+
+/// Descriptor for `PayoutFailedApplyRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List payoutFailedApplyRequestDescriptor =
+    $convert.base64Decode(
+        'ChhQYXlvdXRGYWlsZWRBcHBseVJlcXVlc3QSKAoJcmVmZXJlbmNlGAEgASgJQgq6SAdyBRADGP'
+        '8BUglyZWZlcmVuY2USIAoGcmVhc29uGAIgASgJQgi6SAVyAxj0A1IGcmVhc29u');
+
+@$core.Deprecated('Use payoutFailedApplyResponseDescriptor instead')
+const PayoutFailedApplyResponse$json = {
+  '1': 'PayoutFailedApplyResponse',
+  '2': [
+    {'1': 'applied', '3': 1, '4': 1, '5': 8, '10': 'applied'},
+  ],
+};
+
+/// Descriptor for `PayoutFailedApplyResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List payoutFailedApplyResponseDescriptor =
+    $convert.base64Decode(
+        'ChlQYXlvdXRGYWlsZWRBcHBseVJlc3BvbnNlEhgKB2FwcGxpZWQYASABKAhSB2FwcGxpZWQ=');
+
 @$core.Deprecated('Use investorAccountSearchRequestDescriptor instead')
 const InvestorAccountSearchRequest$json = {
   '1': 'InvestorAccountSearchRequest',
@@ -1129,6 +1157,12 @@ const $core.Map<$core.String, $core.dynamic> FundingServiceBase$json = {
       '3': '.funding.v1.LoanRecoveryApplyResponse',
       '4': {}
     },
+    {
+      '1': 'PayoutFailedApply',
+      '2': '.funding.v1.PayoutFailedApplyRequest',
+      '3': '.funding.v1.PayoutFailedApplyResponse',
+      '4': {}
+    },
   ],
   '3': {},
 };
@@ -1170,6 +1204,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.funding.v1.RepaymentShareObject': RepaymentShareObject$json,
   '.funding.v1.LoanRecoveryApplyRequest': LoanRecoveryApplyRequest$json,
   '.funding.v1.LoanRecoveryApplyResponse': LoanRecoveryApplyResponse$json,
+  '.funding.v1.PayoutFailedApplyRequest': PayoutFailedApplyRequest$json,
+  '.funding.v1.PayoutFailedApplyResponse': PayoutFailedApplyResponse$json,
 };
 
 /// Descriptor for `FundingService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -1198,10 +1234,13 @@ final $typed_data.Uint8List fundingServiceDescriptor = $convert.base64Decode(
     '5kaW5nLnYxLkxvYW5SZXBheW1lbnRBcHBseVJlc3BvbnNlIhGCtRgNCgtmdW5kX21hbmFnZRJz'
     'ChFMb2FuUmVjb3ZlcnlBcHBseRIkLmZ1bmRpbmcudjEuTG9hblJlY292ZXJ5QXBwbHlSZXF1ZX'
     'N0GiUuZnVuZGluZy52MS5Mb2FuUmVjb3ZlcnlBcHBseVJlc3BvbnNlIhGCtRgNCgtmdW5kX21h'
-    'bmFnZRr0AoK1GO8CCg9zZXJ2aWNlX2Z1bmRpbmcSFWludmVzdG9yX2FjY291bnRfdmlldxIXaW'
-    '52ZXN0b3JfYWNjb3VudF9tYW5hZ2USC2Z1bmRfbWFuYWdlGj8IARIVaW52ZXN0b3JfYWNjb3Vu'
-    'dF92aWV3EhdpbnZlc3Rvcl9hY2NvdW50X21hbmFnZRILZnVuZF9tYW5hZ2UaPwgCEhVpbnZlc3'
-    'Rvcl9hY2NvdW50X3ZpZXcSF2ludmVzdG9yX2FjY291bnRfbWFuYWdlEgtmdW5kX21hbmFnZRom'
-    'CAMSFWludmVzdG9yX2FjY291bnRfdmlldxILZnVuZF9tYW5hZ2UaGQgEEhVpbnZlc3Rvcl9hY2'
-    'NvdW50X3ZpZXcaGQgFEhVpbnZlc3Rvcl9hY2NvdW50X3ZpZXcaPwgGEhVpbnZlc3Rvcl9hY2Nv'
-    'dW50X3ZpZXcSF2ludmVzdG9yX2FjY291bnRfbWFuYWdlEgtmdW5kX21hbmFnZQ==');
+    'bmFnZRJ8ChFQYXlvdXRGYWlsZWRBcHBseRIkLmZ1bmRpbmcudjEuUGF5b3V0RmFpbGVkQXBwbH'
+    'lSZXF1ZXN0GiUuZnVuZGluZy52MS5QYXlvdXRGYWlsZWRBcHBseVJlc3BvbnNlIhqCtRgWChRw'
+    'YXlvdXRfb3V0Y29tZV9hcHBseRqgA4K1GJsDCg9zZXJ2aWNlX2Z1bmRpbmcSFWludmVzdG9yX2'
+    'FjY291bnRfdmlldxIXaW52ZXN0b3JfYWNjb3VudF9tYW5hZ2USC2Z1bmRfbWFuYWdlEhRwYXlv'
+    'dXRfb3V0Y29tZV9hcHBseRo/CAESFWludmVzdG9yX2FjY291bnRfdmlldxIXaW52ZXN0b3JfYW'
+    'Njb3VudF9tYW5hZ2USC2Z1bmRfbWFuYWdlGj8IAhIVaW52ZXN0b3JfYWNjb3VudF92aWV3Ehdp'
+    'bnZlc3Rvcl9hY2NvdW50X21hbmFnZRILZnVuZF9tYW5hZ2UaJggDEhVpbnZlc3Rvcl9hY2NvdW'
+    '50X3ZpZXcSC2Z1bmRfbWFuYWdlGhkIBBIVaW52ZXN0b3JfYWNjb3VudF92aWV3GhkIBRIVaW52'
+    'ZXN0b3JfYWNjb3VudF92aWV3GlUIBhIVaW52ZXN0b3JfYWNjb3VudF92aWV3EhdpbnZlc3Rvcl'
+    '9hY2NvdW50X21hbmFnZRILZnVuZF9tYW5hZ2USFHBheW91dF9vdXRjb21lX2FwcGx5');

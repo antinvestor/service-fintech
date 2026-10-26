@@ -16,6 +16,7 @@ package handlers
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"buf.build/gen/go/antinvestor/savings/connectrpc/go/v2/savings/v1/savingsv1connect"
@@ -35,6 +36,7 @@ type SavingsServer struct {
 	depBusiness business.DepositBusiness
 	wdBusiness  business.WithdrawalBusiness
 	iaBusiness  business.InterestAccrualBusiness
+	jobs        *business.SavingsJobs
 
 	savingsv1connect.UnimplementedSavingsServiceHandler
 }
@@ -45,6 +47,7 @@ func NewSavingsServer(
 	depBusiness business.DepositBusiness,
 	wdBusiness business.WithdrawalBusiness,
 	iaBusiness business.InterestAccrualBusiness,
+	jobs *business.SavingsJobs,
 ) savingsv1connect.SavingsServiceHandler {
 	return &SavingsServer{
 		spBusiness:  spBusiness,
@@ -52,7 +55,39 @@ func NewSavingsServer(
 		depBusiness: depBusiness,
 		wdBusiness:  wdBusiness,
 		iaBusiness:  iaBusiness,
+		jobs:        jobs,
 	}
+}
+
+// SavingsJobRun runs one batch of a periodic job for the platform scheduler.
+func (s *SavingsServer) SavingsJobRun(
+	ctx context.Context,
+	req *savingsv1.SavingsJobRunRequest,
+) (*savingsv1.SavingsJobRunResponse, error) {
+	if s.jobs == nil {
+		return nil, apperrors.CleanErr(business.ErrUnknownJob)
+	}
+	processed, more, err := s.jobs.Run(ctx, req.GetJob(), int(req.GetBatchSize()))
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &savingsv1.SavingsJobRunResponse{
+		Processed: int32(min(processed, math.MaxInt32)), //nolint:gosec // clamped to int32
+		More:      more,
+	}, nil
+}
+
+// PayoutFailedApply reverses a completed withdrawal the payment rail failed
+// afterwards. Only operations calls it.
+func (s *SavingsServer) PayoutFailedApply(
+	ctx context.Context,
+	req *savingsv1.PayoutFailedApplyRequest,
+) (*savingsv1.PayoutFailedApplyResponse, error) {
+	applied, err := s.wdBusiness.PayoutFailed(ctx, req.GetReference(), req.GetReason())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &savingsv1.PayoutFailedApplyResponse{Applied: applied}, nil
 }
 
 // --- SavingsProduct RPCs ---

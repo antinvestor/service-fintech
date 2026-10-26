@@ -6751,6 +6751,146 @@ class LoanJobRunResponse extends $pb.GeneratedMessage {
   void clearMore() => $_clearField(2);
 }
 
+/// PayoutFailedApplyRequest tells the service that originated a payout that
+/// the payment rail failed it after accepting it. Operations has already
+/// reversed the ledger leg; the originator undoes its own record. Applying
+/// it again changes nothing.
+class PayoutFailedApplyRequest extends $pb.GeneratedMessage {
+  factory PayoutFailedApplyRequest({
+    $core.String? reference,
+    $core.String? reason,
+  }) {
+    final result = PayoutFailedApplyRequest._();
+    if (reference != null) result.reference = reference;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  PayoutFailedApplyRequest._();
+
+  factory PayoutFailedApplyRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyRequest()..mergeFromBuffer(data, registry);
+  factory PayoutFailedApplyRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PayoutFailedApplyRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: PayoutFailedApplyRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'reference')
+    ..aOS(2, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyRequest copyWith(
+          void Function(PayoutFailedApplyRequest) updates) =>
+      super.copyWith((message) => updates(message as PayoutFailedApplyRequest))
+          as PayoutFailedApplyRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PayoutFailedApplyRequest() / PayoutFailedApplyRequest.new instead')
+  static PayoutFailedApplyRequest create() => PayoutFailedApplyRequest._();
+  static $pb.GeneratedMessage $_createMessage() => PayoutFailedApplyRequest._();
+  @$core.override
+  PayoutFailedApplyRequest createEmptyInstance() =>
+      PayoutFailedApplyRequest._();
+  @$core.pragma('dart2js:noInline')
+  static PayoutFailedApplyRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PayoutFailedApplyRequest>(
+          PayoutFailedApplyRequest.$_createMessage);
+  static PayoutFailedApplyRequest? _defaultInstance;
+
+  /// The transfer order reference the originator gave the payout.
+  @$pb.TagNumber(1)
+  $core.String get reference => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set reference($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReference() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReference() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get reason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set reason($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => $_clearField(2);
+}
+
+class PayoutFailedApplyResponse extends $pb.GeneratedMessage {
+  factory PayoutFailedApplyResponse({
+    $core.bool? applied,
+  }) {
+    final result = PayoutFailedApplyResponse._();
+    if (applied != null) result.applied = applied;
+    return result;
+  }
+
+  PayoutFailedApplyResponse._();
+
+  factory PayoutFailedApplyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyResponse()..mergeFromBuffer(data, registry);
+  factory PayoutFailedApplyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PayoutFailedApplyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: PayoutFailedApplyResponse.$_createMessage)
+    ..aOB(1, _omitFieldNames ? '' : 'applied')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyResponse copyWith(
+          void Function(PayoutFailedApplyResponse) updates) =>
+      super.copyWith((message) => updates(message as PayoutFailedApplyResponse))
+          as PayoutFailedApplyResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PayoutFailedApplyResponse() / PayoutFailedApplyResponse.new instead')
+  static PayoutFailedApplyResponse create() => PayoutFailedApplyResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      PayoutFailedApplyResponse._();
+  @$core.override
+  PayoutFailedApplyResponse createEmptyInstance() =>
+      PayoutFailedApplyResponse._();
+  @$core.pragma('dart2js:noInline')
+  static PayoutFailedApplyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PayoutFailedApplyResponse>(
+          PayoutFailedApplyResponse.$_createMessage);
+  static PayoutFailedApplyResponse? _defaultInstance;
+
+  /// True when this call undid the record; false when it was already undone
+  /// or the reference is not this service's.
+  @$pb.TagNumber(1)
+  $core.bool get applied => $_getBF(0);
+  @$pb.TagNumber(1)
+  set applied($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasApplied() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearApplied() => $_clearField(1);
+}
+
 class LoanStatusChangeSearchRequest extends $pb.GeneratedMessage {
   factory LoanStatusChangeSearchRequest({
     $core.String? loanAccountId,
@@ -10233,6 +10373,13 @@ class LoanManagementServiceApi {
           $pb.ClientContext? ctx, LoanJobRunRequest request) =>
       _client.invoke<LoanJobRunResponse>(ctx, 'LoanManagementService',
           'LoanJobRun', request, LoanJobRunResponse());
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  $async.Future<PayoutFailedApplyResponse> payoutFailedApply(
+          $pb.ClientContext? ctx, PayoutFailedApplyRequest request) =>
+      _client.invoke<PayoutFailedApplyResponse>(ctx, 'LoanManagementService',
+          'PayoutFailedApply', request, PayoutFailedApplyResponse());
 
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.
   $async.Future<LoanStatusChangeSearchResponse> loanStatusChangeSearch(

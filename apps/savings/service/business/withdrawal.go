@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
@@ -32,6 +33,7 @@ import (
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
 	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
@@ -46,6 +48,10 @@ type WithdrawalBusiness interface {
 	Request(ctx context.Context, req *savingsv1.WithdrawalRequestRequest) (*savingsv1.WithdrawalObject, error)
 	Approve(ctx context.Context, id string) (*savingsv1.WithdrawalObject, error)
 	Cancel(ctx context.Context, id, reason string) (*savingsv1.WithdrawalObject, error)
+	// PayoutFailed reverses a completed withdrawal the payment rail failed
+	// afterwards, named by its transfer order reference. Only operations
+	// reports it.
+	PayoutFailed(ctx context.Context, reference, reason string) (bool, error)
 	Get(ctx context.Context, id string) (*savingsv1.WithdrawalObject, error)
 	Search(
 		ctx context.Context,
@@ -387,6 +393,29 @@ func (b *withdrawalBusiness) Cancel(ctx context.Context, id, reason string) (*sa
 	})
 
 	return fresh.ToAPI(), nil
+}
+
+// withdrawalReferencePrefix starts the transfer order reference of a
+// withdrawal's payout.
+const withdrawalReferencePrefix = "withdrawal:"
+
+func (b *withdrawalBusiness) PayoutFailed(ctx context.Context, reference, reason string) (bool, error) {
+	if claims := security.ClaimsFromContext(ctx); claims == nil || !claims.IsInternalSystem() {
+		return false, ErrPayoutOutcomeInternalOnly
+	}
+	if !strings.HasPrefix(reference, withdrawalReferencePrefix) {
+		return false, nil
+	}
+	id := strings.TrimPrefix(reference, withdrawalReferencePrefix)
+	reversed, err := b.wdrRepo.ReverseSettled(ctx, id, reason)
+	if err != nil {
+		return false, fmt.Errorf("reverse failed withdrawal: %w", err)
+	}
+	if reversed {
+		util.Log(ctx).WithField("withdrawal_id", id).
+			Warn("savings withdrawal failed at the rail after it completed; the member's money is back")
+	}
+	return reversed, nil
 }
 
 func (b *withdrawalBusiness) Get(ctx context.Context, id string) (*savingsv1.WithdrawalObject, error) {

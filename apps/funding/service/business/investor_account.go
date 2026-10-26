@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"connectrpc.com/connect/v2"
 
@@ -397,7 +398,29 @@ func (b *investorAccountBusiness) depositInner(
 // capital movement from the movement row itself, so the reference is stable
 // across retries and unique across concurrent callers.
 func capitalTransferReference(movement *models.InvestorCapitalMovement) string {
-	return "investor_capital_movement:" + movement.GetID()
+	return capitalMovementReferencePrefix + movement.GetID()
+}
+
+const capitalMovementReferencePrefix = "investor_capital_movement:"
+
+// WithdrawalFailed returns the funds of a withdrawal the payment rail failed
+// after it completed. Operations has already reversed the ledger leg; the
+// investor's available balance is restored once, and the movement is marked
+// reverted. A reference that is not a completed withdrawal changes nothing.
+func (b *investorAccountBusiness) WithdrawalFailed(ctx context.Context, reference string) (bool, error) {
+	if !strings.HasPrefix(reference, capitalMovementReferencePrefix) {
+		return false, nil
+	}
+	movementID := strings.TrimPrefix(reference, capitalMovementReferencePrefix)
+	reverted, err := b.icmRepo.RevertCompletedWithdrawal(ctx, movementID)
+	if err != nil {
+		return false, fmt.Errorf("revert failed withdrawal: %w", err)
+	}
+	if reverted {
+		util.Log(ctx).WithField("movement_id", movementID).
+			Warn("investor withdrawal failed at the rail after it completed; funds returned")
+	}
+	return reverted, nil
 }
 
 // Withdraw settles an investor capital withdrawal. As with Deposit the

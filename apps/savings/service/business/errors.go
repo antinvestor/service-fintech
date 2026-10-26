@@ -19,6 +19,8 @@ import "github.com/antinvestor/service-fintech/pkg/apperrors"
 var (
 	ErrDepositRecordInternalOnly = apperrors.NewError(apperrors.Forbidden,
 		"deposits are recorded by the payment rail from the saver's own payment")
+	ErrPayoutOutcomeInternalOnly = apperrors.NewError(apperrors.Forbidden,
+		"payout outcomes are reported only by internal services")
 	ErrCashDepositRefused = apperrors.NewError(apperrors.BadRequest,
 		"cash deposits are not taken: savers pay from their own mobile money")
 	ErrSavingsProductNotFound   = apperrors.NewError(apperrors.NotFound, "savings product not found")

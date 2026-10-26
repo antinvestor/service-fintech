@@ -459,6 +459,11 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	typeName := constants.TransferTypeName(orderType)
 	logger = logger.WithField("order_type", typeName)
 
+	// A payout the rail failed, even after the order completed, was never
+	// paid: no retry of it may be told it succeeded.
+	if order.PayoutFailed() && order.State == int32(constants.StateInactive) {
+		return ErrPayoutFailed
+	}
 	switch order.State {
 	case int32(constants.StateInactive), int32(constants.StateDeleted):
 		logger.Info("transfer order already completed, skipping")
@@ -902,7 +907,22 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 				Warn("could not record payment id on transfer order")
 		}
 	}
+	b.recordPayoutOutcome(ctx, order.GetID(), status.GetStatus())
 	return nil
+}
+
+// recordPayoutOutcome notes whether the rail has settled a payout it took.
+// Accepted is not paid: until the rail says the money arrived the payout is
+// pending, and the reconcile job keeps asking.
+func (b *transferOrderBusiness) recordPayoutOutcome(ctx context.Context, orderID string, status commonv1.STATUS) {
+	outcome := models.PayoutStatusPending
+	if status == commonv1.STATUS_SUCCESSFUL {
+		outcome = models.PayoutStatusConfirmed
+	}
+	if err := b.toRepo.SetPayoutOutcome(ctx, orderID, outcome); err != nil {
+		util.Log(ctx).WithError(err).WithField("order_id", orderID).
+			Warn("could not record payout outcome; the reconcile job finds it anyway")
+	}
 }
 
 var errPaymentClientUnavailable = errors.New("payment client is not configured; refusing to execute a payout order")
@@ -1005,6 +1025,7 @@ func (b *transferOrderBusiness) settleFoundPayout(
 			logger.WithError(recErr).Warn("could not record confirmed payment id")
 		}
 	}
+	b.recordPayoutOutcome(ctx, order.GetID(), payment.GetStatus())
 	logger.WithField("payment_id", payment.GetId()).Info("earlier payout confirmed by the payment service")
 	return nil
 }

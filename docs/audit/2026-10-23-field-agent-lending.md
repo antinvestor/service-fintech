@@ -1291,3 +1291,79 @@ exploitable as built, but both are hardened:
 
      Nothing refused is stored.
    - Test: `TestKYCDocumentContentMustMatchItsKind`.
+
+## 47. Addendum 2026-10-26 — payouts the rail fails after accepting them; savings interest on trustage
+
+**Gaps closed.**
+
+1. *Late payout failures were never seen.*
+   - The payment service's `Send` answers QUEUED, and providers report the
+     outcome later by webhook. Operations completed a payout order on that
+     acceptance and never asked again.
+   - So a disbursement, savings withdrawal, investor withdrawal or commission
+     payout the rail failed afterwards stayed "paid" everywhere, while the
+     money never reached the person.
+   - It was the only open item from §8 that touched money.
+2. *Savings interest ran on an in-process timer* (`runInterestAccrual`).
+   This broke the trustage-only scheduling rule, and on a service that
+   scales to zero it may not run.
+
+**Change.**
+
+- *Operations.*
+  - A payout the rail accepts is `payout_status = pending`; the rail's
+    SUCCESSFUL makes it `confirmed`. New columns: `payout_checked_at` and
+    `originator_notified_at`.
+  - `OperationsJobRun(RECONCILE_PAYOUTS)` runs every 10 minutes on trustage
+    (`operations_reconcile_payouts.json`). For each payout order whose
+    outcome is unknown, oldest checked first:
+    - An order that never completed is resumed (the existing confirm path).
+    - A completed order is looked up at the payment service. SUCCESSFUL
+      becomes confirmed.
+    - FAILED is marked failed and its ledger leg reversed
+      (`reverseRejectedPayout`).
+    - Still undecided after a day is logged at error for operators.
+  - Late-failed orders are then reported to their originator by reference
+    prefix, until the originator answers.
+  - A completed order whose payout failed now answers a re-execution with
+    `ErrPayoutFailed`. Before, it reported success, which would have let a
+    retried commission payout count as paid.
+- *Originators.* `PayoutFailedApply` (`payout_outcome_apply`, internal
+  callers only, idempotent):
+  - *Loans, disbursement.* The disbursement becomes FAILED and the loan
+    returns ACTIVE → PENDING_DISBURSEMENT with its disbursement date
+    cleared, so staff can pay it again. A loan already repaid on, or no
+    longer ACTIVE, is logged for an operator rather than undone.
+  - *Loans, team commission.* The payout returns COMPLETED → PENDING with
+    the reason, and its amount goes back to the team's balance.
+  - *Savings.* The withdrawal becomes COMPLETED → REVERSED. The balance is
+    credited back and `total_withdrawals` reduced.
+  - *Funding.* The movement becomes COMPLETED → REVERTED (new status 4), and
+    the investor's available balance is restored.
+- *Savings interest.*
+  - `SavingsJobRun(ACCRUE_INTEREST)` runs hourly
+    (`savings_accrue_interest.json`). The workflow ships in the image and
+    the setup job registers it.
+  - Each account records `interest_accrued_through` (accrued or skipped)
+    and `interest_checked_at`, so the job settles every active account once
+    a day. A failing account waits 10 minutes rather than blocking the batch.
+  - The timer and `SAVINGS_INTEREST_ACCRUAL_*` config are gone.
+- *Grants.* service-authentication `20261026_08`:
+  - operations → `payout_outcome_apply` on loans, savings and funding;
+  - savings → trustage (`workflow_manage`, `workflow_view`) and `/trustage`;
+  - trustage → `savings_job_run` and `/savings`.
+- *SDKs.* Dart loans 0.6.6, funding 0.5.4, savings 0.4.1, operations 0.4.7.
+
+**Verified.**
+- operations: `TestReconcile_LateFailureIsReversedAndTheOriginatorTold`
+  (it also checks a retry is refused), and
+  `TestReconcile_ConfirmsPaidAndKeepsUndecidedPending`.
+- loans: `TestLateFailedDisbursementReturnsTheLoanToPending` and
+  `TestLateFailedCommissionPayoutReturnsToTheBalance`.
+- funding: `TestWithdrawalFailedAtTheRailIsReturnedOnce` (Postgres).
+- savings: `TestWithdrawalFailedAtTheRailIsReversedOnce` and
+  `TestInterestJobAccruesEachDayOnce` (Postgres).
+- trustage workflow validation covers savings.
+
+**Deploy.** Apply auth migration `20261026_08`, and set
+`TRUSTAGE_SERVICE_URI` on savings for its setup job.

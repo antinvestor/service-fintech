@@ -793,3 +793,63 @@ func (s *savingsSuite) TestDepositsComeOnlyFromThePaymentRail() {
 	})
 	s.Require().ErrorIs(err, business.ErrCashDepositRefused)
 }
+
+// A withdrawal the rail fails after it completed gives the member their
+// money back, once, and only the payment rail can say so.
+func (s *savingsSuite) TestWithdrawalFailedAtTheRailIsReversedOnce() {
+	e := s.newEnv()
+	account := e.seedAccount(s, "KES")
+	s.fund(e, account, "1000", "dep-late")
+	requested, err := e.wdr.Request(e.ctx, &savingsv1.WithdrawalRequestRequest{
+		SavingsAccountId: account.GetID(), Amount: money("KES", "400"), IdempotencyKey: "wdr-late",
+	})
+	s.Require().NoError(err)
+	_, err = e.wdr.Approve(e.ctx, requested.GetId())
+	s.Require().NoError(err)
+
+	_, err = e.wdr.PayoutFailed(e.ctx, "withdrawal:"+requested.GetId(), "rail failed")
+	s.Require().ErrorIs(err, business.ErrPayoutOutcomeInternalOnly)
+
+	reversed, err := e.wdr.PayoutFailed(e.railCtx(), "withdrawal:"+requested.GetId(), "rail failed")
+	s.Require().NoError(err)
+	s.True(reversed)
+	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(100000), balance.Balance, "the member's money is back")
+	s.Zero(balance.TotalWithdrawals)
+	got, err := e.wdr.Get(e.ctx, requested.GetId())
+	s.Require().NoError(err)
+	s.Equal(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_REVERSED, got.GetStatus())
+
+	again, err := e.wdr.PayoutFailed(e.railCtx(), "withdrawal:"+requested.GetId(), "rail failed")
+	s.Require().NoError(err)
+	s.False(again, "never reversed twice")
+}
+
+// The scheduled job accrues the last closed day once per account, and an
+// account with nothing to accrue is settled too rather than retried forever.
+func (s *savingsSuite) TestInterestJobAccruesEachDayOnce() {
+	e := s.newEnv()
+	funded := e.seedAccount(s, "KES")
+	s.fund(e, funded, "1000", "dep-interest")
+	e.seedAccount(s, "KES") // nothing to accrue
+	jobs := business.NewSavingsJobs(e.saRepo, e.accrual, "service_savings")
+
+	_, _, err := jobs.Run(e.ctx, savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().ErrorIs(err, business.ErrJobCallerNotInternal)
+
+	processed, more, err := jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+	s.Equal(2, processed)
+	s.False(more)
+	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, funded.GetID())
+	s.Require().NoError(err)
+	s.Positive(balance.TotalInterest, "a day's interest is credited")
+
+	again, _, err := jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+	s.Zero(again, "both accounts are settled for the day, the empty one included")
+	still, err := e.sbRepo.GetBySavingsAccountID(e.ctx, funded.GetID())
+	s.Require().NoError(err)
+	s.Equal(balance.TotalInterest, still.TotalInterest)
+}

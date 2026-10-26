@@ -529,7 +529,7 @@ func (b *repaymentBusiness) recordPaidOffStatusChange(
 		LoanAccountID: la.GetID(),
 		FromStatus:    int32(fromStatus),
 		ToStatus:      int32(loansv1.LoanStatus_LOAN_STATUS_PAID_OFF),
-		ChangedBy:     "system",
+		ChangedBy:     actorSystem,
 		Reason:        "loan fully repaid",
 	}
 	statusChange.GenID(ctx)

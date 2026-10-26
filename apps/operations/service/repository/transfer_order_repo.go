@@ -76,6 +76,31 @@ type TransferOrderRepository interface {
 	// and executeInner refuses to complete it until it is reversed.
 	MarkPayoutFailed(ctx context.Context, orderID, paymentID, reason string) error
 
+	// SetPayoutOutcome moves a payout that is not failed to status:
+	// pending or confirmed. A failed payout keeps its failure.
+	SetPayoutOutcome(ctx context.Context, orderID, status string) error
+
+	// ListPayoutsToReconcile returns up to limit payout orders of the given
+	// types that reached the rail before before and whose outcome is not
+	// known, those checked longest ago first.
+	ListPayoutsToReconcile(
+		ctx context.Context,
+		orderTypes []int,
+		before time.Time,
+		limit int,
+	) ([]*models.TransferOrder, error)
+
+	// TouchPayoutChecked records that the outcome was asked for now.
+	TouchPayoutChecked(ctx context.Context, orderID string) error
+
+	// ListLateFailedPayouts returns up to limit orders that completed and
+	// whose payout the rail failed afterwards, whose originator has not been
+	// told.
+	ListLateFailedPayouts(ctx context.Context, limit int) ([]*models.TransferOrder, error)
+
+	// MarkOriginatorNotified records that the originator was told.
+	MarkOriginatorNotified(ctx context.Context, orderID string) error
+
 	// RetakePaymentInitiation swaps a stale payout claim for a fresh one in a
 	// single compare-and-swap on the observed claim time, so of several
 	// resumers that all saw the same stale claim exactly one may send. It
@@ -313,6 +338,64 @@ func (r *transferOrderRepository) MarkPayoutFailed(ctx context.Context, orderID,
 			colModifiedAt:    time.Now().UTC(),
 			colVersion:       gorm.Expr("version + 1"),
 		}).Error
+}
+
+func (r *transferOrderRepository) SetPayoutOutcome(ctx context.Context, orderID, status string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ? AND (payout_status IS NULL OR payout_status <> ?)",
+			orderID, models.PayoutStatusFailed).
+		Updates(map[string]any{
+			colPayoutStatus:     status,
+			"payout_checked_at": time.Now().UTC(),
+			colModifiedAt:       time.Now().UTC(),
+			colVersion:          gorm.Expr("version + 1"),
+		}).Error
+}
+
+func (r *transferOrderRepository) ListPayoutsToReconcile(
+	ctx context.Context,
+	orderTypes []int,
+	before time.Time,
+	limit int,
+) ([]*models.TransferOrder, error) {
+	var orders []*models.TransferOrder
+	err := r.dbPool.DB(ctx, true).
+		Where("deleted_at IS NULL AND order_type IN ? AND payment_initiated_at IS NOT NULL "+
+			"AND payment_initiated_at < ? AND (payout_status IS NULL OR payout_status IN ?)",
+			orderTypes, before.UTC(), []string{"", models.PayoutStatusPending}).
+		Order("payout_checked_at NULLS FIRST, payment_initiated_at").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
+}
+
+func (r *transferOrderRepository) TouchPayoutChecked(ctx context.Context, orderID string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ?", orderID).
+		Update("payout_checked_at", time.Now().UTC()).Error
+}
+
+func (r *transferOrderRepository) ListLateFailedPayouts(
+	ctx context.Context,
+	limit int,
+) ([]*models.TransferOrder, error) {
+	var orders []*models.TransferOrder
+	err := r.dbPool.DB(ctx, true).
+		Where("deleted_at IS NULL AND payout_status = ? AND state = ? AND originator_notified_at IS NULL",
+			models.PayoutStatusFailed, int32(constants.StateInactive)).
+		Order("modified_at").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
+}
+
+func (r *transferOrderRepository) MarkOriginatorNotified(ctx context.Context, orderID string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ?", orderID).
+		Update("originator_notified_at", time.Now().UTC()).Error
 }
 
 func (r *transferOrderRepository) ConsumeObligationForOrder(

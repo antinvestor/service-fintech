@@ -668,3 +668,30 @@ func (s *fundingSuite) TestWithdrawKeepsFundsDebitedUntilThePayoutIsKnown() {
 	s.Require().NoError(err)
 	s.Equal(int64(60000), back.AvailableBalance, "a refused payout gives the funds back")
 }
+
+// A withdrawal the rail fails after it completed gives the investor their
+// money back, once.
+func (s *fundingSuite) TestWithdrawalFailedAtTheRailIsReturnedOnce() {
+	e := s.newEnv()
+	account := e.seedInvestor(s, "KES", 100000)
+	s.Require().NoError(e.iaBiz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-late"))
+	reference := e.ops.snapshot()[0].GetReference()
+
+	reverted, err := e.iaBiz.WithdrawalFailed(e.ctx, reference)
+	s.Require().NoError(err)
+	s.True(reverted)
+	fresh, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(100000), fresh.AvailableBalance, "the withdrawn funds are back")
+
+	again, err := e.iaBiz.WithdrawalFailed(e.ctx, reference)
+	s.Require().NoError(err)
+	s.False(again)
+	same, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(fresh.AvailableBalance, same.AvailableBalance, "never returned twice")
+
+	notOurs, err := e.iaBiz.WithdrawalFailed(e.ctx, "disbursement:other")
+	s.Require().NoError(err)
+	s.False(notOurs)
+}

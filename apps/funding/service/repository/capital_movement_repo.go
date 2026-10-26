@@ -67,6 +67,10 @@ type InvestorCapitalMovementRepository interface {
 	// returns ErrInvestorInsufficientFunds when free capital cannot cover it.
 	DebitWithdrawal(ctx context.Context, movement *models.InvestorCapitalMovement) (applied bool, err error)
 
+	// RevertCompletedWithdrawal returns the funds of a completed withdrawal
+	// the payment rail failed afterwards and marks it reverted. It reports
+	// whether this call reverted it.
+	RevertCompletedWithdrawal(ctx context.Context, movementID string) (bool, error)
 	// RevertWithdrawalDebit undoes DebitWithdrawal, returning the funds and
 	// putting the movement back to PENDING so the caller can retry.
 	RevertWithdrawalDebit(ctx context.Context, movement *models.InvestorCapitalMovement) error
@@ -177,6 +181,33 @@ func (r *investorCapitalMovementRepository) DebitWithdrawal(
 	default:
 		return false, err
 	}
+}
+
+func (r *investorCapitalMovementRepository) RevertCompletedWithdrawal(
+	ctx context.Context,
+	movementID string,
+) (bool, error) {
+	var reverted bool
+	err := r.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		movement := &models.InvestorCapitalMovement{}
+		if err := tx.Where("id = ? AND deleted_at IS NULL AND direction = ?",
+			movementID, int32(models.CapitalMovementWithdraw)).First(movement).Error; err != nil {
+			if data.ErrorIsNoRows(err) {
+				return nil
+			}
+			return err
+		}
+		claimed, err := claimMovementStatus(
+			tx, movementID, models.CapitalMovementCompleted, models.CapitalMovementReverted)
+		if err != nil || !claimed {
+			return err
+		}
+		reverted = true
+		return investorBalanceUpdate(tx, movement.InvestorAccountID, "", nil, map[string]any{
+			colAvailableBalance: gorm.Expr("available_balance + ?", movement.Amount),
+		})
+	})
+	return reverted, err
 }
 
 func (r *investorCapitalMovementRepository) RevertWithdrawalDebit(

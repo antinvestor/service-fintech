@@ -953,6 +953,25 @@ message LoanJobRunResponse {
   bool more = 2;
 }
 
+// PayoutFailedApplyRequest tells the service that originated a payout that
+// the payment rail failed it after accepting it. Operations has already
+// reversed the ledger leg; the originator undoes its own record. Applying
+// it again changes nothing.
+message PayoutFailedApplyRequest {
+  // The transfer order reference the originator gave the payout.
+  string reference = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 255
+  ];
+  string reason = 2 [(buf.validate.field).string.max_len = 500];
+}
+
+message PayoutFailedApplyResponse {
+  // True when this call undid the record; false when it was already undone
+  // or the reference is not this service's.
+  bool applied = 1;
+}
+
 // --- LoanStatusChange (audit) ---
 
 message LoanStatusChangeSearchRequest {
@@ -1313,7 +1332,8 @@ service LoanManagementService {
       "loan_view_own",
       "loan_job_run",
       "commission_view",
-      "commission_payout"
+      "commission_payout",
+      "payout_outcome_apply"
     ]
     role_bindings: [
       {
@@ -1451,7 +1471,8 @@ service LoanManagementService {
           "collection_manage",
           "portfolio_view",
           "portfolio_export",
-          "loan_job_run"
+          "loan_job_run",
+          "payout_outcome_apply"
         ]
       }
     ]
@@ -1995,6 +2016,14 @@ service LoanManagementService {
       summary: "Run one batch of a scheduled job"
       description: "Runs one bounded batch of a periodic loans job. Idempotent: concurrent runs claim distinct items."
       tags: "Jobs"
+    };
+  }
+
+  // PayoutFailedApply undoes this service's record of a payout the payment
+  // rail failed after accepting it. Only operations calls it.
+  rpc PayoutFailedApply(PayoutFailedApplyRequest) returns (PayoutFailedApplyResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["payout_outcome_apply"]
     };
   }
 

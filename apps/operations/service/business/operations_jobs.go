@@ -55,6 +55,7 @@ type OperationsJobs struct {
 	executor OrderExecutor
 	ipRepo   repository.IncomingPaymentRepository
 	toRepo   repository.TransferOrderRepository
+	payouts  PayoutReconciler
 	subject  string
 }
 
@@ -68,6 +69,12 @@ func NewOperationsJobs(
 	subject string,
 ) *OperationsJobs {
 	return &OperationsJobs{routing: routing, executor: executor, ipRepo: ipRepo, toRepo: toRepo, subject: subject}
+}
+
+// WithPayoutReconciler lets the jobs settle how payouts ended.
+func (j *OperationsJobs) WithPayoutReconciler(r PayoutReconciler) *OperationsJobs {
+	j.payouts = r
+	return j
 }
 
 // Run runs one batch of job. Only an internal service account may run it:
@@ -84,6 +91,8 @@ func (j *OperationsJobs) Run(ctx context.Context, job operationsv1.OperationsJob
 	switch job {
 	case operationsv1.OperationsJob_OPERATIONS_JOB_SETTLE_PAYMENTS:
 		return j.settlePayments(ctx, batch)
+	case operationsv1.OperationsJob_OPERATIONS_JOB_RECONCILE_PAYOUTS:
+		return j.reconcilePayouts(ctx, batch)
 	case operationsv1.OperationsJob_OPERATIONS_JOB_UNSPECIFIED:
 	}
 	return 0, false, ErrUnknownJob
@@ -127,6 +136,40 @@ func (j *OperationsJobs) settlePayments(ctx context.Context, batch int) (int, bo
 			Info("settled individual payments")
 	}
 	return processed, len(payments) == batch || len(orders) == batch, nil
+}
+
+// reconcilePayouts asks how payouts the rail accepted ended, oldest checked
+// first, then tells the originators of payouts the rail failed afterwards.
+// A failure on one item is logged and left for the next run.
+func (j *OperationsJobs) reconcilePayouts(ctx context.Context, batch int) (int, bool, error) {
+	if j.payouts == nil {
+		return 0, false, ErrUnknownJob
+	}
+	listCtx := security.SkipTenancyChecksOnClaims(ctx)
+	before := time.Now().UTC().Add(-settleAfter)
+
+	orders, err := j.toRepo.ListPayoutsToReconcile(listCtx, payoutOrderTypes(), before, batch)
+	if err != nil {
+		return 0, false, fmt.Errorf("payouts to reconcile: %w", err)
+	}
+	for _, o := range orders {
+		if recErr := j.payouts.ReconcilePayout(j.actIn(ctx, &o.BaseModel), o.GetID()); recErr != nil {
+			util.Log(ctx).WithError(recErr).WithField("transfer_order_id", o.GetID()).
+				Warn("reconcile: payout outcome not settled; next run retries")
+		}
+	}
+
+	failed, err := j.toRepo.ListLateFailedPayouts(listCtx, batch)
+	if err != nil {
+		return len(orders), false, fmt.Errorf("late-failed payouts to report: %w", err)
+	}
+	for _, o := range failed {
+		if notifyErr := j.payouts.NotifyOriginator(j.actIn(ctx, &o.BaseModel), o); notifyErr != nil {
+			util.Log(ctx).WithError(notifyErr).WithField("transfer_order_id", o.GetID()).
+				Warn("reconcile: originator not told of a failed payout; next run retries")
+		}
+	}
+	return len(orders) + len(failed), len(orders) == batch || len(failed) == batch, nil
 }
 
 // actIn is ctx as this service acting inside the item's partition.

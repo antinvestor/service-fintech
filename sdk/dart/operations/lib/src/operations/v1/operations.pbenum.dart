@@ -229,13 +229,20 @@ class OperationsJob extends $pb.ProtobufEnum {
   static const OperationsJob OPERATIONS_JOB_SETTLE_PAYMENTS = OperationsJob._(
       1, _omitEnumNames ? '' : 'OPERATIONS_JOB_SETTLE_PAYMENTS');
 
+  /// Asks the payment service how payouts it accepted ended. A payout the
+  /// rail failed afterwards is reversed on the ledger and its originator is
+  /// told; one still undecided past a day is reported to operators.
+  static const OperationsJob OPERATIONS_JOB_RECONCILE_PAYOUTS = OperationsJob._(
+      2, _omitEnumNames ? '' : 'OPERATIONS_JOB_RECONCILE_PAYOUTS');
+
   static const $core.List<OperationsJob> values = <OperationsJob>[
     OPERATIONS_JOB_UNSPECIFIED,
     OPERATIONS_JOB_SETTLE_PAYMENTS,
+    OPERATIONS_JOB_RECONCILE_PAYOUTS,
   ];
 
   static final $core.List<OperationsJob?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 1);
+      $pb.ProtobufEnum.$_initByValueList(values, 2);
   static OperationsJob? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

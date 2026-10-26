@@ -1107,7 +1107,7 @@ func (b *paymentRoutingBusiness) allocateObligation(
 	// never a loan id a caller put on an order.
 	extra := data.JSONMap{
 		extraKeySource:     allocationSourceMarker,
-		"payment_id":       paymentID,
+		fieldPaymentID:     paymentID,
 		"obligation_id":    obl.GetID(),
 		"membership_id":    membershipID,
 		"obligation_cause": obl.CauseType,

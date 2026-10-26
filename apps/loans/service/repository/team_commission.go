@@ -59,6 +59,10 @@ type TeamCommissionRepository interface {
 	// RevertPayout returns a processing payout that was refused to pending
 	// and gives its amount back to the balance.
 	RevertPayout(ctx context.Context, m *models.TeamCommissionMovement, reason string) error
+	// ReturnPaidPayout returns a completed payout the rail failed afterwards
+	// to pending, with the reason, and gives its amount back to the balance.
+	// It reports whether this call returned it.
+	ReturnPaidPayout(ctx context.Context, id, reason string) (bool, error)
 	// CompletePayout marks a processing payout paid.
 	CompletePayout(ctx context.Context, id string) error
 	// Search lists balances, all teams' when teamID is empty.
@@ -170,6 +174,29 @@ func (r *teamCommissionRepository) RevertPayout(
 		}
 		return updateCommissionBalance(tx, m, "", nil, gorm.Expr("paid_out - ?", m.Amount))
 	})
+}
+
+func (r *teamCommissionRepository) ReturnPaidPayout(ctx context.Context, id, reason string) (bool, error) {
+	var returned bool
+	err := r.dbPool.DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		m := &models.TeamCommissionMovement{}
+		if err := tx.Where("id = ? AND kind = ? AND deleted_at IS NULL", id, int32(models.TeamCommissionPayout)).
+			First(m).Error; err != nil {
+			if data.ErrorIsNoRows(err) {
+				return nil
+			}
+			return err
+		}
+		moved, err := moveCommissionStatus(tx, id,
+			loansv1.TeamCommissionPayoutStatus_TEAM_COMMISSION_PAYOUT_STATUS_COMPLETED,
+			loansv1.TeamCommissionPayoutStatus_TEAM_COMMISSION_PAYOUT_STATUS_PENDING, reason)
+		if err != nil || !moved {
+			return err
+		}
+		returned = true
+		return updateCommissionBalance(tx, m, "", nil, gorm.Expr("paid_out - ?", m.Amount))
+	})
+	return returned, err
 }
 
 func (r *teamCommissionRepository) CompletePayout(ctx context.Context, id string) error {

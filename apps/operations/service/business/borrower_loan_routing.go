@@ -249,7 +249,7 @@ func (b *paymentRoutingBusiness) allocateToBorrowerLoan(
 		State:            int32(constants.StateJustCreated),
 		ExtraData: data.JSONMap{
 			extraKeySource:        allocationSourceMarker,
-			"payment_id":          paymentID,
+			fieldPaymentID:        paymentID,
 			fieldLoanID:           loanID,
 			fieldClientID:         clientID,
 			extraRepaymentChannel: channelMobileMoney,

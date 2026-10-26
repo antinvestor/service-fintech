@@ -1,3 +1,9 @@
+## 0.4.7
+
+- `OperationsJob.OPERATIONS_JOB_RECONCILE_PAYOUTS`: asks the payment service
+  how accepted payouts ended, reverses those the rail failed afterwards and
+  tells their originators.
+
 ## 0.4.6
 
 - `TransferOrderType.TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT` (53): a

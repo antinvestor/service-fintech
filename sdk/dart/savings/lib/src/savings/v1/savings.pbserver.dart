@@ -61,6 +61,10 @@ abstract class SavingsServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.SavingsBalanceGetRequest request);
   $async.Future<$3.SavingsStatementResponse> savingsStatement(
       $pb.ServerContext ctx, $3.SavingsStatementRequest request);
+  $async.Future<$3.PayoutFailedApplyResponse> payoutFailedApply(
+      $pb.ServerContext ctx, $3.PayoutFailedApplyRequest request);
+  $async.Future<$3.SavingsJobRunResponse> savingsJobRun(
+      $pb.ServerContext ctx, $3.SavingsJobRunRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -104,6 +108,10 @@ abstract class SavingsServiceBase extends $pb.GeneratedService {
         return $3.SavingsBalanceGetRequest();
       case 'SavingsStatement':
         return $3.SavingsStatementRequest();
+      case 'PayoutFailedApply':
+        return $3.PayoutFailedApplyRequest();
+      case 'SavingsJobRun':
+        return $3.SavingsJobRunRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -158,6 +166,10 @@ abstract class SavingsServiceBase extends $pb.GeneratedService {
         return savingsBalanceGet(ctx, request as $3.SavingsBalanceGetRequest);
       case 'SavingsStatement':
         return savingsStatement(ctx, request as $3.SavingsStatementRequest);
+      case 'PayoutFailedApply':
+        return payoutFailedApply(ctx, request as $3.PayoutFailedApplyRequest);
+      case 'SavingsJobRun':
+        return savingsJobRun(ctx, request as $3.SavingsJobRunRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

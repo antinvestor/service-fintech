@@ -357,6 +357,25 @@ func (t *TeamCommissions) Payout(
 	return movement.ToPayoutAPI(), nil
 }
 
+// ReturnFailedPayout gives a completed payout the rail failed afterwards
+// back to the team's balance. The payout returns to pending with the
+// reason; paying it again takes a new key, since its order is closed.
+func (t *TeamCommissions) ReturnFailedPayout(ctx context.Context, payoutID, reason string) (bool, error) {
+	if t == nil || t.repo == nil {
+		return false, nil
+	}
+	returned, err := t.repo.ReturnPaidPayout(ctx, payoutID, reason)
+	if err != nil {
+		return false, fmt.Errorf("return failed commission payout: %w", err)
+	}
+	if returned {
+		util.Log(ctx).
+			WithField("payout_id", payoutID).
+			Warn("commission payout failed at the rail; returned to the balance")
+	}
+	return returned, nil
+}
+
 // payoutDestination settles where a payout goes before anything is taken:
 // the member's own number, never one somebody names. A payout already taken
 // from the balance may have paid the member, so it resumes on its stored

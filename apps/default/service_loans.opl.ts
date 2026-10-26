@@ -57,6 +57,7 @@ class service_loans implements Namespace {
     granted_loan_job_run: (profile_user | service_loans)[]
     granted_commission_view: (profile_user | service_loans)[]
     granted_commission_payout: (profile_user | service_loans)[]
+    granted_payout_outcome_apply: (profile_user | service_loans)[]
   }
 
   permits = {
@@ -234,5 +235,9 @@ class service_loans implements Namespace {
       this.related.admin.includes(ctx.subject) ||
       this.related.owner.includes(ctx.subject) ||
       this.related.granted_commission_payout.includes(ctx.subject),
+
+    payout_outcome_apply: (ctx: Context): boolean =>
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_payout_outcome_apply.includes(ctx.subject),
   }
 }

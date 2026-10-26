@@ -327,7 +327,8 @@ func setupServiceOptions(
 	connectHandler := setupConnectServer(ctx, sm,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
 		penaltyBusiness, restructBusiness, reconBusiness, portfolioBusiness, disbBusiness,
-		cpaBusiness, collectionBusiness, lscRepo, loanJobs, teamCommissions, auditCli)
+		cpaBusiness, collectionBusiness, lscRepo, loanJobs, teamCommissions,
+		business.NewPayoutFailures(disbRepo, laRepo, repRepo, evtsMan, teamCommissions), auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -580,6 +581,7 @@ func setupConnectServer(
 	statusChangeRepo repository.LoanStatusChangeRepository,
 	loanJobs *business.LoanJobs,
 	teamCommissions *business.TeamCommissions,
+	payoutFailures *business.PayoutFailures,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	// Create handler with injected dependencies
@@ -599,6 +601,7 @@ func setupConnectServer(
 		statusChangeRepo,
 		loanJobs,
 		teamCommissions,
+		payoutFailures,
 	)
 
 	auth := sm.GetAuthorizer(ctx)

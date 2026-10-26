@@ -155,6 +155,22 @@ func (r *stubTransferOrderRepo) ClaimPaymentInitiation(_ context.Context, _ stri
 }
 func (r *stubTransferOrderRepo) RecordPaymentID(_ context.Context, _, _ string) error     { return nil }
 func (r *stubTransferOrderRepo) MarkPayoutFailed(_ context.Context, _, _, _ string) error { return nil }
+
+func (r *stubTransferOrderRepo) SetPayoutOutcome(_ context.Context, _, _ string) error { return nil }
+
+func (r *stubTransferOrderRepo) ListPayoutsToReconcile(
+	_ context.Context, _ []int, _ time.Time, _ int,
+) ([]*models.TransferOrder, error) {
+	return nil, nil
+}
+
+func (r *stubTransferOrderRepo) TouchPayoutChecked(_ context.Context, _ string) error { return nil }
+
+func (r *stubTransferOrderRepo) ListLateFailedPayouts(_ context.Context, _ int) ([]*models.TransferOrder, error) {
+	return nil, nil
+}
+
+func (r *stubTransferOrderRepo) MarkOriginatorNotified(_ context.Context, _ string) error { return nil }
 func (r *stubTransferOrderRepo) RetakePaymentInitiation(_ context.Context, _ string, _ time.Time) (bool, error) {
 	return true, nil
 }

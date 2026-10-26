@@ -92,6 +92,19 @@ func (m *memCommissions) RevertPayout(_ context.Context, mv *loansmodels.TeamCom
 	return nil
 }
 
+func (m *memCommissions) ReturnPaidPayout(_ context.Context, id, reason string) (bool, error) {
+	for _, mv := range m.byRef {
+		if mv.GetID() == id &&
+			mv.Status == int32(loansv1.TeamCommissionPayoutStatus_TEAM_COMMISSION_PAYOUT_STATUS_COMPLETED) {
+			mv.Status = int32(loansv1.TeamCommissionPayoutStatus_TEAM_COMMISSION_PAYOUT_STATUS_PENDING)
+			mv.FailureReason = reason
+			m.paidOut -= mv.Amount
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (m *memCommissions) CompletePayout(_ context.Context, id string) error {
 	for _, mv := range m.byRef {
 		if mv.GetID() == id {

@@ -1,0 +1,93 @@
+{
+  "version": "1.2",
+  "name": "savings_accrue_interest",
+  "description": "Hourly: SavingsJobRun(ACCRUE_INTEREST) settles the most recently closed day's interest on active accounts not yet settled through it; idempotent per account and day.",
+  "input": {
+    "schedule_name": "savings_accrue_interest"
+  },
+  "config": {
+    "process_commands": [
+      "savings.v1.SavingsService/SavingsJobRun"
+    ],
+    "terminal_states": [
+      "stalled"
+    ],
+    "owner": "fintech"
+  },
+  "schedules": [
+    {
+      "name": "savings_accrue_interest",
+      "cron_expr": "15 * * * *",
+      "timezone": "UTC",
+      "input_payload": {}
+    }
+  ],
+  "steps": [
+    {
+      "id": "run",
+      "type": "call",
+      "name": "RUN \u2014 one bounded batch; repeats while the service reports more",
+      "call": {
+        "action": "connect.call",
+        "input": {
+          "service": "savings.v1.SavingsService",
+          "rpc": "SavingsJobRun",
+          "request": {
+            "job": "SAVINGS_JOB_ACCRUE_INTEREST",
+            "batchSize": 500
+          }
+        },
+        "output_var": "batch"
+      },
+      "retry": {
+        "max_attempts": 3,
+        "initial_interval": "10s",
+        "backoff_coefficient": 2.0,
+        "max_interval": "2m"
+      },
+      "on_success": [
+        {
+          "condition": "has(vars.batch.more) && vars.batch.more == true",
+          "target": "run"
+        },
+        {
+          "condition": "true",
+          "target": "end"
+        }
+      ],
+      "on_failure": "stalled"
+    },
+    {
+      "id": "stalled",
+      "type": "call",
+      "name": "STALLED (terminal) \u2014 the job failed after retries; the next schedule tries again",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "error",
+          "message": "savings_accrue_interest stalled after retries",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}",
+            "execution_id": "{{ metadata.execution_id }}"
+          }
+        }
+      },
+      "on_success": "end"
+    },
+    {
+      "id": "end",
+      "type": "call",
+      "name": "END \u2014 instance terminal",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "info",
+          "message": "savings_accrue_interest done",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}"
+          }
+        }
+      }
+    }
+  ]
+}

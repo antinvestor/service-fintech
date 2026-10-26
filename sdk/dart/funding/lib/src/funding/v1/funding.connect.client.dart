@@ -203,4 +203,23 @@ extension type FundingServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  Future<fundingv1funding.PayoutFailedApplyResponse> payoutFailedApply(
+    fundingv1funding.PayoutFailedApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.payoutFailedApply,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

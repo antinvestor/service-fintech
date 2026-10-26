@@ -288,9 +288,9 @@ func (b *disbursementBusiness) completeDisbursement(
 	disb.LedgerTransactionID = orderID
 	disb.Status = int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED)
 	if _, updErr := b.disbRepo.UpdateColumns(ctx, disb.GetID(), map[string]any{
-		fieldStatus:      disb.Status,
-		fieldLedgerTxnID: disb.LedgerTransactionID,
-		"failure_reason": "",
+		fieldStatus:        disb.Status,
+		fieldLedgerTxnID:   disb.LedgerTransactionID,
+		fieldFailureReason: "",
 	}); updErr != nil {
 		logger.WithError(updErr).Error("could not mark disbursement completed")
 		return updErr
@@ -301,7 +301,7 @@ func (b *disbursementBusiness) completeDisbursement(
 
 	actor := callerSubject(ctx)
 	if actor == "" {
-		actor = "system"
+		actor = actorSystem
 	}
 	if _, transErr := b.laBusiness.TransitionStatus(
 		ctx, la.GetID(),
@@ -395,7 +395,7 @@ func (b *disbursementBusiness) handleTransferFailure(
 	cause error,
 ) error {
 	logger = logger.WithError(cause).WithField("disbursement_id", disb.GetID())
-	values := map[string]any{"failure_reason": cause.Error()}
+	values := map[string]any{fieldFailureReason: cause.Error()}
 
 	if transferPermanentlyRejected(cause) {
 		logger.Error("disbursement rejected by the payment path")

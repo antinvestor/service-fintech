@@ -22,6 +22,7 @@ import (
 
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
+	"connectrpc.com/connect/v2"
 	audit "github.com/antinvestor/common/audit"
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/workerpool"
@@ -50,6 +51,7 @@ type LoanManagementServer struct {
 	statusChangeRepo   repository.LoanStatusChangeRepository
 	jobs               *business.LoanJobs
 	commissions        *business.TeamCommissions
+	payoutFailures     *business.PayoutFailures
 
 	loansv1connect.UnimplementedLoanManagementServiceHandler
 }
@@ -70,6 +72,7 @@ func NewLoanManagementServer(
 	statusChangeRepo repository.LoanStatusChangeRepository,
 	jobs *business.LoanJobs,
 	commissions *business.TeamCommissions,
+	payoutFailures *business.PayoutFailures,
 ) loansv1connect.LoanManagementServiceHandler {
 	return &LoanManagementServer{
 		lpBusiness:         lpBusiness,
@@ -87,7 +90,26 @@ func NewLoanManagementServer(
 		statusChangeRepo:   statusChangeRepo,
 		jobs:               jobs,
 		commissions:        commissions,
+		payoutFailures:     payoutFailures,
 	}
+}
+
+// PayoutFailedApply undoes loans' record of a payout the payment rail failed
+// after accepting it. Only operations calls it.
+func (s *LoanManagementServer) PayoutFailedApply(
+	ctx context.Context,
+	req *loansv1.PayoutFailedApplyRequest,
+) (*loansv1.PayoutFailedApplyResponse, error) {
+	if s.payoutFailures == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, "payout outcomes are not configured")
+	}
+	applied, err := s.payoutFailures.Apply(ctx, req.GetReference(), req.GetReason())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithAction(ctx, "payout_failed")
+	audit.WithDetail(ctx, "reference", req.GetReference())
+	return &loansv1.PayoutFailedApplyResponse{Applied: applied}, nil
 }
 
 // LoanJobRun runs one batch of a periodic job for the platform scheduler.
