@@ -147,13 +147,15 @@ func TestInstallRegistersTheMenuOnceAndConfiguresTheGateway(t *testing.T) {
 	// Every PIN or code prompt is sealed by the engine.
 	secrets := 0
 	for _, m := range engine.menus {
-		if m.CollectionKey == KeyPIN || m.CollectionKey == KeyOTP ||
-			m.CollectionKey == KeyNewPIN || m.CollectionKey == KeyConfirmPIN {
+		switch m.CollectionKey {
+		case KeyPIN, KeyOTP, KeyCurrentPIN, KeyNewPIN, KeyConfirmPIN:
 			assert.True(t, m.IsSecret, m.CollectionKey)
 			secrets++
 		}
 	}
-	assert.Equal(t, 4, secrets)
+	// Borrow PIN; set, change and reset each take a code and the new PIN
+	// twice; change also takes the current PIN.
+	assert.Equal(t, 11, secrets)
 
 	// An unchanged menu is left alone, so its ids stay stable.
 	require.NoError(t, Install(context.Background(), client, settings))

@@ -184,18 +184,25 @@ func (m *memPins) Ensure(ctx context.Context, profileID string) (*models.UssdPin
 	return m.GetByProfile(ctx, profileID)
 }
 
-func (m *memPins) RecordVerification(_ context.Context, id, verificationID string, at time.Time) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.rows[id].VerificationID, m.rows[id].VerificationRequestedAt = verificationID, &at
-	return nil
-}
-
-func (m *memPins) SetPin(_ context.Context, id, hash string) error {
+func (m *memPins) RecordVerification(_ context.Context, id, verificationID, contactID string, at time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	r := m.rows[id]
-	r.PinHash, r.FailedAttempts, r.LockedUntil, r.VerificationID = hash, 0, nil, ""
+	r.VerificationID, r.VerificationContactID, r.VerificationRequestedAt = verificationID, contactID, &at
+	return nil
+}
+
+func (m *memPins) SetPin(_ context.Context, id, hash string, reset bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r := m.rows[id]
+	r.PinHash, r.VerificationID, r.VerificationContactID = hash, "", ""
+	if reset {
+		now := time.Now()
+		r.ResetAt = &now
+	} else {
+		r.FailedAttempts, r.LockedUntil = 0, nil
+	}
 	return nil
 }
 
@@ -292,6 +299,8 @@ func newUssdHarness(t *testing.T) *ussdHarness {
 		loans: &ussdLoans{},
 		profiles: &ussdProfiles{goodCode: "246810", contacts: []*profilev1.ContactObject{
 			{Id: "contact-1", Type: profilev1.ContactType_MSISDN, Verified: true, State: commonv1.STATE_ACTIVE},
+			{Id: "contact-2", Type: profilev1.ContactType_MSISDN, Verified: true, State: commonv1.STATE_ACTIVE},
+			{Id: "contact-unverified", Type: profilev1.ContactType_MSISDN, State: commonv1.STATE_ACTIVE},
 		}},
 		requests: &recordingLoanRequests{},
 		sent:     &sentMessages{},
@@ -477,13 +486,16 @@ func TestUssdStateIsWhatTheMenuShowsNow(t *testing.T) {
 	// A client with no PIN: may set one, may not borrow yet.
 	rows, err := h.biz.State(ctx, "profile-1")
 	require.NoError(t, err)
-	assert.Len(t, rows[ussd.RowClient], 1)
+	assert.Len(t, rows[ussd.RowNoPIN], 1)
+	assert.Empty(t, rows[ussd.RowHasPIN])
 	assert.Empty(t, rows[ussd.RowBorrow])
 	assert.Contains(t, rows, ussd.RowLoan, "every row name is returned so stale rows clear")
 
 	h.setPIN(t, "4321")
 	rows, err = h.biz.State(ctx, "profile-1")
 	require.NoError(t, err)
+	assert.Empty(t, rows[ussd.RowNoPIN])
+	assert.Len(t, rows[ussd.RowHasPIN], 1)
 	require.Len(t, rows[ussd.RowBorrow], 1)
 	assert.Equal(t, "KES 5,000.00", rows[ussd.RowBorrow][0]["limit"])
 
@@ -500,5 +512,100 @@ func TestUssdStateIsWhatTheMenuShowsNow(t *testing.T) {
 	// Someone who is not a seed client sees nothing.
 	rows, err = h.biz.State(ctx, "stranger")
 	require.NoError(t, err)
-	assert.Empty(t, rows[ussd.RowClient])
+	assert.Empty(t, rows[ussd.RowNoPIN])
+	assert.Empty(t, rows[ussd.RowHasPIN])
+}
+
+func (h *ussdHarness) pinSession(t *testing.T, id, stepKey string, data map[string]string) business.UssdSession {
+	t.Helper()
+	all := map[string]string{stepKey: ussd.PinHaveCode, ussd.KeyOTP: h.seal(t, h.profiles.goodCode)}
+	for k, v := range data {
+		all[k] = v
+	}
+	return h.session(id, all)
+}
+
+func TestUssdChangingAPINNeedsTheCurrentOne(t *testing.T) {
+	h := newUssdHarness(t)
+	ctx := context.Background()
+	h.setPIN(t, "4321")
+
+	send := func(id string) {
+		require.NoError(
+			t,
+			h.biz.HandleSession(ctx, h.session(id, map[string]string{ussd.KeyChangeStep: ussd.PinSendCode})),
+		)
+	}
+
+	// The code alone is the phone: it does not replace a PIN.
+	send("c0")
+	require.NoError(t, h.biz.HandleSession(ctx, h.pinSession(t, "c1", ussd.KeyChangeStep, map[string]string{
+		ussd.KeyCurrentPIN: h.seal(t, "0000"), ussd.KeyNewPIN: h.seal(t, "8888"), ussd.KeyConfirmPIN: h.seal(t, "8888"),
+	})))
+	pin, _ := h.pins.GetByProfile(ctx, "profile-1")
+	assert.True(t, ussd.CheckPIN(pin.PinHash, "4321"), "a wrong current PIN changes nothing")
+	assert.Equal(t, int32(1), pin.FailedAttempts)
+
+	// Setting a PIN over an existing one is refused.
+	require.NoError(t, h.biz.HandleSession(ctx, h.pinSession(t, "c2", ussd.KeyPinStep, map[string]string{
+		ussd.KeyNewPIN: h.seal(t, "8888"), ussd.KeyConfirmPIN: h.seal(t, "8888"),
+	})))
+	pin, _ = h.pins.GetByProfile(ctx, "profile-1")
+	assert.True(t, ussd.CheckPIN(pin.PinHash, "4321"))
+
+	require.NoError(t, h.biz.HandleSession(ctx, h.pinSession(t, "c3", ussd.KeyChangeStep, map[string]string{
+		ussd.KeyCurrentPIN: h.seal(t, "4321"), ussd.KeyNewPIN: h.seal(t, "8888"), ussd.KeyConfirmPIN: h.seal(t, "8888"),
+	})))
+	pin, _ = h.pins.GetByProfile(ctx, "profile-1")
+	assert.True(t, ussd.CheckPIN(pin.PinHash, "8888"))
+	assert.Nil(t, pin.ResetAt, "a change is not a reset: no cooling-off")
+}
+
+func TestUssdForgottenPINResetsWithACoolingOff(t *testing.T) {
+	h := newUssdHarness(t)
+	ctx := context.Background()
+	h.setPIN(t, "4321")
+
+	require.NoError(
+		t,
+		h.biz.HandleSession(ctx, h.session("f0", map[string]string{ussd.KeyResetStep: ussd.PinSendCode})),
+	)
+	require.NoError(t, h.biz.HandleSession(ctx, h.pinSession(t, "f1", ussd.KeyResetStep, map[string]string{
+		ussd.KeyNewPIN: h.seal(t, "5555"), ussd.KeyConfirmPIN: h.seal(t, "5555"),
+	})))
+	pin, _ := h.pins.GetByProfile(ctx, "profile-1")
+	require.True(t, ussd.CheckPIN(pin.PinHash, "5555"))
+	require.NotNil(t, pin.ResetAt)
+
+	// Borrowing waits a day after a reset, even with the right PIN.
+	require.NoError(t, h.biz.HandleSession(ctx, h.session("f2", map[string]string{
+		ussd.KeyAmount: "1000", ussd.KeyPIN: h.seal(t, "5555"),
+	})))
+	assert.Empty(t, h.requests.got)
+}
+
+func TestUssdCodeIsOnlyAcceptedFromThePhoneItWasSentTo(t *testing.T) {
+	h := newUssdHarness(t)
+	ctx := context.Background()
+
+	require.NoError(t, h.biz.HandleSession(ctx, h.session("o0", map[string]string{ussd.KeyPinStep: ussd.PinSendCode})))
+	other := h.pinSession(t, "o1", ussd.KeyPinStep, map[string]string{
+		ussd.KeyNewPIN: h.seal(t, "4321"), ussd.KeyConfirmPIN: h.seal(t, "4321"),
+	})
+	other.ContactID = "contact-2"
+	require.NoError(t, h.biz.HandleSession(ctx, other))
+	pin, _ := h.pins.GetByProfile(ctx, "profile-1")
+	assert.Empty(t, pin.PinHash)
+}
+
+func TestUssdIgnoresAContactThatIsNotTheBorrowersOwn(t *testing.T) {
+	h := newUssdHarness(t)
+	ctx := context.Background()
+
+	for _, contact := range []string{"contact-unverified", "someone-else"} {
+		s := h.session("x-"+contact, map[string]string{ussd.KeyPinStep: ussd.PinSendCode})
+		s.ContactID = contact
+		require.NoError(t, h.biz.HandleSession(ctx, s))
+		assert.Empty(t, h.profiles.codeSentTo, contact)
+	}
 }

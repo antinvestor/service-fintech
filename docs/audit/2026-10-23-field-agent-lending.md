@@ -574,11 +574,20 @@ in the engine.
     money.
   - *Set or change PIN*: a one-time code from the profile service to that
     contact, then the code and the PIN twice.
-- **PINs.** PIN and code prompts are secret menus. The engine seals what is
-  typed with Seed's public key before keeping it anywhere, so sessions, the
-  notification payload and logs never hold a PIN; only Seed can open it.
-  Seed keeps an argon2id hash and locks the PIN for an hour after five wrong
-  tries. A value that arrives unsealed is refused.
+- **PINs.**
+  - PIN and code prompts are secret menus. The engine seals what is typed
+    with Seed's public key before keeping it anywhere, so sessions, the
+    notification payload and logs never hold a PIN; only Seed can open it. A
+    value that arrives unsealed is refused.
+  - Seed keeps an argon2id hash and locks the PIN for an hour after five
+    wrong tries.
+  - A code is good once, for ten minutes, and only from the contact it was
+    sent to. Every session's contact must be a verified mobile contact of
+    the caller's own profile.
+  - A code alone (the phone) never replaces an existing PIN: Change PIN also
+    needs the current PIN. Forgot PIN resets with the code but keeps any lock
+    running and blocks borrowing for 24 hours.
+  - Every PIN change is texted to the profile.
 - **Partition.** `ClientObject` now carries `tenant_id` and `partition_id`.
   Seed acts as its own service account inside the borrower's partition, so
   what USSD creates belongs to the lender.

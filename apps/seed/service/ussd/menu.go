@@ -27,9 +27,10 @@ import (
 // Rows Seed returns for the borrower when they open the menu; a menu item
 // backed by one is shown only while the row exists.
 const (
-	RowClient = "seed:client" // a registered client: may set a PIN
-	RowLoan   = "seed:loan"   // an active loan: balance and next instalment
-	RowBorrow = "seed:borrow" // may borrow now: the amount available
+	RowNoPIN  = "seed:no_pin"  // a client without a PIN: may set one
+	RowHasPIN = "seed:has_pin" // a client with a PIN: may change or reset it
+	RowLoan   = "seed:loan"    // an active loan: balance and next instalment
+	RowBorrow = "seed:borrow"  // may borrow now: the amount available
 )
 
 // Collection keys of the menu, read back from a completed session.
@@ -38,8 +39,11 @@ const (
 	KeyPayAmount  = "pay_amount"  // the "other" amount, whole currency units
 	KeyAmount     = "amount"      // amount to borrow, whole currency units
 	KeyPIN        = "pin"         // sealed
-	KeyPinStep    = "pin_step"    // 1 send me a code, 2 I have a code
+	KeyPinStep    = "pin_step"    // set PIN: 1 send me a code, 2 I have a code
+	KeyChangeStep = "change_step" // change PIN: likewise
+	KeyResetStep  = "reset_step"  // forgot PIN: likewise
 	KeyOTP        = "otp"         // sealed
+	KeyCurrentPIN = "current_pin" // sealed; changing a PIN needs it
 	KeyNewPIN     = "new_pin"     // sealed
 	KeyConfirmPIN = "confirm_pin" // sealed
 )
@@ -84,14 +88,16 @@ const payRequested = "A payment request is on its way to this phone. " +
 
 // Positions on a screen: the engine lists the highest Order first.
 const (
-	orderMyLoan = 50
-	orderRepay  = 40
-	orderBorrow = 30
-	orderPIN    = 20
-	orderHelp   = 10
-	orderFirst  = 3
-	orderSecond = 2
-	orderThird  = 1
+	orderMyLoan    = 50
+	orderRepay     = 40
+	orderBorrow    = 30
+	orderSetPIN    = 22
+	orderChangePIN = 21
+	orderResetPIN  = 20
+	orderHelp      = 10
+	orderFirst     = 3
+	orderSecond    = 2
+	orderThird     = 1
 )
 
 // node is a menu node and its children.
@@ -124,30 +130,36 @@ func tree() node {
 						Message: "Thank you. We are processing your request and will send you an SMS."}},
 				}},
 			}},
-		{Menu: Menu{Order: orderPIN, Action: actionChoiceFromQuery, Validator: validatorChoice, Extra: RowClient,
-			Name: "Set or change PIN", Message: "Seed PIN", CollectionKey: KeyPinStep}, Children: []node{
-			{Menu: Menu{Order: orderSecond, Action: actionChoicesValue, Name: "Send me a code",
-				Message: "We are sending a code by SMS. Dial again and choose Set or change PIN, then I have a code."}},
-			{Menu: Menu{Order: orderThird, Action: actionInput, Validator: validatorNumber, Name: "I have a code",
-				Message: "Enter the code we sent you:", CollectionKey: KeyOTP, IsSecret: true}, Children: []node{
-				{Menu: Menu{Action: actionInput, Validator: validatorNumber, Name: "New PIN",
-					Message: "Choose a 4 to 6 digit PIN:", CollectionKey: KeyNewPIN, IsSecret: true}, Children: []node{
-					{Menu: Menu{
-						Action:        actionInput,
-						Validator:     validatorNumber,
-						Name:          "Confirm PIN",
-						Message:       "Enter the PIN again:",
-						CollectionKey: KeyConfirmPIN,
-						IsSecret:      true,
-					}, Children: []node{
-						{Menu: Menu{Action: actionChoicesValue, Name: nameDone,
-							Message: "Thank you. We will send you an SMS once your PIN is set."}},
-					}},
-				}},
-			}},
-		}},
+		pinFlow(orderSetPIN, RowNoPIN, "Set PIN", KeyPinStep, false),
+		pinFlow(orderChangePIN, RowHasPIN, "Change PIN", KeyChangeStep, true),
+		pinFlow(orderResetPIN, RowHasPIN, "Forgot PIN", KeyResetStep, false),
 		{Menu: Menu{Order: orderHelp, Action: actionInformation, Name: "Help",
 			Message: "Seed loans: check your loan, repay from this phone and borrow again. Your agent can help."}},
+	}}
+}
+
+// pinFlow is a PIN screen: ask for a code, or enter the code and the new PIN
+// twice (after the current PIN when changing one).
+func pinFlow(order int, row, name, stepKey string, needsCurrent bool) node {
+	confirm := node{Menu: Menu{Action: actionInput, Validator: validatorNumber, Name: "Confirm PIN",
+		Message: "Enter the new PIN again:", CollectionKey: KeyConfirmPIN, IsSecret: true}, Children: []node{
+		{Menu: Menu{Action: actionChoicesValue, Name: nameDone,
+			Message: "Thank you. We will send you an SMS once your PIN is set."}},
+	}}
+	newPIN := node{Menu: Menu{Action: actionInput, Validator: validatorNumber, Name: "New PIN",
+		Message: "Choose a 4 to 6 digit PIN:", CollectionKey: KeyNewPIN, IsSecret: true}, Children: []node{confirm}}
+	afterCode := newPIN
+	if needsCurrent {
+		afterCode = node{Menu: Menu{Action: actionInput, Validator: validatorNumber, Name: "Current PIN",
+			Message: "Enter your current PIN:", CollectionKey: KeyCurrentPIN, IsSecret: true}, Children: []node{newPIN}}
+	}
+	return node{Menu: Menu{Order: order, Action: actionChoiceFromQuery, Validator: validatorChoice, Extra: row,
+		Name: name, Message: name, CollectionKey: stepKey}, Children: []node{
+		{Menu: Menu{Order: orderSecond, Action: actionChoicesValue, Name: "Send me a code",
+			Message: "We are sending a code by SMS. Dial again and choose " + name + ", then I have a code."}},
+		{Menu: Menu{Order: orderThird, Action: actionInput, Validator: validatorNumber, Name: "I have a code",
+			Message: "Enter the code we sent you:", CollectionKey: KeyOTP, IsSecret: true},
+			Children: []node{afterCode}},
 	}}
 }
 

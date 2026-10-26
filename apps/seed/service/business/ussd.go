@@ -49,8 +49,11 @@ const (
 	// A new code is sent at most once a minute; a code lives ten minutes.
 	ussdCodeResendAfter = time.Minute
 	ussdCodeLifetime    = 10 * time.Minute
-	ussdActorType       = "client_ussd"
-	ussdNotifyKind      = "ussd"
+	// After a forgotten PIN is replaced with only a code, borrowing waits:
+	// whoever holds the phone could have done it.
+	ussdResetCoolOff = 24 * time.Hour
+	ussdActorType    = "client_ussd"
+	ussdNotifyKind   = "ussd"
 )
 
 // UssdSession is a completed USSD session handed to Seed: who made it (the
@@ -107,6 +110,16 @@ func NewUssdBusiness(d UssdDeps) UssdBusiness {
 var (
 	errUssdUnknownBorrower = errors.New("ussd: caller is not a seed client")
 	errUssdNoLoan          = errors.New("ussd: borrower has no loan to repay")
+	errUssdNotOwnContact   = errors.New("ussd: contact is not a verified mobile contact of the profile")
+)
+
+// pinMode is what a PIN session does.
+type pinMode int
+
+const (
+	pinSet    pinMode = iota // first PIN: code only
+	pinChange                // code and the current PIN
+	pinReset                 // forgotten PIN: code only, then a cooling-off
 )
 
 func (b *ussdBusiness) HandleSession(ctx context.Context, s UssdSession) error {
@@ -122,13 +135,23 @@ func (b *ussdBusiness) HandleSession(ctx context.Context, s UssdSession) error {
 	if err != nil {
 		return err
 	}
+	// The engine resolved the contact from the number dialled; Seed checks it
+	// is the borrower's own verified mobile number before acting on it.
+	if err = b.ownContact(ctx, s.ProfileID, s.ContactID); err != nil {
+		if errors.Is(err, errUssdNotOwnContact) {
+			logger.Warn("ussd session from a contact that is not the borrower's own; ignored")
+			return nil
+		}
+		return err
+	}
 	ctx = b.actFor(ctx, client)
 
 	switch {
-	case s.Data[ussd.KeyPinStep] == ussd.PinSendCode:
+	case s.Data[ussd.KeyPinStep] == ussd.PinSendCode || s.Data[ussd.KeyChangeStep] == ussd.PinSendCode ||
+		s.Data[ussd.KeyResetStep] == ussd.PinSendCode:
 		err = b.sendCode(ctx, s)
 	case s.Data[ussd.KeyOTP] != "" && s.Data[ussd.KeyNewPIN] != "":
-		err = b.setPIN(ctx, s)
+		err = b.setPIN(ctx, s, pinModeOf(s))
 	case s.Data[ussd.KeyAmount] != "" && s.Data[ussd.KeyPIN] != "":
 		err = b.borrow(ctx, s, client)
 	case s.Data[ussd.KeyPayOption] != "":
@@ -137,6 +160,33 @@ func (b *ussdBusiness) HandleSession(ctx context.Context, s UssdSession) error {
 		// Looking at the loan or help: nothing to do.
 	}
 	return err
+}
+
+func pinModeOf(s UssdSession) pinMode {
+	switch {
+	case s.Data[ussd.KeyChangeStep] != "":
+		return pinChange
+	case s.Data[ussd.KeyResetStep] != "":
+		return pinReset
+	default:
+		return pinSet
+	}
+}
+
+// ownContact checks contactID is a verified, active mobile contact of the
+// profile.
+func (b *ussdBusiness) ownContact(ctx context.Context, profileID, contactID string) error {
+	resp, err := b.d.Profiles.GetById(ctx, &profilev1.GetByIdRequest{Id: profileID})
+	if err != nil {
+		return fmt.Errorf("load borrower profile: %w", err)
+	}
+	for _, c := range resp.GetData().GetContacts() {
+		if c.GetId() == contactID && c.GetType() == profilev1.ContactType_MSISDN && c.GetVerified() &&
+			c.GetState() != commonv1.STATE_DELETED && c.GetState() != commonv1.STATE_INACTIVE {
+			return nil
+		}
+	}
+	return errUssdNotOwnContact
 }
 
 // actFor runs the rest of the session as Seed's service account inside the
@@ -187,7 +237,9 @@ func (b *ussdBusiness) sendCode(ctx context.Context, s UssdSession) error {
 	if err != nil {
 		return err
 	}
-	if pin.VerificationRequestedAt != nil && time.Since(*pin.VerificationRequestedAt) < ussdCodeResendAfter {
+	// One code a minute while a code is waiting to be used.
+	if pin.VerificationID != "" && pin.VerificationRequestedAt != nil &&
+		time.Since(*pin.VerificationRequestedAt) < ussdCodeResendAfter {
 		return nil
 	}
 	verificationID := util.IDString()
@@ -198,10 +250,10 @@ func (b *ussdBusiness) sendCode(ctx context.Context, s UssdSession) error {
 	}); err != nil {
 		return fmt.Errorf("send pin code: %w", err)
 	}
-	return b.d.Pins.RecordVerification(ctx, pin.GetID(), verificationID, time.Now())
+	return b.d.Pins.RecordVerification(ctx, pin.GetID(), verificationID, s.ContactID, time.Now())
 }
 
-func (b *ussdBusiness) setPIN(ctx context.Context, s UssdSession) error {
+func (b *ussdBusiness) setPIN(ctx context.Context, s UssdSession, mode pinMode) error {
 	code, err := b.d.Opener.Open(s.Data[ussd.KeyOTP])
 	if err != nil {
 		return b.refuse(ctx, s, "we could not read your code. Please try again.", err)
@@ -222,10 +274,28 @@ func (b *ussdBusiness) setPIN(ctx context.Context, s UssdSession) error {
 	if err != nil {
 		return err
 	}
+	// A code is good once, for ten minutes, and only from the phone it was
+	// sent to.
 	if pin == nil || pin.VerificationID == "" || pin.VerificationRequestedAt == nil ||
-		time.Since(*pin.VerificationRequestedAt) > ussdCodeLifetime {
+		time.Since(*pin.VerificationRequestedAt) > ussdCodeLifetime || pin.VerificationContactID != s.ContactID {
 		return b.refuse(ctx, s, "your code has expired. Ask for a new code and try again.", nil)
 	}
+
+	hasPIN := pin.PinHash != ""
+	switch {
+	case hasPIN && mode == pinSet:
+		return b.refuse(ctx, s, "you already have a PIN. Choose Change PIN, or Forgot PIN.", nil)
+	case hasPIN && mode == pinChange:
+		// The code alone is the phone; changing a PIN also needs the PIN.
+		ok, checkErr := b.verifyPIN(ctx, s, pin, s.Data[ussd.KeyCurrentPIN], "Your PIN was not changed.")
+		if checkErr != nil || !ok {
+			return checkErr
+		}
+	case !hasPIN:
+		mode = pinSet
+	default:
+	}
+
 	check, err := b.d.Profiles.CheckVerification(ctx, &profilev1.CheckVerificationRequest{
 		Id: pin.VerificationID, Code: code,
 	})
@@ -237,31 +307,49 @@ func (b *ussdBusiness) setPIN(ctx context.Context, s UssdSession) error {
 	if err != nil {
 		return err
 	}
-	if err = b.d.Pins.SetPin(ctx, pin.GetID(), hash); err != nil {
+	if err = b.d.Pins.SetPin(ctx, pin.GetID(), hash, mode == pinReset); err != nil {
 		return err
 	}
+	// Told on every channel the profile has, so a change the borrower did
+	// not make does not go unnoticed.
 	b.d.Notifier.SendOrLog(ctx, notify.Message{
 		Template:  messages.UssdPinSet,
 		Kind:      ussdNotifyKind,
-		Recipient: notify.ToContact(s.ContactID),
+		Recipient: notify.ToProfile(s.ProfileID),
 		Vars:      map[string]any{messages.VarLenderName: b.d.LenderName},
 	})
 	return nil
 }
 
-// checkPIN verifies the borrower's PIN, counting failures toward a lock.
-// It reports a refusal (already texted) as ok=false with a nil error.
+// checkPIN verifies the PIN on a loan request. It reports a refusal
+// (already texted) as ok=false with a nil error.
 func (b *ussdBusiness) checkPIN(ctx context.Context, s UssdSession) (bool, error) {
-	entered, err := b.d.Opener.Open(s.Data[ussd.KeyPIN])
-	if err != nil {
-		return false, b.refuse(ctx, s, "we could not read your PIN. Your request was not sent.", err)
-	}
 	pin, err := b.d.Pins.GetByProfile(ctx, s.ProfileID)
 	if err != nil {
 		return false, err
 	}
 	if pin == nil || pin.PinHash == "" {
-		return false, b.refuse(ctx, s, "set your PIN first: choose Set or change PIN.", nil)
+		return false, b.refuse(ctx, s, "set your PIN first: choose Set PIN.", nil)
+	}
+	if pin.ResetAt != nil && time.Since(*pin.ResetAt) < ussdResetCoolOff {
+		return false, b.refuse(ctx, s,
+			"for your security you can borrow again 24 hours after resetting your PIN.", nil)
+	}
+	return b.verifyPIN(ctx, s, pin, s.Data[ussd.KeyPIN], "Your request was not sent.")
+}
+
+// verifyPIN opens a sealed PIN and checks it, counting failures toward a
+// lock. It reports a refusal (already texted, ending with outcome) as
+// ok=false with a nil error.
+func (b *ussdBusiness) verifyPIN(
+	ctx context.Context,
+	s UssdSession,
+	pin *models.UssdPin,
+	sealed, outcome string,
+) (bool, error) {
+	entered, err := b.d.Opener.Open(sealed)
+	if err != nil {
+		return false, b.refuse(ctx, s, "we could not read your PIN. "+outcome, err)
 	}
 	if pin.LockedUntil != nil && time.Now().Before(*pin.LockedUntil) {
 		return false, b.refuse(ctx, s, "your PIN is locked after too many wrong tries. Try again later.", nil)
@@ -276,7 +364,7 @@ func (b *ussdBusiness) checkPIN(ctx context.Context, s UssdSession) (bool, error
 		if failErr != nil {
 			return false, failErr
 		}
-		reason := "the PIN you entered was wrong. Your request was not sent."
+		reason := "the PIN you entered was wrong. " + outcome
 		if attempts >= ussdMaxPinAttempts {
 			reason = "your PIN is locked after too many wrong tries. Try again in an hour."
 		}
@@ -436,7 +524,7 @@ func takesRepayment(status loansv1.LoanStatus) bool {
 // --- What the menu shows ----------------------------------------------------
 
 func (b *ussdBusiness) State(ctx context.Context, profileID string) (map[string][]map[string]any, error) {
-	rows := map[string][]map[string]any{ussd.RowClient: {}, ussd.RowLoan: {}, ussd.RowBorrow: {}}
+	rows := map[string][]map[string]any{ussd.RowNoPIN: {}, ussd.RowHasPIN: {}, ussd.RowLoan: {}, ussd.RowBorrow: {}}
 	client, err := b.clientFor(ctx, profileID)
 	if errors.Is(err, errUssdUnknownBorrower) {
 		return rows, nil
@@ -456,7 +544,16 @@ func (b *ussdBusiness) borrowerRows(
 	profileID string,
 	rows map[string][]map[string]any,
 ) error {
-	rows[ussd.RowClient] = []map[string]any{{"client": client.GetId()}}
+	pin, err := b.d.Pins.GetByProfile(ctx, profileID)
+	if err != nil {
+		return err
+	}
+	hasPIN := pin != nil && pin.PinHash != ""
+	if hasPIN {
+		rows[ussd.RowHasPIN] = []map[string]any{{"client": client.GetId()}}
+	} else {
+		rows[ussd.RowNoPIN] = []map[string]any{{"client": client.GetId()}}
+	}
 
 	loan, balance, next, err := b.currentLoan(ctx, client.GetId())
 	switch {
@@ -477,14 +574,7 @@ func (b *ussdBusiness) borrowerRows(
 
 	// Borrowing needs an active client with a PIN, no loan running, and room
 	// on the credit profile.
-	if loan != nil || client.GetState() != commonv1.STATE_ACTIVE {
-		return nil
-	}
-	pin, err := b.d.Pins.GetByProfile(ctx, profileID)
-	if err != nil {
-		return err
-	}
-	if pin == nil || pin.PinHash == "" {
+	if loan != nil || client.GetState() != commonv1.STATE_ACTIVE || !hasPIN {
 		return nil
 	}
 	profile, err := b.d.Credit.GetProfile(ctx, client.GetId(), b.d.Currency)

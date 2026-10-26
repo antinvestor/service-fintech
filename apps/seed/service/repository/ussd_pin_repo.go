@@ -35,10 +35,12 @@ type UssdPinRepository interface {
 	GetByProfile(ctx context.Context, profileID string) (*models.UssdPin, error)
 	// Ensure returns the borrower's row, creating an empty one if needed.
 	Ensure(ctx context.Context, profileID string) (*models.UssdPin, error)
-	// RecordVerification notes the one-time code just sent.
-	RecordVerification(ctx context.Context, id, verificationID string, at time.Time) error
-	// SetPin stores a new hash and clears failures and the used code.
-	SetPin(ctx context.Context, id, hash string) error
+	// RecordVerification notes the one-time code just sent to contactID.
+	RecordVerification(ctx context.Context, id, verificationID, contactID string, at time.Time) error
+	// SetPin stores a new hash and consumes the code. A set or change also
+	// clears failures; a reset (forgotten PIN) keeps any running lock and
+	// records when it happened.
+	SetPin(ctx context.Context, id, hash string, reset bool) error
 	// RecordFailure counts a wrong PIN in one statement, locking the PIN
 	// until lockUntil once maxAttempts is reached, and returns the count.
 	RecordFailure(ctx context.Context, id string, maxAttempts int32, lockUntil time.Time) (int32, error)
@@ -91,25 +93,36 @@ func (r *ussdPinRepository) Ensure(ctx context.Context, profileID string) (*mode
 	return stored, nil
 }
 
-func (r *ussdPinRepository) RecordVerification(ctx context.Context, id, verificationID string, at time.Time) error {
+func (r *ussdPinRepository) RecordVerification(
+	ctx context.Context,
+	id, verificationID, contactID string,
+	at time.Time,
+) error {
 	return r.Pool().DB(ctx, false).Table(tableUssdPins).Where("id = ?", id).Updates(map[string]any{
 		"verification_id":           verificationID,
+		"verification_contact_id":   contactID,
 		"verification_requested_at": at.UTC(),
 		colModifiedAt:               time.Now().UTC(),
 		colVersion:                  gorm.Expr("version + 1"),
 	}).Error
 }
 
-func (r *ussdPinRepository) SetPin(ctx context.Context, id, hash string) error {
-	return r.Pool().DB(ctx, false).Table(tableUssdPins).Where("id = ?", id).Updates(map[string]any{
+func (r *ussdPinRepository) SetPin(ctx context.Context, id, hash string, reset bool) error {
+	updates := map[string]any{
 		"pin_hash":                  hash,
-		"failed_attempts":           0,
-		"locked_until":              nil,
 		"verification_id":           "",
+		"verification_contact_id":   "",
 		"verification_requested_at": nil,
 		colModifiedAt:               time.Now().UTC(),
 		colVersion:                  gorm.Expr("version + 1"),
-	}).Error
+	}
+	if reset {
+		updates["reset_at"] = time.Now().UTC()
+	} else {
+		updates["failed_attempts"] = 0
+		updates["locked_until"] = nil
+	}
+	return r.Pool().DB(ctx, false).Table(tableUssdPins).Where("id = ?", id).Updates(updates).Error
 }
 
 func (r *ussdPinRepository) RecordFailure(

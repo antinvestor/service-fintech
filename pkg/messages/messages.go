@@ -129,8 +129,8 @@ func ussdTemplates() []notification.Template {
 			VarLenderName, VarReason),
 		notification.New(UssdPinSet,
 			"Your PIN is set",
-			"{{.lender_name}}: your PIN is set. You can now borrow from this phone.",
-			"Your PIN is set. You can now borrow from your phone.\n",
+			"{{.lender_name}}: your USSD PIN has been set. If you did not do this, contact your agent now.",
+			"Your USSD PIN has been set. If you did not do this, contact your agent now.\n",
 			VarLenderName),
 	}
 }

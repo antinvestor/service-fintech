@@ -248,9 +248,14 @@ type UssdPin struct {
 	FailedAttempts int32
 	LockedUntil    *time.Time
 	// VerificationID is the profile service's one-time code awaiting entry,
-	// and VerificationRequestedAt when it was sent.
+	// VerificationContactID the contact it was sent to (it is only accepted
+	// from that contact), and VerificationRequestedAt when it was sent.
 	VerificationID          string `gorm:"type:varchar(50)"`
+	VerificationContactID   string `gorm:"type:varchar(50)"`
 	VerificationRequestedAt *time.Time
+	// ResetAt is when a forgotten PIN was last replaced with only a code;
+	// borrowing waits a cooling-off period after it.
+	ResetAt *time.Time
 }
 
 // TableName maps the model to seed_ussd_pins.
