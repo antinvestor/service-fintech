@@ -112,6 +112,13 @@ func (c *recordingOperationsClient) IncomingPaymentAssign(
 	panic("stub: IncomingPaymentAssign not expected")
 }
 
+func (c *recordingOperationsClient) OperationsJobRun(
+	_ context.Context,
+	_ *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	panic("stub: OperationsJobRun not expected")
+}
+
 func (c *recordingOperationsClient) count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -234,7 +241,7 @@ func (s *savingsSuite) newEnv() *savingsEnv {
 	return &savingsEnv{
 		ctx:     ctx,
 		ops:     ops,
-		deposit: business.NewDepositBusiness(ctx, depRepo, saRepo, ops, writer, nil, false, "off"),
+		deposit: business.NewDepositBusiness(ctx, depRepo, saRepo, ops, writer),
 		wdr:     business.NewWithdrawalBusiness(ctx, wdrRepo, saRepo, ops, writer, nil, false, "off"),
 		account: business.NewSavingsAccountBusiness(
 			ctx, svc.EventsManager(), saRepo, spRepo, depRepo, wdrRepo, iaRepo, sbRepo),

@@ -94,6 +94,11 @@ type TransferOrderRepository interface {
 	// its ledger leg nor its payout has progressed. An order that has posted
 	// or reached the rail cannot be declared failed; it must be reversed.
 	MarkFailedIfUnposted(ctx context.Context, orderID string) (bool, error)
+
+	// ListUnexecutedBorrowerRepayments returns up to limit repayment orders
+	// raised from an individual borrower's payment that have not been
+	// posted and that nobody has touched since before.
+	ListUnexecutedBorrowerRepayments(ctx context.Context, before time.Time, limit int) ([]*models.TransferOrder, error)
 }
 
 // NewTransferOrderRepository creates a new TransferOrderRepository.
@@ -364,3 +369,29 @@ func (r *transferOrderRepository) ConsumeObligationForOrder(
 // errOrderAlreadyConsumed aborts the consume transaction when the order was
 // already marked: the obligation debit above is rolled back with it.
 var errOrderAlreadyConsumed = errors.New("transfer order already marked consumed")
+
+// borrowerRepaymentReference matches the reference an individual borrower's
+// payment allocation gives its order ("payment:<id>:loan:<id>"). Group
+// allocations ("payment:<id>:obligation:<id>") are executed by their own
+// workflows and are left alone.
+const borrowerRepaymentReference = "payment:%:loan:%"
+
+func (r *transferOrderRepository) ListUnexecutedBorrowerRepayments(
+	ctx context.Context,
+	before time.Time,
+	limit int,
+) ([]*models.TransferOrder, error) {
+	var orders []*models.TransferOrder
+	err := r.dbPool.DB(ctx, true).
+		Where("deleted_at IS NULL AND state IN ? AND extra_data ->> 'source' = ? AND reference LIKE ? "+
+			"AND modified_at < ?",
+			[]int32{int32(constants.StateJustCreated), int32(constants.StateCheckCreated)},
+			"payment_allocation", borrowerRepaymentReference, before.UTC()).
+		Order("modified_at").
+		Limit(limit).
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+	return orders, nil
+}

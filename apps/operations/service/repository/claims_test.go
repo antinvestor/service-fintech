@@ -22,6 +22,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/frametests"
@@ -572,4 +573,63 @@ func (s *claimsSuite) TestConsumeObligationForOrderIsAtomic() {
 	storedOther, err := e.orders.GetByID(e.ctx, other.GetID())
 	s.Require().NoError(err)
 	s.Require().False(storedOther.ObligationConsumed)
+}
+
+// The settle job finds individuals' matched payments that were never
+// allocated, and borrower repayment orders that were raised but never
+// posted; it leaves group allocations and finished work alone.
+func (s *claimsSuite) TestSettleListingsFindOnlyUnfinishedIndividualWork() {
+	e := s.newEnv()
+
+	payment := func(txn, ownerType, ownerID string) *models.IncomingPayment {
+		p := &models.IncomingPayment{
+			Amount: 5000, Currency: "KES", TransactionID: txn,
+			OwnerType: ownerType, OwnerID: ownerID, State: int32(constants.StateJustCreated),
+		}
+		p.GenID(e.ctx)
+		_, err := e.payments.CreateIfAbsent(e.ctx, p)
+		s.Require().NoError(err)
+		return p
+	}
+	waiting := payment("txn-settle-loan", "client_loan", "client-1")
+	saver := payment("txn-settle-savings", "client_savings", "client-2")
+	payment("txn-settle-unmatched", "", "")
+	payment("txn-settle-group", "membership", "member-1")
+	leased := payment("txn-settle-leased", "client_loan", "client-3")
+	_, claimed, err := e.payments.ClaimAllocation(e.ctx, leased.GetID(), time.Now().Add(-time.Hour))
+	s.Require().NoError(err)
+	s.Require().True(claimed)
+
+	order := func(reference string, state int32) *models.TransferOrder {
+		o := s.newOrder(e.ctx, reference)
+		o.State = state
+		o.ExtraData = data.JSONMap{"source": "payment_allocation"}
+		s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, o))
+		return o
+	}
+	raised := order("payment:p1:loan:loan-1", constants.StateJustCreated)
+	order("payment:p2:obligation:ob-1", constants.StateJustCreated)
+	order("payment:p3:loan:loan-1", constants.StateInactive)
+
+	later := time.Now().Add(time.Minute)
+	payments, err := e.payments.ListAwaitingAllocation(e.ctx, later, time.Now().Add(-time.Minute), 10)
+	s.Require().NoError(err)
+	var paymentIDs []string
+	for _, p := range payments {
+		paymentIDs = append(paymentIDs, p.GetID())
+	}
+	s.ElementsMatch([]string{waiting.GetID(), saver.GetID()}, paymentIDs, "a live allocation lease is left alone")
+
+	orders, err := e.orders.ListUnexecutedBorrowerRepayments(e.ctx, later, 10)
+	s.Require().NoError(err)
+	s.Require().Len(orders, 1)
+	s.Equal(raised.GetID(), orders[0].GetID())
+
+	earlier := time.Now().Add(-time.Hour)
+	payments, err = e.payments.ListAwaitingAllocation(e.ctx, earlier, earlier, 10)
+	s.Require().NoError(err)
+	s.Empty(payments, "work touched since the cut-off is left to the run that raised it")
+	orders, err = e.orders.ListUnexecutedBorrowerRepayments(e.ctx, earlier, 10)
+	s.Require().NoError(err)
+	s.Empty(orders)
 }

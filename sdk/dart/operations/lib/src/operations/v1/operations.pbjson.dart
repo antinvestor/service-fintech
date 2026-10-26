@@ -99,6 +99,20 @@ final $typed_data.Uint8List transferOrderTypeDescriptor = $convert.base64Decode(
     'xUUkFOU0ZFUl9PUkRFUl9UWVBFX0xPQU5fSU5TVVJBTkNFX1JFUEFZTUVOVBA0EjIKLlRSQU5T'
     'RkVSX09SREVSX1RZUEVfSU5URVJfU1VCU0NSSVBUSU9OX1BBWU1FTlQQRw==');
 
+@$core.Deprecated('Use operationsJobDescriptor instead')
+const OperationsJob$json = {
+  '1': 'OperationsJob',
+  '2': [
+    {'1': 'OPERATIONS_JOB_UNSPECIFIED', '2': 0},
+    {'1': 'OPERATIONS_JOB_SETTLE_PAYMENTS', '2': 1},
+  ],
+};
+
+/// Descriptor for `OperationsJob`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List operationsJobDescriptor = $convert.base64Decode(
+    'Cg1PcGVyYXRpb25zSm9iEh4KGk9QRVJBVElPTlNfSk9CX1VOU1BFQ0lGSUVEEAASIgoeT1BFUk'
+    'FUSU9OU19KT0JfU0VUVExFX1BBWU1FTlRTEAE=');
+
 @$core.Deprecated('Use transferOrderObjectDescriptor instead')
 const TransferOrderObject$json = {
   '1': 'TransferOrderObject',
@@ -549,6 +563,43 @@ final $typed_data.Uint8List incomingPaymentAssignResponseDescriptor =
         '9ucy52MS5JbmNvbWluZ1BheW1lbnRPYmplY3RSBGRhdGESNwoKYWxsb2NhdGlvbhgCIAEoCzIX'
         'Lmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RSCmFsbG9jYXRpb24=');
 
+@$core.Deprecated('Use operationsJobRunRequestDescriptor instead')
+const OperationsJobRunRequest$json = {
+  '1': 'OperationsJobRunRequest',
+  '2': [
+    {
+      '1': 'job',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.operations.v1.OperationsJob',
+      '10': 'job'
+    },
+    {'1': 'batch_size', '3': 2, '4': 1, '5': 5, '10': 'batchSize'},
+  ],
+};
+
+/// Descriptor for `OperationsJobRunRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List operationsJobRunRequestDescriptor =
+    $convert.base64Decode(
+        'ChdPcGVyYXRpb25zSm9iUnVuUmVxdWVzdBIuCgNqb2IYASABKA4yHC5vcGVyYXRpb25zLnYxLk'
+        '9wZXJhdGlvbnNKb2JSA2pvYhIdCgpiYXRjaF9zaXplGAIgASgFUgliYXRjaFNpemU=');
+
+@$core.Deprecated('Use operationsJobRunResponseDescriptor instead')
+const OperationsJobRunResponse$json = {
+  '1': 'OperationsJobRunResponse',
+  '2': [
+    {'1': 'processed', '3': 1, '4': 1, '5': 5, '10': 'processed'},
+    {'1': 'more', '3': 2, '4': 1, '5': 8, '10': 'more'},
+  ],
+};
+
+/// Descriptor for `OperationsJobRunResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List operationsJobRunResponseDescriptor =
+    $convert.base64Decode(
+        'ChhPcGVyYXRpb25zSm9iUnVuUmVzcG9uc2USHAoJcHJvY2Vzc2VkGAEgASgFUglwcm9jZXNzZW'
+        'QSEgoEbW9yZRgCIAEoCFIEbW9yZQ==');
+
 const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
   '1': 'OperationsService',
   '2': [
@@ -590,6 +641,12 @@ const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
       '3': '.operations.v1.IncomingPaymentAssignResponse',
       '4': {}
     },
+    {
+      '1': 'OperationsJobRun',
+      '2': '.operations.v1.OperationsJobRunRequest',
+      '3': '.operations.v1.OperationsJobRunResponse',
+      '4': {}
+    },
   ],
   '3': {},
 };
@@ -627,6 +684,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
       IncomingPaymentAssignRequest$json,
   '.operations.v1.IncomingPaymentAssignResponse':
       IncomingPaymentAssignResponse$json,
+  '.operations.v1.OperationsJobRunRequest': OperationsJobRunRequest$json,
+  '.operations.v1.OperationsJobRunResponse': OperationsJobRunResponse$json,
 };
 
 /// Descriptor for `OperationsService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -646,13 +705,16 @@ final $typed_data.Uint8List operationsServiceDescriptor = $convert.base64Decode(
     'bnNlIhKCtRgOCgxwYXltZW50X3ZpZXcwARKKAQoVSW5jb21pbmdQYXltZW50QXNzaWduEisub3'
     'BlcmF0aW9ucy52MS5JbmNvbWluZ1BheW1lbnRBc3NpZ25SZXF1ZXN0Giwub3BlcmF0aW9ucy52'
     'MS5JbmNvbWluZ1BheW1lbnRBc3NpZ25SZXNwb25zZSIWgrUYEgoQcGF5bWVudF9hbGxvY2F0ZR'
-    'ryA4K1GO0DChJzZXJ2aWNlX29wZXJhdGlvbnMSEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVy'
-    'X3ZpZXcSDnBheW1lbnRfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRlEgxwYXltZW50X3ZpZXcaUw'
-    'gBEhB0cmFuc2Zlcl9leGVjdXRlEg10cmFuc2Zlcl92aWV3Eg5wYXltZW50X25vdGlmeRIQcGF5'
-    'bWVudF9hbGxvY2F0ZRIMcGF5bWVudF92aWV3GlMIAhIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbn'
-    'NmZXJfdmlldxIOcGF5bWVudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDHBheW1lbnRfdmll'
-    'dxpTCAMSEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbnRfbm90aWZ5Eh'
-    'BwYXltZW50X2FsbG9jYXRlEgxwYXltZW50X3ZpZXcaHwgEEg10cmFuc2Zlcl92aWV3EgxwYXlt'
-    'ZW50X3ZpZXcaEQgFEg10cmFuc2Zlcl92aWV3GlMIBhIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbn'
-    'NmZXJfdmlldxIOcGF5bWVudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDHBheW1lbnRfdmll'
-    'dw==');
+    'J9ChBPcGVyYXRpb25zSm9iUnVuEiYub3BlcmF0aW9ucy52MS5PcGVyYXRpb25zSm9iUnVuUmVx'
+    'dWVzdBonLm9wZXJhdGlvbnMudjEuT3BlcmF0aW9uc0pvYlJ1blJlc3BvbnNlIhiCtRgUChJvcG'
+    'VyYXRpb25zX2pvYl9ydW4amgSCtRiVBAoSc2VydmljZV9vcGVyYXRpb25zEhB0cmFuc2Zlcl9l'
+    'eGVjdXRlEg10cmFuc2Zlcl92aWV3Eg5wYXltZW50X25vdGlmeRIQcGF5bWVudF9hbGxvY2F0ZR'
+    'IMcGF5bWVudF92aWV3EhJvcGVyYXRpb25zX2pvYl9ydW4aUwgBEhB0cmFuc2Zlcl9leGVjdXRl'
+    'Eg10cmFuc2Zlcl92aWV3Eg5wYXltZW50X25vdGlmeRIQcGF5bWVudF9hbGxvY2F0ZRIMcGF5bW'
+    'VudF92aWV3GlMIAhIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbnNmZXJfdmlldxIOcGF5bWVudF9u'
+    'b3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDHBheW1lbnRfdmlldxpTCAMSEHRyYW5zZmVyX2V4ZW'
+    'N1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbnRfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRlEgxw'
+    'YXltZW50X3ZpZXcaHwgEEg10cmFuc2Zlcl92aWV3EgxwYXltZW50X3ZpZXcaEQgFEg10cmFuc2'
+    'Zlcl92aWV3GmcIBhIQdHJhbnNmZXJfZXhlY3V0ZRINdHJhbnNmZXJfdmlldxIOcGF5bWVudF9u'
+    'b3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDHBheW1lbnRfdmlldxISb3BlcmF0aW9uc19qb2Jfcn'
+    'Vu');

@@ -348,3 +348,28 @@ func TestTransferOrderExecute_GatePending(t *testing.T) {
 	assert.Equal(t, 0, limitsCli.commitCalls)
 	assert.Equal(t, 0, limitsCli.releaseCalls)
 }
+
+func (r *stubTransferOrderRepo) ListUnexecutedBorrowerRepayments(
+	_ context.Context,
+	_ time.Time,
+	_ int,
+) ([]*models.TransferOrder, error) {
+	return nil, nil
+}
+
+// TestTransferOrderExecute_ReceivedMoneyIsNotGated verifies that an order
+// allocating a payment the rail received is posted without a limits
+// reservation, even when the limits service would refuse it.
+func TestTransferOrderExecute_ReceivedMoneyIsNotGated(t *testing.T) {
+	order := inactiveTransferOrder("UGX", 10_000)
+	order.ExtraData = data.JSONMap{extraKeySource: allocationSourceMarker}
+	toRepo := &stubTransferOrderRepo{order: order}
+	limitsCli := &stubTransferLimitsClient{
+		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "transfer limit breached"),
+	}
+
+	b := buildTransferOrderBusiness(toRepo, limitsCli, true)
+
+	require.NoError(t, b.Execute(context.Background(), order.GetID()))
+	assert.Equal(t, 0, limitsCli.reserveCalls)
+}

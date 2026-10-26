@@ -17,7 +17,6 @@ package business
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,12 +26,9 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
-	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/frame/v3/security"
@@ -44,7 +40,6 @@ import (
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/constants"
-	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
 type RepaymentBusiness interface {
@@ -83,9 +78,6 @@ type repaymentBusiness struct {
 	operationsCli     operationsv1connect.OperationsServiceClient
 	auditWriter       *audit.Writer
 	paidOffHook       PaidOffHook
-	limitsCli         limitsv1connect.LimitsServiceClient
-	limitsGateEnabled bool
-	limitsGateMode    string
 }
 
 func NewRepaymentBusiness(
@@ -100,9 +92,6 @@ func NewRepaymentBusiness(
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
 	paidOffHook PaidOffHook,
-	limitsCli limitsv1connect.LimitsServiceClient,
-	limitsGateEnabled bool,
-	limitsGateMode string,
 	opts ...Option,
 ) RepaymentBusiness {
 	return &repaymentBusiness{
@@ -119,9 +108,6 @@ func NewRepaymentBusiness(
 		operationsCli:     operationsCli,
 		auditWriter:       auditWriter,
 		paidOffHook:       paidOffHook,
-		limitsCli:         limitsCli,
-		limitsGateEnabled: limitsGateEnabled,
-		limitsGateMode:    limitsGateMode,
 	}
 }
 
@@ -152,9 +138,8 @@ func (b *repaymentBusiness) Record(
 		return nil, ErrLoanAccountNotFound
 	}
 
-	// Idempotency short-circuit before the gate, so retries do not consume a
-	// fresh reservation. A key already used on another loan is a conflict,
-	// never a way to read someone else's repayment.
+	// A key already used on another loan is a conflict, never a way to read
+	// someone else's repayment; a finished one is returned as it was.
 	if existing, existErr := b.repaymentRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); existErr == nil &&
 		existing != nil {
 		if existing.LoanAccountID != la.GetID() {
@@ -163,50 +148,16 @@ func (b *repaymentBusiness) Record(
 		if existing.AppliedAt != nil {
 			return existing.ToAPI(), nil
 		}
-		// Recorded but not finished: the retry below resumes it.
+		// Recorded but not finished: recordInner resumes it.
 	}
 
-	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
-		return b.recordInner(ctx, req)
-	}
-
-	intent := &limitsv1.LimitIntent{
-		Action: limitsv1.LimitAction_LIMIT_ACTION_LOAN_REPAYMENT,
-		Subjects: []*limitsv1.SubjectRef{
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: la.ClientID},
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: la.OrganizationID},
-		},
-		TenantId: la.OrganizationID,
-		Amount:   req.GetAmount(),
-		MakerId:  callerSubject(ctx),
-	}
-	idemKey := "loan_repayment:" + req.GetLoanAccountId() + ":" + req.GetIdempotencyKey()
-
-	var result *loansv1.RepaymentObject
-	gateErr := limits.Gate(ctx, b.limitsCli, intent, idemKey, limits.ParseMode(b.limitsGateMode),
-		func(innerCtx context.Context, reservationID string) error {
-			util.Log(innerCtx).With("limits_reservation_id", reservationID).Info("repayment gated by limits")
-			inner, innerErr := b.recordInner(innerCtx, req)
-			if innerErr != nil {
-				return innerErr
-			}
-			result = inner
-			return nil
-		},
-		limits.InPartition(la.TenantID, la.PartitionID),
-	)
-
-	var pendingErr *limits.PendingApprovalError
-	if errors.As(gateErr, &pendingErr) {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr.Error()).WithCause(gateErr)
-	}
-	if gateErr != nil {
-		return nil, gateErr
-	}
-	return result, nil
+	// No transaction limit applies here: the money has already arrived on
+	// the rail, so refusing to apply it would only strand the borrower's
+	// payment. Limits gate money leaving, not money received.
+	return b.recordInner(ctx, req)
 }
 
-// recordInner is the pre-Gate body factored out so Gate's handler can wrap it.
+// recordInner applies a repayment.
 //
 // Repayments on one loan are taken one at a time under the loan's repayment
 // lease, so two payments never allocate against the same installments. The
@@ -454,10 +405,13 @@ func (b *repaymentBusiness) auditRepayment(
 	})
 }
 
-// isRepayableStatus reports whether a loan in this status can take money.
+// isRepayableStatus reports whether a loan in this status can take money. A
+// defaulted loan still can: a borrower paying it back is the recovery the
+// status exists for, and paying it in full moves it to PAID_OFF.
 func isRepayableStatus(status int32) bool {
 	return status == int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE) ||
 		status == int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT) ||
+		status == int32(loansv1.LoanStatus_LOAN_STATUS_DEFAULT) ||
 		status == int32(loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED)
 }
 

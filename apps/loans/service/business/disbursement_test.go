@@ -342,6 +342,13 @@ func (s *stubOperationsClient) IncomingPaymentAssign(
 	panic("stub: IncomingPaymentAssign not expected")
 }
 
+func (s *stubOperationsClient) OperationsJobRun(
+	_ context.Context,
+	_ *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	panic("stub: OperationsJobRun not expected")
+}
+
 // Compile-time check.
 var _ operationsv1connect.OperationsServiceClient = (*stubOperationsClient)(nil)
 

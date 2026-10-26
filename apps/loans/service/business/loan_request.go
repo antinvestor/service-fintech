@@ -31,12 +31,12 @@ import (
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
 
-	"github.com/antinvestor/service-fintech/apps/loans/service/events"
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/limits"
+	"github.com/antinvestor/service-fintech/pkg/upsert"
 )
 
 type LoanRequestBusiness interface {
@@ -181,8 +181,10 @@ func (b *loanRequestBusiness) Save(
 		return nil, err
 	}
 
-	if err := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); err != nil {
-		logger.WithError(err).Error("could not emit loan request save event")
+	// The row is written before Save returns, so an approval, a loan created
+	// from the request, or a re-read straight after never misses it.
+	if err := upsert.ByID(ctx, b.loanRequestRepo, lr); err != nil {
+		logger.WithError(err).Error("could not save loan request")
 		return nil, err
 	}
 
@@ -511,10 +513,6 @@ func (b *loanRequestBusiness) approveInner(ctx context.Context, id string) (*loa
 	lr.DecidedAt = &now
 	lr.DecidedBy = decider
 
-	if errEmit := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); errEmit != nil {
-		logger.WithError(errEmit).Error("could not emit loan request approve event")
-	}
-
 	b.recordRequestAudit(ctx, lr, "loan_request.approved", "", data.JSONMap{
 		"approved_amount":    lr.ApprovedAmount,
 		"approved_term_days": lr.ApprovedTermDays,
@@ -661,10 +659,6 @@ func (b *loanRequestBusiness) Reject(
 	lr.DecidedAt = &now
 	lr.DecidedBy = decider
 
-	if errEmit := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); errEmit != nil {
-		logger.WithError(errEmit).Error("could not emit loan request reject event")
-	}
-
 	b.recordRequestAudit(ctx, lr, "loan_request.rejected", reason, nil)
 	b.notifier.NotifyApplicationRejected(ctx, lr)
 
@@ -709,10 +703,6 @@ func (b *loanRequestBusiness) Cancel(
 	lr.RejectionReason = reason
 	lr.DecidedAt = &now
 	lr.DecidedBy = actor
-
-	if errEmit := b.eventsMan.Emit(ctx, events.LoanRequestSaveEvent, lr); errEmit != nil {
-		logger.WithError(errEmit).Error("could not emit loan request cancel event")
-	}
 
 	b.recordRequestAudit(ctx, lr, "loan_request.cancelled", reason, nil)
 	b.notifier.NotifyApplicationCancelled(ctx, lr)

@@ -81,6 +81,16 @@ type IncomingPaymentRepository interface {
 	// only while the payment is still unmatched and unallocated, so two people
 	// resolving the same payment cannot both win; it reports whether it did.
 	AssignOwner(ctx context.Context, paymentID string, assignment PaymentAssignment) (bool, error)
+
+	// ListAwaitingAllocation returns up to limit individuals' payments that
+	// were matched to a loan or savings account but never allocated, and
+	// that nobody has touched since before. A lease taken before
+	// leaseStaleBefore is treated as abandoned.
+	ListAwaitingAllocation(
+		ctx context.Context,
+		before, leaseStaleBefore time.Time,
+		limit int,
+	) ([]*models.IncomingPayment, error)
 }
 
 // PaymentAssignment is the owner a person tied an unmatched payment to.
@@ -304,4 +314,27 @@ func (r *incomingPaymentRepository) ReleaseAllocation(ctx context.Context, payme
 			colModifiedAt:   time.Now().UTC(),
 			colVersion:      gorm.Expr("version + 1"),
 		}).Error
+}
+
+// individualOwnerTypes are the owners an individual's payment is matched to:
+// their own loan, or their own savings account.
+func individualOwnerTypes() []string { return []string{"client_loan", "client_savings"} }
+
+func (r *incomingPaymentRepository) ListAwaitingAllocation(
+	ctx context.Context,
+	before, leaseStaleBefore time.Time,
+	limit int,
+) ([]*models.IncomingPayment, error) {
+	var payments []*models.IncomingPayment
+	err := r.Pool().DB(ctx, true).
+		Where("deleted_at IS NULL AND owner_type IN ? AND coalesce(owner_id, '') <> '' AND state = ? "+
+			"AND modified_at < ? AND (allocating_at IS NULL OR allocating_at < ?)",
+			individualOwnerTypes(), constants.StateJustCreated, before.UTC(), leaseStaleBefore.UTC()).
+		Order("modified_at").
+		Limit(limit).
+		Find(&payments).Error
+	if err != nil {
+		return nil, err
+	}
+	return payments, nil
 }

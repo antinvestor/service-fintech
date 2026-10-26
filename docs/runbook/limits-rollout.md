@@ -106,12 +106,15 @@ is only the fallback for a replica whose subscription was reconnecting.
 
 ## Per-action keys
 
+Limits gate money leaving the platform. Money a payer has already sent is
+never gated: loan repayments, savings deposits and the operations orders
+that allocate a received payment are applied without a reservation, since a
+refusal would only strand money that has arrived.
+
 | Service     | Env var                                      | Subject       |
 |-------------|----------------------------------------------|---------------|
 | loans       | LIMITS_GATE_MODE_LOAN_DISBURSEMENT          | borrower      |
 | loans       | LIMITS_GATE_MODE_LOAN_REQUEST_APPROVAL      | borrower      |
-| loans       | LIMITS_GATE_MODE_LOAN_REPAYMENT             | borrower      |
-| savings     | LIMITS_GATE_MODE_SAVINGS_DEPOSIT            | account       |
 | savings     | LIMITS_GATE_MODE_SAVINGS_WITHDRAWAL         | account       |
 | operations  | LIMITS_GATE_MODE_OPERATIONS_TRANSFER        | source acct   |
 | funding     | LIMITS_GATE_MODE_FUNDING_DEPOSIT            | invest acct   |

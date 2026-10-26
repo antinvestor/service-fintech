@@ -100,10 +100,12 @@ func TestSaversPaymentIsDepositedToTheirOwnAccount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, strategyBorrowerSavings, result["strategy"])
 
+	assert.Equal(t, int64(20_000), result["allocated_amount"], "deposited as soon as it is matched")
+	assert.Equal(t, "dep-1", result["deposit_id"])
+
 	paymentID, _ := result["payment_id"].(string)
-	alloc, err := routing.AllocatePayment(context.Background(), paymentID)
+	_, err = routing.AllocatePayment(context.Background(), paymentID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(20_000), alloc["allocated_amount"])
 
 	require.Len(t, savings.deposits, 1)
 	dep := savings.deposits[0]

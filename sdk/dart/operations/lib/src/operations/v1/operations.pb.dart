@@ -1487,6 +1487,154 @@ class IncomingPaymentAssignResponse extends $pb.GeneratedMessage {
   $1.Struct ensureAllocation() => $_ensure(1);
 }
 
+class OperationsJobRunRequest extends $pb.GeneratedMessage {
+  factory OperationsJobRunRequest({
+    OperationsJob? job,
+    $core.int? batchSize,
+  }) {
+    final result = OperationsJobRunRequest._();
+    if (job != null) result.job = job;
+    if (batchSize != null) result.batchSize = batchSize;
+    return result;
+  }
+
+  OperationsJobRunRequest._();
+
+  factory OperationsJobRunRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunRequest()..mergeFromBuffer(data, registry);
+  factory OperationsJobRunRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OperationsJobRunRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: OperationsJobRunRequest.$_createMessage)
+    ..aE<OperationsJob>(1, _omitFieldNames ? '' : 'job',
+        enumValues: OperationsJob.values)
+    ..aI(2, _omitFieldNames ? '' : 'batchSize')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunRequest copyWith(
+          void Function(OperationsJobRunRequest) updates) =>
+      super.copyWith((message) => updates(message as OperationsJobRunRequest))
+          as OperationsJobRunRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use OperationsJobRunRequest() / OperationsJobRunRequest.new instead')
+  static OperationsJobRunRequest create() => OperationsJobRunRequest._();
+  static $pb.GeneratedMessage $_createMessage() => OperationsJobRunRequest._();
+  @$core.override
+  OperationsJobRunRequest createEmptyInstance() => OperationsJobRunRequest._();
+  @$core.pragma('dart2js:noInline')
+  static OperationsJobRunRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OperationsJobRunRequest>(
+          OperationsJobRunRequest.$_createMessage);
+  static OperationsJobRunRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  OperationsJob get job => $_getN(0);
+  @$pb.TagNumber(1)
+  set job(OperationsJob value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasJob() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearJob() => $_clearField(1);
+
+  /// Most items to process in this run, at most 5000. 0 uses the service
+  /// default.
+  @$pb.TagNumber(2)
+  $core.int get batchSize => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set batchSize($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBatchSize() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBatchSize() => $_clearField(2);
+}
+
+class OperationsJobRunResponse extends $pb.GeneratedMessage {
+  factory OperationsJobRunResponse({
+    $core.int? processed,
+    $core.bool? more,
+  }) {
+    final result = OperationsJobRunResponse._();
+    if (processed != null) result.processed = processed;
+    if (more != null) result.more = more;
+    return result;
+  }
+
+  OperationsJobRunResponse._();
+
+  factory OperationsJobRunResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunResponse()..mergeFromBuffer(data, registry);
+  factory OperationsJobRunResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OperationsJobRunResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: OperationsJobRunResponse.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'processed')
+    ..aOB(2, _omitFieldNames ? '' : 'more')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunResponse copyWith(
+          void Function(OperationsJobRunResponse) updates) =>
+      super.copyWith((message) => updates(message as OperationsJobRunResponse))
+          as OperationsJobRunResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use OperationsJobRunResponse() / OperationsJobRunResponse.new instead')
+  static OperationsJobRunResponse create() => OperationsJobRunResponse._();
+  static $pb.GeneratedMessage $_createMessage() => OperationsJobRunResponse._();
+  @$core.override
+  OperationsJobRunResponse createEmptyInstance() =>
+      OperationsJobRunResponse._();
+  @$core.pragma('dart2js:noInline')
+  static OperationsJobRunResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OperationsJobRunResponse>(
+          OperationsJobRunResponse.$_createMessage);
+  static OperationsJobRunResponse? _defaultInstance;
+
+  /// Items this run worked through.
+  @$pb.TagNumber(1)
+  $core.int get processed => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set processed($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProcessed() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProcessed() => $_clearField(1);
+
+  /// True when the batch was full and more work may be waiting.
+  @$pb.TagNumber(2)
+  $core.bool get more => $_getBF(1);
+  @$pb.TagNumber(2)
+  set more($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMore() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMore() => $_clearField(2);
+}
+
 class OperationsServiceApi {
   final $pb.RpcClient _client;
 
@@ -1522,6 +1670,13 @@ class OperationsServiceApi {
           $pb.ClientContext? ctx, IncomingPaymentAssignRequest request) =>
       _client.invoke<IncomingPaymentAssignResponse>(ctx, 'OperationsService',
           'IncomingPaymentAssign', request, IncomingPaymentAssignResponse());
+
+  /// OperationsJobRun runs one batch of a periodic job. Called by the
+  /// platform scheduler (trustage); only service accounts hold the permission.
+  $async.Future<OperationsJobRunResponse> operationsJobRun(
+          $pb.ClientContext? ctx, OperationsJobRunRequest request) =>
+      _client.invoke<OperationsJobRunResponse>(ctx, 'OperationsService',
+          'OperationsJobRun', request, OperationsJobRunResponse());
 }
 
 const $core.bool _omitFieldNames =

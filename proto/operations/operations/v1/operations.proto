@@ -197,6 +197,28 @@ message IncomingPaymentAssignResponse {
   google.protobuf.Struct allocation = 2;
 }
 
+// OperationsJob names the periodic work the scheduler asks operations to do.
+enum OperationsJob {
+  OPERATIONS_JOB_UNSPECIFIED = 0;
+  // Allocates individuals' matched payments whose allocation did not finish
+  // and posts borrower repayment orders raised but never executed.
+  OPERATIONS_JOB_SETTLE_PAYMENTS = 1;
+}
+
+message OperationsJobRunRequest {
+  OperationsJob job = 1;
+  // Most items to process in this run, at most 5000. 0 uses the service
+  // default.
+  int32 batch_size = 2;
+}
+
+message OperationsJobRunResponse {
+  // Items this run worked through.
+  int32 processed = 1;
+  // True when the batch was full and more work may be waiting.
+  bool more = 2;
+}
+
 service OperationsService {
   option (common.v1.service_permissions) = {
     namespace: "service_operations"
@@ -205,7 +227,8 @@ service OperationsService {
       "transfer_view",
       "payment_notify",
       "payment_allocate",
-      "payment_view"
+      "payment_view",
+      "operations_job_run"
     ]
     role_bindings: [
       {
@@ -256,7 +279,8 @@ service OperationsService {
           "transfer_view",
           "payment_notify",
           "payment_allocate",
-          "payment_view"
+          "payment_view",
+          "operations_job_run"
         ]
       }
     ]
@@ -294,6 +318,14 @@ service OperationsService {
   rpc IncomingPaymentAssign(IncomingPaymentAssignRequest) returns (IncomingPaymentAssignResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["payment_allocate"]
+    };
+  }
+
+  // OperationsJobRun runs one batch of a periodic job. Called by the
+  // platform scheduler (trustage); only service accounts hold the permission.
+  rpc OperationsJobRun(OperationsJobRunRequest) returns (OperationsJobRunResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["operations_job_run"]
     };
   }
 }

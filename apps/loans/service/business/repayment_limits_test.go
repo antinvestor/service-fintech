@@ -26,8 +26,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3/security"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
-	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
@@ -43,7 +41,6 @@ import (
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
-	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
 // ---------------------------------------------------------------------------
@@ -390,8 +387,6 @@ func buildRepBusiness(
 	laRepo repository.LoanAccountRepository,
 	repRepo repository.RepaymentRepository,
 	opsCli operationsv1connect.OperationsServiceClient,
-	limitsCli limitsv1connect.LimitsServiceClient,
-	limitsEnabled bool,
 ) *repaymentBusiness {
 	b := &repaymentBusiness{
 		eventsMan:         &noopEventsManager{},
@@ -404,8 +399,6 @@ func buildRepBusiness(
 		operationsCli:     opsCli,
 		auditWriter:       nil,
 		paidOffHook:       nil,
-		limitsCli:         limitsCli,
-		limitsGateEnabled: limitsEnabled,
 	}
 	b.applier = &stubRepaymentApplier{b: b}
 	return b
@@ -441,14 +434,13 @@ func (a *stubRepaymentApplier) Apply(
 // ---------------------------------------------------------------------------
 
 // TestRecord_EmptyIdempotencyKey_Rejected verifies that Record returns
-// CodeInvalidArgument when the idempotency key is absent and the gate is enabled.
+// CodeInvalidArgument when the idempotency key is absent.
 func TestRecord_EmptyIdempotencyKey_Rejected(t *testing.T) {
 	la := activeLoanAccountForRepayment()
 	laRepo := &stubLoanAccountRepo{account: la}
 	repRepo := &stubRepaymentRepo{findErr: errors.New("not found")}
-	limitsCli := &stubLimitsClient{}
 
-	b := buildRepBusiness(laRepo, repRepo, nil, limitsCli, true)
+	b := buildRepBusiness(laRepo, repRepo, nil)
 
 	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId: la.GetID(),
@@ -459,13 +451,12 @@ func TestRecord_EmptyIdempotencyKey_Rejected(t *testing.T) {
 	assert.Nil(t, result)
 
 	assert.Equal(t, connect.CodeInvalidArgument, apperrors.CleanErr(err).Code())
-	assert.Equal(t, 0, limitsCli.reserveCalls, "gate must not be reached when key is empty")
 }
 
-// TestRecord_GateDisabled_BehavesAsBefore verifies that when
-// limitsGateEnabled=false the Record method calls recordInner directly
-// (bypasses Gate entirely) and returns a repayment object.
-func TestRecord_GateDisabled_BehavesAsBefore(t *testing.T) {
+// TestRecord_AppliesReceivedMoneyWithoutALimitsCheck verifies that a
+// repayment is applied with no transaction-limit reservation: the money has
+// already arrived on the rail, and refusing it would only strand it.
+func TestRecord_AppliesReceivedMoneyWithoutALimitsCheck(t *testing.T) {
 	la := activeLoanAccountForRepayment()
 	laRepo := &stubLoanAccountRepo{account: la}
 	repRepo := &stubRepaymentRepo{findErr: errors.New("not found")}
@@ -475,110 +466,15 @@ func TestRecord_GateDisabled_BehavesAsBefore(t *testing.T) {
 		},
 	}
 
-	b := buildRepBusiness(laRepo, repRepo, opsCli, nil, false)
+	b := buildRepBusiness(laRepo, repRepo, opsCli)
 
 	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
-		IdempotencyKey: "idem-rep-disabled",
+		IdempotencyKey: "idem-rep-received",
 		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-}
-
-// TestRecord_GateAllowed verifies that when the limits stub returns ACTIVE,
-// recordInner is executed and the repayment is recorded + committed.
-func TestRecord_GateAllowed(t *testing.T) {
-	la := activeLoanAccountForRepayment()
-	laRepo := &stubLoanAccountRepo{account: la}
-	repRepo := &stubRepaymentRepo{findErr: errors.New("not found")}
-	opsCli := &stubOperationsClient{
-		transferResp: &operationsv1.TransferOrderExecuteResponse{
-			Data: &operationsv1.TransferOrderObject{Id: "txn-rep-gate-allowed"},
-		},
-	}
-	limitsCli := &stubLimitsClient{
-		reserveResp: &limitsv1.ReserveResponse{
-			Reservation: &limitsv1.ReservationObject{
-				Id:     "res-rep-allowed",
-				Status: limitsv1.ReservationStatus_RESERVATION_STATUS_ACTIVE,
-			},
-		},
-	}
-
-	b := buildRepBusiness(laRepo, repRepo, opsCli, limitsCli, true)
-
-	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
-		LoanAccountId:  la.GetID(),
-		IdempotencyKey: "idem-rep-gate-allowed",
-		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
-	})
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, 1, limitsCli.reserveCalls)
-	assert.Equal(t, 1, limitsCli.commitCalls)
-	assert.Equal(t, 0, limitsCli.releaseCalls)
-}
-
-// TestRecord_GateDenied verifies that when Reserve returns an error
-// (e.g. FailedPrecondition), Record returns an error and no repayment
-// record is created (handler not called → ops client untouched).
-func TestRecord_GateDenied(t *testing.T) {
-	la := activeLoanAccountForRepayment()
-	laRepo := &stubLoanAccountRepo{account: la}
-	repRepo := &stubRepaymentRepo{findErr: errors.New("not found")}
-	opsCli := &stubOperationsClient{} // Should not be called.
-	limitsCli := &stubLimitsClient{
-		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "rep limit breached"),
-	}
-
-	b := buildRepBusiness(laRepo, repRepo, opsCli, limitsCli, true)
-
-	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
-		LoanAccountId:  la.GetID(),
-		IdempotencyKey: "idem-rep-gate-denied",
-		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
-	})
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "rep limit breached")
-	assert.Equal(t, 1, limitsCli.reserveCalls)
-	assert.Equal(t, 0, limitsCli.commitCalls)
-}
-
-// TestRecord_GatePending verifies that when Reserve returns PENDING_APPROVAL,
-// Record returns a wrapped PendingApprovalError and the handler is not called.
-func TestRecord_GatePending(t *testing.T) {
-	la := activeLoanAccountForRepayment()
-	laRepo := &stubLoanAccountRepo{account: la}
-	repRepo := &stubRepaymentRepo{findErr: errors.New("not found")}
-	opsCli := &stubOperationsClient{} // Should not be called.
-	limitsCli := &stubLimitsClient{
-		reserveResp: &limitsv1.ReserveResponse{
-			Reservation: &limitsv1.ReservationObject{
-				Id:     "res-rep-pending",
-				Status: limitsv1.ReservationStatus_RESERVATION_STATUS_PENDING_APPROVAL,
-			},
-		},
-	}
-
-	b := buildRepBusiness(laRepo, repRepo, opsCli, limitsCli, true)
-
-	result, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
-		LoanAccountId:  la.GetID(),
-		IdempotencyKey: "idem-rep-gate-pending",
-		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
-	})
-	require.Error(t, err)
-	assert.Nil(t, result)
-
-	var pendingErr *limits.PendingApprovalError
-	require.ErrorAs(t, err, &pendingErr)
-	assert.Equal(t, "res-rep-pending", pendingErr.ReservationID)
-
-	assert.Equal(t, 1, limitsCli.reserveCalls)
-	assert.Equal(t, 0, limitsCli.commitCalls)
-	assert.Equal(t, 0, limitsCli.releaseCalls)
 }
 
 func (r *stubRepaymentRepo) ClaimFundingUnsettled(context.Context, int, int) ([]*loansmodels.Repayment, error) {

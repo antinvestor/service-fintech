@@ -144,6 +144,12 @@ func (b *transferOrderBusiness) Execute(ctx context.Context, orderID string) err
 	if err != nil {
 		return fmt.Errorf("transfer order not found: %w", err)
 	}
+	// An order allocating a payment the rail received moves money that has
+	// already arrived; a limit refusing it would only strand the payer's
+	// money. Limits gate money leaving, not money received.
+	if extraDataString(order, extraKeySource) == allocationSourceMarker {
+		return b.executeInner(ctx, orderID)
+	}
 
 	intent := &limitsv1.LimitIntent{
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_TRANSFER_ORDER_EXECUTE,

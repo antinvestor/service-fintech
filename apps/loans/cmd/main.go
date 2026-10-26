@@ -165,8 +165,6 @@ func main() {
 		cfg.LimitsGateModeLoanDisbursement,
 		cfg.LimitsGateEnabledLoanRequestApproval,
 		cfg.LimitsGateModeLoanRequestApproval,
-		cfg.LimitsGateEnabledLoanRepayment,
-		cfg.LimitsGateModeLoanRepayment,
 		cfg.DelinquencyThresholdDays,
 		cfg.DefaultThresholdDays,
 		peers.agentProfiles,
@@ -201,8 +199,6 @@ func setupServiceOptions(
 	limitsGateModeDisbursement string,
 	limitsGateEnabledLoanRequestApproval bool,
 	limitsGateModeLoanRequestApproval string,
-	limitsGateEnabledLoanRepayment bool,
-	limitsGateModeLoanRepayment string,
 	delinquencyThresholdDays int,
 	defaultThresholdDays int,
 	agentProfiles business.AgentProfileResolver,
@@ -262,9 +258,6 @@ func setupServiceOptions(
 		operationsCli,
 		auditWriter,
 		paidOffHook,
-		limitsCli,
-		limitsGateEnabledLoanRepayment,
-		limitsGateModeLoanRepayment,
 		business.WithReadScope(readScope),
 		business.WithFundingSettlement(fundingSettlement),
 		business.WithRepaymentApplier(repository.NewRepaymentApplier(dbPool, lbRepo)),
@@ -407,7 +400,6 @@ func setupPeerClients(ctx context.Context, cfg aconfig.LoanManagementConfig) pee
 	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
 		"loan_disbursement":     cfg.LimitsGateEnabledLoanDisbursement,
 		"loan_request_approval": cfg.LimitsGateEnabledLoanRequestApproval,
-		"loan_repayment":        cfg.LimitsGateEnabledLoanRepayment,
 	}); gateErr != nil {
 		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
 	}

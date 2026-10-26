@@ -84,6 +84,13 @@ func (c *recordingOperationsClient) IncomingPaymentAssign(
 	panic("stub: IncomingPaymentAssign not expected")
 }
 
+func (c *recordingOperationsClient) OperationsJobRun(
+	_ context.Context,
+	_ *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	panic("stub: OperationsJobRun not expected")
+}
+
 func (c *recordingOperationsClient) references() map[string]int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -121,7 +128,7 @@ func TestRepaymentLedgerReferencesAreKeyedOnTheIdempotencyKey(t *testing.T) {
 	repRepo := &stubRepaymentRepo{findErr: errors.New("not found")}
 	ops := &recordingOperationsClient{}
 
-	b := buildRepBusiness(&stubLoanAccountRepo{account: la}, repRepo, ops, nil, false)
+	b := buildRepBusiness(&stubLoanAccountRepo{account: la}, repRepo, ops)
 
 	_, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
 		LoanAccountId:  la.GetID(),
@@ -145,7 +152,7 @@ func TestRepaymentLedgerReferencesAreKeyedOnTheIdempotencyKey(t *testing.T) {
 func TestUnscheduledRepaymentCapsPrincipalAndRoutesTheExcess(t *testing.T) {
 	la := activeLoanAccountForRepayment()
 	b := buildRepBusiness(&stubLoanAccountRepo{account: la},
-		&stubRepaymentRepo{findErr: errors.New("not found")}, nil, nil, false)
+		&stubRepaymentRepo{findErr: errors.New("not found")}, nil)
 
 	balance := &loansmodels.LoanBalance{
 		LoanAccountID:        la.GetID(),
@@ -167,7 +174,7 @@ func TestUnscheduledOverpaymentPostsToSuspense(t *testing.T) {
 	la := activeLoanAccountForRepayment()
 	ops := &recordingOperationsClient{}
 	b := buildRepBusiness(&stubLoanAccountRepo{account: la},
-		&stubRepaymentRepo{findErr: errors.New("not found")}, ops, nil, false)
+		&stubRepaymentRepo{findErr: errors.New("not found")}, ops)
 
 	// The balance stub carries 100000 minor units of outstanding principal.
 	_, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
@@ -198,7 +205,7 @@ func TestDelinquentLoanSettlesToPaidOff(t *testing.T) {
 	la.Status = int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT)
 	laRepo := &recordingLoanAccountRepo{stubLoanAccountRepo: &stubLoanAccountRepo{account: la}}
 	ops := &recordingOperationsClient{}
-	b := buildRepBusiness(laRepo, &stubRepaymentRepo{findErr: errors.New("not found")}, ops, nil, false)
+	b := buildRepBusiness(laRepo, &stubRepaymentRepo{findErr: errors.New("not found")}, ops)
 
 	// The balance stub reports 100000 minor units outstanding, so this
 	// payment settles the loan in full.
@@ -212,4 +219,21 @@ func TestDelinquentLoanSettlesToPaidOff(t *testing.T) {
 	require.Equal(t, 1, laRepo.claims, "a settled delinquent loan must claim the pay-off")
 	assert.Equal(t, int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT), laRepo.claimedFrom)
 	assert.Equal(t, int32(loansv1.LoanStatus_LOAN_STATUS_PAID_OFF), laRepo.claimedTo)
+}
+
+// A borrower can pay back a loan in any status that still owes: a defaulted
+// loan included, since recovering it is what the status is for.
+func TestRepayableStatuses(t *testing.T) {
+	for status, want := range map[loansv1.LoanStatus]bool{
+		loansv1.LoanStatus_LOAN_STATUS_ACTIVE:               true,
+		loansv1.LoanStatus_LOAN_STATUS_DELINQUENT:           true,
+		loansv1.LoanStatus_LOAN_STATUS_DEFAULT:              true,
+		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:         true,
+		loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT: false,
+		loansv1.LoanStatus_LOAN_STATUS_PAID_OFF:             false,
+		loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF:          false,
+		loansv1.LoanStatus_LOAN_STATUS_CLOSED:               false,
+	} {
+		assert.Equal(t, want, isRepayableStatus(int32(status)), status.String())
+	}
 }

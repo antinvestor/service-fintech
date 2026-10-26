@@ -200,5 +200,28 @@ class TransferOrderType extends $pb.ProtobufEnum {
   const TransferOrderType._(super.value, super.name);
 }
 
+/// OperationsJob names the periodic work the scheduler asks operations to do.
+class OperationsJob extends $pb.ProtobufEnum {
+  static const OperationsJob OPERATIONS_JOB_UNSPECIFIED =
+      OperationsJob._(0, _omitEnumNames ? '' : 'OPERATIONS_JOB_UNSPECIFIED');
+
+  /// Allocates individuals' matched payments whose allocation did not finish
+  /// and posts borrower repayment orders raised but never executed.
+  static const OperationsJob OPERATIONS_JOB_SETTLE_PAYMENTS = OperationsJob._(
+      1, _omitEnumNames ? '' : 'OPERATIONS_JOB_SETTLE_PAYMENTS');
+
+  static const $core.List<OperationsJob> values = <OperationsJob>[
+    OPERATIONS_JOB_UNSPECIFIED,
+    OPERATIONS_JOB_SETTLE_PAYMENTS,
+  ];
+
+  static final $core.List<OperationsJob?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 1);
+  static OperationsJob? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const OperationsJob._(super.value, super.name);
+}
+
 const $core.bool _omitEnumNames =
     $core.bool.fromEnvironment('protobuf.omit_enum_names');

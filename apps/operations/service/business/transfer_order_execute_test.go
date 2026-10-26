@@ -597,3 +597,11 @@ func TestExecute_MismatchedPayoutIsNotConfirmation(t *testing.T) {
 	require.ErrorIs(t, err, ErrPayoutPendingConfirmation)
 	assert.Equal(t, 0, f.payment.sends)
 }
+
+func (r *memOrderRepo) ListUnexecutedBorrowerRepayments(
+	_ context.Context,
+	_ time.Time,
+	_ int,
+) ([]*models.TransferOrder, error) {
+	return nil, nil
+}

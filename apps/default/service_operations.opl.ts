@@ -37,6 +37,7 @@ class service_operations implements Namespace {
     granted_payment_notify: (profile_user | service_operations)[]
     granted_payment_allocate: (profile_user | service_operations)[]
     granted_payment_view: (profile_user | service_operations)[]
+    granted_operations_job_run: (profile_user | service_operations)[]
   }
 
   permits = {
@@ -77,5 +78,9 @@ class service_operations implements Namespace {
       this.related.service.includes(ctx.subject) ||
       this.related.viewer.includes(ctx.subject) ||
       this.related.granted_payment_view.includes(ctx.subject),
+
+    operations_job_run: (ctx: Context): boolean =>
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_operations_job_run.includes(ctx.subject),
   }
 }

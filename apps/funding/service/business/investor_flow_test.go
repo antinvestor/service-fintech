@@ -100,6 +100,13 @@ func (c *countingOperationsClient) IncomingPaymentAssign(
 	panic("stub: IncomingPaymentAssign not expected")
 }
 
+func (c *countingOperationsClient) OperationsJobRun(
+	_ context.Context,
+	_ *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	panic("stub: OperationsJobRun not expected")
+}
+
 func (c *countingOperationsClient) snapshot() []*operationsv1.TransferOrderObject {
 	c.mu.Lock()
 	defer c.mu.Unlock()

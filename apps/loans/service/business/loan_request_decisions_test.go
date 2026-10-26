@@ -24,6 +24,7 @@ import (
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 )
@@ -114,7 +115,7 @@ func (f fixedClientResolver) ResolveAccess(context.Context, string) (*CallerAcce
 // A client caller cannot steer verification or the payout destination
 // through request properties; staff keep those keys.
 func TestSave_ReservedPropertiesStrippedForClients(t *testing.T) {
-	repo := &stubLoanRequestRepo{err: ErrLoanRequestNotFound}
+	repo := &stubLoanRequestRepo{err: gorm.ErrRecordNotFound}
 	b := buildLRBusiness(repo, &stubLoanProductRepo{}, nil, false)
 	b.scope = NewReadScope(fixedClientResolver{clientID: "client-1"}, "operator")
 
@@ -163,4 +164,34 @@ func TestFrequencyToPeriodTypeRefusesUnsupported(t *testing.T) {
 		_, err := frequencyToPeriodType(freq)
 		require.NoError(t, err, freq.String())
 	}
+}
+
+// savingLRRepo records the rows Save writes.
+type savingLRRepo struct {
+	stubLoanRequestRepo
+	created []*loansmodels.LoanRequest
+}
+
+func (r *savingLRRepo) Create(_ context.Context, lr *loansmodels.LoanRequest) error {
+	r.created = append(r.created, lr)
+	return nil
+}
+
+// Save writes the request before it returns: an approval or a loan created
+// straight after must find it, never a row an event writes later.
+func TestSave_WritesTheRequestBeforeReturning(t *testing.T) {
+	repo := &savingLRRepo{stubLoanRequestRepo: stubLoanRequestRepo{err: gorm.ErrRecordNotFound}}
+	b := buildLRBusiness(repo, &stubLoanProductRepo{}, nil, false)
+	b.scope = NewReadScope(fixedClientResolver{clientID: "client-1"}, "operator")
+
+	saved, err := b.Save(ctxWithProfile("officer-profile", "operator"), &loansv1.LoanRequestObject{
+		ClientId:          "client-1",
+		Status:            loansv1.LoanRequestStatus_LOAN_REQUEST_STATUS_DRAFT,
+		RequestedAmount:   loansmodels.MinorUnitsToMoney(50_000, "KES"),
+		RequestedTermDays: 30,
+		CurrencyCode:      "KES",
+	})
+	require.NoError(t, err)
+	require.Len(t, repo.created, 1)
+	assert.Equal(t, saved.GetId(), repo.created[0].GetID())
 }

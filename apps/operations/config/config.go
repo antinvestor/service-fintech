@@ -63,6 +63,11 @@ type OperationsConfig struct {
 	LimitsServiceWorkloadAPITargetPath  string `envDefault:""                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LimitsGateEnabledOperationsTransfer bool   `envDefault:"true"                     env:"LIMITS_GATE_ENABLED_OPERATIONS_TRANSFER"`
 	LimitsGateModeOperationsTransfer    string `envDefault:"enforce"                  env:"LIMITS_GATE_MODE_OPERATIONS_TRANSFER"`
+
+	// Payments the rail received: the payment service publishes each
+	// inbound payment to the receive route's queue, and operations books it.
+	PaymentReceivedName string `envDefault:"operations-payment-received"       env:"OPERATIONS_PAYMENT_RECEIVED_NAME"`
+	PaymentReceivedURI  string `envDefault:"mem://operations-payment-received" env:"OPERATIONS_PAYMENT_RECEIVED_URI"`
 }
 
 // ServiceEndpoints returns a clients.ServiceEndpoints populated from the config.

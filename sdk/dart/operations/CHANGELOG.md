@@ -1,3 +1,9 @@
+## 0.4.3
+
+- `OperationsService.OperationsJobRun` (`OperationsJob`, permission
+  `operations_job_run`): the scheduler's settle run for individuals'
+  payments. Service accounts only.
+
 ## 0.4.2
 
 - `IncomingPaymentObject.savings_account_id`: the saver's account a payment

@@ -54,6 +54,7 @@ type OperationsServer struct {
 	prBusiness business.PaymentRoutingBusiness
 	toRepo     repository.TransferOrderRepository
 	ipRepo     repository.IncomingPaymentRepository
+	jobs       *business.OperationsJobs
 
 	operationsv1connect.UnimplementedOperationsServiceHandler
 }
@@ -63,13 +64,38 @@ func NewOperationsServer(
 	prBusiness business.PaymentRoutingBusiness,
 	toRepo repository.TransferOrderRepository,
 	ipRepo repository.IncomingPaymentRepository,
+	jobs *business.OperationsJobs,
 ) operationsv1connect.OperationsServiceHandler {
 	return &OperationsServer{
 		toBusiness: toBusiness,
 		prBusiness: prBusiness,
 		ipRepo:     ipRepo,
 		toRepo:     toRepo,
+		jobs:       jobs,
 	}
+}
+
+// maxJobBatch bounds one scheduled run.
+const maxJobBatch = 5000
+
+// OperationsJobRun runs one batch of a periodic job for the platform
+// scheduler.
+func (s *OperationsServer) OperationsJobRun(
+	ctx context.Context,
+	req *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	if req.GetBatchSize() < 0 || req.GetBatchSize() > maxJobBatch {
+		return nil, apperrors.CleanErr(apperrors.NewError(apperrors.BadRequest,
+			"batch_size must be between 0 and 5000"))
+	}
+	processed, more, err := s.jobs.Run(ctx, req.GetJob(), int(req.GetBatchSize()))
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &operationsv1.OperationsJobRunResponse{
+		Processed: int32(processed), //nolint:gosec // bounded by maxJobBatch per kind
+		More:      more,
+	}, nil
 }
 
 func (s *OperationsServer) TransferOrderExecute(

@@ -23,14 +23,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Every loans workflow must pass trustage's own validation: a schedule that
-// fails to register is periodic work that never runs, and the loans setup job
-// refuses to deploy without them. (The stawi definitions predate the current
+// Every loans and operations workflow must pass trustage's own validation: a
+// schedule that fails to register is periodic work that never runs, and the
+// setup jobs refuse to deploy without them. (The stawi definitions predate the current
 // DSL and are rewritten separately.)
 func TestShippedWorkflowsValidate(t *testing.T) {
-	files, err := filepath.Glob("../../products/loans/workflows/*.json")
-	require.NoError(t, err)
-	require.NotEmpty(t, files)
+	var files []string
+	for _, dir := range []string{"loans", "operations"} {
+		found, err := filepath.Glob("../../products/" + dir + "/workflows/*.json")
+		require.NoError(t, err)
+		require.NotEmpty(t, found, dir)
+		files = append(files, found...)
+	}
 	for _, f := range files {
 		t.Run(filepath.Base(f), func(t *testing.T) {
 			raw, readErr := os.ReadFile(f)

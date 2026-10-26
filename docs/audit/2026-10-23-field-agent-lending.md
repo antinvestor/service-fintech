@@ -628,3 +628,76 @@ same agent-handled-money path closed for loans in §25.
 **Verified.** `TestDepositsComeOnlyFromThePaymentRail`; operations
 `TestBorrowerSavings*` (deposit recorded once; other product not deposited;
 staff assign to savings); ui_operations and ui_savings widget tests.
+
+## 30. Addendum 2026-10-26 — repayments from the rail, end to end
+
+**Finding.** No repayment could reach a loan:
+
+- Nothing fed `IncomingPaymentNotify`.
+- `IdentifyPayment` matched a borrower's payment but never allocated it.
+- The LOAN_REPAYMENT order an allocation raised stayed JustCreated forever,
+  so `RepaymentRecord` was never called.
+- A defaulted loan refused payments.
+- The limits gate could refuse money that had already arrived.
+- Separately, loans `LoanRequestSave` wrote asynchronously, and every
+  decision re-emitted the full row after its conditional claim. An approval
+  could miss a just-saved request, and a late rewrite could revert
+  LOAN_CREATED.
+
+**Change.**
+
+- *Rail feed.* Operations subscribes to the payment service's receive route
+  (`OPERATIONS_PAYMENT_RECEIVED_URI`) and books each inbound payment:
+  - the transaction id is the rail payment id, so redelivery books once;
+  - the payer is named by profile id, and the contact id is kept in
+    properties;
+  - the product and the loan or savings account come from the prompt's
+    extras;
+  - booking runs as operations inside the payment's partition.
+- *Payment service* (`service-payment` `feat/prompt-success-receives`):
+  - a prompt that succeeds is received as an inbound payment with the
+    prompt's id and extras, so it is routed like any other receipt;
+  - `Receive` keeps the caller's id, transaction id and extras;
+  - a replayed inbound save resumes routing.
+- *Allocate and post at once.* An individual's matched payment is allocated
+  inside `IdentifyPayment`, and the borrower's repayment order is executed
+  inline (`WithOrderExecutor`). A failure leaves the allocation standing.
+- *Settle job.* `OperationsJobRun(SETTLE_PAYMENTS)`, permission
+  `operations_job_run`, is fired by trustage every 5 minutes
+  (`products/operations/workflows`, synced by the setup job).
+  - It allocates individuals' matched-but-unallocated payments and posts
+    borrower repayment orders that were raised but never executed.
+  - Each item runs in its own partition.
+  - Group obligation orders are left to their workflows.
+- *Repayable statuses.* DEFAULT now takes repayments in loans and in
+  operations matching. A full repayment moves the loan to PAID_OFF, which
+  the transition table already allowed.
+- *Limits.* Limits gate money leaving, never money received. The gate is
+  removed from loans repayments and savings deposits
+  (`LIMITS_GATE_*_LOAN_REPAYMENT` and `*_SAVINGS_DEPOSIT` are gone).
+  Operations skips it for payment-allocation orders.
+- *Loans.* `LoanRequestSave` upserts synchronously. Approve, reject and
+  cancel no longer re-emit the row after their claim.
+
+**Deploy needs.**
+
+- A receive route in the payment service publishing to the operations
+  topic.
+- Tenancy: trustage → `service_operations` `operations_job_run`, plus the
+  `/operations` audience; operations → `/trustage` with workflow_manage and
+  workflow_view.
+- `TRUSTAGE_SERVICE_URI` on operations.
+
+**Verified.** Operations tests cover:
+
+- `TestMatchedBorrowerPaymentIsPostedAtOnce`
+- `TestBorrowerPaymentStaysAllocatedWhenPostingFails`
+- `TestSettleJob*`
+- `TestDefaultedLoanTakesTheBorrowersPayment`
+- `TestTransferOrderExecute_ReceivedMoneyIsNotGated`
+- `TestReceivedPayment*`
+- repository `TestSettleListingsFindOnlyUnfinishedIndividualWork` (Postgres)
+
+Loans tests cover `TestSave_WritesTheRequestBeforeReturning`,
+`TestRepayableStatuses` and `TestRecord_AppliesReceivedMoneyWithoutALimitsCheck`.
+Payment covers `TestPaymentFromPrompt*`.

@@ -208,7 +208,7 @@ func (b *paymentRoutingBusiness) repayableLoansOf(
 func loanTakesRepayments(loan *loansv1.LoanAccountObject) bool {
 	switch loan.GetStatus() { //nolint:exhaustive // only repayable statuses matter
 	case loansv1.LoanStatus_LOAN_STATUS_ACTIVE, loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
-		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:
+		loansv1.LoanStatus_LOAN_STATUS_DEFAULT, loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:
 		return true
 	default:
 		return false
@@ -268,14 +268,15 @@ func (b *paymentRoutingBusiness) allocateToBorrowerLoan(
 	}
 	logger.WithField(fieldLoanID, loanID).WithField("transfer_order_id", to.GetID()).
 		Info("payment allocated to borrower loan")
+	execution := b.executeRepayment(ctx, logger, to.GetID())
 
 	return map[string]interface{}{
 		fieldPaymentID:       paymentID,
 		fieldCurrency:        payment.Currency,
 		fieldClientID:        clientID,
 		fieldLoanID:          loanID,
-		"total_amount":       payment.Amount,
-		"allocated_amount":   payment.Amount,
+		fieldTotalAmount:     payment.Amount,
+		fieldAllocatedAmount: payment.Amount,
 		fieldRemainingAmount: int64(0),
 		fieldTransferOrders: []map[string]interface{}{{
 			"bucket":             strategyBorrowerLoan,
@@ -287,8 +288,35 @@ func (b *paymentRoutingBusiness) allocateToBorrowerLoan(
 			"type":               to.OrderType,
 			fieldReference:       to.Reference,
 		}},
-		"payment_state": paymentState,
+		fieldPaymentState: paymentState,
+		"execution":       execution,
 	}, nil
+}
+
+// Execution outcomes of a borrower repayment order, as allocation reports
+// them.
+const (
+	executionPosted  = "posted"
+	executionPending = "pending"
+)
+
+// executeRepayment posts the repayment order at once, so the loan shows the
+// payment while the borrower waits. The allocation already stands: if the
+// post fails the order stays raised and the settle job posts it later.
+func (b *paymentRoutingBusiness) executeRepayment(
+	ctx context.Context,
+	logger *util.LogEntry,
+	orderID string,
+) string {
+	if b.executor == nil {
+		return executionPending
+	}
+	if err := b.executor.Execute(ctx, orderID); err != nil {
+		logger.WithError(err).WithField("transfer_order_id", orderID).
+			Warn("borrower repayment not posted yet; the settle job retries")
+		return executionPending
+	}
+	return executionPosted
 }
 
 // isBorrowerLoanPayment reports whether a payment was matched to a loan.

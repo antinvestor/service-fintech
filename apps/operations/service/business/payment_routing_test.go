@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -737,4 +738,38 @@ func TestAllocatePayment_UnknownRemainderFailsClosed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "already_processed", result["status"])
 	assert.Empty(t, obligations.consumed)
+}
+
+// ListUnexecutedBorrowerRepayments lists the raised, unposted borrower
+// repayment orders; the stub ignores the age cut-off.
+func (r *allocOrderRepoStub) ListUnexecutedBorrowerRepayments(
+	_ context.Context,
+	_ time.Time,
+	limit int,
+) ([]*models.TransferOrder, error) {
+	var out []*models.TransferOrder
+	for _, o := range r.byReference {
+		if o.State == int32(constants.StateJustCreated) && strings.Contains(o.Reference, ":loan:") && len(out) < limit {
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
+// ListAwaitingAllocation lists individuals' matched, unallocated payments;
+// the stub ignores the age cut-off.
+func (r *incomingPaymentRepoStub) ListAwaitingAllocation(
+	_ context.Context,
+	_, _ time.Time,
+	limit int,
+) ([]*models.IncomingPayment, error) {
+	var out []*models.IncomingPayment
+	for _, p := range r.byID {
+		individual := p.OwnerType == ownerTypeClientLoan || p.OwnerType == ownerTypeClientSavings
+		if individual && p.OwnerID != "" && p.State == int32(constants.StateJustCreated) &&
+			p.AllocatingAt == nil && len(out) < limit {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }

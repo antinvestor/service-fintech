@@ -55,4 +55,13 @@ abstract final class OperationsService {
     operationsv1operations.IncomingPaymentAssignRequest.new,
     operationsv1operations.IncomingPaymentAssignResponse.new,
   );
+
+  /// OperationsJobRun runs one batch of a periodic job. Called by the
+  /// platform scheduler (trustage); only service accounts hold the permission.
+  static const operationsJobRun = connect.Spec(
+    '/$name/OperationsJobRun',
+    connect.StreamType.unary,
+    operationsv1operations.OperationsJobRunRequest.new,
+    operationsv1operations.OperationsJobRunResponse.new,
+  );
 }

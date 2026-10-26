@@ -201,9 +201,9 @@ func (b *paymentRoutingBusiness) allocateToSavings(
 		fieldClientID:         payment.OwnerID,
 		fieldSavingsAccountID: accountID,
 		"deposit_id":          resp.GetData().GetId(),
-		"total_amount":        payment.Amount,
-		"allocated_amount":    payment.Amount,
+		fieldTotalAmount:      payment.Amount,
+		fieldAllocatedAmount:  payment.Amount,
 		fieldRemainingAmount:  int64(0),
-		"payment_state":       paymentState,
+		fieldPaymentState:     paymentState,
 	}, nil
 }

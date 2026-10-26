@@ -36,6 +36,12 @@ type PaymentRoutingBusiness interface {
 	) (*models.IncomingPayment, map[string]interface{}, error)
 }
 
+// OrderExecutor executes a transfer order by id. TransferOrderBusiness is
+// one; payment routing uses it to post the orders an allocation raises.
+type OrderExecutor interface {
+	Execute(ctx context.Context, orderID string) error
+}
+
 // TransferOrderBusiness handles transfer order creation and execution.
 type TransferOrderBusiness interface {
 	Save(ctx context.Context, order *models.TransferOrder) error

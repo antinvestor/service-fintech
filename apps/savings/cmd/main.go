@@ -144,11 +144,10 @@ func main() {
 	}
 
 	// Limits client. Optional — when LimitsServiceURI is empty, SetupClient
-	// returns nil and both gates are disabled at runtime regardless of the
+	// returns nil and the withdrawal gate is disabled at runtime regardless of the
 	// config flags.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
 	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
-		"savings_deposit":    cfg.LimitsGateEnabledSavingsDeposit,
 		"savings_withdrawal": cfg.LimitsGateEnabledSavingsWithdrawal,
 	}); gateErr != nil {
 		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
@@ -159,7 +158,6 @@ func main() {
 	saBusiness := business.NewSavingsAccountBusiness(ctx, evtsMan, saRepo, spRepo, depRepo, wdRepo, iaRepo, sbRepo)
 	depBusiness := business.NewDepositBusiness(
 		ctx, depRepo, saRepo, operationsCli, auditWriter,
-		limitsCli, cfg.LimitsGateEnabledSavingsDeposit, cfg.LimitsGateModeSavingsDeposit,
 	)
 	wdBusiness := business.NewWithdrawalBusiness(
 		ctx,

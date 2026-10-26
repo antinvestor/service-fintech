@@ -73,6 +73,20 @@ type paymentRoutingBusiness struct {
 	arRepo      repository.AccountRefRepository
 	identityCli identityv1connect.IdentityServiceClient
 	clients     *clients.PlatformClients
+	// executor posts the orders an individual's allocation raises. Without
+	// one the orders wait for TransferOrderExecute or the pending sweep.
+	executor OrderExecutor
+}
+
+// PaymentRoutingOption configures optional collaborators of the routing
+// business.
+type PaymentRoutingOption func(*paymentRoutingBusiness)
+
+// WithOrderExecutor makes allocation post a borrower's repayment order as
+// soon as it is raised, so the loan shows the payment without waiting for
+// a sweep.
+func WithOrderExecutor(executor OrderExecutor) PaymentRoutingOption {
+	return func(b *paymentRoutingBusiness) { b.executor = executor }
 }
 
 func NewPaymentRoutingBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -82,8 +96,9 @@ func NewPaymentRoutingBusiness(_ context.Context, eventsMan fevents.Manager,
 	arRepo repository.AccountRefRepository,
 	identityCli identityv1connect.IdentityServiceClient,
 	pc *clients.PlatformClients,
+	opts ...PaymentRoutingOption,
 ) PaymentRoutingBusiness {
-	return &paymentRoutingBusiness{
+	b := &paymentRoutingBusiness{
 		eventsMan:   eventsMan,
 		ipRepo:      ipRepo,
 		toRepo:      toRepo,
@@ -92,6 +107,10 @@ func NewPaymentRoutingBusiness(_ context.Context, eventsMan fevents.Manager,
 		identityCli: identityCli,
 		clients:     pc,
 	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 // identificationResult holds the outcome of a successful payment identification.
@@ -167,7 +186,7 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 				return nil, saveErr
 			}
 			recordPaymentIdentified(ctx, payment)
-			return b.buildIdentificationResult(payment, result), nil
+			return b.allocateIndividual(ctx, logger, payment, b.buildIdentificationResult(payment, result)), nil
 		}
 	}
 
@@ -190,6 +209,32 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 		unidentified["unidentified_account"] = constants.ProductUnidentifiedAccount(productID)
 	}
 	return unidentified, nil
+}
+
+// allocateIndividual applies an individual's matched payment at once: their
+// own loan or savings account is the only place the money can go, so there
+// is nothing to wait for. A failure leaves the payment matched; the settle
+// job allocates it later.
+func (b *paymentRoutingBusiness) allocateIndividual(
+	ctx context.Context,
+	logger *util.LogEntry,
+	payment *models.IncomingPayment,
+	result map[string]interface{},
+) map[string]interface{} {
+	allocation, err := b.AllocatePayment(ctx, payment.GetID())
+	if err != nil {
+		logger.WithError(err).WithField(fieldPaymentID, payment.GetID()).
+			Warn("matched payment not allocated yet; the settle job retries")
+		result["allocation_pending"] = true
+		return result
+	}
+	// The outcome travels as a flat proto Struct: only its scalars are kept.
+	for _, key := range []string{fieldAllocatedAmount, fieldRemainingAmount, fieldPaymentState, "execution", "deposit_id"} {
+		if v, ok := allocation[key]; ok {
+			result[key] = v
+		}
+	}
+	return result
 }
 
 // identifyIndividual matches a payment with no group to the payer's own loan
@@ -847,14 +892,14 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 		fieldMembershipID:    membershipID,
 		fieldMemberID:        membershipID,
 		fieldCurrency:        payment.Currency,
-		"total_amount":       payment.Amount,
-		"allocated_amount":   allocatedAmount,
+		fieldTotalAmount:     payment.Amount,
+		fieldAllocatedAmount: allocatedAmount,
 		fieldRemainingAmount: remainingAmount,
 		// transfer_orders carries one entry per posting, each with the
 		// reference the operations service already used as its idempotency
 		// key, so a workflow replaying them converges on the same rows.
 		fieldTransferOrders: allocations,
-		"payment_state":     paymentState,
+		fieldPaymentState:   paymentState,
 	}, nil
 }
 

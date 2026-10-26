@@ -179,10 +179,14 @@ func TestBorrowerPaymentMatchedByPhoneAndBookedToTheLoan(t *testing.T) {
 	payment, err := payments.GetByID(context.Background(), paymentID)
 	require.NoError(t, err)
 	assert.Equal(t, ownerTypeClientLoan, payment.OwnerType)
+	// The borrower's own loan is the only place the money can go, so it is
+	// allocated as soon as it is matched; a later allocate changes nothing.
+	assert.Equal(t, int64(50_000), result["allocated_amount"])
+	assert.Equal(t, executionPending, result["execution"], "no executor: the settle job posts it")
 
-	alloc, err := routing.AllocatePayment(context.Background(), paymentID)
+	_, err = routing.AllocatePayment(context.Background(), paymentID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(50_000), alloc["allocated_amount"])
+	assert.Len(t, orders.byReference, 1)
 
 	order := orders.byReference["payment:"+paymentID+":loan:loan-1"]
 	require.NotNil(t, order)
@@ -268,4 +272,15 @@ func TestBorrowerPaymentMatchedByPayerProfileID(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "loan-1", result["loan_id"], "a payer profile id needs no contact lookup")
+}
+
+func TestDefaultedLoanTakesTheBorrowersPayment(t *testing.T) {
+	routing, _, orders := newBorrowerRouting(t, []*loansv1.LoanAccountObject{
+		{Id: "loan-d", ClientId: "client-1", ProductId: "prod-1", Status: loansv1.LoanStatus_LOAN_STATUS_DEFAULT},
+	})
+	result, err := routing.IdentifyPayment(context.Background(), borrowerPayment("txn-d1"))
+	require.NoError(t, err)
+	assert.Equal(t, "loan-d", result["loan_id"])
+	paymentID, _ := result["payment_id"].(string)
+	assert.Contains(t, orders.byReference, "payment:"+paymentID+":loan:loan-d")
 }

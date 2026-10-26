@@ -51,6 +51,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
+	"github.com/antinvestor/service-fintech/pkg/trustage"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/clients"
@@ -88,6 +89,12 @@ func main() {
 		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
 			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
+	})
+	// Individuals' payments that could not be settled at once are finished
+	// only when trustage fires the settle schedule, so a deploy that cannot
+	// register it fails rather than ship repayments nothing retries.
+	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
+		return trustage.SyncWorkflows(ctx, &cfg, cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -170,16 +177,6 @@ func setupServiceOptions(
 	auditWriter := audit.NewWriter(evtsMan)
 
 	// Business logic (identity lookups use SDK client directly)
-	prBiz := business.NewPaymentRoutingBusiness(
-		ctx,
-		evtsMan,
-		ipRepo,
-		toRepo,
-		obRepo,
-		arRepo,
-		identityCli,
-		platformClients,
-	)
 	toBiz := business.NewTransferOrderBusiness(
 		ctx,
 		evtsMan,
@@ -192,16 +189,30 @@ func setupServiceOptions(
 		cfg.LimitsGateEnabledOperationsTransfer,
 		cfg.LimitsGateModeOperationsTransfer,
 	)
+	prBiz := business.NewPaymentRoutingBusiness(
+		ctx,
+		evtsMan,
+		ipRepo,
+		toRepo,
+		obRepo,
+		arRepo,
+		identityCli,
+		platformClients,
+		business.WithOrderExecutor(toBiz),
+	)
+	jobs := business.NewOperationsJobs(prBiz, toBiz, ipRepo, toRepo, cfg.Name())
 	// Obligations are owned by stawi: it is the process that wires
 	// ObligationBusiness into its workflow callbacks and creates the rows this
 	// service allocates against. Operations only reads and consumes them.
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo, ipRepo, auditCli)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, toBiz, prBiz, toRepo, ipRepo, jobs, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
+		frame.WithRegisterSubscriber(cfg.PaymentReceivedName, cfg.PaymentReceivedURI,
+			handlers.NewPaymentReceived(prBiz, cfg.Name())),
 		frame.WithRegisterEvents(
 			opsevents.NewTransferOrderSave(ctx, toRepo),
 			opsevents.NewObligationSave(ctx, obRepo),
@@ -281,9 +292,10 @@ func setupConnectServer(
 	prBiz business.PaymentRoutingBusiness,
 	toRepo repository.TransferOrderRepository,
 	ipRepo repository.IncomingPaymentRepository,
+	jobs *business.OperationsJobs,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
-	opsHandler := handlers.NewOperationsServer(toBiz, prBiz, toRepo, ipRepo)
+	opsHandler := handlers.NewOperationsServer(toBiz, prBiz, toRepo, ipRepo, jobs)
 
 	auth := sm.GetAuthorizer(ctx)
 

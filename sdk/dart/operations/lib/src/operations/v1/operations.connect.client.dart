@@ -113,4 +113,23 @@ extension type OperationsServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// OperationsJobRun runs one batch of a periodic job. Called by the
+  /// platform scheduler (trustage); only service accounts hold the permission.
+  Future<operationsv1operations.OperationsJobRunResponse> operationsJobRun(
+    operationsv1operations.OperationsJobRunRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.OperationsService.operationsJobRun,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }
