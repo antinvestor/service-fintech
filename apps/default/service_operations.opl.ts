@@ -36,6 +36,7 @@ class service_operations implements Namespace {
     granted_transfer_view: (profile_user | service_operations)[]
     granted_payment_notify: (profile_user | service_operations)[]
     granted_payment_allocate: (profile_user | service_operations)[]
+    granted_payment_view: (profile_user | service_operations)[]
   }
 
   permits = {
@@ -68,5 +69,13 @@ class service_operations implements Namespace {
       this.related.owner.includes(ctx.subject) ||
       this.related.service.includes(ctx.subject) ||
       this.related.granted_payment_allocate.includes(ctx.subject),
+
+    payment_view: (ctx: Context): boolean =>
+      this.related.admin.includes(ctx.subject) ||
+      this.related.operator.includes(ctx.subject) ||
+      this.related.owner.includes(ctx.subject) ||
+      this.related.service.includes(ctx.subject) ||
+      this.related.viewer.includes(ctx.subject) ||
+      this.related.granted_payment_view.includes(ctx.subject),
   }
 }
