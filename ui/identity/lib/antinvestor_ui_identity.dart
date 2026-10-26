@@ -24,6 +24,7 @@ export 'src/screens/workforce_members_screen.dart';
 export 'src/screens/workforce_member_detail_screen.dart';
 export 'src/screens/access_roles_screen.dart';
 export 'src/screens/form_templates_screen.dart';
+export 'src/screens/form_template_designer_screen.dart';
 export 'src/screens/teams_screen.dart';
 export 'src/screens/departments_screen.dart';
 export 'src/screens/organization_form_wizard.dart';

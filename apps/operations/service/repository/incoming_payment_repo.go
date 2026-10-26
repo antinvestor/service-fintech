@@ -16,6 +16,8 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/pitabwire/frame/v3/data"
@@ -25,6 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 // IncomingPaymentRepository provides data access for incoming payments.
@@ -73,6 +76,21 @@ type IncomingPaymentRepository interface {
 	// MarkConfirmed stamps the confirmation timestamp exactly once, reporting
 	// whether this call was the one that stamped it.
 	MarkConfirmed(ctx context.Context, paymentID string, at time.Time) (bool, error)
+
+	// AssignOwner ties a payment that matched nobody to its owner. It lands
+	// only while the payment is still unmatched and unallocated, so two people
+	// resolving the same payment cannot both win; it reports whether it did.
+	AssignOwner(ctx context.Context, paymentID string, assignment PaymentAssignment) (bool, error)
+}
+
+// PaymentAssignment is the owner a person tied an unmatched payment to.
+type PaymentAssignment struct {
+	OwnerID     string
+	OwnerType   string
+	PayableID   string
+	PayableType string
+	// Properties are merged into the payment's own.
+	Properties data.JSONMap
 }
 
 // NewIncomingPaymentRepository creates a new IncomingPaymentRepository.
@@ -218,6 +236,34 @@ func (r *incomingPaymentRepository) GetByTransactionID(
 }
 
 const colAllocatingAt = "allocating_at"
+
+func (r *incomingPaymentRepository) AssignOwner(
+	ctx context.Context,
+	paymentID string,
+	assignment PaymentAssignment,
+) (bool, error) {
+	properties, err := json.Marshal(assignment.Properties)
+	if err != nil {
+		return false, fmt.Errorf("encode payment assignment: %w", err)
+	}
+	result := r.Pool().DB(ctx, false).
+		Table("incoming_payments").
+		Where("deleted_at IS NULL AND id = ? AND coalesce(owner_id, '') = '' AND state = ? AND allocating_at IS NULL",
+			paymentID, constants.StateJustCreated).
+		Updates(map[string]any{
+			"owner_id":     assignment.OwnerID,
+			"owner_type":   assignment.OwnerType,
+			"payable_id":   assignment.PayableID,
+			"payable_type": assignment.PayableType,
+			colProperties:  gorm.Expr("coalesce(properties, '{}'::jsonb) || ?::jsonb", string(properties)),
+			colModifiedAt:  time.Now().UTC(),
+			colVersion:     gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
 
 func (r *incomingPaymentRepository) ClaimAllocation(
 	ctx context.Context,

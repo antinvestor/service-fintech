@@ -20,6 +20,10 @@ dependencies:
     path: ../limits
   antinvestor_ui_loans:
     path: ../loans
+  antinvestor_ui_funding:
+    path: ../funding
+  antinvestor_ui_operations:
+    path: ../operations
   antinvestor_ui_profile: ^0.3.0
   antinvestor_ui_geolocation: ^0.3.0
   antinvestor_api_common: ^2.0.0

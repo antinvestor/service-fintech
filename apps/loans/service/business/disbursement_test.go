@@ -328,6 +328,20 @@ func (s *stubOperationsClient) PaymentAllocate(
 	panic("stub: PaymentAllocate not expected")
 }
 
+func (s *stubOperationsClient) IncomingPaymentSearch(
+	_ context.Context,
+	_ *operationsv1.IncomingPaymentSearchRequest,
+) (operationsv1connect.OperationsServiceIncomingPaymentSearchClientStream, error) {
+	panic("stub: IncomingPaymentSearch not expected")
+}
+
+func (s *stubOperationsClient) IncomingPaymentAssign(
+	_ context.Context,
+	_ *operationsv1.IncomingPaymentAssignRequest,
+) (*operationsv1.IncomingPaymentAssignResponse, error) {
+	panic("stub: IncomingPaymentAssign not expected")
+}
+
 // Compile-time check.
 var _ operationsv1connect.OperationsServiceClient = (*stubOperationsClient)(nil)
 

@@ -1,3 +1,12 @@
+## 0.4.1
+
+- `OperationsService.IncomingPaymentSearch` lists received payments
+  (`IncomingPaymentObject`), optionally only those that matched nobody.
+- `OperationsService.IncomingPaymentAssign` ties an unmatched payment to its
+  loan and allocates it; the amount is the rail's.
+- New permission `payment_view`.
+- Exports `Money`.
+
 ## 0.4.0
 
 - **Breaking:** regenerated with protoc_plugin 25.1 (`buf.build/protocolbuffers/dart:v25.1.0`)

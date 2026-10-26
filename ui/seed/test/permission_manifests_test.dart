@@ -36,4 +36,23 @@ void main() {
       containsAll(['loan_view', 'loan_request_submit', 'collection_manage']),
     );
   });
+
+  test(
+    'funding and operations permits are registered under their namespaces',
+    () {
+      final byNamespace = PermissionRegistry.instance.permissionsByNamespace;
+      expect(
+        byNamespace['service_funding'],
+        containsAll([
+          'investor_account_view',
+          'investor_account_manage',
+          'fund_manage',
+        ]),
+      );
+      expect(
+        byNamespace['service_operations'],
+        containsAll(['payment_view', 'payment_allocate', 'transfer_view']),
+      );
+    },
+  );
 }

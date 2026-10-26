@@ -17,6 +17,7 @@ package handlers
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
@@ -27,14 +28,17 @@ import (
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/workerpool"
 	moneyx "github.com/pitabwire/util/moneyx"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/business"
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
 	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 const (
+	propertyRemainingAmount = "remaining_amount"
 	// defaultSearchLimit is used when a caller supplies a cursor without a
 	// limit, or no cursor at all.
 	defaultSearchLimit = 50
@@ -49,6 +53,7 @@ type OperationsServer struct {
 	toBusiness business.TransferOrderBusiness
 	prBusiness business.PaymentRoutingBusiness
 	toRepo     repository.TransferOrderRepository
+	ipRepo     repository.IncomingPaymentRepository
 
 	operationsv1connect.UnimplementedOperationsServiceHandler
 }
@@ -57,10 +62,12 @@ func NewOperationsServer(
 	toBusiness business.TransferOrderBusiness,
 	prBusiness business.PaymentRoutingBusiness,
 	toRepo repository.TransferOrderRepository,
+	ipRepo repository.IncomingPaymentRepository,
 ) operationsv1connect.OperationsServiceHandler {
 	return &OperationsServer{
 		toBusiness: toBusiness,
 		prBusiness: prBusiness,
+		ipRepo:     ipRepo,
 		toRepo:     toRepo,
 	}
 }
@@ -315,4 +322,124 @@ func (s *OperationsServer) PaymentAllocate(
 	return &operationsv1.PaymentAllocateResponse{
 		Result: resultMap.ToProtoStruct(),
 	}, nil
+}
+
+func (s *OperationsServer) IncomingPaymentSearch(
+	ctx context.Context,
+	req *operationsv1.IncomingPaymentSearchRequest,
+	stream operationsv1connect.OperationsServiceIncomingPaymentSearchServerStream,
+) error {
+	offset := 0
+	limit := defaultSearchLimit
+	if cursor := req.GetCursor(); cursor != nil {
+		if parsed, offsetErr := strconv.Atoi(cursor.GetPage()); offsetErr == nil && parsed > 0 {
+			offset = parsed
+		}
+		limit = clampSearchLimit(int(cursor.GetLimit()))
+	}
+	searchOpts := []data.SearchOption{data.WithSearchOffset(offset), data.WithSearchLimit(limit)}
+
+	andQueryVal := map[string]any{}
+	if req.GetUnmatchedOnly() {
+		andQueryVal["coalesce(owner_id, '') = ?"] = ""
+		andQueryVal["state = ?"] = constants.StateJustCreated
+	}
+	if productID := strings.TrimSpace(req.GetProductId()); productID != "" {
+		andQueryVal["properties ->> 'product_id' = ?"] = productID
+	}
+	if len(andQueryVal) > 0 {
+		searchOpts = append(searchOpts, data.WithSearchFiltersAndByValue(andQueryVal))
+	}
+	if q := strings.TrimSpace(req.GetQuery()); q != "" {
+		like := "%" + q + "%"
+		searchOpts = append(searchOpts, data.WithSearchFiltersOrByValue(map[string]any{
+			"transaction_id ILIKE ?":              like,
+			"properties ->> 'reference' ILIKE ?":  like,
+			"properties ->> 'payer_name' ILIKE ?": like,
+		}))
+	}
+
+	results, err := s.ipRepo.Search(ctx, data.NewSearchQuery(searchOpts...))
+	if err != nil {
+		return apperrors.CleanErr(err)
+	}
+	return workerpool.ConsumeResultStream(ctx, results, func(batch []*models.IncomingPayment) error {
+		out := make([]*operationsv1.IncomingPaymentObject, 0, len(batch))
+		for _, payment := range batch {
+			out = append(out, incomingPaymentToAPI(payment))
+		}
+		return stream.Send(&operationsv1.IncomingPaymentSearchResponse{Data: out})
+	})
+}
+
+func (s *OperationsServer) IncomingPaymentAssign(
+	ctx context.Context,
+	req *operationsv1.IncomingPaymentAssignRequest,
+) (*operationsv1.IncomingPaymentAssignResponse, error) {
+	audit.WithResource(ctx, audit.ResourcePayment, req.GetPaymentId())
+	audit.WithAction(ctx, "assign")
+	audit.WithDetail(ctx, "loan_account_id", req.GetLoanAccountId())
+
+	payment, allocation, err := s.prBusiness.AssignPayment(
+		ctx, req.GetPaymentId(), req.GetLoanAccountId(), req.GetNote(),
+	)
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	allocationMap := data.JSONMap(allocation)
+	return &operationsv1.IncomingPaymentAssignResponse{
+		Data:       incomingPaymentToAPI(payment),
+		Allocation: allocationMap.ToProtoStruct(),
+	}, nil
+}
+
+// incomingPaymentToAPI converts a stored payment. The payer reference the
+// rail supplied (often a phone number) is deliberately left out.
+func incomingPaymentToAPI(m *models.IncomingPayment) *operationsv1.IncomingPaymentObject {
+	props := m.Properties
+	remaining := m.Amount
+	if raw, ok := props[propertyRemainingAmount]; ok {
+		switch typed := raw.(type) {
+		case float64:
+			remaining = int64(typed)
+		case int64:
+			remaining = typed
+		}
+	}
+	return &operationsv1.IncomingPaymentObject{
+		Id:                     m.GetID(),
+		TransactionId:          m.TransactionID,
+		Amount:                 moneyx.FromMinorUnitsByCurrency(m.Currency, m.Amount),
+		PayerName:              props.GetString("payer_name"),
+		Reference:              props.GetString("reference"),
+		ProductId:              props.GetString("product_id"),
+		Matched:                m.OwnerID != "",
+		ClientId:               props.GetString("client_id"),
+		LoanAccountId:          props.GetString("loan_id"),
+		IdentificationStrategy: props.GetString("identification_strategy"),
+		Unallocated:            moneyx.FromMinorUnitsByCurrency(m.Currency, remaining),
+		State:                  paymentStateToAPI(m.State),
+		ReceivedAt:             timestamppb.New(m.CreatedAt),
+		AssignedBy:             props.GetString("assigned_by"),
+		AssignmentNote:         props.GetString("assignment_note"),
+	}
+}
+
+// paymentStateToAPI maps the stored state, which follows pkg/constants
+// (just created = 1), onto the proto STATE (created = 0).
+func paymentStateToAPI(state int32) commonv1.STATE {
+	switch state {
+	case constants.StateJustCreated:
+		return commonv1.STATE_CREATED
+	case constants.StateCheckCreated:
+		return commonv1.STATE_CHECKED
+	case constants.StateActive:
+		return commonv1.STATE_ACTIVE
+	case constants.StateInactive:
+		return commonv1.STATE_INACTIVE
+	case constants.StateDeleted:
+		return commonv1.STATE_DELETED
+	default:
+		return commonv1.STATE_CREATED
+	}
 }

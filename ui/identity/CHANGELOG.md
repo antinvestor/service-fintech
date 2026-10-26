@@ -1,3 +1,14 @@
+## 0.5.2
+
+- `FormTemplateDesignerScreen`: builds a form template (name, organization,
+  what it is used for, sections, fields with type, key, options, help text
+  and required flag), saves it as a draft and publishes it. A published
+  template is read-only; "New version" copies it into a fresh draft, and
+  publishing that draft makes it the version KYC asks for.
+- Phone and email are not offered as field types: contacts are kept on the
+  client's profile, and the identity service refuses a template that asks for
+  them.
+
 ## 0.5.1
 
 - KYC entries waiting for a reviewer show "Start review", which takes the

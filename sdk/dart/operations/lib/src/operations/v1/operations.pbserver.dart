@@ -15,31 +15,39 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
-import 'operations.pb.dart' as $3;
+import 'operations.pb.dart' as $4;
 import 'operations.pbjson.dart';
 
 export 'operations.pb.dart';
 
 abstract class OperationsServiceBase extends $pb.GeneratedService {
-  $async.Future<$3.TransferOrderExecuteResponse> transferOrderExecute(
-      $pb.ServerContext ctx, $3.TransferOrderExecuteRequest request);
-  $async.Future<$3.TransferOrderSearchResponse> transferOrderSearch(
-      $pb.ServerContext ctx, $3.TransferOrderSearchRequest request);
-  $async.Future<$3.IncomingPaymentNotifyResponse> incomingPaymentNotify(
-      $pb.ServerContext ctx, $3.IncomingPaymentNotifyRequest request);
-  $async.Future<$3.PaymentAllocateResponse> paymentAllocate(
-      $pb.ServerContext ctx, $3.PaymentAllocateRequest request);
+  $async.Future<$4.TransferOrderExecuteResponse> transferOrderExecute(
+      $pb.ServerContext ctx, $4.TransferOrderExecuteRequest request);
+  $async.Future<$4.TransferOrderSearchResponse> transferOrderSearch(
+      $pb.ServerContext ctx, $4.TransferOrderSearchRequest request);
+  $async.Future<$4.IncomingPaymentNotifyResponse> incomingPaymentNotify(
+      $pb.ServerContext ctx, $4.IncomingPaymentNotifyRequest request);
+  $async.Future<$4.PaymentAllocateResponse> paymentAllocate(
+      $pb.ServerContext ctx, $4.PaymentAllocateRequest request);
+  $async.Future<$4.IncomingPaymentSearchResponse> incomingPaymentSearch(
+      $pb.ServerContext ctx, $4.IncomingPaymentSearchRequest request);
+  $async.Future<$4.IncomingPaymentAssignResponse> incomingPaymentAssign(
+      $pb.ServerContext ctx, $4.IncomingPaymentAssignRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
       case 'TransferOrderExecute':
-        return $3.TransferOrderExecuteRequest();
+        return $4.TransferOrderExecuteRequest();
       case 'TransferOrderSearch':
-        return $3.TransferOrderSearchRequest();
+        return $4.TransferOrderSearchRequest();
       case 'IncomingPaymentNotify':
-        return $3.IncomingPaymentNotifyRequest();
+        return $4.IncomingPaymentNotifyRequest();
       case 'PaymentAllocate':
-        return $3.PaymentAllocateRequest();
+        return $4.PaymentAllocateRequest();
+      case 'IncomingPaymentSearch':
+        return $4.IncomingPaymentSearchRequest();
+      case 'IncomingPaymentAssign':
+        return $4.IncomingPaymentAssignRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -50,15 +58,21 @@ abstract class OperationsServiceBase extends $pb.GeneratedService {
     switch (methodName) {
       case 'TransferOrderExecute':
         return transferOrderExecute(
-            ctx, request as $3.TransferOrderExecuteRequest);
+            ctx, request as $4.TransferOrderExecuteRequest);
       case 'TransferOrderSearch':
         return transferOrderSearch(
-            ctx, request as $3.TransferOrderSearchRequest);
+            ctx, request as $4.TransferOrderSearchRequest);
       case 'IncomingPaymentNotify':
         return incomingPaymentNotify(
-            ctx, request as $3.IncomingPaymentNotifyRequest);
+            ctx, request as $4.IncomingPaymentNotifyRequest);
       case 'PaymentAllocate':
-        return paymentAllocate(ctx, request as $3.PaymentAllocateRequest);
+        return paymentAllocate(ctx, request as $4.PaymentAllocateRequest);
+      case 'IncomingPaymentSearch':
+        return incomingPaymentSearch(
+            ctx, request as $4.IncomingPaymentSearchRequest);
+      case 'IncomingPaymentAssign':
+        return incomingPaymentAssign(
+            ctx, request as $4.IncomingPaymentAssignRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

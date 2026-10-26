@@ -86,6 +86,20 @@ func (c *countingOperationsClient) PaymentAllocate(
 	panic("not used")
 }
 
+func (c *countingOperationsClient) IncomingPaymentSearch(
+	_ context.Context,
+	_ *operationsv1.IncomingPaymentSearchRequest,
+) (operationsv1connect.OperationsServiceIncomingPaymentSearchClientStream, error) {
+	panic("stub: IncomingPaymentSearch not expected")
+}
+
+func (c *countingOperationsClient) IncomingPaymentAssign(
+	_ context.Context,
+	_ *operationsv1.IncomingPaymentAssignRequest,
+) (*operationsv1.IncomingPaymentAssignResponse, error) {
+	panic("stub: IncomingPaymentAssign not expected")
+}
+
 func (c *countingOperationsClient) snapshot() []*operationsv1.TransferOrderObject {
 	c.mu.Lock()
 	defer c.mu.Unlock()

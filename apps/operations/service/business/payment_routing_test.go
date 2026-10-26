@@ -33,6 +33,7 @@ import (
 
 	"github.com/antinvestor/service-fintech/apps/operations/service/events"
 	"github.com/antinvestor/service-fintech/apps/operations/service/models"
+	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
@@ -359,6 +360,24 @@ func (r *incomingPaymentRepoStub) MarkConfirmed(
 	}
 	payment.Properties["confirmed_at"] = at.Format(time.RFC3339)
 
+	return true, nil
+}
+
+func (r *incomingPaymentRepoStub) AssignOwner(
+	_ context.Context,
+	paymentID string,
+	assignment repository.PaymentAssignment,
+) (bool, error) {
+	payment, ok := r.byID[paymentID]
+	if !ok || payment.OwnerID != "" || payment.AllocatingAt != nil ||
+		payment.State != int32(constants.StateJustCreated) {
+		return false, nil
+	}
+	payment.OwnerID = assignment.OwnerID
+	payment.OwnerType = assignment.OwnerType
+	payment.PayableID = assignment.PayableID
+	payment.PayableType = assignment.PayableType
+	payment.Properties = mergeJSONMaps(payment.Properties, assignment.Properties)
 	return true, nil
 }
 

@@ -209,8 +209,18 @@ var (
 		apperrors.Conflict,
 		"client data entry was submitted concurrently; retry against the new revision",
 	)
-	ErrFormTemplateNotFound     = apperrors.NewError(apperrors.NotFound, "form template not found")
-	ErrFormTemplateNotDraft     = apperrors.NewError(apperrors.Unprocessable, "form template is not in draft status")
+	ErrFormTemplateNotFound = apperrors.NewError(apperrors.NotFound, "form template not found")
+	ErrFormTemplateNotDraft = apperrors.NewError(apperrors.Unprocessable, "form template is not in draft status")
+	ErrFormTemplateInvalid  = apperrors.NewError(
+		apperrors.BadRequest,
+		"a form template needs a name, an organization and an entity type, and every field a key, "+
+			"a label and a type; choice fields need options",
+	)
+	ErrFormTemplateDuplicateField = apperrors.NewError(apperrors.BadRequest, "form field keys must be unique")
+	ErrFormTemplateContactField   = apperrors.NewError(
+		apperrors.BadRequest,
+		"phone and email are kept on the client's profile; a form template cannot collect them",
+	)
 	ErrFormTemplateNotPublished = apperrors.NewError(
 		apperrors.Unprocessable,
 		"form template must be published to accept submissions",

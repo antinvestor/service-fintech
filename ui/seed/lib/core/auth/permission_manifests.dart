@@ -1,7 +1,11 @@
 import 'package:antinvestor_ui_core/permissions/permission_manifest.dart';
 import 'package:antinvestor_ui_core/permissions/permission_registry.dart';
+import 'package:antinvestor_ui_funding/antinvestor_ui_funding.dart'
+    show FundingRouteModule;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show LoansRouteModule;
+import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
+    show OperationsRouteModule;
 
 void registerPermissionManifests() {
   final registry = PermissionRegistry.instance;
@@ -36,6 +40,11 @@ void registerPermissionManifests() {
           scope: PermissionScope.feature,
         ),
         PermissionEntry(
+          key: 'form_template_view',
+          label: 'View Form Templates',
+          scope: PermissionScope.feature,
+        ),
+        PermissionEntry(
           key: 'form_template_manage',
           label: 'Manage Form Templates',
           scope: PermissionScope.feature,
@@ -66,6 +75,8 @@ void registerPermissionManifests() {
 
   // The loans package declares every permit its screens gate on.
   registry.register(LoansRouteModule().permissionManifest);
+  registry.register(FundingRouteModule().permissionManifest);
+  registry.register(OperationsRouteModule().permissionManifest);
 
   registry.register(
     const PermissionManifest(

@@ -1,6 +1,10 @@
 import 'package:antinvestor_ui_core/navigation/nav_items.dart' as core;
+import 'package:antinvestor_ui_funding/antinvestor_ui_funding.dart'
+    show FundingRouteModule;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show LoansRouteModule;
+import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
+    show OperationsRouteModule;
 import 'package:flutter/material.dart';
 
 /// A single navigation item that can contain children (submenus).
@@ -126,6 +130,14 @@ List<NavItem> buildNavItems() => [
         activeIcon: Icons.folder,
         route: '/departments',
       ),
+      NavItem(
+        id: 'form_templates',
+        label: 'KYC Forms',
+        icon: Icons.dynamic_form_outlined,
+        activeIcon: Icons.dynamic_form,
+        route: '/form-templates',
+        requiredPermissions: {'form_template_view'},
+      ),
     ],
   ),
   const NavItem(
@@ -173,12 +185,32 @@ List<NavItem> buildNavItems() => [
     activeIcon: Icons.account_balance_wallet,
     children: _loansNavChildren(),
   ),
-  const NavItem(
-    id: 'investors',
+  NavItem(
+    id: 'investors_section',
     label: 'Investors',
     icon: Icons.trending_up_outlined,
     activeIcon: Icons.trending_up,
-    route: '/investors',
+    children: [
+      const NavItem(
+        id: 'investors',
+        label: 'Investor Profiles',
+        icon: Icons.person_search_outlined,
+        activeIcon: Icons.person_search,
+        route: '/investors',
+      ),
+      for (final item in FundingRouteModule().buildNavItems())
+        NavItem.fromCore(item),
+    ],
+  ),
+  NavItem(
+    id: 'operations_section',
+    label: 'Payments',
+    icon: Icons.payments_outlined,
+    activeIcon: Icons.payments,
+    children: [
+      for (final item in OperationsRouteModule().buildNavItems())
+        NavItem.fromCore(item),
+    ],
   ),
   const NavItem(
     id: 'limits',

@@ -1,3 +1,6 @@
+// Routing
+export 'src/routing/funding_route_module.dart';
+
 // Providers
 export 'src/providers/funding_transport_provider.dart';
 export 'src/providers/funding_providers.dart';

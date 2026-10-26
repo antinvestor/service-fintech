@@ -2,7 +2,7 @@ name: antinvestor_ui_identity
 description: >
   Identity management UI library for Antinvestor. Organizations, workforce
   members, clients, access roles, audit log, and form template screens.
-version: 0.5.1
+version: 0.5.2
 repository: https://github.com/antinvestor/service-fintech
 homepage: https://github.com/antinvestor/service-fintech/tree/main/ui/identity
 issue_tracker: https://github.com/antinvestor/service-fintech/issues

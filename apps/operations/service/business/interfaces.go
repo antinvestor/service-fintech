@@ -30,6 +30,10 @@ type PaymentRoutingBusiness interface {
 	ApplySuspense(ctx context.Context, membershipID string, maxAmount int64) (map[string]interface{}, error)
 	RecordSuspenseDeposit(ctx context.Context, deposit SuspenseDeposit) (map[string]interface{}, error)
 	ConfirmPayment(ctx context.Context, transactionID string) (map[string]interface{}, error)
+	AssignPayment(
+		ctx context.Context,
+		paymentID, loanID, note string,
+	) (*models.IncomingPayment, map[string]interface{}, error)
 }
 
 // TransferOrderBusiness handles transfer order creation and execution.

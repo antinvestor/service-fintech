@@ -483,3 +483,38 @@ agent or staff member prompts the borrower to pay from their own contact.
 
 Production had no repayments recorded when this shipped, so no cash entries
 or agent cash balances needed unwinding.
+
+## 26. Addendum 2026-10-26 — staff console completeness
+
+Goal: everything a lender's staff must do is reachable from the Seed app.
+
+- **Unmatched payments.** A borrower's payment that matched no loan used to
+  stay unresolved with no screen to see it. Operations now has
+  `IncomingPaymentSearch` (`payment_view`: owner, admin, operator, viewer) and
+  `IncomingPaymentAssign` (`payment_allocate`). Assigning names the loan and a
+  note and nothing else: the payment is applied in full, as the rail received
+  it, from the product's collection account. The loan must take repayments
+  and be of the product the rail credited. The assignment lands only while
+  the payment is still unmatched and unallocated, so two people cannot apply
+  it twice. It records who assigned it and why. The payer reference the rail
+  supplied (often a phone number) is not returned. Seed shows this under
+  Payments → Incoming Payments, with a loan search in the assign dialog.
+- **Funding and transfers mounted.** Investor accounts (`/funding/accounts`)
+  and transfer orders (`/operations/transfers`) are in Seed's navigation.
+  Opening accounts, deposits and withdrawals are offered only with
+  `investor_account_manage`, and Fund Loan only with `fund_manage`.
+- **KYC form templates.** Templates had a list but no way to build one, so no
+  organization could publish its client KYC form. Seed now routes
+  `/form-templates` and a designer. On the server, Save keeps only drafts:
+  a published or archived template is never rewritten (clients filled it
+  in), status changes only through Publish, and the version only through
+  publishing. A change to a published form is a new draft, and publishing it
+  makes it the newest published version, which KYC uses. Save validates the
+  template (name, organization, entity type, unique field keys, options for
+  choice fields) and refuses phone and email fields, because contacts are
+  kept on the profile. Save now writes synchronously, so Publish straight
+  after it finds the row.
+- **Not mounted: savings.** Savings deposits are recorded by staff typing an
+  amount (`DepositRecord`), and no payment-rail path credits a savings
+  account. That conflicts with the rule that clients pay from their own
+  contact, so savings stays out of Seed until deposits come from the rail.
