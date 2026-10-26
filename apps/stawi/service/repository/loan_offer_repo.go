@@ -27,8 +27,6 @@ import (
 // LoanOfferRepository provides data access for loan offers.
 type LoanOfferRepository interface {
 	datastore.BaseRepository[*models.LoanOffer]
-	GetByMembershipID(ctx context.Context, membershipID string) ([]*models.LoanOffer, error)
-	GetByLoanWindowID(ctx context.Context, loanWindowID string) ([]*models.LoanOffer, error)
 }
 
 // NewLoanOfferRepository creates a new LoanOfferRepository.
@@ -42,16 +40,4 @@ func NewLoanOfferRepository(ctx context.Context, dbPool pool.Pool, workMan worke
 
 type loanOfferRepository struct {
 	datastore.BaseRepository[*models.LoanOffer]
-}
-
-func (r *loanOfferRepository) GetByMembershipID(ctx context.Context, membershipID string) ([]*models.LoanOffer, error) {
-	var offers []*models.LoanOffer
-	err := r.Pool().DB(ctx, true).Where("membership_id = ?", membershipID).Find(&offers).Error
-	return offers, err
-}
-
-func (r *loanOfferRepository) GetByLoanWindowID(ctx context.Context, loanWindowID string) ([]*models.LoanOffer, error) {
-	var offers []*models.LoanOffer
-	err := r.Pool().DB(ctx, true).Where("loan_window_id = ?", loanWindowID).Find(&offers).Error
-	return offers, err
 }

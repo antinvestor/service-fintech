@@ -25,5 +25,4 @@ const (
 	paramGroupID  = "groupId"
 	paramPeriodID = "periodId"
 	paramMemberID = "memberId"
-	paramLoanID   = "loanId"
 )

@@ -27,7 +27,6 @@ import (
 
 	"github.com/pitabwire/util"
 
-	opsmodels "github.com/antinvestor/service-fintech/apps/operations/service/models"
 	groupbusiness "github.com/antinvestor/service-fintech/apps/stawi/service/business"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
@@ -36,16 +35,14 @@ import (
 
 // Businesses collects the domain dependencies the workflow callbacks need.
 type Businesses struct {
-	Group         groupbusiness.ClientGroupBusiness
-	Membership    groupbusiness.MembershipBusiness
-	Tenure        groupbusiness.TenureBusiness
-	Period        groupbusiness.PeriodBusiness
-	LoanWindow    LoanWindowBusiness
-	LoanOffer     LoanOfferBusiness
-	Funding       FundingAllocationBusiness
-	Payment       PaymentRoutingBusiness
-	TransferOrder TransferOrderBusiness
-	Obligation    ObligationBusiness
+	Group      groupbusiness.ClientGroupBusiness
+	Membership groupbusiness.MembershipBusiness
+	Tenure     groupbusiness.TenureBusiness
+	Period     groupbusiness.PeriodBusiness
+	LoanWindow LoanWindowBusiness
+	LoanOffer  LoanOfferBusiness
+	Payment    PaymentRoutingBusiness
+	Obligation ObligationBusiness
 }
 
 // RegisterWorkflowCallbacks registers every workflow callback HTTP endpoint.
@@ -71,33 +68,15 @@ func RegisterWorkflowCallbacks(mux *http.ServeMux, biz Businesses) {
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/evaluate-loan-window", handleEvaluateLoanWindow(biz))
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/loan-window/open", handleOpenLoanWindow(biz))
 
-	// Loan origination.
-	mux.HandleFunc(
-		"POST /api/v1/groups/{groupId}/members/{memberId}/generate-loan-offers",
-		handleGenerateOffers(biz),
-	)
-	mux.HandleFunc(
-		"POST /api/v1/groups/{groupId}/members/{memberId}/expire-loan-offers",
-		handleExpireOffers(biz),
-	)
+	// Loan offers.
 	mux.HandleFunc(
 		"POST /api/v1/groups/{groupId}/loan-offers/{offerId}/respond",
 		handleRespondOffer(biz),
 	)
-	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans/source-funding", handleSourceFunding(biz))
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans", handleCreateLoanAccount(biz))
-
-	// Payment routing.
-	mux.HandleFunc("POST /api/v1/payments/identify-sender", handleIdentifySender(biz))
-	mux.HandleFunc("POST /api/v1/groups/{groupId}/payments/allocate", handleAllocatePayment(biz))
-	mux.HandleFunc("POST /api/v1/groups/{groupId}/ledger/transfer", handleLedgerTransfer(biz))
-
-	// Obligation status.
-	mux.HandleFunc("GET /api/v1/obligations/{obligationId}/status", handleObligationStatus(biz))
 
 	registerPeriodRoutes(mux, biz)
 	registerSuspenseRoutes(mux, biz)
-	registerLoanLifecycleRoutes(mux, biz)
 }
 
 // registerPeriodRoutes wires the period close and reconciliation callbacks.
@@ -113,16 +92,11 @@ func registerPeriodRoutes(mux *http.ServeMux, biz Businesses) {
 		"GET /api/v1/groups/{groupId}/periods/{periodId}/outstanding-obligations",
 		handleOutstandingObligations(biz),
 	)
-	mux.HandleFunc(
-		"GET /api/v1/groups/{groupId}/members/{memberId}/check-obligations",
-		handleCheckMemberObligations(biz),
-	)
 }
 
-// registerSuspenseRoutes wires the callbacks that move money in and out of the
-// member and group suspense holding areas.
+// registerSuspenseRoutes wires the callbacks that read and apply a member's
+// suspense balance.
 func registerSuspenseRoutes(mux *http.ServeMux, biz Businesses) {
-	mux.HandleFunc("POST /api/v1/groups/{groupId}/suspense/deposit", handleSuspenseDeposit(biz))
 	mux.HandleFunc(
 		"GET /api/v1/groups/{groupId}/members/{memberId}/suspense-balance",
 		handleSuspenseBalance(biz),
@@ -131,25 +105,6 @@ func registerSuspenseRoutes(mux *http.ServeMux, biz Businesses) {
 		"POST /api/v1/groups/{groupId}/members/{memberId}/apply-suspense",
 		handleApplySuspense(biz),
 	)
-	mux.HandleFunc(
-		"POST /api/v1/groups/{groupId}/payments/{transactionId}/confirm",
-		handleConfirmPayment(biz),
-	)
-	mux.HandleFunc("POST /api/v1/groups/{groupId}/ledger/transfer-failure", handleTransferFailure(biz))
-}
-
-// registerLoanLifecycleRoutes wires the per-member origination callbacks that
-// sit either side of loan account creation.
-func registerLoanLifecycleRoutes(mux *http.ServeMux, biz Businesses) {
-	mux.HandleFunc(
-		"GET /api/v1/groups/{groupId}/members/{memberId}/loan-eligibility",
-		handleLoanEligibility(biz),
-	)
-	mux.HandleFunc(
-		"POST /api/v1/groups/{groupId}/loans/{loanId}/generate-schedule",
-		handleGenerateSchedule(biz),
-	)
-	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans/{loanId}/disburse", handleDisburseLoan(biz))
 }
 
 // --- Group lifecycle ---
@@ -282,44 +237,7 @@ func handleOpenLoanWindow(biz Businesses) http.HandlerFunc {
 	}
 }
 
-// --- Loan origination ---
-
-func handleGenerateOffers(biz Businesses) http.HandlerFunc {
-	type generateReq struct {
-		LoanWindowID string `json:"loan_window_id"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		var req generateReq
-		if err := decodeBody(r, &req); err != nil {
-			respond(w, r, "generate-offers", nil, err)
-			return
-		}
-
-		windowID := strings.TrimSpace(req.LoanWindowID)
-		if windowID == "" {
-			// The workflow may not know the window yet; Open is idempotent and
-			// returns the group's active window for the current period.
-			window, openErr := biz.LoanWindow.Open(ctx, r.PathValue(paramGroupID))
-			if openErr != nil {
-				respond(w, r, "generate-offers", nil, openErr)
-				return
-			}
-			windowID = window.GetID()
-		}
-
-		offers, err := biz.LoanOffer.GenerateForWindow(ctx, windowID)
-		respond(w, r, "generate-offers", offers, err)
-	}
-}
-
-func handleExpireOffers(biz Businesses) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		expired, err := biz.LoanOffer.ExpireStale(r.Context(), r.PathValue(paramMemberID))
-		respond(w, r, "expire-loan-offers", map[string]any{"expired": expired}, err)
-	}
-}
+// --- Loan offers ---
 
 // offerResponseBody is the member's answer to a loan offer.
 type offerResponseBody struct {
@@ -340,29 +258,6 @@ func handleRespondOffer(biz Businesses) http.HandlerFunc {
 	}
 }
 
-func handleSourceFunding(biz Businesses) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			OfferID string `json:"offer_id"`
-		}
-		if err := decodeBody(r, &req); err != nil {
-			respond(w, r, "source-funding", nil, err)
-			return
-		}
-		if strings.TrimSpace(req.OfferID) == "" {
-			respond(w, r, "source-funding", nil,
-				apperrors.NewError(apperrors.BadRequest, "offer_id is required"))
-			return
-		}
-		result, err := biz.Funding.SourceForRequest(r.Context(), req.OfferID)
-		if err != nil {
-			respond(w, r, "source-funding", nil, err)
-			return
-		}
-		respond(w, r, "source-funding", fundingResponse(result), nil)
-	}
-}
-
 func handleCreateLoanAccount(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -379,117 +274,10 @@ func handleCreateLoanAccount(biz Businesses) http.HandlerFunc {
 		}
 		result, err := biz.LoanOffer.CreateLoanAccount(r.Context(), req.OfferID)
 		if result != nil {
-			// The workflow interpolates {{ vars.loan.body.loan_id }}.
+			// loan_id is the short name callers read for the loan account.
 			result["loan_id"] = result["loan_account_id"]
 		}
 		respond(w, r, "create-loan-account", result, err)
-	}
-}
-
-// --- Payment routing ---
-
-func handleIdentifySender(biz Businesses) http.HandlerFunc {
-	type identifyReq struct {
-		SenderIdentifier string `json:"sender_identifier"`
-		GroupID          string `json:"group_id"`
-		Reference        string `json:"reference"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req identifyReq
-		if err := decodeBody(r, &req); err != nil {
-			respond(w, r, "identify-sender", nil, err)
-			return
-		}
-		result, err := biz.Payment.IdentifySender(r.Context(), req.SenderIdentifier, req.GroupID, req.Reference)
-		respond(w, r, "identify-sender", result, err)
-	}
-}
-
-func handleAllocatePayment(biz Businesses) http.HandlerFunc {
-	type allocateReq struct {
-		TransactionID string `json:"transaction_id"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req allocateReq
-		if err := decodeBody(r, &req); err != nil {
-			respond(w, r, "allocate-payment", nil, err)
-			return
-		}
-		if strings.TrimSpace(req.TransactionID) == "" {
-			respond(w, r, "allocate-payment", nil,
-				apperrors.NewError(apperrors.BadRequest, "transaction_id is required"))
-			return
-		}
-		result, err := biz.Payment.AllocatePaymentByTransactionID(r.Context(), req.TransactionID)
-		respond(w, r, "allocate-payment", result, err)
-	}
-}
-
-func handleLedgerTransfer(biz Businesses) http.HandlerFunc {
-	type transferReq struct {
-		FromAccount string `json:"from_account"`
-		ToAccount   string `json:"to_account"`
-		Amount      int64  `json:"amount"`
-		Currency    string `json:"currency"`
-		Type        int32  `json:"type"`
-		Reference   string `json:"reference"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		var req transferReq
-		if err := decodeBody(r, &req); err != nil {
-			respond(w, r, "ledger-transfer", nil, err)
-			return
-		}
-		if err := validateTransfer(req.FromAccount, req.ToAccount, req.Amount, req.Reference); err != nil {
-			respond(w, r, "ledger-transfer", nil, err)
-			return
-		}
-
-		order := &opsmodels.TransferOrder{
-			DebitAccountRef:  req.FromAccount,
-			CreditAccountRef: req.ToAccount,
-			Amount:           req.Amount,
-			Currency:         req.Currency,
-			OrderType:        req.Type,
-			Reference:        req.Reference,
-			Description:      "workflow ledger transfer",
-			State:            int32(constants.StateJustCreated),
-		}
-		if saveErr := biz.TransferOrder.Save(ctx, order); saveErr != nil {
-			respond(w, r, "ledger-transfer", nil, saveErr)
-			return
-		}
-		if execErr := biz.TransferOrder.Execute(ctx, order.GetID()); execErr != nil {
-			respond(w, r, "ledger-transfer", nil, execErr)
-			return
-		}
-		respond(w, r, "ledger-transfer", map[string]any{
-			"transfer_order_id": order.GetID(),
-			fieldStatus:         "ok",
-		}, nil)
-	}
-}
-
-func validateTransfer(from, to string, amount int64, reference string) error {
-	switch {
-	case strings.TrimSpace(from) == "" || strings.TrimSpace(to) == "":
-		return apperrors.NewError(apperrors.BadRequest, "from_account and to_account are required")
-	case from == to:
-		return apperrors.NewError(apperrors.BadRequest, "from_account and to_account must differ")
-	case amount <= 0:
-		return apperrors.NewError(apperrors.BadRequest, "amount must be positive")
-	case strings.TrimSpace(reference) == "":
-		return apperrors.NewError(apperrors.BadRequest, "reference is required as the idempotency key")
-	}
-	return nil
-}
-
-func handleObligationStatus(biz Businesses) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		status, err := biz.Obligation.GetStatus(r.Context(), r.PathValue("obligationId"))
-		respond(w, r, "obligation-status", status, err)
 	}
 }
 

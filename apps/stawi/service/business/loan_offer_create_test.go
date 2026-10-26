@@ -114,14 +114,6 @@ func (r *stubLoanOfferRepo) BulkUpdate(_ context.Context, _ []string, _ map[stri
 func (r *stubLoanOfferRepo) Delete(_ context.Context, _ string) error        { return nil }
 func (r *stubLoanOfferRepo) DeleteBatch(_ context.Context, _ []string) error { return nil }
 
-func (r *stubLoanOfferRepo) GetByMembershipID(_ context.Context, _ string) ([]*models.LoanOffer, error) {
-	return nil, nil
-}
-
-func (r *stubLoanOfferRepo) GetByLoanWindowID(_ context.Context, _ string) ([]*models.LoanOffer, error) {
-	return nil, nil
-}
-
 var _ repository.LoanOfferRepository = (*stubLoanOfferRepo)(nil)
 
 // ---------------------------------------------------------------------------

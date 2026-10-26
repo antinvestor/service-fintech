@@ -21,7 +21,6 @@ import (
 
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
 	"github.com/antinvestor/common/v3"
 	"github.com/antinvestor/common/v3/connection"
 	"github.com/antinvestor/common/v3/permissions"
@@ -49,13 +48,7 @@ import (
 	stawibusiness "github.com/antinvestor/service-fintech/apps/stawi/service/business"
 	stawievents "github.com/antinvestor/service-fintech/apps/stawi/service/events"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/handlers"
-	stawimodels "github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	stawirepo "github.com/antinvestor/service-fintech/apps/stawi/service/repository"
-
-	// Funding domain (LoanFunding, FundingAllocation, InvestorAccount, FundingTranche).
-	fundingbusiness "github.com/antinvestor/service-fintech/apps/funding/service/business"
-	fundingevents "github.com/antinvestor/service-fintech/apps/funding/service/events"
-	fundingrepo "github.com/antinvestor/service-fintech/apps/funding/service/repository"
 
 	// Operations domain.
 	opsbusiness "github.com/antinvestor/service-fintech/apps/operations/service/business"
@@ -65,7 +58,6 @@ import (
 	// Platform clients.
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/clients"
-	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 	"github.com/antinvestor/service-fintech/pkg/trustage"
 
 	fevents "github.com/pitabwire/frame/v3/events"
@@ -88,11 +80,6 @@ type appRepositories struct {
 	infraction      stawirepo.InfractionRepository
 	loanWindow      stawirepo.LoanWindowRepository
 	loanOffer       stawirepo.LoanOfferRepository
-	loanFunding     fundingrepo.LoanFundingRepository
-	fundingClaim    fundingrepo.LoanFundingClaimRepository
-	lossAbsorption  fundingrepo.LossAbsorptionRepository
-	fundingTranche  fundingrepo.FundingTrancheRepository
-	investorAccount fundingrepo.InvestorAccountRepository
 	transferOrder   opsrepo.TransferOrderRepository
 	obligation      opsrepo.ObligationRepository
 	incomingPayment opsrepo.IncomingPaymentRepository
@@ -102,16 +89,14 @@ type appRepositories struct {
 }
 
 type appBusinesses struct {
-	group         stawibusiness.ClientGroupBusiness
-	membership    stawibusiness.MembershipBusiness
-	tenure        stawibusiness.TenureBusiness
-	period        stawibusiness.PeriodBusiness
-	loanWindow    stawibusiness.LoanWindowBusiness
-	loanOffer     stawibusiness.LoanOfferBusiness
-	funding       fundingbusiness.FundingAllocationBusiness
-	payment       opsbusiness.PaymentRoutingBusiness
-	transferOrder opsbusiness.TransferOrderBusiness
-	obligation    opsbusiness.ObligationBusiness
+	group      stawibusiness.ClientGroupBusiness
+	membership stawibusiness.MembershipBusiness
+	tenure     stawibusiness.TenureBusiness
+	period     stawibusiness.PeriodBusiness
+	loanWindow stawibusiness.LoanWindowBusiness
+	loanOffer  stawibusiness.LoanOfferBusiness
+	payment    opsbusiness.PaymentRoutingBusiness
+	obligation opsbusiness.ObligationBusiness
 }
 
 func main() {
@@ -194,16 +179,8 @@ func main() {
 		return
 	}
 
-	// Limits client. Required while the transfer-order gate is on.
-	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
-	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
-		"operations_transfer": cfg.LimitsGateEnabledOperationsTransfer,
-	}); gateErr != nil {
-		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
-	}
-
 	repos := initRepositories(ctx, dbPool, workMan)
-	biz := initBusinesses(ctx, evtsMan, identityCli, platformClients, repos, limitsCli, cfg)
+	biz := initBusinesses(ctx, evtsMan, identityCli, platformClients, repos, cfg)
 	handler := buildHandler(ctx, sm, manifestSD, biz, auditCli)
 	serviceOptions := buildServiceOptions(ctx, handler, repos)
 
@@ -223,11 +200,6 @@ func initRepositories(ctx context.Context, dbPool pool.Pool, workMan workerpool.
 		infraction:      stawirepo.NewInfractionRepository(ctx, dbPool, workMan),
 		loanWindow:      stawirepo.NewLoanWindowRepository(ctx, dbPool, workMan),
 		loanOffer:       stawirepo.NewLoanOfferRepository(ctx, dbPool, workMan),
-		loanFunding:     fundingrepo.NewLoanFundingRepository(ctx, dbPool, workMan),
-		fundingClaim:    fundingrepo.NewLoanFundingClaimRepository(ctx, dbPool, workMan),
-		lossAbsorption:  fundingrepo.NewLossAbsorptionRepository(ctx, dbPool, workMan),
-		fundingTranche:  fundingrepo.NewFundingTrancheRepository(ctx, dbPool, workMan),
-		investorAccount: fundingrepo.NewInvestorAccountRepository(ctx, dbPool, workMan),
 		transferOrder:   opsrepo.NewTransferOrderRepository(ctx, dbPool, workMan),
 		obligation:      opsrepo.NewObligationRepository(ctx, dbPool, workMan),
 		incomingPayment: opsrepo.NewIncomingPaymentRepository(ctx, dbPool, workMan),
@@ -243,7 +215,6 @@ func initBusinesses(
 	identityCli identityv1connect.IdentityServiceClient,
 	platformClients *clients.PlatformClients,
 	repos appRepositories,
-	limitsCli limitsv1connect.LimitsServiceClient,
 	cfg aconfig.StawiConfig,
 ) appBusinesses {
 	product := cfg.ProductConfig
@@ -256,23 +227,8 @@ func initBusinesses(
 		ctx, product, identityCli, repos.loanWindow, repos.period, repos.tenure,
 	)
 	loanOfferBiz := stawibusiness.NewLoanOfferBusiness(
-		ctx, product, evtsMan, repos.loanOffer, repos.loanWindow, identityCli, platformClients,
+		ctx, product, evtsMan, repos.loanOffer, identityCli, platformClients,
 	)
-	fundingBiz := fundingbusiness.NewFundingAllocationBusiness(
-		ctx,
-		evtsMan,
-		repos.loanFunding,
-		repos.fundingClaim,
-		repos.lossAbsorption,
-		&loanOfferAdapter{repo: repos.loanOffer},
-		repos.investorAccount,
-		repos.fundingTranche,
-		fundingbusiness.NewSourceBalances(platformClients),
-		// Stawi only sources funding for offers; losses are absorbed by the
-		// funding service, so this embedded copy posts nothing.
-		nil,
-	)
-
 	periodAdapter := &periodAdapter{repo: repos.period}
 
 	paymentBiz := opsbusiness.NewPaymentRoutingBusiness(
@@ -285,31 +241,17 @@ func initBusinesses(
 		identityCli,
 		platformClients,
 	)
-	transferOrderBiz := opsbusiness.NewTransferOrderBusiness(
-		ctx,
-		evtsMan,
-		repos.transferOrder,
-		repos.cbsSyncRecord,
-		repos.accountRef,
-		platformClients,
-		audit.NewWriter(evtsMan),
-		limitsCli,
-		cfg.LimitsGateEnabledOperationsTransfer,
-		cfg.LimitsGateModeOperationsTransfer,
-	)
 	obligationBiz := opsbusiness.NewObligationBusiness(ctx, evtsMan, repos.obligation, identityCli, periodAdapter)
 
 	return appBusinesses{
-		group:         groupBiz,
-		membership:    membershipBiz,
-		tenure:        tenureBiz,
-		period:        periodBiz,
-		loanWindow:    loanWindowBiz,
-		loanOffer:     loanOfferBiz,
-		funding:       fundingBiz,
-		payment:       paymentBiz,
-		transferOrder: transferOrderBiz,
-		obligation:    obligationBiz,
+		group:      groupBiz,
+		membership: membershipBiz,
+		tenure:     tenureBiz,
+		period:     periodBiz,
+		loanWindow: loanWindowBiz,
+		loanOffer:  loanOfferBiz,
+		payment:    paymentBiz,
+		obligation: obligationBiz,
 	}
 }
 
@@ -333,16 +275,14 @@ func buildHandler(
 
 	mux := http.NewServeMux()
 	handlers.RegisterWorkflowCallbacks(mux, handlers.Businesses{
-		Group:         biz.group,
-		Membership:    biz.membership,
-		Tenure:        biz.tenure,
-		Period:        biz.period,
-		LoanWindow:    biz.loanWindow,
-		LoanOffer:     biz.loanOffer,
-		Funding:       biz.funding,
-		Payment:       biz.payment,
-		TransferOrder: biz.transferOrder,
-		Obligation:    biz.obligation,
+		Group:      biz.group,
+		Membership: biz.membership,
+		Tenure:     biz.tenure,
+		Period:     biz.period,
+		LoanWindow: biz.loanWindow,
+		LoanOffer:  biz.loanOffer,
+		Payment:    biz.payment,
+		Obligation: biz.obligation,
 	})
 
 	routes, routesErr := handlers.BuildRoutePermissions(manifestSD)
@@ -371,19 +311,6 @@ func buildHandler(
 	return httptor.ContextSetupMiddleware(ctx, root)
 }
 
-// setupLimitsClient wires the limits service client that gates stawi's
-// transfer orders. Returns nil, nil when LimitsServiceURI is empty.
-func setupLimitsClient(
-	ctx context.Context,
-	cfg aconfig.StawiConfig,
-) (limitsv1connect.LimitsServiceClient, error) {
-	return consumer.SetupClient(ctx, &cfg, common.ServiceTarget{
-		Endpoint:              cfg.LimitsServiceURI,
-		WorkloadAPITargetPath: cfg.LimitsServiceWorkloadAPITargetPath,
-		ServiceID:             servicecatalog.ServiceLimits,
-	})
-}
-
 func buildServiceOptions(ctx context.Context, handler http.Handler, repos appRepositories) []frame.Option {
 	return []frame.Option{
 		frame.WithHTTPHandler(handler),
@@ -394,9 +321,6 @@ func buildServiceOptions(ctx context.Context, handler http.Handler, repos appRep
 			stawievents.NewInfractionSave(ctx, repos.infraction),
 			stawievents.NewLoanWindowSave(ctx, repos.loanWindow),
 			stawievents.NewLoanOfferSave(ctx, repos.loanOffer),
-			fundingevents.NewLoanFundingSave(ctx, repos.loanFunding),
-			fundingevents.NewFundingTrancheSave(ctx, repos.fundingTranche),
-			fundingevents.NewInvestorAccountSave(ctx, repos.investorAccount),
 			opsevents.NewTransferOrderSave(ctx, repos.transferOrder),
 			opsevents.NewObligationSave(ctx, repos.obligation),
 			opsevents.NewIncomingPaymentSave(ctx, repos.incomingPayment),
@@ -418,34 +342,8 @@ func setupIdentityClient(
 }
 
 // ---------------------------------------------------------------------------
-// Cross-domain adapters (funding repos, stawi period, stawi loan offer)
+// Cross-domain adapters
 // ---------------------------------------------------------------------------
-
-// loanOfferAdapter wraps stawi's LoanOfferRepository for funding's LoanRequestReader.
-type loanOfferAdapter struct {
-	repo stawirepo.LoanOfferRepository
-}
-
-func (a *loanOfferAdapter) GetByID(ctx context.Context, id string) (*fundingbusiness.LoanRequestInfo, error) {
-	offer, err := a.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return loanOfferToInfo(offer), nil
-}
-
-func loanOfferToInfo(o *stawimodels.LoanOffer) *fundingbusiness.LoanRequestInfo {
-	if o == nil {
-		return nil
-	}
-	info := &fundingbusiness.LoanRequestInfo{
-		Amount:     o.Amount,
-		Currency:   o.Currency,
-		Properties: o.Properties,
-	}
-	info.BaseModel = o.BaseModel
-	return info
-}
 
 // periodAdapter wraps stawi's PeriodRepository for operations' PeriodReader.
 type periodAdapter struct {

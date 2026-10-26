@@ -65,13 +65,6 @@ message GroupMemberRequest {
   string member_id = 2;
 }
 
-// GroupMemberLoanOffersRequest generates offers for a member.
-message GroupMemberLoanOffersRequest {
-  string group_id = 1;
-  string member_id = 2;
-  string loan_window_id = 3;
-}
-
 // GroupLoanOfferRequest acts on an accepted loan offer.
 // LoanOfferRespondRequest answers a loan offer. response is 1 accept,
 // 2 reject; other answers are recorded as given and close the offer.
@@ -86,69 +79,11 @@ message GroupLoanOfferRequest {
   string offer_id = 2;
 }
 
-// GroupLoanRequest addresses a loan account within a group.
-message GroupLoanRequest {
-  string group_id = 1;
-  string loan_id = 2;
-}
-
-// PaymentIdentifySenderRequest resolves the payer of an inbound payment.
-message PaymentIdentifySenderRequest {
-  string sender_identifier = 1;
-  string group_id = 2;
-  string reference = 3;
-}
-
-// GroupPaymentAllocateRequest allocates an identified payment.
-message GroupPaymentAllocateRequest {
-  string group_id = 1;
-  string transaction_id = 2;
-}
-
-// GroupPaymentConfirmRequest confirms a payment by transaction.
-message GroupPaymentConfirmRequest {
-  string group_id = 1;
-  string transaction_id = 2;
-}
-
-// GroupSuspenseDepositRequest records a deposit into suspense.
-message GroupSuspenseDepositRequest {
-  string group_id = 1;
-  string membership_id = 2;
-  string transaction_id = 3;
-  int64 amount = 4;
-  string currency = 5;
-  string reference = 6;
-}
-
 // GroupMemberApplySuspenseRequest applies suspense funds to obligations.
 message GroupMemberApplySuspenseRequest {
   string group_id = 1;
   string member_id = 2;
   int64 max_amount = 3;
-}
-
-// GroupLedgerTransferRequest moves money between ledger accounts.
-message GroupLedgerTransferRequest {
-  string group_id = 1;
-  string from_account = 2;
-  string to_account = 3;
-  int64 amount = 4;
-  string currency = 5;
-  int32 type = 6;
-  string reference = 7;
-}
-
-// GroupLedgerTransferFailureRequest records a failed transfer.
-message GroupLedgerTransferFailureRequest {
-  string group_id = 1;
-  string reference = 2;
-  string reason = 3;
-}
-
-// ObligationRequest addresses a single obligation.
-message ObligationRequest {
-  string obligation_id = 1;
 }
 
 // CallbackResponse is the loosely typed JSON body every callback returns.
@@ -171,15 +106,10 @@ service StawiWorkflowService {
       "stawi_obligation_view",
       "stawi_obligation_manage",
       "stawi_loan_window_manage",
-      "stawi_loan_offer_manage",
       "stawi_loan_offer_respond",
-      "stawi_loan_view",
-      "stawi_loan_fund",
       "stawi_loan_create",
-      "stawi_loan_disburse",
       "stawi_payment_view",
-      "stawi_payment_allocate",
-      "stawi_ledger_transfer"
+      "stawi_payment_allocate"
     ]
     role_bindings: [
       {
@@ -192,15 +122,10 @@ service StawiWorkflowService {
           "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
           "stawi_loan_create",
-          "stawi_loan_disburse",
           "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
+          "stawi_payment_allocate"
         ]
       },
       {
@@ -213,15 +138,10 @@ service StawiWorkflowService {
           "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
           "stawi_loan_create",
-          "stawi_loan_disburse",
           "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
+          "stawi_payment_allocate"
         ]
       },
       {
@@ -234,15 +154,10 @@ service StawiWorkflowService {
           "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
           "stawi_loan_create",
-          "stawi_loan_disburse",
           "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
+          "stawi_payment_allocate"
         ]
       },
       {
@@ -250,7 +165,6 @@ service StawiWorkflowService {
         permissions: [
           "stawi_group_view",
           "stawi_obligation_view",
-          "stawi_loan_view",
           "stawi_payment_view"
         ]
       },
@@ -260,7 +174,6 @@ service StawiWorkflowService {
           "stawi_loan_offer_respond",
           "stawi_group_view",
           "stawi_obligation_view",
-          "stawi_loan_view",
           "stawi_payment_view"
         ]
       },
@@ -274,15 +187,10 @@ service StawiWorkflowService {
           "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
           "stawi_loan_create",
-          "stawi_loan_disburse",
           "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
+          "stawi_payment_allocate"
         ]
       }
     ]
@@ -427,20 +335,6 @@ service StawiWorkflowService {
     };
     option (google.api.http) = {get: "/api/v1/groups/{group_id}/periods/{period_id}/outstanding-obligations"};
   }
-  rpc ObligationCheckMember(GroupMemberRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/members/{member_id}/check-obligations"};
-  }
-  rpc ObligationStatus(ObligationRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/obligations/{obligation_id}/status"};
-  }
 
   // --- Loan windows and offers ---
 
@@ -462,15 +356,6 @@ service StawiWorkflowService {
       body: "*"
     };
   }
-  rpc LoanOffersGenerate(GroupMemberLoanOffersRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_offer_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/members/{member_id}/generate-loan-offers"
-      body: "*"
-    };
-  }
   // LoanOfferRespond records a member's answer to a loan offer. A member
   // answers only their own offers; staff and services may answer any.
   rpc LoanOfferRespond(LoanOfferRespondRequest) returns (CallbackResponse) {
@@ -479,34 +364,6 @@ service StawiWorkflowService {
     };
     option (google.api.http) = {
       post: "/api/v1/groups/{group_id}/loan-offers/{offer_id}/respond"
-      body: "*"
-    };
-  }
-  rpc LoanOffersExpire(GroupMemberRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_offer_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/members/{member_id}/expire-loan-offers"
-      body: "*"
-    };
-  }
-
-  // --- Loan lifecycle ---
-
-  rpc LoanEligibilityCheck(GroupMemberRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/members/{member_id}/loan-eligibility"};
-  }
-  rpc LoanFundingSource(GroupLoanOfferRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_fund"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loans/source-funding"
       body: "*"
     };
   }
@@ -519,63 +376,9 @@ service StawiWorkflowService {
       body: "*"
     };
   }
-  rpc LoanScheduleGenerate(GroupLoanRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_create"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loans/{loan_id}/generate-schedule"
-      body: "*"
-    };
-  }
-  rpc LoanDisburse(GroupLoanRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_disburse"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loans/{loan_id}/disburse"
-      body: "*"
-    };
-  }
 
-  // --- Payments and suspense ---
+  // --- Suspense ---
 
-  rpc PaymentIdentifySender(PaymentIdentifySenderRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/payments/identify-sender"
-      body: "*"
-    };
-  }
-  rpc PaymentAllocate(GroupPaymentAllocateRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/payments/allocate"
-      body: "*"
-    };
-  }
-  rpc PaymentConfirm(GroupPaymentConfirmRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/payments/{transaction_id}/confirm"
-      body: "*"
-    };
-  }
-  rpc SuspenseDeposit(GroupSuspenseDepositRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/suspense/deposit"
-      body: "*"
-    };
-  }
   rpc SuspenseBalance(GroupMemberRequest) returns (CallbackResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (common.v1.method_permissions) = {
@@ -589,27 +392,6 @@ service StawiWorkflowService {
     };
     option (google.api.http) = {
       post: "/api/v1/groups/{group_id}/members/{member_id}/apply-suspense"
-      body: "*"
-    };
-  }
-
-  // --- Ledger ---
-
-  rpc LedgerTransfer(GroupLedgerTransferRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_ledger_transfer"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/ledger/transfer"
-      body: "*"
-    };
-  }
-  rpc LedgerTransferFailure(GroupLedgerTransferFailureRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_ledger_transfer"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/ledger/transfer-failure"
       body: "*"
     };
   }

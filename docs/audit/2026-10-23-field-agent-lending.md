@@ -1400,3 +1400,54 @@ exploitable as built, but both are hardened:
 decision on their request` and `a phone lists loans as tiles with the
 filters`), ui/identity 55 (`a phone lists clients as tiles and keeps
 onboarding`), ui/seed 64.
+
+## 49. Addendum 2026-10-26 — Stawi group product: audit and phase 1
+
+**Audit.** None of Stawi's five workflows (`products/stawi/workflows`) ever
+started an instance:
+
+- No triggers or signals exist, and nothing creates instances.
+- `SyncFromFS` stops at the first invalid file, and Stawi's setup only logs
+  the failure.
+- Their calls could not have worked anyway. `http.request` sends no service
+  credentials, `{{ env.* }}` does not resolve, and `notification.send`
+  expects raw contacts.
+
+So in practice groups have no lifecycle: no tenure, no period, no loan window,
+no offer. Group rail payments stop at "identified" in operations (the settle
+job allocates only `client_loan`, `client_savings` and `investor_account`).
+Group obligations live only in Stawi's private copy of the operations code, on
+its own database. Stawi also carried a private copy of funding allocation
+whose tables it never migrates.
+
+With the user's agreement, the group product is rebuilt in six phases on
+`feat/stawi-groups`:
+
+1. Retire the superseded flows.
+2. Group obligations and allocation in operations.
+3. Accepting an offer originates through loans.
+4. Period and collection cycles as `StawiJobRun` jobs on trustage.
+5. Group lifecycle triggered from identity events.
+6. Deployment wiring.
+
+**Phase 1.**
+
+- Deleted `payment_routing.json` and `loan_origination.json`.
+- Removed the 14 callback routes, handlers, business code and RPCs only those
+  workflows used:
+  - sender identification by raw phone, payment allocation and confirmation;
+  - ledger transfer of caller-named accounts;
+  - suspense deposit;
+  - funding source;
+  - offer generation and expiry;
+  - eligibility, schedule and disbursement.
+- Stawi no longer embeds funding allocation, the transfer-order business, or
+  the limits client. Its manifest drops `stawi_loan_offer_manage`,
+  `stawi_loan_view`, `stawi_loan_fund`, `stawi_loan_disburse` and
+  `stawi_ledger_transfer`.
+- service-authentication `20261026_09` narrows the stored `service_stawi`
+  namespace so the additive-only registration accepts the new manifest. It
+  was exercised against Postgres; a re-run is a no-op.
+- Kept for later phases:
+  - the offer-respond and loan-account routes (phase 3);
+  - Stawi's private copy of operations obligations (phase 2).

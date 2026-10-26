@@ -13,7 +13,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY ./apps/stawi ./apps/stawi
-COPY ./apps/funding ./apps/funding
 COPY ./apps/operations ./apps/operations
 COPY ./pkg ./pkg
 COPY ./gen ./gen

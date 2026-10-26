@@ -103,48 +103,14 @@ func routeResponseFields() map[string]map[string]bool {
 		"POST /api/v1/groups/{groupId}/periods/{periodId}/extend": period,
 		"GET /api/v1/groups/{groupId}/members":                    keysOf(membersResponse(nil)),
 		"POST /api/v1/groups/{groupId}/loan-window/open":          keysOf(loanWindowResponse(&models.LoanWindow{})),
-		"POST /api/v1/groups/{groupId}/loans/source-funding":      keysOf(fundingResponse(nil)),
 
 		"POST /api/v1/groups/{groupId}/evaluate-loan-window": setOf(
 			"group_id", "eligible", "should_open", "window_duration",
 			"window_closes_at", "cycle_position", "completed_periods",
 		),
-		"GET /api/v1/groups/{groupId}/members/{memberId}/loan-eligibility": setOf(
-			"member_id", "membership_id", "eligible", "reason",
-			"savings_balance", "max_loan_amount", "currency",
-		),
-		"POST /api/v1/groups/{groupId}/members/{memberId}/generate-loan-offers": setOf(
-			"window_id", "offers_generated", "offer_count", "max_amount", "currency",
-		),
-		"POST /api/v1/groups/{groupId}/members/{memberId}/expire-loan-offers": setOf("expired"),
 		"POST /api/v1/groups/{groupId}/loans": setOf(
 			"offer_id", "amount", "currency", "membership_id",
 			"loan_request_id", "loan_account_id", "loan_id", "idempotent",
-		),
-		"POST /api/v1/groups/{groupId}/loans/{loanId}/generate-schedule": setOf(
-			"loan_id", "schedule_id", "entry_count", "generated_at",
-		),
-		"POST /api/v1/groups/{groupId}/loans/{loanId}/disburse": setOf(
-			"loan_id", "disbursement_id", "transaction_ref", "status", "disbursed_at",
-		),
-
-		"POST /api/v1/payments/identify-sender": setOf(
-			"identified", "strategy", "membership_id", "member_id", "group_id", "reason",
-		),
-		"POST /api/v1/groups/{groupId}/payments/allocate": setOf(
-			"payment_id", "membership_id", "member_id", "currency", "total_amount",
-			"allocated_amount", "remaining_amount", "transfer_orders", "payment_state", "status", "state",
-		),
-		"POST /api/v1/groups/{groupId}/ledger/transfer": setOf("transfer_order_id", "status"),
-		"POST /api/v1/groups/{groupId}/ledger/transfer-failure": setOf(
-			"reference", "transfer_order_id", "status", "newly_failed",
-		),
-		"POST /api/v1/groups/{groupId}/suspense/deposit": setOf(
-			"payment_id", "transaction_id", "amount", "currency", "state", "status",
-		),
-		"POST /api/v1/groups/{groupId}/payments/{transactionId}/confirm": setOf(
-			"payment_id", "transaction_id", "member_id", "membership_id",
-			"state", "remaining_amount", "status", "newly_confirmed",
 		),
 		"GET /api/v1/groups/{groupId}/members/{memberId}/suspense-balance": setOf(
 			"member_id", "membership_id", "balance", "currency", "payment_count", "remaining_amount",
@@ -164,14 +130,6 @@ func routeResponseFields() map[string]map[string]bool {
 		),
 		"GET /api/v1/groups/{groupId}/periods/{periodId}/outstanding-obligations": setOf(
 			"period_id", "members", "count", "total_outstanding",
-		),
-		"GET /api/v1/groups/{groupId}/members/{memberId}/check-obligations": setOf(
-			"member_id", "membership_id", "all_met", "outstanding_count", "total_outstanding", "due_date",
-		),
-		"GET /api/v1/obligations/{obligationId}/status": setOf(
-			"id", "membership_id", "cause_type", "cause_id", "obligation_type", "period_id",
-			"amount", "currency", "state", "fulfilled", "description", "deadline",
-			"notification_id", "paid_amount", "paid_at",
 		),
 	}
 }

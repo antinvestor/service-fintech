@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 	"time"
@@ -33,33 +32,20 @@ import (
 
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
-	ledgerv1 "buf.build/gen/go/antinvestor/ledger/protocolbuffers/go/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
-	"github.com/pitabwire/util/decimalx"
 	"github.com/pitabwire/util/moneyx"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/events"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"
-	"github.com/antinvestor/service-fintech/pkg/calculation"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/constants"
 	"github.com/antinvestor/service-fintech/pkg/payout"
 	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
-)
-
-const (
-	// offerExpiryHours is the number of hours before a loan offer expires.
-	offerExpiryHours = 72
-	// membershipTypeMember is the membership type value for regular members.
-	membershipTypeMember = int32(3)
-	// statementPageLimit keeps the balance lookup to a single small page: only
-	// the closing balance is read, never the entries.
-	statementPageLimit = 1
 )
 
 // minorUnitsToMoney converts minor units and a currency code to a
@@ -72,7 +58,6 @@ type loanOfferBusiness struct {
 	product     stawiproduct.ProductConfig
 	eventsMan   fevents.Manager
 	loRepo      repository.LoanOfferRepository
-	lwRepo      repository.LoanWindowRepository
 	identityCli identityv1connect.IdentityServiceClient
 	clients     *clients.PlatformClients
 }
@@ -82,7 +67,6 @@ func NewLoanOfferBusiness(
 	product stawiproduct.ProductConfig,
 	eventsMan fevents.Manager,
 	loRepo repository.LoanOfferRepository,
-	lwRepo repository.LoanWindowRepository,
 	identityCli identityv1connect.IdentityServiceClient,
 	pc *clients.PlatformClients,
 ) LoanOfferBusiness {
@@ -90,123 +74,9 @@ func NewLoanOfferBusiness(
 		product:     product,
 		eventsMan:   eventsMan,
 		loRepo:      loRepo,
-		lwRepo:      lwRepo,
 		identityCli: identityCli,
 		clients:     pc,
 	}
-}
-
-func (b *loanOfferBusiness) GenerateForWindow(ctx context.Context, windowID string) (interface{}, error) {
-	logger := util.Log(ctx).WithField("method", "LoanOfferBusiness.GenerateForWindow")
-
-	// Load loan window
-	window, err := b.lwRepo.GetByID(ctx, windowID)
-	if err != nil {
-		return nil, fmt.Errorf("loan window not found: %w", err)
-	}
-
-	if window.State != int32(constants.StateActive) {
-		return nil, fmt.Errorf("loan window is not active (state=%d)", window.State)
-	}
-
-	// Get all active members in the window's group via identity SDK
-	members, err := b.getMembersByGroupID(ctx, window.GroupID)
-	if err != nil {
-		return nil, fmt.Errorf("could not load memberships for group %s: %w", window.GroupID, err)
-	}
-
-	// Check for existing offers in this window to avoid duplicates
-	existingOffers, err := b.loRepo.GetByLoanWindowID(ctx, windowID)
-	if err != nil {
-		logger.WithError(err).Warn("could not check existing offers, proceeding")
-	}
-	existingByMember := make(map[string]bool)
-	for _, offer := range existingOffers {
-		existingByMember[offer.MembershipID] = true
-	}
-
-	if b.clients == nil || b.clients.LedgerClient == nil {
-		return nil, apperrors.NewError(apperrors.ServiceUnavailable,
-			"ledger service is required to price loan offers from member savings")
-	}
-
-	leverage := b.clampLeverage(ctx, window.LeverageHundredths)
-	decimals := moneyx.Decimals(window.Currency)
-
-	var offersGenerated int
-	var maxOfferAmount int64
-	expiryTime := time.Now().Add(offerExpiryHours * time.Hour)
-
-	for _, mem := range members {
-		memberID := mem.GetId()
-
-		// Skip non-regular members (agents, registrars)
-		if mem.GetMembershipType() != membershipTypeMember {
-			continue
-		}
-
-		// Skip if offer already exists for this member in this window
-		if existingByMember[memberID] {
-			logger.WithField("member_id", memberID).Debug("offer already exists, skipping")
-			continue
-		}
-
-		// Price the offer off the member's own accumulated savings balance.
-		// Leveraging a single period's contribution would offer every member
-		// in the group the same loan regardless of what they have saved.
-		savings, balErr := b.memberSavingsBalance(ctx, memberID, window.Currency)
-		if balErr != nil {
-			return nil, fmt.Errorf("could not read savings balance for member %s: %w", memberID, balErr)
-		}
-
-		savingsDec := decimalx.FromMinorUnits(savings, decimals)
-		maxLoanDec := calculation.CalculateMaxLoanAmount(savingsDec, leverage)
-		maxLoan := maxLoanDec.ToMinorUnits(decimals)
-		if maxLoan <= 0 {
-			logger.WithField("member_id", memberID).Debug("max loan is zero, skipping")
-			continue
-		}
-
-		offer := &models.LoanOffer{
-			MembershipID: memberID,
-			LoanWindowID: windowID,
-			PeriodID:     window.PeriodID,
-			Amount:       maxLoan,
-			Currency:     window.Currency,
-			OfferType:    int32(models.LoanOfferTypeOffered),
-			Response:     int32(models.LoanOfferResponseNone),
-			ExpiryDate:   &expiryTime,
-			Description:  fmt.Sprintf("Loan offer for window %s, max amount %d", windowID, maxLoan),
-			State:        int32(constants.StateActive),
-		}
-		offer.GenID(ctx)
-
-		if emitErr := b.eventsMan.Emit(ctx, events.LoanOfferSaveEvent, offer); emitErr != nil {
-			logger.WithError(emitErr).WithField("member_id", memberID).
-				Error("could not create loan offer")
-			continue
-		}
-
-		offersGenerated++
-		if maxLoan > maxOfferAmount {
-			maxOfferAmount = maxLoan
-		}
-	}
-
-	logger.WithField("window_id", windowID).
-		WithField("offers_generated", offersGenerated).
-		WithField("members_processed", len(members)).
-		Info("loan offer generation completed")
-
-	// offer_count and max_amount are what the origination workflow tells the
-	// member; window_id and offers_generated are kept for operators.
-	return map[string]interface{}{
-		"window_id":        windowID,
-		"offers_generated": offersGenerated,
-		"offer_count":      offersGenerated,
-		"max_amount":       maxOfferAmount,
-		fieldCurrency:      window.Currency,
-	}, nil
 }
 
 // Respond records the answer to an offer of the group's. A member answers
@@ -286,34 +156,6 @@ func (b *loanOfferBusiness) authorizeOfferResponse(ctx context.Context, groupID 
 		return apperrors.NewError(apperrors.Forbidden, "a member may only answer their own loan offer")
 	}
 	return nil
-}
-
-// ExpireStale retires every active offer for a member whose expiry date has
-// passed, returning how many were retired. Offers carry an expiry but nothing
-// enforced it, so a member could accept a months-old, mispriced offer.
-func (b *loanOfferBusiness) ExpireStale(ctx context.Context, membershipID string) (int, error) {
-	offers, err := b.loRepo.GetByMembershipID(ctx, membershipID)
-	if err != nil {
-		return 0, err
-	}
-
-	now := time.Now()
-	expired := 0
-	for _, offer := range offers {
-		if offer.State != int32(constants.StateActive) {
-			continue
-		}
-		if offer.ExpiryDate == nil || now.Before(*offer.ExpiryDate) {
-			continue
-		}
-		offer.State = int32(constants.StateInactive)
-		if emitErr := b.eventsMan.Emit(ctx, events.LoanOfferSaveEvent, offer); emitErr != nil {
-			return expired, emitErr
-		}
-		expired++
-	}
-
-	return expired, nil
 }
 
 // CreateLoanAccount turns an accepted offer into a loan request with the
@@ -460,85 +302,6 @@ func (b *loanOfferBusiness) createLoanFromOffer(
 	offer.LoanAccountID = loanResp.GetData().GetId()
 	result["loan_account_id"] = offer.LoanAccountID
 	return nil
-}
-
-// clampLeverage keeps a window's leverage inside the product's configured
-// band. Leverage is stored in hundredths (190 = 1.90x); a value supplied in
-// true basis points would otherwise offer members 190x their savings.
-func (b *loanOfferBusiness) clampLeverage(ctx context.Context, leverage int64) int64 {
-	minLeverage, maxLeverage := b.product.MinLeverage, b.product.MaxLeverage
-	if minLeverage <= 0 || maxLeverage < minLeverage {
-		return leverage
-	}
-	clamped := leverage
-	switch {
-	case clamped < minLeverage:
-		clamped = minLeverage
-	case clamped > maxLeverage:
-		clamped = maxLeverage
-	}
-	if clamped != leverage {
-		util.Log(ctx).WithField("configured", leverage).WithField("applied", clamped).
-			Warn("loan window leverage clamped to product bounds")
-	}
-	return clamped
-}
-
-// memberSavingsBalance reads the closing balance of a member's periodic
-// savings ledger account, in minor units of the window currency.
-func (b *loanOfferBusiness) memberSavingsBalance(
-	ctx context.Context,
-	membershipID, currency string,
-) (int64, error) {
-	resp, err := b.clients.LedgerClient.GetAccountStatement(ctx, &ledgerv1.GetAccountStatementRequest{
-		AccountId: constants.MemberPeriodicSavingsAccount(membershipID),
-		Limit:     statementPageLimit,
-	})
-	if err != nil {
-		return 0, err
-	}
-
-	balance := resp.GetClosingBalance()
-	if balance == nil {
-		return 0, nil
-	}
-	if currency != "" && balance.GetCurrencyCode() != "" && balance.GetCurrencyCode() != currency {
-		return 0, fmt.Errorf(
-			"savings balance currency %s does not match window currency %s",
-			balance.GetCurrencyCode(), currency,
-		)
-	}
-	return moneyx.ToSmallestUnit(balance, moneyx.Decimals(currency)), nil
-}
-
-// getMembersByGroupID fetches group memberships via the identity SDK.
-func (b *loanOfferBusiness) getMembersByGroupID(
-	ctx context.Context,
-	groupID string,
-) ([]*identityv1.MembershipObject, error) {
-	if b.identityCli == nil {
-		return nil, errors.New("identity client not available")
-	}
-
-	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{GroupId: groupID})
-	if err != nil {
-		return nil, err
-	}
-
-	var members []*identityv1.MembershipObject
-	for {
-		msg2, streamErr := stream.Receive()
-		if streamErr != nil {
-			if errors.Is(streamErr, io.EOF) {
-				break
-			}
-			return nil, streamErr
-		}
-		msg := msg2
-		members = append(members, msg.GetData()...)
-	}
-
-	return members, nil
 }
 
 // borrowerForOffer resolves the member behind an offer to the lender's client
