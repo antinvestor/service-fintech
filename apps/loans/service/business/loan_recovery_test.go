@@ -108,3 +108,20 @@ func (c *recordingOperationsClient) snapshot() []*operationsv1.TransferOrderObje
 	defer c.mu.Unlock()
 	return append([]*operationsv1.TransferOrderObject(nil), c.orders...)
 }
+
+// A recovery that cleared the loan closed it before its funders were
+// settled; it is still settled as a recovery, from what the row recorded.
+func TestRecoveryThatClosedTheLoanIsStillSettledAsARecovery(t *testing.T) {
+	la := &loansmodels.LoanAccount{Status: int32(loansv1.LoanStatus_LOAN_STATUS_CLOSED),
+		ProductID: "prod-1", Properties: data.JSONMap{"loan_request_id": "lr-1"}}
+	la.ID = "loan-1"
+	r := &loansmodels.Repayment{CurrencyCode: "KES", PrincipalApplied: 10_000,
+		Properties: data.JSONMap{repaymentRecoveryKey: true}}
+	r.ID = "rep-2"
+	funding := &recoveryFunding{}
+	s := NewFundingSettlement(&stubRepaymentRepo{}, &stubLoanAccountRepo{account: la}, funding)
+
+	require.NoError(t, s.Settle(t.Context(), la, r))
+	assert.Len(t, funding.recoveries, 1)
+	assert.Zero(t, funding.repayments, "never shared out as an ordinary repayment")
+}

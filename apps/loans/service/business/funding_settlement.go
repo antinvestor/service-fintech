@@ -68,7 +68,7 @@ func (s *FundingSettlement) Settle(ctx context.Context, la *models.LoanAccount, 
 		return s.repaymentRepo.MarkFundingSettled(ctx, r.GetID(), "nothing to share")
 	}
 
-	if la.Status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF) {
+	if IsRecovery(r) || la.Status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF) {
 		return s.settleRecovery(ctx, la, r)
 	}
 

@@ -238,6 +238,12 @@ func (b *repaymentBusiness) recordInner(
 		IdempotencyKey:   req.GetIdempotencyKey(),
 		Properties:       data.JSONMap{repaymentAllocationKey: encodeEntryAllocations(alloc.entryAllocations)},
 	}
+	if isWrittenOff(la) {
+		// Recorded with the row: a recovery that clears the loan closes it
+		// before its funders are settled, so the loan's status by then no
+		// longer says it was one.
+		r.Properties[repaymentRecoveryKey] = true
+	}
 	r.GenID(ctx)
 
 	stored, _, claimErr := b.repaymentRepo.ClaimIdempotencyKey(ctx, r)
@@ -326,6 +332,17 @@ func (b *repaymentBusiness) finishRepayment(
 // spread over the installments, so a resumed repayment applies exactly what
 // was allocated when it was recorded.
 const repaymentAllocationKey = "allocation"
+
+// repaymentRecoveryKey marks, on the repayment row, a payment on a
+// written-off loan: its principal goes back to the funders who absorbed the
+// loss, not out as an ordinary repayment share.
+const repaymentRecoveryKey = "recovery"
+
+// IsRecovery reports whether a repayment was recorded on a written-off loan.
+func IsRecovery(r *models.Repayment) bool {
+	recovery, _ := r.Properties[repaymentRecoveryKey].(bool)
+	return recovery
+}
 
 // allocationOf rebuilds the allocation stored on a repayment row.
 func allocationOf(r *models.Repayment) waterfallResult {

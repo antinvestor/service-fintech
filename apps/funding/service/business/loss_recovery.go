@@ -83,8 +83,13 @@ func (b *LossRecoveryBusiness) Apply(ctx context.Context, rec Recovery) (*Recove
 	}
 
 	absorption, err := b.lossRepo.GetByReference(ctx, lossReference(rec.LoanRequestID))
-	if err != nil || absorption == nil {
-		return nil, ErrNoLossToRecover
+	if err != nil {
+		if data.ErrorIsNoRows(err) {
+			return nil, ErrNoLossToRecover
+		}
+		// Anything else is not an answer: the caller retries.
+		return nil, apperrors.NewError(apperrors.ServiceUnavailable,
+			"the loan's loss could not be read; retry the recovery")
 	}
 	absorbed, err := decodeShares(absorption.Properties)
 	if err != nil {
