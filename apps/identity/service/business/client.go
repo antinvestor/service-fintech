@@ -340,9 +340,7 @@ func (b *clientBusiness) saveExisting(
 		if pending, err := b.activate(ctx, existing, scope, consent); err != nil || pending != nil {
 			return pending, err
 		}
-		if scope != nil {
-			b.recordTermsAccepted(client)
-		}
+		b.recordTermsAccepted(client)
 	} else if scope != nil {
 		// A field agent changes a client's state only by activating it.
 		client.State = existing.State
@@ -383,8 +381,8 @@ func (b *clientBusiness) saveExisting(
 }
 
 // activate gates moving a CREATED client to ACTIVE: every KYC field the
-// client's organization requires must be verified, and a field agent must
-// also have the person's consent code (confirmActivation). It returns a
+// client's organization requires must be verified, and whoever activates
+// must have the person's consent code (confirmActivation). It returns a
 // pending response while a code is awaited.
 func (b *clientBusiness) activate(
 	ctx context.Context,
@@ -402,9 +400,8 @@ func (b *clientBusiness) activate(
 	if !reqs.Complete {
 		return nil, ErrClientKYCIncomplete
 	}
-	if scope == nil {
-		return nil, nil //nolint:nilnil // staff activate without a code
-	}
+	// Everyone activates with the person's code: giving it is how they
+	// accept the lending terms, once, for every loan after.
 	return b.confirmActivation(ctx, client, scope, consent)
 }
 

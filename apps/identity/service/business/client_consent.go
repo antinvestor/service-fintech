@@ -87,7 +87,7 @@ func (b *clientBusiness) confirmActivation(
 	}
 
 	challenge, err := b.consentRepo.GetByID(ctx, consent.verificationID)
-	if err != nil || challenge.ProfileID != client.ProfileID || challenge.MemberID != scope.member.GetID() ||
+	if err != nil || challenge.ProfileID != client.ProfileID || challenge.MemberID != consentAsker(ctx, scope) ||
 		consent.code == "" {
 		return nil, ErrClientConsentFailed
 	}
@@ -123,7 +123,7 @@ func (b *clientBusiness) startConsent(
 	challenge := &models.ClientConsentChallenge{
 		ProfileID: client.ProfileID,
 		ContactID: client.ConsentContactID,
-		MemberID:  scope.member.GetID(),
+		MemberID:  consentAsker(ctx, scope),
 		ExpiresAt: now.Add(consentCodeTTL),
 	}
 	challenge.GenID(ctx)
@@ -172,4 +172,13 @@ func registeredContactID(profile *profilev1.ProfileObject) string {
 		}
 	}
 	return ""
+}
+
+// consentAsker is who asked for a person's code: the field agent's workforce
+// member, or for staff their own identity. Only the asker can redeem it.
+func consentAsker(ctx context.Context, scope *callerScope) string {
+	if scope != nil {
+		return scope.member.GetID()
+	}
+	return actorFromClaims(ctx)
 }

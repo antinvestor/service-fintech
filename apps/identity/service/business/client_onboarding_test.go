@@ -461,23 +461,38 @@ func (s *approvalWorkflowSuite) TestActivationNeedsVerifiedKYCAndConsent() {
 	_, err = activateGuarded(map[string]any{consentVerificationIDKey: gid, consentCodeKey: "123456"})
 	s.Require().ErrorIs(err, ErrClientConsentFailed, "the right code after the budget is spent activates nobody")
 
-	// Staff activate without a code, but not before KYC is verified.
+	// Staff activate with the person's code too, and not before KYC is
+	// verified: acceptance of the terms holds for every borrower.
 	staffClient, err := env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{Name: "Back Office",
 		OwningTeamId: guarded.GetOwningTeamId(),
 		Properties:   propertiesStruct(map[string]any{clientPhoneNumberKey: "+256701000777"})})
 	s.Require().NoError(err)
 	s.Require().Equal(commonv1.STATE_CREATED, staffClient.GetState())
-	staffActivate := func() (*fieldv1.ClientObject, error) {
+	staffActivate := func(props map[string]any) (*fieldv1.ClientObject, error) {
 		return env.clientBusiness.Save(env.ctx, &fieldv1.ClientObject{Id: staffClient.GetId(),
-			Name: "Back Office", OwningTeamId: staffClient.GetOwningTeamId(), State: commonv1.STATE_ACTIVE})
+			Name: "Back Office", OwningTeamId: staffClient.GetOwningTeamId(), State: commonv1.STATE_ACTIVE,
+			Properties: propertiesStruct(props)})
 	}
-	_, err = staffActivate()
+	_, err = staffActivate(map[string]any{})
 	s.Require().ErrorIs(err, ErrClientKYCIncomplete)
 	env.verifyKYC(staffClient.GetId(), "national_id")
 	env.verifyKYC(staffClient.GetId(), "date_of_birth")
-	staffActive, err := staffActivate()
+	staffPending, err := staffActivate(map[string]any{})
+	s.Require().NoError(err)
+	s.Require().Equal(commonv1.STATE_CREATED, staffPending.GetState(), "staff wait for the person's code too")
+	sid := staffPending.GetProperties().AsMap()[consentVerificationIDKey].(string)
+	s.Require().NotEmpty(sid)
+
+	_, err = env.clientBusiness.Save(asAgent, &fieldv1.ClientObject{Id: staffClient.GetId(),
+		Name: "Back Office", State: commonv1.STATE_ACTIVE,
+		Properties: propertiesStruct(map[string]any{consentVerificationIDKey: sid, consentCodeKey: "123456"})})
+	s.Require().ErrorIs(err, ErrClientConsentFailed, "only whoever asked for the code can redeem it")
+
+	staffActive, err := staffActivate(map[string]any{consentVerificationIDKey: sid, consentCodeKey: "123456"})
 	s.Require().NoError(err)
 	s.Require().Equal(commonv1.STATE_ACTIVE, staffActive.GetState())
+	s.NotEmpty(staffActive.GetProperties().AsMap()[termsAcceptedAtKey],
+		"staff-activated borrowers accept the terms too")
 }
 
 // Each organization sets its own requirements; a child organization without

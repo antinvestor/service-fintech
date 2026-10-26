@@ -839,8 +839,13 @@ closed by this decision.
   sent by a caller are dropped.
 - Loans after activation need nothing more from the borrower: the USSD
   borrow PIN authenticates the borrower but is not an acceptance step.
-- *Open.* Staff still activate without a code, so a staff-activated
-  borrower has no recorded acceptance.
+- Acceptance holds for everyone (product owner, 2026-10-26). Staff now
+  activate with the person's code too. Only whoever asked for a code can
+  redeem it: a field agent's workforce member, or the staff member
+  themselves. The console's activation already prompted for the code, so it
+  needed no change.
 
 **Verified.** `TestActivationNeedsVerifiedKYCAndConsent` covers recorded
-acceptance and a forged timestamp being dropped.
+acceptance, a forged timestamp being dropped, staff waiting for the code and
+recording acceptance, and an agent being unable to redeem a staff member's
+code.
