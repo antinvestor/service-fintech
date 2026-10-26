@@ -937,11 +937,17 @@ order type with no payout. Nothing ever paid the investor.
   anything: the profile from identity and its first verified mobile contact,
   by id (`InvestorPayoutResolver`). It names them on the order. Without a
   resolver or a contact, the withdrawal is refused and nothing moves.
+- A failed transfer returns the investor's funds only when operations
+  refused it outright (invalid argument, failed precondition, not found or
+  permission denied), meaning nothing moved. A timeout or a payout awaiting
+  confirmation keeps the movement debited, so those funds cannot be
+  withdrawn again. Retrying the same key resumes the same order.
 - The withdrawal limits gate stays, because this money is leaving.
 - ui_funding: Withdraw says where the money goes.
 - No new grants: funding already holds `investor_view` and `profile_view`.
 
 **Verified.** funding `TestWithdrawIsIdempotentAndGuardsTheBalance` (the
 order is a payout to the investor's contact) and
-`TestWithdrawWithoutAPayoutContactMovesNothing`; operations
+`TestWithdrawWithoutAPayoutContactMovesNothing`,
+`TestWithdrawKeepsFundsDebitedUntilThePayoutIsKnown`; operations
 `TestPayout_InvestorWithdrawalGoesToTheInvestorsOwnContact`.

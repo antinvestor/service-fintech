@@ -24,6 +24,7 @@ import (
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
+	"connectrpc.com/connect/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3"
 	"github.com/pitabwire/frame/v3/datastore"
@@ -616,4 +617,52 @@ func (s *fundingSuite) TestEligibleForLoanComparesRatesInBasisPoints() {
 	s.True(ids[exactlyTwelveAndAHalf.GetID()], "a minimum equal to the loan rate is eligible")
 	s.False(ids[fifteenPercent.GetID()], "a 15%% minimum must exclude a 12.50%% loan")
 	s.Len(eligible, 3)
+}
+
+// failingOperations fails each transfer with the next queued error, then
+// succeeds.
+type failingOperations struct {
+	countingOperationsClient
+	errs []error
+}
+
+func (f *failingOperations) TransferOrderExecute(
+	ctx context.Context,
+	req *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
+	if len(f.errs) > 0 {
+		err := f.errs[0]
+		f.errs = f.errs[1:]
+		return nil, err
+	}
+	return f.countingOperationsClient.TransferOrderExecute(ctx, req)
+}
+
+// A payout whose outcome is unknown may have paid the investor: the funds
+// stay debited, so they can never be withdrawn twice, and a retry under the
+// same key completes it once. A payout refused outright gives them back.
+func (s *fundingSuite) TestWithdrawKeepsFundsDebitedUntilThePayoutIsKnown() {
+	e := s.newEnv()
+	account := e.seedInvestor(s, "KES", 100000)
+	ops := &failingOperations{errs: []error{connect.NewError(connect.CodeUnavailable, "rail timeout")}}
+	biz := business.NewInvestorAccountBusiness(e.ctx, nil, e.iaRepo, e.icmRepo, ops,
+		audit.NewWriter(nil), nil, false, "off", business.WithInvestorPayouts(fixedPayout{}))
+
+	s.Require().Error(biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-unknown"))
+	held, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(60000), held.AvailableBalance, "an unknown outcome keeps the funds out of reach")
+
+	s.Require().NoError(biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-unknown"))
+	done, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(60000), done.AvailableBalance, "the retry completes the same withdrawal, debiting once")
+
+	refused := &failingOperations{errs: []error{connect.NewError(connect.CodeFailedPrecondition, "rail rejected")}}
+	biz = business.NewInvestorAccountBusiness(e.ctx, nil, e.iaRepo, e.icmRepo, refused,
+		audit.NewWriter(nil), nil, false, "off", business.WithInvestorPayouts(fixedPayout{}))
+	s.Require().Error(biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-refused"))
+	back, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(60000), back.AvailableBalance, "a refused payout gives the funds back")
 }

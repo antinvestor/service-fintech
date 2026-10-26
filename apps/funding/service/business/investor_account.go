@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"connectrpc.com/connect/v2"
+
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -496,11 +498,19 @@ func (b *investorAccountBusiness) withdrawInner(
 			"payment_channel":      "mobile_money",
 		},
 	); toErr != nil {
-		// Hand the funds back and return the movement to pending so a retry
-		// runs the whole flow again from a balance that never moved.
+		// Only a refusal means nothing moved: the payout was checked and
+		// turned down, or the rail rejected it and operations reversed the
+		// ledger. Then the funds go back and a retry starts afresh. Any
+		// other failure (a timeout, a payout awaiting confirmation) may
+		// have paid the investor, so the movement stays debited; retrying
+		// the same key resumes it on the same order and never pays twice.
+		if !payoutRefused(toErr) {
+			logger.WithError(toErr).Warn("investor withdrawal outcome unknown; kept debited for a retry")
+			return toErr
+		}
 		if revertErr := b.icmRepo.RevertWithdrawalDebit(ctx, movement); revertErr != nil {
 			logger.WithError(revertErr).
-				Error("could not roll back investor withdrawal after transfer-order failure")
+				Error("could not roll back investor withdrawal after a refused payout")
 		}
 		return toErr
 	}
@@ -657,4 +667,16 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 		return fmt.Errorf("investor transfer order %s failed: %w", reference, execErr)
 	}
 	return nil
+}
+
+// payoutRefused reports whether operations refused a payout outright, so no
+// money left: the refusal codes of the payout error contract.
+func payoutRefused(err error) bool {
+	switch connect.CodeOf(err) { //nolint:exhaustive // only refusal codes matter
+	case connect.CodeInvalidArgument, connect.CodeFailedPrecondition,
+		connect.CodeNotFound, connect.CodePermissionDenied:
+		return true
+	default:
+		return false
+	}
 }
