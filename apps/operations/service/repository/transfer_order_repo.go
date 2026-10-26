@@ -120,10 +120,12 @@ type TransferOrderRepository interface {
 	// or reached the rail cannot be declared failed; it must be reversed.
 	MarkFailedIfUnposted(ctx context.Context, orderID string) (bool, error)
 
-	// ListUnexecutedBorrowerRepayments returns up to limit repayment orders
-	// raised from an individual borrower's payment that have not been
-	// posted and that nobody has touched since before.
-	ListUnexecutedBorrowerRepayments(ctx context.Context, before time.Time, limit int) ([]*models.TransferOrder, error)
+	// ListUnexecutedAllocations returns up to limit orders a payment
+	// allocation raised that have not been posted and that nobody has
+	// touched since before: an individual borrower's repayment, a group
+	// member's payment moved into their suspense, and what that suspense
+	// paid towards the member's obligations.
+	ListUnexecutedAllocations(ctx context.Context, before time.Time, limit int) ([]*models.TransferOrder, error)
 }
 
 // NewTransferOrderRepository creates a new TransferOrderRepository.
@@ -453,23 +455,30 @@ func (r *transferOrderRepository) ConsumeObligationForOrder(
 // already marked: the obligation debit above is rolled back with it.
 var errOrderAlreadyConsumed = errors.New("transfer order already marked consumed")
 
-// borrowerRepaymentReference matches the reference an individual borrower's
-// payment allocation gives its order ("payment:<id>:loan:<id>"). Group
-// allocations ("payment:<id>:obligation:<id>") are executed by their own
-// workflows and are left alone.
-const borrowerRepaymentReference = "payment:%:loan:%"
+// Allocation order references ("payment:<id>:loan:<id>" for a borrower's
+// repayment, "payment:<id>:member:<id>" for a member's payment moved into
+// their suspense, "payment:<id>:obligation:<id>" for what the suspense paid).
+// Obligation orders count only when marked suspense-funded: older ones were
+// left to the group workflows and their suspense was never funded here.
+const (
+	borrowerRepaymentReference = "payment:%:loan:%"
+	memberSuspenseReference    = "payment:%:member:%"
+	memberObligationReference  = "payment:%:obligation:%"
+)
 
-func (r *transferOrderRepository) ListUnexecutedBorrowerRepayments(
+func (r *transferOrderRepository) ListUnexecutedAllocations(
 	ctx context.Context,
 	before time.Time,
 	limit int,
 ) ([]*models.TransferOrder, error) {
 	var orders []*models.TransferOrder
 	err := r.dbPool.DB(ctx, true).
-		Where("deleted_at IS NULL AND state IN ? AND extra_data ->> 'source' = ? AND reference LIKE ? "+
-			"AND modified_at < ?",
+		Where("deleted_at IS NULL AND state IN ? AND extra_data ->> 'source' = ? AND modified_at < ?",
 			[]int32{int32(constants.StateJustCreated), int32(constants.StateCheckCreated)},
-			"payment_allocation", borrowerRepaymentReference, before.UTC()).
+			"payment_allocation", before.UTC()).
+		Where("(reference LIKE ? OR reference LIKE ? OR "+
+			"(reference LIKE ? AND extra_data ->> 'suspense_funded' = 'true'))",
+			borrowerRepaymentReference, memberSuspenseReference, memberObligationReference).
 		Order("modified_at").
 		Limit(limit).
 		Find(&orders).Error

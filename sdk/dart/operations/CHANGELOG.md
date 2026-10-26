@@ -1,3 +1,9 @@
+## 0.4.8
+
+- `GroupObligationsRaise` and `GroupPeriodClose`: the group service raises a
+  period's member savings obligations in operations and closes the period,
+  charging each member still owing a penalty once. Service accounts only.
+
 ## 0.4.7
 
 - `OperationsJob.OPERATIONS_JOB_RECONCILE_PAYOUTS`: asks the payment service

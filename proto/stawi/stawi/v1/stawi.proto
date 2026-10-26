@@ -59,12 +59,6 @@ message GroupPeriodRequest {
   string period_id = 2;
 }
 
-// GroupMemberRequest addresses a member within a group.
-message GroupMemberRequest {
-  string group_id = 1;
-  string member_id = 2;
-}
-
 // GroupLoanOfferRequest acts on an accepted loan offer.
 // LoanOfferRespondRequest answers a loan offer. response is 1 accept,
 // 2 reject; other answers are recorded as given and close the offer.
@@ -77,13 +71,6 @@ message LoanOfferRespondRequest {
 message GroupLoanOfferRequest {
   string group_id = 1;
   string offer_id = 2;
-}
-
-// GroupMemberApplySuspenseRequest applies suspense funds to obligations.
-message GroupMemberApplySuspenseRequest {
-  string group_id = 1;
-  string member_id = 2;
-  int64 max_amount = 3;
 }
 
 // CallbackResponse is the loosely typed JSON body every callback returns.
@@ -103,13 +90,10 @@ service StawiWorkflowService {
       "stawi_group_manage",
       "stawi_tenure_manage",
       "stawi_period_manage",
-      "stawi_obligation_view",
       "stawi_obligation_manage",
       "stawi_loan_window_manage",
       "stawi_loan_offer_respond",
-      "stawi_loan_create",
-      "stawi_payment_view",
-      "stawi_payment_allocate"
+      "stawi_loan_create"
     ]
     role_bindings: [
       {
@@ -119,13 +103,10 @@ service StawiWorkflowService {
           "stawi_group_manage",
           "stawi_tenure_manage",
           "stawi_period_manage",
-          "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_create",
-          "stawi_payment_view",
-          "stawi_payment_allocate"
+          "stawi_loan_create"
         ]
       },
       {
@@ -135,13 +116,10 @@ service StawiWorkflowService {
           "stawi_group_manage",
           "stawi_tenure_manage",
           "stawi_period_manage",
-          "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_create",
-          "stawi_payment_view",
-          "stawi_payment_allocate"
+          "stawi_loan_create"
         ]
       },
       {
@@ -151,30 +129,21 @@ service StawiWorkflowService {
           "stawi_group_manage",
           "stawi_tenure_manage",
           "stawi_period_manage",
-          "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_create",
-          "stawi_payment_view",
-          "stawi_payment_allocate"
+          "stawi_loan_create"
         ]
       },
       {
         role: ROLE_VIEWER
-        permissions: [
-          "stawi_group_view",
-          "stawi_obligation_view",
-          "stawi_payment_view"
-        ]
+        permissions: ["stawi_group_view"]
       },
       {
         role: ROLE_MEMBER
         permissions: [
           "stawi_loan_offer_respond",
-          "stawi_group_view",
-          "stawi_obligation_view",
-          "stawi_payment_view"
+          "stawi_group_view"
         ]
       },
       {
@@ -184,13 +153,10 @@ service StawiWorkflowService {
           "stawi_group_manage",
           "stawi_tenure_manage",
           "stawi_period_manage",
-          "stawi_obligation_view",
           "stawi_obligation_manage",
           "stawi_loan_window_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_create",
-          "stawi_payment_view",
-          "stawi_payment_allocate"
+          "stawi_loan_create"
         ]
       }
     ]
@@ -301,6 +267,9 @@ service StawiWorkflowService {
 
   // --- Obligations ---
 
+  // ObligationCalculate raises the period's savings obligation for every
+  // member in operations, which applies money they already paid. Calling it
+  // again raises nothing new and reports who still owes.
   rpc ObligationCalculate(GroupPeriodRequest) returns (CallbackResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["stawi_obligation_manage"]
@@ -310,15 +279,8 @@ service StawiWorkflowService {
       body: "*"
     };
   }
-  rpc ObligationCalculatePenalties(GroupPeriodRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/periods/{period_id}/calculate-penalties"
-      body: "*"
-    };
-  }
+  // ObligationReconcilePeriod closes the period's obligations in operations:
+  // each member still owing is fined once, and the statement is returned.
   rpc ObligationReconcilePeriod(GroupPeriodRequest) returns (CallbackResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["stawi_obligation_manage"]
@@ -327,13 +289,6 @@ service StawiWorkflowService {
       post: "/api/v1/groups/{group_id}/periods/{period_id}/reconcile"
       body: "*"
     };
-  }
-  rpc ObligationOutstandingForPeriod(GroupPeriodRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/periods/{period_id}/outstanding-obligations"};
   }
 
   // --- Loan windows and offers ---
@@ -373,25 +328,6 @@ service StawiWorkflowService {
     };
     option (google.api.http) = {
       post: "/api/v1/groups/{group_id}/loans"
-      body: "*"
-    };
-  }
-
-  // --- Suspense ---
-
-  rpc SuspenseBalance(GroupMemberRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/members/{member_id}/suspense-balance"};
-  }
-  rpc SuspenseApply(GroupMemberApplySuspenseRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/members/{member_id}/apply-suspense"
       body: "*"
     };
   }

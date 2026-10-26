@@ -22,18 +22,13 @@ import (
 	"github.com/pitabwire/util"
 	"gorm.io/gorm"
 
-	opsmodels "github.com/antinvestor/service-fintech/apps/operations/service/models"
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
 
-// Migrate runs database migrations for all group models.
-//
-// Stawi also reads and writes the operations tables (transfer orders,
-// obligations, incoming payments, account refs, CBS sync records) on the same
-// database, so it migrates them too rather than depending on the operations
-// service having run first.
+// Migrate runs database migrations for all group models. Obligations and the
+// money that settles them live in operations, not here.
 func Migrate(ctx context.Context, dbManager datastore.Manager, migrationsDirPath string) error {
 	dbPool, err := dbmigrate.Pool(ctx, dbManager)
 	if err != nil {
@@ -55,12 +50,6 @@ func migratePool(ctx context.Context, dbPool pool.Pool, migrationsDirPath string
 		&models.RequestLog{},
 		&models.LoanWindow{},
 		&models.LoanOffer{},
-		&opsmodels.TransferOrder{},
-		&opsmodels.Obligation{},
-		&opsmodels.IncomingPayment{},
-		&opsmodels.AccountRef{},
-		&opsmodels.LedgerRef{},
-		&opsmodels.CBSSyncRecord{},
 		&audit.Event{},
 	); err != nil {
 		return err
@@ -77,7 +66,7 @@ func MigrateForTest(ctx context.Context, dbPool pool.Pool) error {
 
 // postMigrate applies schema constraints AutoMigrate cannot express: the
 // partial unique indexes that back the idempotency and single-writer
-// guarantees in the stawi and shared operations tables.
+// guarantees in the stawi tables.
 func postMigrate(ctx context.Context, dbPool pool.Pool) error {
 	db := dbPool.DB(ctx, false)
 	if db == nil {
@@ -96,13 +85,6 @@ func postMigrate(ctx context.Context, dbPool pool.Pool) error {
 		name, table, column, where string
 	}{
 		{"uq_periods_parent_period_id", "periods", "parent_period_id", "parent_period_id <> ''"},
-		{"uq_transfer_orders_reference", "transfer_orders", "reference", "reference <> ''"},
-		{
-			"uq_incoming_payments_transaction_id",
-			"incoming_payments",
-			"transaction_id",
-			"transaction_id <> ''",
-		},
 	}
 	for _, idx := range indexes {
 		if err := createPartialUniqueIndex(db, idx.name, idx.table, idx.column, idx.where); err != nil {

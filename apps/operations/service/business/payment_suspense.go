@@ -297,7 +297,7 @@ func (b *paymentRoutingBusiness) applySuspensePayment(
 		return 0, fmt.Errorf("could not retrieve obligations for member: %w", err)
 	}
 
-	leftover, _ := b.runAllocationBuckets(
+	leftover, allocations := b.runAllocationBuckets(
 		ctx, logger, buckets, obligations, fresh, fresh.GetID(), membershipID, available,
 	)
 	consumed := available - leftover
@@ -315,5 +315,7 @@ func (b *paymentRoutingBusiness) applySuspensePayment(
 	} else if !landed {
 		logger.WithField(fieldPaymentID, fresh.GetID()).Warn("suspense outcome not recorded: lease was taken over")
 	}
+	// The suspense was funded when the payment was first allocated.
+	b.executeMemberOrders(ctx, logger, "", allocations)
 	return consumed, nil
 }

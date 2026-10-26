@@ -41,8 +41,7 @@ type Businesses struct {
 	Period     groupbusiness.PeriodBusiness
 	LoanWindow LoanWindowBusiness
 	LoanOffer  LoanOfferBusiness
-	Payment    PaymentRoutingBusiness
-	Obligation ObligationBusiness
+	Obligation GroupObligationBusiness
 }
 
 // RegisterWorkflowCallbacks registers every workflow callback HTTP endpoint.
@@ -76,7 +75,6 @@ func RegisterWorkflowCallbacks(mux *http.ServeMux, biz Businesses) {
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/loans", handleCreateLoanAccount(biz))
 
 	registerPeriodRoutes(mux, biz)
-	registerSuspenseRoutes(mux, biz)
 }
 
 // registerPeriodRoutes wires the period close and reconciliation callbacks.
@@ -84,27 +82,6 @@ func registerPeriodRoutes(mux *http.ServeMux, biz Businesses) {
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/periods/{periodId}/freeze", handleFreezePeriod(biz))
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/periods/{periodId}/extend", handleExtendPeriod(biz))
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/periods/{periodId}/reconcile", handleReconcilePeriod(biz))
-	mux.HandleFunc(
-		"POST /api/v1/groups/{groupId}/periods/{periodId}/calculate-penalties",
-		handleCalculatePenalties(biz),
-	)
-	mux.HandleFunc(
-		"GET /api/v1/groups/{groupId}/periods/{periodId}/outstanding-obligations",
-		handleOutstandingObligations(biz),
-	)
-}
-
-// registerSuspenseRoutes wires the callbacks that read and apply a member's
-// suspense balance.
-func registerSuspenseRoutes(mux *http.ServeMux, biz Businesses) {
-	mux.HandleFunc(
-		"GET /api/v1/groups/{groupId}/members/{memberId}/suspense-balance",
-		handleSuspenseBalance(biz),
-	)
-	mux.HandleFunc(
-		"POST /api/v1/groups/{groupId}/members/{memberId}/apply-suspense",
-		handleApplySuspense(biz),
-	)
 }
 
 // --- Group lifecycle ---
@@ -214,7 +191,7 @@ func handleClosePeriod(biz Businesses) http.HandlerFunc {
 
 func handleCalculateObligations(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		result, err := biz.Obligation.CalculateForGroup(r.Context(), r.PathValue(paramGroupID))
+		result, err := biz.Obligation.Raise(r.Context(), r.PathValue(paramGroupID), r.PathValue(paramPeriodID))
 		respond(w, r, "calculate-obligations", result, err)
 	}
 }

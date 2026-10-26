@@ -64,4 +64,24 @@ abstract final class OperationsService {
     operationsv1operations.OperationsJobRunRequest.new,
     operationsv1operations.OperationsJobRunResponse.new,
   );
+
+  /// GroupObligationsRaise raises a group period's savings obligations and
+  /// applies money the members already paid. Called by the group service; only
+  /// service accounts hold the permission. Retrying raises nothing new.
+  static const groupObligationsRaise = connect.Spec(
+    '/$name/GroupObligationsRaise',
+    connect.StreamType.unary,
+    operationsv1operations.GroupObligationsRaiseRequest.new,
+    operationsv1operations.GroupObligationsRaiseResponse.new,
+  );
+
+  /// GroupPeriodClose applies money members paid, charges the penalty to
+  /// each member still owing, and reports the period's statement. Called by
+  /// the group service; retrying charges no second penalty.
+  static const groupPeriodClose = connect.Spec(
+    '/$name/GroupPeriodClose',
+    connect.StreamType.unary,
+    operationsv1operations.GroupPeriodCloseRequest.new,
+    operationsv1operations.GroupPeriodCloseResponse.new,
+  );
 }

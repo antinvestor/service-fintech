@@ -41,6 +41,11 @@ type StawiConfig struct {
 	SavingsServiceURI                   string `envDefault:"127.0.0.1:7012"                 env:"SAVINGS_SERVICE_URI"`
 	SavingsServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-savings" env:"SAVINGS_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
+	// Operations service: owns members' obligations and the money that
+	// settles them. Stawi raises and closes a period's obligations there.
+	OperationsServiceURI                   string `envDefault:"127.0.0.1:7060"                    env:"OPERATIONS_SERVICE_URI"`
+	OperationsServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-operations" env:"OPERATIONS_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
 	// Ledger service
 	LedgerServiceURI                   string `envDefault:"127.0.0.1:7020"               env:"LEDGER_SERVICE_URI"`
 	LedgerServiceWorkloadAPITargetPath string `envDefault:"/ns/ledger/sa/service-ledger" env:"LEDGER_SERVICE_WORKLOAD_API_TARGET_PATH"`

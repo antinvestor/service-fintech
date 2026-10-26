@@ -197,59 +197,6 @@ func (x *GroupPeriodRequest) GetPeriodId() string {
 	return ""
 }
 
-// GroupMemberRequest addresses a member within a group.
-type GroupMemberRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	MemberId      string                 `protobuf:"bytes,2,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GroupMemberRequest) Reset() {
-	*x = GroupMemberRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GroupMemberRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GroupMemberRequest) ProtoMessage() {}
-
-func (x *GroupMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GroupMemberRequest.ProtoReflect.Descriptor instead.
-func (*GroupMemberRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *GroupMemberRequest) GetGroupId() string {
-	if x != nil {
-		return x.GroupId
-	}
-	return ""
-}
-
-func (x *GroupMemberRequest) GetMemberId() string {
-	if x != nil {
-		return x.MemberId
-	}
-	return ""
-}
-
 // GroupLoanOfferRequest acts on an accepted loan offer.
 // LoanOfferRespondRequest answers a loan offer. response is 1 accept,
 // 2 reject; other answers are recorded as given and close the offer.
@@ -264,7 +211,7 @@ type LoanOfferRespondRequest struct {
 
 func (x *LoanOfferRespondRequest) Reset() {
 	*x = LoanOfferRespondRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[4]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -276,7 +223,7 @@ func (x *LoanOfferRespondRequest) String() string {
 func (*LoanOfferRespondRequest) ProtoMessage() {}
 
 func (x *LoanOfferRespondRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[4]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -289,7 +236,7 @@ func (x *LoanOfferRespondRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoanOfferRespondRequest.ProtoReflect.Descriptor instead.
 func (*LoanOfferRespondRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{4}
+	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LoanOfferRespondRequest) GetGroupId() string {
@@ -323,7 +270,7 @@ type GroupLoanOfferRequest struct {
 
 func (x *GroupLoanOfferRequest) Reset() {
 	*x = GroupLoanOfferRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[5]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -335,7 +282,7 @@ func (x *GroupLoanOfferRequest) String() string {
 func (*GroupLoanOfferRequest) ProtoMessage() {}
 
 func (x *GroupLoanOfferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[5]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -348,7 +295,7 @@ func (x *GroupLoanOfferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupLoanOfferRequest.ProtoReflect.Descriptor instead.
 func (*GroupLoanOfferRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{5}
+	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GroupLoanOfferRequest) GetGroupId() string {
@@ -365,67 +312,6 @@ func (x *GroupLoanOfferRequest) GetOfferId() string {
 	return ""
 }
 
-// GroupMemberApplySuspenseRequest applies suspense funds to obligations.
-type GroupMemberApplySuspenseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	MemberId      string                 `protobuf:"bytes,2,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
-	MaxAmount     int64                  `protobuf:"varint,3,opt,name=max_amount,json=maxAmount,proto3" json:"max_amount,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GroupMemberApplySuspenseRequest) Reset() {
-	*x = GroupMemberApplySuspenseRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GroupMemberApplySuspenseRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GroupMemberApplySuspenseRequest) ProtoMessage() {}
-
-func (x *GroupMemberApplySuspenseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GroupMemberApplySuspenseRequest.ProtoReflect.Descriptor instead.
-func (*GroupMemberApplySuspenseRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *GroupMemberApplySuspenseRequest) GetGroupId() string {
-	if x != nil {
-		return x.GroupId
-	}
-	return ""
-}
-
-func (x *GroupMemberApplySuspenseRequest) GetMemberId() string {
-	if x != nil {
-		return x.MemberId
-	}
-	return ""
-}
-
-func (x *GroupMemberApplySuspenseRequest) GetMaxAmount() int64 {
-	if x != nil {
-		return x.MaxAmount
-	}
-	return 0
-}
-
 // CallbackResponse is the loosely typed JSON body every callback returns.
 type CallbackResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -436,7 +322,7 @@ type CallbackResponse struct {
 
 func (x *CallbackResponse) Reset() {
 	*x = CallbackResponse{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[7]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -448,7 +334,7 @@ func (x *CallbackResponse) String() string {
 func (*CallbackResponse) ProtoMessage() {}
 
 func (x *CallbackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[7]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -461,7 +347,7 @@ func (x *CallbackResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallbackResponse.ProtoReflect.Descriptor instead.
 func (*CallbackResponse) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{7}
+	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CallbackResponse) GetData() *structpb.Struct {
@@ -484,24 +370,16 @@ const file_stawi_v1_stawi_proto_rawDesc = "" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\"L\n" +
 	"\x12GroupPeriodRequest\x12\x19\n" +
 	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x1b\n" +
-	"\tperiod_id\x18\x02 \x01(\tR\bperiodId\"L\n" +
-	"\x12GroupMemberRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x1b\n" +
-	"\tmember_id\x18\x02 \x01(\tR\bmemberId\"k\n" +
+	"\tperiod_id\x18\x02 \x01(\tR\bperiodId\"k\n" +
 	"\x17LoanOfferRespondRequest\x12\x19\n" +
 	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x19\n" +
 	"\boffer_id\x18\x02 \x01(\tR\aofferId\x12\x1a\n" +
 	"\bresponse\x18\x03 \x01(\x05R\bresponse\"M\n" +
 	"\x15GroupLoanOfferRequest\x12\x19\n" +
 	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x19\n" +
-	"\boffer_id\x18\x02 \x01(\tR\aofferId\"x\n" +
-	"\x1fGroupMemberApplySuspenseRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x1b\n" +
-	"\tmember_id\x18\x02 \x01(\tR\bmemberId\x12\x1d\n" +
-	"\n" +
-	"max_amount\x18\x03 \x01(\x03R\tmaxAmount\"?\n" +
+	"\boffer_id\x18\x02 \x01(\tR\aofferId\"?\n" +
 	"\x10CallbackResponse\x12+\n" +
-	"\x04data\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x04data2\xa6&\n" +
+	"\x04data\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x04data2\x82\x1d\n" +
 	"\x14StawiWorkflowService\x12\x97\x01\n" +
 	"\x13GroupCheckFormation\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"L\x82\xb5\x18\x14\n" +
 	"\x12stawi_group_manage\x82\xd3\xe4\x93\x02.:\x01*\")/api/v1/groups/{group_id}/check-formation\x12\x91\x01\n" +
@@ -528,13 +406,9 @@ const file_stawi_v1_stawi_proto_rawDesc = "" +
 	"\fPeriodExtend\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"X\x82\xb5\x18\x15\n" +
 	"\x13stawi_period_manage\x82\xd3\xe4\x93\x029:\x01*\"4/api/v1/groups/{group_id}/periods/{period_id}/extend\x12\xbc\x01\n" +
 	"\x13ObligationCalculate\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"k\x82\xb5\x18\x19\n" +
-	"\x17stawi_obligation_manage\x82\xd3\xe4\x93\x02H:\x01*\"C/api/v1/groups/{group_id}/periods/{period_id}/calculate-obligations\x12\xc3\x01\n" +
-	"\x1cObligationCalculatePenalties\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"i\x82\xb5\x18\x19\n" +
-	"\x17stawi_obligation_manage\x82\xd3\xe4\x93\x02F:\x01*\"A/api/v1/groups/{group_id}/periods/{period_id}/calculate-penalties\x12\xb6\x01\n" +
+	"\x17stawi_obligation_manage\x82\xd3\xe4\x93\x02H:\x01*\"C/api/v1/groups/{group_id}/periods/{period_id}/calculate-obligations\x12\xb6\x01\n" +
 	"\x19ObligationReconcilePeriod\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"_\x82\xb5\x18\x19\n" +
-	"\x17stawi_obligation_manage\x82\xd3\xe4\x93\x02<:\x01*\"7/api/v1/groups/{group_id}/periods/{period_id}/reconcile\x12\xc7\x01\n" +
-	"\x1eObligationOutstandingForPeriod\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"k\x82\xb5\x18\x17\n" +
-	"\x15stawi_obligation_view\x82\xd3\xe4\x93\x02G\x12E/api/v1/groups/{group_id}/periods/{period_id}/outstanding-obligations\x90\x02\x01\x12\xa1\x01\n" +
+	"\x17stawi_obligation_manage\x82\xd3\xe4\x93\x02<:\x01*\"7/api/v1/groups/{group_id}/periods/{period_id}/reconcile\x12\xa1\x01\n" +
 	"\x12LoanWindowEvaluate\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"W\x82\xb5\x18\x1a\n" +
 	"\x18stawi_loan_window_manage\x82\xd3\xe4\x93\x023:\x01*\"./api/v1/groups/{group_id}/evaluate-loan-window\x12\x99\x01\n" +
 	"\x0eLoanWindowOpen\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"S\x82\xb5\x18\x1a\n" +
@@ -542,13 +416,8 @@ const file_stawi_v1_stawi_proto_rawDesc = "" +
 	"\x10LoanOfferRespond\x12!.stawi.v1.LoanOfferRespondRequest\x1a\x1a.stawi.v1.CallbackResponse\"a\x82\xb5\x18\x1a\n" +
 	"\x18stawi_loan_offer_respond\x82\xd3\xe4\x93\x02=:\x01*\"8/api/v1/groups/{group_id}/loan-offers/{offer_id}/respond\x12\x93\x01\n" +
 	"\x11LoanAccountCreate\x12\x1f.stawi.v1.GroupLoanOfferRequest\x1a\x1a.stawi.v1.CallbackResponse\"A\x82\xb5\x18\x13\n" +
-	"\x11stawi_loan_create\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/api/v1/groups/{group_id}/loans\x12\xae\x01\n" +
-	"\x0fSuspenseBalance\x12\x1c.stawi.v1.GroupMemberRequest\x1a\x1a.stawi.v1.CallbackResponse\"a\x82\xb5\x18\x14\n" +
-	"\x12stawi_payment_view\x82\xd3\xe4\x93\x02@\x12>/api/v1/groups/{group_id}/members/{member_id}/suspense-balance\x90\x02\x01\x12\xbb\x01\n" +
-	"\rSuspenseApply\x12).stawi.v1.GroupMemberApplySuspenseRequest\x1a\x1a.stawi.v1.CallbackResponse\"c\x82\xb5\x18\x18\n" +
-	"\x16stawi_payment_allocate\x82\xd3\xe4\x93\x02A:\x01*\"</api/v1/groups/{group_id}/members/{member_id}/apply-suspense\x1a\x83\v\x82\xb5\x18\xfe\n" +
-	"\n" +
-	"\rservice_stawi\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x15stawi_obligation_view\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x12\x12stawi_payment_view\x12\x16stawi_payment_allocate\x1a\xf5\x01\b\x01\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x15stawi_obligation_view\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x12\x12stawi_payment_view\x12\x16stawi_payment_allocate\x1a\xf5\x01\b\x02\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x15stawi_obligation_view\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x12\x12stawi_payment_view\x12\x16stawi_payment_allocate\x1a\xf5\x01\b\x03\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x15stawi_obligation_view\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x12\x12stawi_payment_view\x12\x16stawi_payment_allocate\x1a?\b\x04\x12\x10stawi_group_view\x12\x15stawi_obligation_view\x12\x12stawi_payment_view\x1aY\b\x05\x12\x18stawi_loan_offer_respond\x12\x10stawi_group_view\x12\x15stawi_obligation_view\x12\x12stawi_payment_view\x1a\xf5\x01\b\x06\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x15stawi_obligation_view\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x12\x12stawi_payment_view\x12\x16stawi_payment_allocateB\xb4\x01\n" +
+	"\x11stawi_loan_create\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/api/v1/groups/{group_id}/loans\x1a\xde\a\x82\xb5\x18\xd9\a\n" +
+	"\rservice_stawi\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\xb2\x01\b\x01\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\xb2\x01\b\x02\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\xb2\x01\b\x03\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\x14\b\x04\x12\x10stawi_group_view\x1a.\b\x05\x12\x18stawi_loan_offer_respond\x12\x10stawi_group_view\x1a\xb2\x01\b\x06\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_createB\xb4\x01\n" +
 	"\fcom.stawi.v1B\n" +
 	"StawiProtoP\x01ZWgithub.com/antinvestor/service-fintech/gen/go/stawi/protocolbuffers/go/stawi/v1;stawiv1\xa2\x02\x03SXX\xaa\x02\bStawi.V1\xca\x02\bStawi\\V1\xe2\x02\x14Stawi\\V1\\GPBMetadata\xea\x02\tStawi::V1b\x06proto3"
 
@@ -564,20 +433,18 @@ func file_stawi_v1_stawi_proto_rawDescGZIP() []byte {
 	return file_stawi_v1_stawi_proto_rawDescData
 }
 
-var file_stawi_v1_stawi_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_stawi_v1_stawi_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_stawi_v1_stawi_proto_goTypes = []any{
-	(*GroupRequest)(nil),                    // 0: stawi.v1.GroupRequest
-	(*GroupTransitionRequest)(nil),          // 1: stawi.v1.GroupTransitionRequest
-	(*GroupPeriodRequest)(nil),              // 2: stawi.v1.GroupPeriodRequest
-	(*GroupMemberRequest)(nil),              // 3: stawi.v1.GroupMemberRequest
-	(*LoanOfferRespondRequest)(nil),         // 4: stawi.v1.LoanOfferRespondRequest
-	(*GroupLoanOfferRequest)(nil),           // 5: stawi.v1.GroupLoanOfferRequest
-	(*GroupMemberApplySuspenseRequest)(nil), // 6: stawi.v1.GroupMemberApplySuspenseRequest
-	(*CallbackResponse)(nil),                // 7: stawi.v1.CallbackResponse
-	(*structpb.Struct)(nil),                 // 8: google.protobuf.Struct
+	(*GroupRequest)(nil),            // 0: stawi.v1.GroupRequest
+	(*GroupTransitionRequest)(nil),  // 1: stawi.v1.GroupTransitionRequest
+	(*GroupPeriodRequest)(nil),      // 2: stawi.v1.GroupPeriodRequest
+	(*LoanOfferRespondRequest)(nil), // 3: stawi.v1.LoanOfferRespondRequest
+	(*GroupLoanOfferRequest)(nil),   // 4: stawi.v1.GroupLoanOfferRequest
+	(*CallbackResponse)(nil),        // 5: stawi.v1.CallbackResponse
+	(*structpb.Struct)(nil),         // 6: google.protobuf.Struct
 }
 var file_stawi_v1_stawi_proto_depIdxs = []int32{
-	8,  // 0: stawi.v1.CallbackResponse.data:type_name -> google.protobuf.Struct
+	6,  // 0: stawi.v1.CallbackResponse.data:type_name -> google.protobuf.Struct
 	0,  // 1: stawi.v1.StawiWorkflowService.GroupCheckFormation:input_type -> stawi.v1.GroupRequest
 	0,  // 2: stawi.v1.StawiWorkflowService.GroupSetupLedger:input_type -> stawi.v1.GroupRequest
 	0,  // 3: stawi.v1.StawiWorkflowService.GroupRegisterLender:input_type -> stawi.v1.GroupRequest
@@ -590,38 +457,30 @@ var file_stawi_v1_stawi_proto_depIdxs = []int32{
 	2,  // 10: stawi.v1.StawiWorkflowService.PeriodFreeze:input_type -> stawi.v1.GroupPeriodRequest
 	2,  // 11: stawi.v1.StawiWorkflowService.PeriodExtend:input_type -> stawi.v1.GroupPeriodRequest
 	2,  // 12: stawi.v1.StawiWorkflowService.ObligationCalculate:input_type -> stawi.v1.GroupPeriodRequest
-	2,  // 13: stawi.v1.StawiWorkflowService.ObligationCalculatePenalties:input_type -> stawi.v1.GroupPeriodRequest
-	2,  // 14: stawi.v1.StawiWorkflowService.ObligationReconcilePeriod:input_type -> stawi.v1.GroupPeriodRequest
-	2,  // 15: stawi.v1.StawiWorkflowService.ObligationOutstandingForPeriod:input_type -> stawi.v1.GroupPeriodRequest
-	0,  // 16: stawi.v1.StawiWorkflowService.LoanWindowEvaluate:input_type -> stawi.v1.GroupRequest
-	0,  // 17: stawi.v1.StawiWorkflowService.LoanWindowOpen:input_type -> stawi.v1.GroupRequest
-	4,  // 18: stawi.v1.StawiWorkflowService.LoanOfferRespond:input_type -> stawi.v1.LoanOfferRespondRequest
-	5,  // 19: stawi.v1.StawiWorkflowService.LoanAccountCreate:input_type -> stawi.v1.GroupLoanOfferRequest
-	3,  // 20: stawi.v1.StawiWorkflowService.SuspenseBalance:input_type -> stawi.v1.GroupMemberRequest
-	6,  // 21: stawi.v1.StawiWorkflowService.SuspenseApply:input_type -> stawi.v1.GroupMemberApplySuspenseRequest
-	7,  // 22: stawi.v1.StawiWorkflowService.GroupCheckFormation:output_type -> stawi.v1.CallbackResponse
-	7,  // 23: stawi.v1.StawiWorkflowService.GroupSetupLedger:output_type -> stawi.v1.CallbackResponse
-	7,  // 24: stawi.v1.StawiWorkflowService.GroupRegisterLender:output_type -> stawi.v1.CallbackResponse
-	7,  // 25: stawi.v1.StawiWorkflowService.GroupWelcome:output_type -> stawi.v1.CallbackResponse
-	7,  // 26: stawi.v1.StawiWorkflowService.GroupTransition:output_type -> stawi.v1.CallbackResponse
-	7,  // 27: stawi.v1.StawiWorkflowService.GroupMembersList:output_type -> stawi.v1.CallbackResponse
-	7,  // 28: stawi.v1.StawiWorkflowService.TenureOpen:output_type -> stawi.v1.CallbackResponse
-	7,  // 29: stawi.v1.StawiWorkflowService.PeriodOpen:output_type -> stawi.v1.CallbackResponse
-	7,  // 30: stawi.v1.StawiWorkflowService.PeriodClose:output_type -> stawi.v1.CallbackResponse
-	7,  // 31: stawi.v1.StawiWorkflowService.PeriodFreeze:output_type -> stawi.v1.CallbackResponse
-	7,  // 32: stawi.v1.StawiWorkflowService.PeriodExtend:output_type -> stawi.v1.CallbackResponse
-	7,  // 33: stawi.v1.StawiWorkflowService.ObligationCalculate:output_type -> stawi.v1.CallbackResponse
-	7,  // 34: stawi.v1.StawiWorkflowService.ObligationCalculatePenalties:output_type -> stawi.v1.CallbackResponse
-	7,  // 35: stawi.v1.StawiWorkflowService.ObligationReconcilePeriod:output_type -> stawi.v1.CallbackResponse
-	7,  // 36: stawi.v1.StawiWorkflowService.ObligationOutstandingForPeriod:output_type -> stawi.v1.CallbackResponse
-	7,  // 37: stawi.v1.StawiWorkflowService.LoanWindowEvaluate:output_type -> stawi.v1.CallbackResponse
-	7,  // 38: stawi.v1.StawiWorkflowService.LoanWindowOpen:output_type -> stawi.v1.CallbackResponse
-	7,  // 39: stawi.v1.StawiWorkflowService.LoanOfferRespond:output_type -> stawi.v1.CallbackResponse
-	7,  // 40: stawi.v1.StawiWorkflowService.LoanAccountCreate:output_type -> stawi.v1.CallbackResponse
-	7,  // 41: stawi.v1.StawiWorkflowService.SuspenseBalance:output_type -> stawi.v1.CallbackResponse
-	7,  // 42: stawi.v1.StawiWorkflowService.SuspenseApply:output_type -> stawi.v1.CallbackResponse
-	22, // [22:43] is the sub-list for method output_type
-	1,  // [1:22] is the sub-list for method input_type
+	2,  // 13: stawi.v1.StawiWorkflowService.ObligationReconcilePeriod:input_type -> stawi.v1.GroupPeriodRequest
+	0,  // 14: stawi.v1.StawiWorkflowService.LoanWindowEvaluate:input_type -> stawi.v1.GroupRequest
+	0,  // 15: stawi.v1.StawiWorkflowService.LoanWindowOpen:input_type -> stawi.v1.GroupRequest
+	3,  // 16: stawi.v1.StawiWorkflowService.LoanOfferRespond:input_type -> stawi.v1.LoanOfferRespondRequest
+	4,  // 17: stawi.v1.StawiWorkflowService.LoanAccountCreate:input_type -> stawi.v1.GroupLoanOfferRequest
+	5,  // 18: stawi.v1.StawiWorkflowService.GroupCheckFormation:output_type -> stawi.v1.CallbackResponse
+	5,  // 19: stawi.v1.StawiWorkflowService.GroupSetupLedger:output_type -> stawi.v1.CallbackResponse
+	5,  // 20: stawi.v1.StawiWorkflowService.GroupRegisterLender:output_type -> stawi.v1.CallbackResponse
+	5,  // 21: stawi.v1.StawiWorkflowService.GroupWelcome:output_type -> stawi.v1.CallbackResponse
+	5,  // 22: stawi.v1.StawiWorkflowService.GroupTransition:output_type -> stawi.v1.CallbackResponse
+	5,  // 23: stawi.v1.StawiWorkflowService.GroupMembersList:output_type -> stawi.v1.CallbackResponse
+	5,  // 24: stawi.v1.StawiWorkflowService.TenureOpen:output_type -> stawi.v1.CallbackResponse
+	5,  // 25: stawi.v1.StawiWorkflowService.PeriodOpen:output_type -> stawi.v1.CallbackResponse
+	5,  // 26: stawi.v1.StawiWorkflowService.PeriodClose:output_type -> stawi.v1.CallbackResponse
+	5,  // 27: stawi.v1.StawiWorkflowService.PeriodFreeze:output_type -> stawi.v1.CallbackResponse
+	5,  // 28: stawi.v1.StawiWorkflowService.PeriodExtend:output_type -> stawi.v1.CallbackResponse
+	5,  // 29: stawi.v1.StawiWorkflowService.ObligationCalculate:output_type -> stawi.v1.CallbackResponse
+	5,  // 30: stawi.v1.StawiWorkflowService.ObligationReconcilePeriod:output_type -> stawi.v1.CallbackResponse
+	5,  // 31: stawi.v1.StawiWorkflowService.LoanWindowEvaluate:output_type -> stawi.v1.CallbackResponse
+	5,  // 32: stawi.v1.StawiWorkflowService.LoanWindowOpen:output_type -> stawi.v1.CallbackResponse
+	5,  // 33: stawi.v1.StawiWorkflowService.LoanOfferRespond:output_type -> stawi.v1.CallbackResponse
+	5,  // 34: stawi.v1.StawiWorkflowService.LoanAccountCreate:output_type -> stawi.v1.CallbackResponse
+	18, // [18:35] is the sub-list for method output_type
+	1,  // [1:18] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -638,7 +497,7 @@ func file_stawi_v1_stawi_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_stawi_v1_stawi_proto_rawDesc), len(file_stawi_v1_stawi_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

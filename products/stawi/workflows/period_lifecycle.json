@@ -50,19 +50,6 @@
             }
           },
           {
-            "id": "calculate_penalties",
-            "type": "call",
-            "call": {
-              "action": "http.request",
-              "input": {
-                "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/periods/{{ payload.period_id }}/calculate-penalties",
-                "method": "POST"
-              },
-              "output_var": "penalty_result",
-              "retry": "default"
-            }
-          },
-          {
             "id": "notify_members_period_closed",
             "type": "foreach",
             "foreach": {

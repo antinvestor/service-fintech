@@ -617,7 +617,7 @@ func TestExecute_MismatchedPayoutIsNotConfirmation(t *testing.T) {
 	assert.Equal(t, 0, f.payment.sends)
 }
 
-func (r *memOrderRepo) ListUnexecutedBorrowerRepayments(
+func (r *memOrderRepo) ListUnexecutedAllocations(
 	_ context.Context,
 	_ time.Time,
 	_ int,

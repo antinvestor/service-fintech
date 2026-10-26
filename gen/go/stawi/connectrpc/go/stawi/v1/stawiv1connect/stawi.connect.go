@@ -74,15 +74,9 @@ const (
 	// StawiWorkflowServiceObligationCalculateProcedure is the procedure name of the
 	// StawiWorkflowService's ObligationCalculate RPC.
 	StawiWorkflowServiceObligationCalculateProcedure = "/stawi.v1.StawiWorkflowService/ObligationCalculate"
-	// StawiWorkflowServiceObligationCalculatePenaltiesProcedure is the procedure name of the
-	// StawiWorkflowService's ObligationCalculatePenalties RPC.
-	StawiWorkflowServiceObligationCalculatePenaltiesProcedure = "/stawi.v1.StawiWorkflowService/ObligationCalculatePenalties"
 	// StawiWorkflowServiceObligationReconcilePeriodProcedure is the procedure name of the
 	// StawiWorkflowService's ObligationReconcilePeriod RPC.
 	StawiWorkflowServiceObligationReconcilePeriodProcedure = "/stawi.v1.StawiWorkflowService/ObligationReconcilePeriod"
-	// StawiWorkflowServiceObligationOutstandingForPeriodProcedure is the procedure name of the
-	// StawiWorkflowService's ObligationOutstandingForPeriod RPC.
-	StawiWorkflowServiceObligationOutstandingForPeriodProcedure = "/stawi.v1.StawiWorkflowService/ObligationOutstandingForPeriod"
 	// StawiWorkflowServiceLoanWindowEvaluateProcedure is the procedure name of the
 	// StawiWorkflowService's LoanWindowEvaluate RPC.
 	StawiWorkflowServiceLoanWindowEvaluateProcedure = "/stawi.v1.StawiWorkflowService/LoanWindowEvaluate"
@@ -95,12 +89,6 @@ const (
 	// StawiWorkflowServiceLoanAccountCreateProcedure is the procedure name of the
 	// StawiWorkflowService's LoanAccountCreate RPC.
 	StawiWorkflowServiceLoanAccountCreateProcedure = "/stawi.v1.StawiWorkflowService/LoanAccountCreate"
-	// StawiWorkflowServiceSuspenseBalanceProcedure is the procedure name of the StawiWorkflowService's
-	// SuspenseBalance RPC.
-	StawiWorkflowServiceSuspenseBalanceProcedure = "/stawi.v1.StawiWorkflowService/SuspenseBalance"
-	// StawiWorkflowServiceSuspenseApplyProcedure is the procedure name of the StawiWorkflowService's
-	// SuspenseApply RPC.
-	StawiWorkflowServiceSuspenseApplyProcedure = "/stawi.v1.StawiWorkflowService/SuspenseApply"
 )
 
 var (
@@ -189,26 +177,11 @@ var (
 			Procedure:  StawiWorkflowServiceObligationCalculateProcedure,
 		}
 	})
-	stawiWorkflowServiceObligationCalculatePenaltiesSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("ObligationCalculatePenalties"),
-			Procedure:  StawiWorkflowServiceObligationCalculatePenaltiesProcedure,
-		}
-	})
 	stawiWorkflowServiceObligationReconcilePeriodSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("ObligationReconcilePeriod"),
 			Procedure:  StawiWorkflowServiceObligationReconcilePeriodProcedure,
-		}
-	})
-	stawiWorkflowServiceObligationOutstandingForPeriodSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType:       connect.StreamTypeUnary,
-			Schema:           v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("ObligationOutstandingForPeriod"),
-			Procedure:        StawiWorkflowServiceObligationOutstandingForPeriodProcedure,
-			IdempotencyLevel: connect.IdempotencyNoSideEffects,
 		}
 	})
 	stawiWorkflowServiceLoanWindowEvaluateSpec = sync.OnceValue(func() connect.Spec {
@@ -239,21 +212,6 @@ var (
 			Procedure:  StawiWorkflowServiceLoanAccountCreateProcedure,
 		}
 	})
-	stawiWorkflowServiceSuspenseBalanceSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType:       connect.StreamTypeUnary,
-			Schema:           v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("SuspenseBalance"),
-			Procedure:        StawiWorkflowServiceSuspenseBalanceProcedure,
-			IdempotencyLevel: connect.IdempotencyNoSideEffects,
-		}
-	})
-	stawiWorkflowServiceSuspenseApplySpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("SuspenseApply"),
-			Procedure:  StawiWorkflowServiceSuspenseApplyProcedure,
-		}
-	})
 )
 
 // StawiWorkflowServiceClient is a client for the stawi.v1.StawiWorkflowService service.
@@ -269,18 +227,19 @@ type StawiWorkflowServiceClient interface {
 	PeriodClose(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
 	PeriodFreeze(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
 	PeriodExtend(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
+	// ObligationCalculate raises the period's savings obligation for every
+	// member in operations, which applies money they already paid. Calling it
+	// again raises nothing new and reports who still owes.
 	ObligationCalculate(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	ObligationCalculatePenalties(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
+	// ObligationReconcilePeriod closes the period's obligations in operations:
+	// each member still owing is fined once, and the statement is returned.
 	ObligationReconcilePeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	ObligationOutstandingForPeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
 	LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	LoanWindowOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	// LoanOfferRespond records a member's answer to a loan offer. A member
 	// answers only their own offers; staff and services may answer any.
 	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error)
 	LoanAccountCreate(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error)
-	SuspenseBalance(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error)
-	SuspenseApply(context.Context, *v1.GroupMemberApplySuspenseRequest) (*v1.CallbackResponse, error)
 }
 
 // NewStawiWorkflowServiceClient constructs a client for the stawi.v1.StawiWorkflowService service.
@@ -302,18 +261,19 @@ type StawiWorkflowServiceHandler interface {
 	PeriodClose(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
 	PeriodFreeze(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
 	PeriodExtend(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
+	// ObligationCalculate raises the period's savings obligation for every
+	// member in operations, which applies money they already paid. Calling it
+	// again raises nothing new and reports who still owes.
 	ObligationCalculate(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	ObligationCalculatePenalties(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
+	// ObligationReconcilePeriod closes the period's obligations in operations:
+	// each member still owing is fined once, and the statement is returned.
 	ObligationReconcilePeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	ObligationOutstandingForPeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
 	LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	LoanWindowOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
 	// LoanOfferRespond records a member's answer to a loan offer. A member
 	// answers only their own offers; staff and services may answer any.
 	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error)
 	LoanAccountCreate(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error)
-	SuspenseBalance(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error)
-	SuspenseApply(context.Context, *v1.GroupMemberApplySuspenseRequest) (*v1.CallbackResponse, error)
 }
 
 // RegisterStawiWorkflowServiceHandler registers svc as the stawi.v1.StawiWorkflowService
@@ -333,15 +293,11 @@ func RegisterStawiWorkflowServiceHandler(server *connect.Server, svc StawiWorkfl
 		connect.Method{Spec: stawiWorkflowServicePeriodFreezeSpec(), Handler: adapter.periodFreeze},
 		connect.Method{Spec: stawiWorkflowServicePeriodExtendSpec(), Handler: adapter.periodExtend},
 		connect.Method{Spec: stawiWorkflowServiceObligationCalculateSpec(), Handler: adapter.obligationCalculate},
-		connect.Method{Spec: stawiWorkflowServiceObligationCalculatePenaltiesSpec(), Handler: adapter.obligationCalculatePenalties},
 		connect.Method{Spec: stawiWorkflowServiceObligationReconcilePeriodSpec(), Handler: adapter.obligationReconcilePeriod},
-		connect.Method{Spec: stawiWorkflowServiceObligationOutstandingForPeriodSpec(), Handler: adapter.obligationOutstandingForPeriod},
 		connect.Method{Spec: stawiWorkflowServiceLoanWindowEvaluateSpec(), Handler: adapter.loanWindowEvaluate},
 		connect.Method{Spec: stawiWorkflowServiceLoanWindowOpenSpec(), Handler: adapter.loanWindowOpen},
 		connect.Method{Spec: stawiWorkflowServiceLoanOfferRespondSpec(), Handler: adapter.loanOfferRespond},
 		connect.Method{Spec: stawiWorkflowServiceLoanAccountCreateSpec(), Handler: adapter.loanAccountCreate},
-		connect.Method{Spec: stawiWorkflowServiceSuspenseBalanceSpec(), Handler: adapter.suspenseBalance},
-		connect.Method{Spec: stawiWorkflowServiceSuspenseApplySpec(), Handler: adapter.suspenseApply},
 	)
 }
 
@@ -396,16 +352,8 @@ func (UnimplementedStawiWorkflowServiceHandler) ObligationCalculate(context.Cont
 	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.ObligationCalculate is not implemented")
 }
 
-func (UnimplementedStawiWorkflowServiceHandler) ObligationCalculatePenalties(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.ObligationCalculatePenalties is not implemented")
-}
-
 func (UnimplementedStawiWorkflowServiceHandler) ObligationReconcilePeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.ObligationReconcilePeriod is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) ObligationOutstandingForPeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.ObligationOutstandingForPeriod is not implemented")
 }
 
 func (UnimplementedStawiWorkflowServiceHandler) LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
@@ -422,14 +370,6 @@ func (UnimplementedStawiWorkflowServiceHandler) LoanOfferRespond(context.Context
 
 func (UnimplementedStawiWorkflowServiceHandler) LoanAccountCreate(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.LoanAccountCreate is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) SuspenseBalance(context.Context, *v1.GroupMemberRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.SuspenseBalance is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) SuspenseApply(context.Context, *v1.GroupMemberApplySuspenseRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.SuspenseApply is not implemented")
 }
 
 type stawiWorkflowServiceClient struct {
@@ -532,25 +472,9 @@ func (c *stawiWorkflowServiceClient) ObligationCalculate(ctx context.Context, re
 	return &res, nil
 }
 
-func (c *stawiWorkflowServiceClient) ObligationCalculatePenalties(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceObligationCalculatePenaltiesSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
 func (c *stawiWorkflowServiceClient) ObligationReconcilePeriod(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
 	var res v1.CallbackResponse
 	if err := c.client.CallUnary(ctx, stawiWorkflowServiceObligationReconcilePeriodSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) ObligationOutstandingForPeriod(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceObligationOutstandingForPeriodSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -583,22 +507,6 @@ func (c *stawiWorkflowServiceClient) LoanOfferRespond(ctx context.Context, req *
 func (c *stawiWorkflowServiceClient) LoanAccountCreate(ctx context.Context, req *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error) {
 	var res v1.CallbackResponse
 	if err := c.client.CallUnary(ctx, stawiWorkflowServiceLoanAccountCreateSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) SuspenseBalance(ctx context.Context, req *v1.GroupMemberRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceSuspenseBalanceSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) SuspenseApply(ctx context.Context, req *v1.GroupMemberApplySuspenseRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceSuspenseApplySpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -750,36 +658,12 @@ func (h stawiWorkflowServiceHandler) obligationCalculate(ctx context.Context, _ 
 	return stream.Send(res)
 }
 
-func (h stawiWorkflowServiceHandler) obligationCalculatePenalties(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupPeriodRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.ObligationCalculatePenalties(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
 func (h stawiWorkflowServiceHandler) obligationReconcilePeriod(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
 	var req v1.GroupPeriodRequest
 	if err := stream.Receive(&req); err != nil {
 		return err
 	}
 	res, err := h.svc.ObligationReconcilePeriod(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) obligationOutstandingForPeriod(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupPeriodRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.ObligationOutstandingForPeriod(ctx, &req)
 	if err != nil {
 		return err
 	}
@@ -828,30 +712,6 @@ func (h stawiWorkflowServiceHandler) loanAccountCreate(ctx context.Context, _ co
 		return err
 	}
 	res, err := h.svc.LoanAccountCreate(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) suspenseBalance(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupMemberRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.SuspenseBalance(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) suspenseApply(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupMemberApplySuspenseRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.SuspenseApply(ctx, &req)
 	if err != nil {
 		return err
 	}

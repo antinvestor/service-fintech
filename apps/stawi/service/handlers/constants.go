@@ -24,5 +24,4 @@ const (
 	fieldCurrency = "currency"
 	paramGroupID  = "groupId"
 	paramPeriodID = "periodId"
-	paramMemberID = "memberId"
 )

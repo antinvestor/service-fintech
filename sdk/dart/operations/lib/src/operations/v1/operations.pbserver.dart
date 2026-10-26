@@ -35,6 +35,10 @@ abstract class OperationsServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $4.IncomingPaymentAssignRequest request);
   $async.Future<$4.OperationsJobRunResponse> operationsJobRun(
       $pb.ServerContext ctx, $4.OperationsJobRunRequest request);
+  $async.Future<$4.GroupObligationsRaiseResponse> groupObligationsRaise(
+      $pb.ServerContext ctx, $4.GroupObligationsRaiseRequest request);
+  $async.Future<$4.GroupPeriodCloseResponse> groupPeriodClose(
+      $pb.ServerContext ctx, $4.GroupPeriodCloseRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -52,6 +56,10 @@ abstract class OperationsServiceBase extends $pb.GeneratedService {
         return $4.IncomingPaymentAssignRequest();
       case 'OperationsJobRun':
         return $4.OperationsJobRunRequest();
+      case 'GroupObligationsRaise':
+        return $4.GroupObligationsRaiseRequest();
+      case 'GroupPeriodClose':
+        return $4.GroupPeriodCloseRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -79,6 +87,11 @@ abstract class OperationsServiceBase extends $pb.GeneratedService {
             ctx, request as $4.IncomingPaymentAssignRequest);
       case 'OperationsJobRun':
         return operationsJobRun(ctx, request as $4.OperationsJobRunRequest);
+      case 'GroupObligationsRaise':
+        return groupObligationsRaise(
+            ctx, request as $4.GroupObligationsRaiseRequest);
+      case 'GroupPeriodClose':
+        return groupPeriodClose(ctx, request as $4.GroupPeriodCloseRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

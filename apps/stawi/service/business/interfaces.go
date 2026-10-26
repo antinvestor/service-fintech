@@ -75,3 +75,10 @@ type LoanOfferBusiness interface {
 	Respond(ctx context.Context, groupID, offerID string, response int32) error
 	CreateLoanAccount(ctx context.Context, offerID string) (map[string]interface{}, error)
 }
+
+// GroupObligationBusiness raises and closes a period's member obligations,
+// which operations owns.
+type GroupObligationBusiness interface {
+	Raise(ctx context.Context, groupID, periodID string) (map[string]any, error)
+	Close(ctx context.Context, groupID, periodID string) (map[string]any, error)
+}

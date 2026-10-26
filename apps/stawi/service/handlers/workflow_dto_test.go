@@ -112,24 +112,12 @@ func routeResponseFields() map[string]map[string]bool {
 			"offer_id", "amount", "currency", "membership_id",
 			"loan_request_id", "loan_account_id", "loan_id", "idempotent",
 		),
-		"GET /api/v1/groups/{groupId}/members/{memberId}/suspense-balance": setOf(
-			"member_id", "membership_id", "balance", "currency", "payment_count", "remaining_amount",
-		),
-		"POST /api/v1/groups/{groupId}/members/{memberId}/apply-suspense": setOf(
-			"member_id", "membership_id", "amount_applied", "remaining_obligation",
-		),
-
 		"POST /api/v1/groups/{groupId}/periods/{periodId}/calculate-obligations": setOf(
 			"group_id", "period_id", "obligations_created", "members_processed", "member_obligations",
+			"members", "count", "total_outstanding",
 		),
 		"POST /api/v1/groups/{groupId}/periods/{periodId}/reconcile": setOf(
-			"period_id", "members", "count", "total_outstanding",
-		),
-		"POST /api/v1/groups/{groupId}/periods/{periodId}/calculate-penalties": setOf(
-			"period_id", "penalties_created", "total_penalty", "obligations_scanned",
-		),
-		"GET /api/v1/groups/{groupId}/periods/{periodId}/outstanding-obligations": setOf(
-			"period_id", "members", "count", "total_outstanding",
+			"group_id", "period_id", "members", "count", "collected", "total_outstanding",
 		),
 	}
 }

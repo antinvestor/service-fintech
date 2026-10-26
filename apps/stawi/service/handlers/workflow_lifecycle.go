@@ -48,48 +48,12 @@ func handleExtendPeriod(biz Businesses) http.HandlerFunc {
 	}
 }
 
+// handleReconcilePeriod closes the period's obligations in operations: money
+// members paid is applied and each member still owing is fined once. The
+// reply is the period statement.
 func handleReconcilePeriod(biz Businesses) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		result, err := biz.Obligation.ReconcilePeriod(r.Context(), r.PathValue(paramPeriodID))
+		result, err := biz.Obligation.Close(r.Context(), r.PathValue(paramGroupID), r.PathValue(paramPeriodID))
 		respond(w, r, "reconcile-period", result, err)
-	}
-}
-
-func handleCalculatePenalties(biz Businesses) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		result, err := biz.Obligation.CalculatePenaltiesForPeriod(r.Context(), r.PathValue(paramPeriodID))
-		respond(w, r, "calculate-penalties", result, err)
-	}
-}
-
-func handleOutstandingObligations(biz Businesses) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		result, err := biz.Obligation.OutstandingForPeriod(r.Context(), r.PathValue(paramPeriodID))
-		respond(w, r, "outstanding-obligations", result, err)
-	}
-}
-
-// --- Suspense ---
-
-func handleSuspenseBalance(biz Businesses) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		result, err := biz.Payment.SuspenseBalance(r.Context(), r.PathValue(paramMemberID))
-		respond(w, r, "suspense-balance", result, err)
-	}
-}
-
-func handleApplySuspense(biz Businesses) http.HandlerFunc {
-	type applyReq struct {
-		PeriodID  string `json:"period_id"`
-		MaxAmount int64  `json:"max_amount"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req applyReq
-		if err := decodeBody(r, &req); err != nil {
-			respond(w, r, "apply-suspense", nil, err)
-			return
-		}
-		result, err := biz.Payment.ApplySuspense(r.Context(), r.PathValue(paramMemberID), req.MaxAmount)
-		respond(w, r, "apply-suspense", result, err)
 	}
 }

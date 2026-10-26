@@ -32,16 +32,9 @@ type LoanOfferBusiness interface {
 	Respond(ctx context.Context, groupID, offerID string, response int32) error
 }
 
-// PaymentRoutingBusiness is the subset of operations business used by workflow callbacks.
-type PaymentRoutingBusiness interface {
-	SuspenseBalance(ctx context.Context, membershipID string) (map[string]interface{}, error)
-	ApplySuspense(ctx context.Context, membershipID string, maxAmount int64) (map[string]interface{}, error)
-}
-
-// ObligationBusiness is the subset of operations business used by workflow callbacks.
-type ObligationBusiness interface {
-	CalculateForGroup(ctx context.Context, groupID string) (map[string]interface{}, error)
-	CalculatePenaltiesForPeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
-	ReconcilePeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
-	OutstandingForPeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
+// GroupObligationBusiness raises and closes a period's member obligations in
+// operations.
+type GroupObligationBusiness interface {
+	Raise(ctx context.Context, groupID, periodID string) (map[string]interface{}, error)
+	Close(ctx context.Context, groupID, periodID string) (map[string]interface{}, error)
 }

@@ -18,6 +18,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/workerpool"
@@ -38,6 +39,12 @@ type ObligationRepository interface {
 	// whether the deduction landed, so two concurrent allocations of the same
 	// obligation cannot both succeed against the same balance.
 	ConsumeAmount(ctx context.Context, obligationID string, amount int64) (bool, error)
+
+	// CreateIfAbsent inserts the obligation synchronously and reports whether
+	// it did. A row the unique index already holds (one savings and one
+	// penalty obligation per member per period) is left alone, so a retried
+	// raise creates nothing new.
+	CreateIfAbsent(ctx context.Context, obligation *models.Obligation) (bool, error)
 }
 
 // NewObligationRepository creates a new ObligationRepository.
@@ -94,6 +101,17 @@ func (r *obligationRepository) ConsumeAmount(
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+func (r *obligationRepository) CreateIfAbsent(ctx context.Context, obligation *models.Obligation) (bool, error) {
+	err := r.Pool().DB(ctx, false).Create(obligation).Error
+	if err == nil {
+		return true, nil
+	}
+	if data.ErrorIsDuplicateKey(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (r *obligationRepository) GetByMembershipID(

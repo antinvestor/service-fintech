@@ -91,6 +91,20 @@ func (c *recordingOperationsClient) OperationsJobRun(
 	panic("stub: OperationsJobRun not expected")
 }
 
+func (c *recordingOperationsClient) GroupObligationsRaise(
+	_ context.Context,
+	_ *operationsv1.GroupObligationsRaiseRequest,
+) (*operationsv1.GroupObligationsRaiseResponse, error) {
+	panic("stub: GroupObligationsRaise not expected")
+}
+
+func (c *recordingOperationsClient) GroupPeriodClose(
+	_ context.Context,
+	_ *operationsv1.GroupPeriodCloseRequest,
+) (*operationsv1.GroupPeriodCloseResponse, error) {
+	panic("stub: GroupPeriodClose not expected")
+}
+
 func (c *recordingOperationsClient) references() map[string]int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()

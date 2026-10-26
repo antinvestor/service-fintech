@@ -362,6 +362,20 @@ func (s *stubOperationsClient) OperationsJobRun(
 	panic("stub: OperationsJobRun not expected")
 }
 
+func (s *stubOperationsClient) GroupObligationsRaise(
+	_ context.Context,
+	_ *operationsv1.GroupObligationsRaiseRequest,
+) (*operationsv1.GroupObligationsRaiseResponse, error) {
+	panic("stub: GroupObligationsRaise not expected")
+}
+
+func (s *stubOperationsClient) GroupPeriodClose(
+	_ context.Context,
+	_ *operationsv1.GroupPeriodCloseRequest,
+) (*operationsv1.GroupPeriodCloseResponse, error) {
+	panic("stub: GroupPeriodClose not expected")
+}
+
 // Compile-time check.
 var _ operationsv1connect.OperationsServiceClient = (*stubOperationsClient)(nil)
 

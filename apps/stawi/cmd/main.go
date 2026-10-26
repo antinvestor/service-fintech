@@ -16,11 +16,11 @@ package main
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
+	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	"github.com/antinvestor/common/v3"
 	"github.com/antinvestor/common/v3/connection"
 	"github.com/antinvestor/common/v3/permissions"
@@ -50,11 +50,6 @@ import (
 	"github.com/antinvestor/service-fintech/apps/stawi/service/handlers"
 	stawirepo "github.com/antinvestor/service-fintech/apps/stawi/service/repository"
 
-	// Operations domain.
-	opsbusiness "github.com/antinvestor/service-fintech/apps/operations/service/business"
-	opsevents "github.com/antinvestor/service-fintech/apps/operations/service/events"
-	opsrepo "github.com/antinvestor/service-fintech/apps/operations/service/repository"
-
 	// Platform clients.
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/clients"
@@ -71,21 +66,14 @@ const namespaceTenancyAccess = "tenancy_access"
 // service_permissions manifest for the workflow callback routes.
 const manifestServiceName = "StawiWorkflowService"
 
-var errCurrentPeriodNotFound = errors.New("current period not found")
-
 type appRepositories struct {
-	tenure          stawirepo.TenureRepository
-	period          stawirepo.PeriodRepository
-	motion          stawirepo.MotionRepository
-	infraction      stawirepo.InfractionRepository
-	loanWindow      stawirepo.LoanWindowRepository
-	loanOffer       stawirepo.LoanOfferRepository
-	transferOrder   opsrepo.TransferOrderRepository
-	obligation      opsrepo.ObligationRepository
-	incomingPayment opsrepo.IncomingPaymentRepository
-	accountRef      opsrepo.AccountRefRepository
-	cbsSyncRecord   opsrepo.CBSSyncRecordRepository
-	auditRepo       audit.Repository
+	tenure     stawirepo.TenureRepository
+	period     stawirepo.PeriodRepository
+	motion     stawirepo.MotionRepository
+	infraction stawirepo.InfractionRepository
+	loanWindow stawirepo.LoanWindowRepository
+	loanOffer  stawirepo.LoanOfferRepository
+	auditRepo  audit.Repository
 }
 
 type appBusinesses struct {
@@ -95,8 +83,7 @@ type appBusinesses struct {
 	period     stawibusiness.PeriodBusiness
 	loanWindow stawibusiness.LoanWindowBusiness
 	loanOffer  stawibusiness.LoanOfferBusiness
-	payment    opsbusiness.PaymentRoutingBusiness
-	obligation opsbusiness.ObligationBusiness
+	obligation stawibusiness.GroupObligationBusiness
 }
 
 func main() {
@@ -179,8 +166,16 @@ func main() {
 		return
 	}
 
+	// --- Operations client ---
+	// Members' obligations live in operations; without it no period can be
+	// raised or closed, so refuse to start.
+	operationsCli, opsErr := setupOperationsClient(ctx, cfg)
+	if opsErr != nil {
+		log.WithError(opsErr).Fatal("main -- could not setup operations client")
+	}
+
 	repos := initRepositories(ctx, dbPool, workMan)
-	biz := initBusinesses(ctx, evtsMan, identityCli, platformClients, repos, cfg)
+	biz := initBusinesses(ctx, evtsMan, identityCli, operationsCli, platformClients, repos, cfg)
 	handler := buildHandler(ctx, sm, manifestSD, biz, auditCli)
 	serviceOptions := buildServiceOptions(ctx, handler, repos)
 
@@ -194,18 +189,13 @@ func main() {
 
 func initRepositories(ctx context.Context, dbPool pool.Pool, workMan workerpool.Manager) appRepositories {
 	return appRepositories{
-		tenure:          stawirepo.NewTenureRepository(ctx, dbPool, workMan),
-		period:          stawirepo.NewPeriodRepository(ctx, dbPool, workMan),
-		motion:          stawirepo.NewMotionRepository(ctx, dbPool, workMan),
-		infraction:      stawirepo.NewInfractionRepository(ctx, dbPool, workMan),
-		loanWindow:      stawirepo.NewLoanWindowRepository(ctx, dbPool, workMan),
-		loanOffer:       stawirepo.NewLoanOfferRepository(ctx, dbPool, workMan),
-		transferOrder:   opsrepo.NewTransferOrderRepository(ctx, dbPool, workMan),
-		obligation:      opsrepo.NewObligationRepository(ctx, dbPool, workMan),
-		incomingPayment: opsrepo.NewIncomingPaymentRepository(ctx, dbPool, workMan),
-		accountRef:      opsrepo.NewAccountRefRepository(ctx, dbPool, workMan),
-		cbsSyncRecord:   opsrepo.NewCBSSyncRecordRepository(ctx, dbPool, workMan),
-		auditRepo:       audit.NewRepository(ctx, dbPool, workMan),
+		tenure:     stawirepo.NewTenureRepository(ctx, dbPool, workMan),
+		period:     stawirepo.NewPeriodRepository(ctx, dbPool, workMan),
+		motion:     stawirepo.NewMotionRepository(ctx, dbPool, workMan),
+		infraction: stawirepo.NewInfractionRepository(ctx, dbPool, workMan),
+		loanWindow: stawirepo.NewLoanWindowRepository(ctx, dbPool, workMan),
+		loanOffer:  stawirepo.NewLoanOfferRepository(ctx, dbPool, workMan),
+		auditRepo:  audit.NewRepository(ctx, dbPool, workMan),
 	}
 }
 
@@ -213,6 +203,7 @@ func initBusinesses(
 	ctx context.Context,
 	evtsMan fevents.Manager,
 	identityCli identityv1connect.IdentityServiceClient,
+	operationsCli operationsv1connect.OperationsServiceClient,
 	platformClients *clients.PlatformClients,
 	repos appRepositories,
 	cfg aconfig.StawiConfig,
@@ -229,19 +220,9 @@ func initBusinesses(
 	loanOfferBiz := stawibusiness.NewLoanOfferBusiness(
 		ctx, product, evtsMan, repos.loanOffer, identityCli, platformClients,
 	)
-	periodAdapter := &periodAdapter{repo: repos.period}
-
-	paymentBiz := opsbusiness.NewPaymentRoutingBusiness(
-		ctx,
-		evtsMan,
-		repos.incomingPayment,
-		repos.transferOrder,
-		repos.obligation,
-		repos.accountRef,
-		identityCli,
-		platformClients,
+	obligationBiz := stawibusiness.NewGroupObligationBusiness(
+		ctx, product, groupBiz, membershipBiz, repos.period, operationsCli,
 	)
-	obligationBiz := opsbusiness.NewObligationBusiness(ctx, evtsMan, repos.obligation, identityCli, periodAdapter)
 
 	return appBusinesses{
 		group:      groupBiz,
@@ -250,7 +231,6 @@ func initBusinesses(
 		period:     periodBiz,
 		loanWindow: loanWindowBiz,
 		loanOffer:  loanOfferBiz,
-		payment:    paymentBiz,
 		obligation: obligationBiz,
 	}
 }
@@ -281,7 +261,6 @@ func buildHandler(
 		Period:     biz.period,
 		LoanWindow: biz.loanWindow,
 		LoanOffer:  biz.loanOffer,
-		Payment:    biz.payment,
 		Obligation: biz.obligation,
 	})
 
@@ -321,11 +300,6 @@ func buildServiceOptions(ctx context.Context, handler http.Handler, repos appRep
 			stawievents.NewInfractionSave(ctx, repos.infraction),
 			stawievents.NewLoanWindowSave(ctx, repos.loanWindow),
 			stawievents.NewLoanOfferSave(ctx, repos.loanOffer),
-			opsevents.NewTransferOrderSave(ctx, repos.transferOrder),
-			opsevents.NewObligationSave(ctx, repos.obligation),
-			opsevents.NewIncomingPaymentSave(ctx, repos.incomingPayment),
-			opsevents.NewAccountRefSave(ctx, repos.accountRef),
-			opsevents.NewCBSSyncRecordSave(ctx, repos.cbsSyncRecord),
 			audit.NewEventSave(ctx, repos.auditRepo),
 		),
 	}
@@ -341,29 +315,15 @@ func setupIdentityClient(
 	}, identityv1connect.NewIdentityServiceClient)
 }
 
-// ---------------------------------------------------------------------------
-// Cross-domain adapters
-// ---------------------------------------------------------------------------
-
-// periodAdapter wraps stawi's PeriodRepository for operations' PeriodReader.
-type periodAdapter struct {
-	repo stawirepo.PeriodRepository
-}
-
-func (a *periodAdapter) GetCurrentByGroupID(ctx context.Context, groupID string) (*opsbusiness.PeriodInfo, error) {
-	p, err := a.repo.GetCurrentByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	if p == nil {
-		return nil, errCurrentPeriodNotFound
-	}
-	info := &opsbusiness.PeriodInfo{
-		EndDate:  p.EndDate,
-		Position: p.Position,
-	}
-	info.BaseModel = p.BaseModel
-	return info, nil
+func setupOperationsClient(
+	ctx context.Context,
+	cfg aconfig.StawiConfig,
+) (operationsv1connect.OperationsServiceClient, error) {
+	return connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.OperationsServiceURI,
+		WorkloadAPITargetPath: cfg.OperationsServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceOperations,
+	}, operationsv1connect.NewOperationsServiceClient)
 }
 
 // registerSetupSteps adds the setup-job steps: schema migration, then the

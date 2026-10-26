@@ -117,7 +117,7 @@ func TestReceivedPaymentBookingFailureIsRedelivered(t *testing.T) {
 // money into a borrower's loan.
 func TestIncomingPaymentNotifyIsTheRailsAlone(t *testing.T) {
 	rec := &identifyRecorder{}
-	srv := NewOperationsServer(nil, rec, nil, nil, nil)
+	srv := NewOperationsServer(nil, rec, nil, nil, nil, nil)
 	req := &operationsv1.IncomingPaymentNotifyRequest{TransactionId: "txn-1"}
 
 	staff := (&security.AuthenticationClaims{Roles: []string{"operator"}}).ClaimsToContext(context.Background())

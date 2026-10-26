@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "sacco_savings_collection",
-  "description": "Manages savings collection cycle: period opened, calculate member obligations, auto-apply suspense balances, and send timed reminders",
+  "description": "Manages savings collection cycle: period opened, raise member obligations (operations applies money already paid), and send timed reminders",
   "timeout": "60d",
   "input": {
     "group_id": "string",
@@ -17,19 +17,6 @@
   },
   "steps": [
     {
-      "id": "fetch_group_members",
-      "type": "call",
-      "call": {
-        "action": "http.request",
-        "input": {
-          "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/members?status=active",
-          "method": "GET"
-        },
-        "output_var": "members_result",
-        "retry": "default"
-      }
-    },
-    {
       "id": "calculate_obligations",
       "type": "call",
       "call": {
@@ -40,81 +27,6 @@
         },
         "output_var": "obligations",
         "retry": "default"
-      }
-    },
-    {
-      "id": "auto_apply_suspense",
-      "type": "foreach",
-      "foreach": {
-        "collection": "vars.members_result.body.members",
-        "item_var": "member",
-        "steps": [
-          {
-            "id": "check_suspense_balance",
-            "type": "call",
-            "call": {
-              "action": "http.request",
-              "input": {
-                "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/members/{{ vars.member.id }}/suspense-balance",
-                "method": "GET"
-              },
-              "output_var": "suspense",
-              "retry": "default"
-            }
-          },
-          {
-            "id": "check_has_suspense",
-            "type": "if",
-            "if": {
-              "expr": "vars.suspense.body.balance > 0",
-              "then": [
-                {
-                  "id": "apply_suspense_to_savings",
-                  "type": "call",
-                  "call": {
-                    "action": "http.request",
-                    "input": {
-                      "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/members/{{ vars.member.id }}/apply-suspense",
-                      "method": "POST",
-                      "body": {
-                        "period_id": "{{ payload.period_id }}",
-                        "max_amount": "{{ vars.suspense.body.balance }}"
-                      }
-                    },
-                    "output_var": "apply_result",
-                    "retry": "default"
-                  }
-                },
-                {
-                  "id": "notify_suspense_applied",
-                  "type": "if",
-                  "if": {
-                    "expr": "vars.apply_result.body.amount_applied > 0",
-                    "then": [
-                      {
-                        "id": "send_suspense_applied_notification",
-                        "type": "call",
-                        "call": {
-                          "action": "notification.send",
-                          "input": {
-                            "template": "suspense_auto_applied",
-                            "data": {
-                              "member_id": "{{ vars.member.id }}",
-                              "group_id": "{{ payload.group_id }}",
-                              "amount_applied": "{{ vars.apply_result.body.amount_applied }}",
-                              "remaining_obligation": "{{ vars.apply_result.body.remaining_obligation }}"
-                            },
-                            "dedupe_key": "suspense_auto_applied:{{ vars.member.id }}:{{ payload.group_id }}:{{ payload.period_id }}"
-                          }
-                        }
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        ]
       }
     },
     {
@@ -160,8 +72,8 @@
       "call": {
         "action": "http.request",
         "input": {
-          "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/periods/{{ payload.period_id }}/outstanding-obligations",
-          "method": "GET"
+          "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/periods/{{ payload.period_id }}/calculate-obligations",
+          "method": "POST"
         },
         "output_var": "outstanding_first",
         "retry": "default"
@@ -207,8 +119,8 @@
       "call": {
         "action": "http.request",
         "input": {
-          "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/periods/{{ payload.period_id }}/outstanding-obligations",
-          "method": "GET"
+          "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/periods/{{ payload.period_id }}/calculate-obligations",
+          "method": "POST"
         },
         "output_var": "outstanding_second",
         "retry": "default"
@@ -280,8 +192,8 @@
       "call": {
         "action": "http.request",
         "input": {
-          "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/periods/{{ payload.period_id }}/outstanding-obligations",
-          "method": "GET"
+          "url": "{{ env.STAWI_SERVICE_URL }}/api/v1/groups/{{ payload.group_id }}/periods/{{ payload.period_id }}/calculate-obligations",
+          "method": "POST"
         },
         "output_var": "outstanding_final",
         "retry": "default"

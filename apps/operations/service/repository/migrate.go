@@ -124,6 +124,19 @@ func postMigrate(ctx context.Context, dbPool pool.Pool) error {
 		return err
 	}
 
+	// A group member owes one savings and at most one penalty per period;
+	// raising either is retried by the group service, so the database is
+	// what keeps a retry from charging the member twice.
+	if err := createPartialUniqueIndex(
+		db,
+		"uq_obligations_member_period_cause",
+		"obligations",
+		"membership_id, period_id, cause_type",
+		"cause_type IN ('periodic_saving', 'penalty') AND deleted_at IS NULL",
+	); err != nil {
+		return err
+	}
+
 	// Allocation orders written before obligation_consumed existed had their
 	// obligation consumed right after being written; mark them so a retry
 	// does not try to consume again. Runs exactly once, behind a marker row

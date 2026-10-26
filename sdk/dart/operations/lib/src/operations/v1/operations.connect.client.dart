@@ -132,4 +132,44 @@ extension type OperationsServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// GroupObligationsRaise raises a group period's savings obligations and
+  /// applies money the members already paid. Called by the group service; only
+  /// service accounts hold the permission. Retrying raises nothing new.
+  Future<operationsv1operations.GroupObligationsRaiseResponse> groupObligationsRaise(
+    operationsv1operations.GroupObligationsRaiseRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.OperationsService.groupObligationsRaise,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// GroupPeriodClose applies money members paid, charges the penalty to
+  /// each member still owing, and reports the period's statement. Called by
+  /// the group service; retrying charges no second penalty.
+  Future<operationsv1operations.GroupPeriodCloseResponse> groupPeriodClose(
+    operationsv1operations.GroupPeriodCloseRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.OperationsService.groupPeriodClose,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

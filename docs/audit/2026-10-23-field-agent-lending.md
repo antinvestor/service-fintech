@@ -1451,3 +1451,64 @@ With the user's agreement, the group product is rebuilt in six phases on
 - Kept for later phases:
   - the offer-respond and loan-account routes (phase 3);
   - Stawi's private copy of operations obligations (phase 2).
+
+## 50. Addendum 2026-10-26 — Stawi phase 2: group money lives in operations
+
+**Change.**
+
+- *Operations owns group obligations.* Stawi owns periods and memberships,
+  so it supplies those facts; operations stores and settles the money.
+  - `GroupObligationsRaise` (`group_obligation_manage`, service accounts
+    only, also refused to non-internal callers in the handler) raises one
+    savings obligation per member and period. It is idempotent on a partial
+    unique index over (membership, period, cause). It then allocates the
+    member's waiting payments and applies their suspense, so money paid
+    early counts.
+  - `GroupPeriodClose` settles members the same way, then raises one flat
+    penalty per member still owing (the group's saving amount ×
+    `STAWI_LATE_FINE_1`, idempotent). It reports each member's paid,
+    outstanding and penalty.
+  - `ObligationBusiness` no longer reads Stawi's periods (`PeriodReader`
+    removed). Loan obligations are unchanged.
+- *Group payments are allocated.*
+  - The settle job now lists `membership`-owned payments, which before
+    stopped at "identified".
+  - Allocating one first funds the member's suspense on the ledger from the
+    product's collection account (`payment:<id>:member:<membership>`). The
+    obligation orders then spend from that suspense. Before, nothing funded
+    member suspense, so those orders would have debited an empty account.
+  - The settle job posts a member's obligation order only once its funding
+    order has completed, posting the funding first if needed.
+  - A membership payment without a product is not allocated: there is no
+    account to move it from.
+- *Bug fixed.* The periodic-saving allocation bucket matched only cause
+  `"saving"`, while group savings are raised as `"periodic_saving"`, so they
+  were never paid.
+- *Stawi stops running its own copy of the operations code.*
+  - It calls operations for raising and closing, and its private operations
+    repositories, events, migrations and `periodAdapter` are gone.
+  - The penalties, outstanding and suspense callbacks and their RPCs are
+    removed. Their permissions (`stawi_obligation_view`,
+    `stawi_payment_view`, `stawi_payment_allocate`) are narrowed by
+    service-authentication `20261026_10`, which also grants Stawi
+    `group_obligation_manage`.
+  - The remaining workflow JSONs are adjusted; phase 4 rewrites them.
+- *SDK.* Dart operations 0.4.8.
+
+**Open.**
+- Obligations and payments must share a partition. Stawi raises them in the
+  group's partition, and rail payments carry the receive route's. These are
+  the same lender partition in the intended setup; this is noted for the
+  deploy check.
+
+**Verified.**
+- operations: raising is idempotent; an early payment held as suspense pays
+  a new obligation; a waiting payment is allocated on raise; close charges
+  exactly one penalty, even when retried, and none to a member who paid.
+- `TestSettleJobAllocatesAMembershipPayment` (funding posts before the
+  obligation) and `TestSettleJobHoldsAnObligationOrderUntilItsSuspenseIsFunded`.
+- The handler refuses non-internal callers.
+- Postgres: the unique index and the settle listings.
+- Stawi: the obligation business against fake operations, identity and
+  period clients.
+- Lint: 0 issues across operations, stawi, loans, savings, funding and pkg.

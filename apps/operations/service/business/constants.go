@@ -39,6 +39,7 @@ const (
 	fieldMemberID             = "member_id"
 	fieldPeriodID             = "period_id"
 	fieldDueDate              = "due_date"
+	fieldExecution            = "execution"
 	fieldState                = "state"
 	fieldStatus               = "status"
 	fieldTransactionID        = "transaction_id"

@@ -109,6 +109,20 @@ func (c *countingOperationsClient) OperationsJobRun(
 	panic("stub: OperationsJobRun not expected")
 }
 
+func (c *countingOperationsClient) GroupObligationsRaise(
+	_ context.Context,
+	_ *operationsv1.GroupObligationsRaiseRequest,
+) (*operationsv1.GroupObligationsRaiseResponse, error) {
+	panic("stub: GroupObligationsRaise not expected")
+}
+
+func (c *countingOperationsClient) GroupPeriodClose(
+	_ context.Context,
+	_ *operationsv1.GroupPeriodCloseRequest,
+) (*operationsv1.GroupPeriodCloseResponse, error) {
+	panic("stub: GroupPeriodClose not expected")
+}
+
 func (c *countingOperationsClient) snapshot() []*operationsv1.TransferOrderObject {
 	c.mu.Lock()
 	defer c.mu.Unlock()
