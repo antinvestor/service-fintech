@@ -32,7 +32,7 @@ type PaymentRoutingBusiness interface {
 	ConfirmPayment(ctx context.Context, transactionID string) (map[string]interface{}, error)
 	AssignPayment(
 		ctx context.Context,
-		paymentID, loanID, note string,
+		paymentID, loanID, savingsAccountID, note string,
 	) (*models.IncomingPayment, map[string]interface{}, error)
 }
 

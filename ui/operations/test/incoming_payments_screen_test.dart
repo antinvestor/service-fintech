@@ -175,6 +175,41 @@ void main() {
     final sent = transport.assigned! as IncomingPaymentAssignRequest;
     expect(sent.paymentId, 'pay-1');
     expect(sent.loanAccountId, 'loan-1');
+    expect(sent.savingsAccountId, isEmpty);
     expect(sent.note, 'payer confirmed by phone');
+  });
+
+  testWidgets('a payment can be assigned to a savings account instead', (
+    tester,
+  ) async {
+    final transport = _RecordingTransport();
+    await tester.pumpWidget(
+      _harness(
+        payments: [_payment(matched: false)],
+        canAssign: true,
+        transport: transport,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('incoming-payment-assign-pay-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Savings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Savings account ID'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('assign-payment-loan')),
+      'sav-1',
+    );
+    await tester.enterText(
+      find.byKey(const Key('assign-payment-note')),
+      'saver quoted their old number',
+    );
+    await tester.tap(find.byKey(const Key('assign-payment-submit')));
+    await tester.pumpAndSettle();
+    final sent = transport.assigned! as IncomingPaymentAssignRequest;
+    expect(sent.savingsAccountId, 'sav-1');
+    expect(sent.loanAccountId, isEmpty);
   });
 }

@@ -5,6 +5,8 @@ import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show LoansRouteModule;
 import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
     show OperationsRouteModule;
+import 'package:antinvestor_ui_savings/antinvestor_ui_savings.dart'
+    show SavingsRouteModule;
 import 'package:flutter/material.dart';
 
 /// A single navigation item that can contain children (submenus).
@@ -199,6 +201,18 @@ List<NavItem> buildNavItems() => [
         route: '/investors',
       ),
       for (final item in FundingRouteModule().buildNavItems())
+        NavItem.fromCore(item),
+    ],
+  ),
+  NavItem(
+    id: 'savings_section',
+    label: 'Savings',
+    icon: Icons.savings_outlined,
+    activeIcon: Icons.savings,
+    // Specific routes before /savings, whose subtree would otherwise claim
+    // them in [requiredPermissionsForRoute].
+    children: [
+      for (final item in SavingsRouteModule().buildNavItems().reversed)
         NavItem.fromCore(item),
     ],
   ),

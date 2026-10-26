@@ -189,6 +189,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.3.0"
+  antinvestor_ui_savings:
+    dependency: "direct main"
+    description:
+      path: "../savings"
+      relative: true
+    source: path
+    version: "0.3.0"
   app_links:
     dependency: "direct main"
     description:

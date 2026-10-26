@@ -41,7 +41,9 @@ const (
 
 var (
 	ErrPaymentAssignInvalid = apperrors.NewError(apperrors.BadRequest,
-		"a payment, the loan it belongs to and a note saying why are required")
+		"a payment, the one loan or savings account it belongs to, and a note saying why are required")
+	ErrPaymentSavingsNotOpen = apperrors.NewError(apperrors.Unprocessable,
+		"the savings account is not an open account of one person")
 	ErrPaymentAlreadyMatched = apperrors.NewError(apperrors.Conflict,
 		"this payment is already matched or allocated")
 	ErrPaymentWithoutProduct = apperrors.NewError(apperrors.Unprocessable,
@@ -49,30 +51,30 @@ var (
 	ErrPaymentLoanNotRepayable = apperrors.NewError(apperrors.Unprocessable,
 		"the loan does not take repayments")
 	ErrPaymentLoanOtherProduct = apperrors.NewError(apperrors.Unprocessable,
-		"the loan belongs to another product than the account the payment was made to")
+		"the loan or savings account belongs to another product than the account the payment was made to")
 	ErrPaymentAssignUnavailable = apperrors.NewError(apperrors.ServiceUnavailable,
 		"loan matching is not configured")
 )
 
-// AssignPayment ties a payment that matched nobody to the borrower's loan it
-// was meant for, then allocates it. The amount is the rail's, never typed:
-// a person only says which loan the money belongs to. The loan must take
-// repayments and be of the product whose account the rail credited.
+// AssignPayment ties a payment that matched nobody to the borrower's loan or
+// the saver's account it was meant for, then allocates it. The amount is the
+// rail's, never typed: a person only says where the money belongs. Exactly
+// one target is named; it must be of the product whose account the rail
+// credited.
 //
 // The assignment stands even if allocation then fails; PaymentAllocate
 // retries it.
 func (b *paymentRoutingBusiness) AssignPayment(
 	ctx context.Context,
-	paymentID, loanID, note string,
+	paymentID, loanID, savingsAccountID, note string,
 ) (*models.IncomingPayment, map[string]interface{}, error) {
 	paymentID = strings.TrimSpace(paymentID)
 	loanID = strings.TrimSpace(loanID)
+	savingsAccountID = strings.TrimSpace(savingsAccountID)
 	note = strings.TrimSpace(note)
-	if paymentID == "" || loanID == "" || note == "" || len(note) > maxAssignmentNoteLen {
+	if paymentID == "" || (loanID == "") == (savingsAccountID == "") || note == "" ||
+		len(note) > maxAssignmentNoteLen {
 		return nil, nil, ErrPaymentAssignInvalid
-	}
-	if !b.borrowerLoanMatching() {
-		return nil, nil, ErrPaymentAssignUnavailable
 	}
 
 	payment, err := b.ipRepo.GetByID(ctx, paymentID)
@@ -87,14 +89,12 @@ func (b *paymentRoutingBusiness) AssignPayment(
 		return nil, nil, ErrPaymentWithoutProduct
 	}
 
-	loan, err := b.repayableLoan(ctx, loanID)
-	if err != nil {
-		return nil, nil, ErrPaymentLoanNotRepayable
+	var result *identificationResult
+	if loanID != "" {
+		result, err = b.assignableLoan(ctx, loanID, productID)
+	} else {
+		result, err = b.assignableSavings(ctx, savingsAccountID, productID)
 	}
-	if loan.GetProductId() != productID {
-		return nil, nil, ErrPaymentLoanOtherProduct
-	}
-	result, err := b.borrowerLoanResult(ctx, loan)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,21 +103,26 @@ func (b *paymentRoutingBusiness) AssignPayment(
 	if claims := security.ClaimsFromContext(ctx); claims != nil {
 		assignedBy = claims.GetProfileID()
 	}
-	assigned, err := b.ipRepo.AssignOwner(ctx, paymentID, repository.PaymentAssignment{
-		OwnerID:     result.ClientID,
-		OwnerType:   ownerTypeClientLoan,
-		PayableID:   result.LoanID,
-		PayableType: "loan",
+	assignment := repository.PaymentAssignment{
+		OwnerID: result.ClientID,
 		Properties: data.JSONMap{
 			"identification_strategy": strategyStaffAssigned,
 			fieldClientID:             result.ClientID,
-			fieldLoanID:               result.LoanID,
 			fieldProfileID:            result.ProfileID,
 			fieldAssignedBy:           assignedBy,
 			fieldAssignmentNote:       note,
 			fieldAssignedAt:           time.Now().UTC().Format(time.RFC3339),
 		},
-	})
+	}
+	if result.LoanID != "" {
+		assignment.OwnerType, assignment.PayableID, assignment.PayableType = ownerTypeClientLoan, result.LoanID, "loan"
+		assignment.Properties[fieldLoanID] = result.LoanID
+	} else {
+		assignment.OwnerType = ownerTypeClientSavings
+		assignment.PayableID, assignment.PayableType = result.SavingsAccountID, payableTypeSavings
+		assignment.Properties[fieldSavingsAccountID] = result.SavingsAccountID
+	}
+	assigned, err := b.ipRepo.AssignOwner(ctx, paymentID, assignment)
 	if err != nil {
 		return nil, nil, fmt.Errorf("assign payment %s: %w", paymentID, err)
 	}
@@ -125,6 +130,7 @@ func (b *paymentRoutingBusiness) AssignPayment(
 		return nil, nil, ErrPaymentAlreadyMatched
 	}
 	util.Log(ctx).WithField(fieldPaymentID, paymentID).WithField(fieldLoanID, loanID).
+		WithField(fieldSavingsAccountID, savingsAccountID).
 		WithField(fieldAssignedBy, assignedBy).Info("unmatched payment assigned to loan")
 	recordPaymentIdentified(ctx, payment)
 
@@ -137,4 +143,41 @@ func (b *paymentRoutingBusiness) AssignPayment(
 		return stored, nil, allocErr
 	}
 	return stored, allocation, nil
+}
+
+// assignableLoan checks a staff-chosen loan can take the payment.
+func (b *paymentRoutingBusiness) assignableLoan(
+	ctx context.Context,
+	loanID, productID string,
+) (*identificationResult, error) {
+	if !b.borrowerLoanMatching() {
+		return nil, ErrPaymentAssignUnavailable
+	}
+	loan, err := b.repayableLoan(ctx, loanID)
+	if err != nil {
+		return nil, ErrPaymentLoanNotRepayable
+	}
+	if loan.GetProductId() != productID {
+		return nil, ErrPaymentLoanOtherProduct
+	}
+	return b.borrowerLoanResult(ctx, loan)
+}
+
+// assignableSavings checks a staff-chosen savings account can take the
+// payment.
+func (b *paymentRoutingBusiness) assignableSavings(
+	ctx context.Context,
+	accountID, productID string,
+) (*identificationResult, error) {
+	if !b.borrowerSavingsMatching() {
+		return nil, ErrPaymentAssignUnavailable
+	}
+	acct, err := b.openSavingsAccount(ctx, accountID)
+	if err != nil {
+		return nil, ErrPaymentSavingsNotOpen
+	}
+	if acct.GetProductId() != productID {
+		return nil, ErrPaymentLoanOtherProduct
+	}
+	return b.saverResult(ctx, acct)
 }

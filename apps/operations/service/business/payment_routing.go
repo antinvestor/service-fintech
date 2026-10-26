@@ -105,6 +105,9 @@ type identificationResult struct {
 	ClientID  string
 	LoanID    string
 	ProductID string
+	// SavingsAccountID is set when an individual's payment was matched to
+	// their own savings account.
+	SavingsAccountID string
 }
 
 // identificationStrategy defines one step in the payment identification pipeline.
@@ -158,8 +161,8 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 
 	// An individual borrower's payment (no group) is matched to their loan
 	// first; group payments keep the membership strategies.
-	if groupID == "" && b.borrowerLoanMatching() {
-		if result, matchErr := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); matchErr == nil {
+	if groupID == "" {
+		if result := b.identifyIndividual(ctx, productID, paymentRef, payerRef); result != nil {
 			if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 				return nil, saveErr
 			}
@@ -187,6 +190,26 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 		unidentified["unidentified_account"] = constants.ProductUnidentifiedAccount(productID)
 	}
 	return unidentified, nil
+}
+
+// identifyIndividual matches a payment with no group to the payer's own loan
+// or, failing that, their own savings account, of the product the rail
+// credited. It returns nil when neither matches.
+func (b *paymentRoutingBusiness) identifyIndividual(
+	ctx context.Context,
+	productID, paymentRef, payerRef string,
+) *identificationResult {
+	if b.borrowerLoanMatching() {
+		if result, err := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); err == nil {
+			return result
+		}
+	}
+	if b.borrowerSavingsMatching() {
+		if result, err := b.identifySaverAccount(ctx, productID, paymentRef, payerRef); err == nil {
+			return result
+		}
+	}
+	return nil
 }
 
 // runIdentificationStrategies walks the identification pipeline and returns the
@@ -688,6 +711,15 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 		extra[fieldLoanID] = result.LoanID
 		extra[fieldProductID] = result.ProductID
 	}
+	if result.SavingsAccountID != "" {
+		payment.OwnerID = result.ClientID
+		payment.OwnerType = ownerTypeClientSavings
+		payment.PayableID = result.SavingsAccountID
+		payment.PayableType = payableTypeSavings
+		extra[fieldClientID] = result.ClientID
+		extra[fieldSavingsAccountID] = result.SavingsAccountID
+		extra[fieldProductID] = result.ProductID
+	}
 	payment.Properties = mergeJSONMaps(payment.Properties, extra)
 
 	if emitErr := b.eventsMan.Emit(ctx, events.IncomingPaymentSaveEvent, payment); emitErr != nil {
@@ -756,6 +788,9 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 
 	if isBorrowerLoanPayment(payment) {
 		return b.allocateToBorrowerLoan(ctx, logger, payment, lease)
+	}
+	if isBorrowerSavingsPayment(payment) {
+		return b.allocateToSavings(ctx, logger, payment, lease)
 	}
 
 	membershipID := payment.OwnerID

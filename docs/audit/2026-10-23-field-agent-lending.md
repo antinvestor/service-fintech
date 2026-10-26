@@ -596,3 +596,35 @@ in the engine.
     `notification_send` and `seed_ussd_state`.
   - Seed gains the `/ussd` and `/notification` audiences, `contact_manage`
     (to send the code) and `notification_send`, and loses `repayment_manage`.
+
+## 29. Addendum 2026-10-26 — savings deposits only from the payment rail
+
+**Finding.** `SavingsService.DepositRecord` accepted a deposit from any
+caller holding `deposit_manage`, with any amount and channel, including
+`cash`. The savings UI offered staff a "Record deposit" form. That is the
+same agent-handled-money path closed for loans in §25.
+
+**Change.**
+
+- savings `DepositRecord` refuses callers that are not internal service
+  accounts (`ErrDepositRecordInternalOnly`, PermissionDenied) and refuses the
+  `cash` channel (`ErrCashDepositRefused`).
+- operations matches an individual's incoming payment to their loan first,
+  then to their own savings account: by the account id the payer quoted, or
+  by the payer's profile to their one open individual account of the product
+  the rail credited (`borrower_savings_routing.go`). Allocation records the
+  whole payment as a deposit, keyed `payment:<id>:savings:<acct>`, so a retry
+  never deposits twice.
+- `IncomingPaymentAssign` takes exactly one of `loan_account_id` or
+  `savings_account_id` (proto field 4). Staff say where the money belongs;
+  the amount stays the rail's.
+- UI: ui_savings 0.3.0 drops Record deposit and gates account actions on
+  permissions. Seed mounts the savings routes. ui_operations 0.3.1 assign
+  dialog offers Loan or Savings.
+- Tenancy (service-authentication `20261026_02`): operations gets the
+  `/savings` audience plus `savings_account_view` and `deposit_manage` on
+  `service_savings`. Operations also needs `SAVINGS_SERVICE_URI`.
+
+**Verified.** `TestDepositsComeOnlyFromThePaymentRail`; operations
+`TestBorrowerSavings*` (deposit recorded once; other product not deposited;
+staff assign to savings); ui_operations and ui_savings widget tests.

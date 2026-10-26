@@ -1,3 +1,10 @@
+## 0.4.2
+
+- `IncomingPaymentObject.savings_account_id`: the saver's account a payment
+  was deposited to.
+- `IncomingPaymentAssignRequest.savings_account_id`: staff may tie an
+  unmatched payment to a savings account instead of a loan (exactly one).
+
 ## 0.4.1
 
 - `OperationsService.IncomingPaymentSearch` lists received payments

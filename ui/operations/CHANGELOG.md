@@ -1,3 +1,10 @@
+## 0.3.1
+
+- The assign dialog offers a Loan or Savings target: an unmatched payment
+  can be tied to a saver's account and deposited in full, as received. The
+  payment card shows the savings account a payment went to.
+- Requires `antinvestor_api_operations ^0.4.2`.
+
 ## 0.3.0
 
 - `IncomingPaymentsScreen`: payments the rail received, filtered to the ones

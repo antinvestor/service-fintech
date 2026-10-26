@@ -424,6 +424,13 @@ const IncomingPaymentObject$json = {
     },
     {'1': 'assigned_by', '3': 14, '4': 1, '5': 9, '10': 'assignedBy'},
     {'1': 'assignment_note', '3': 15, '4': 1, '5': 9, '10': 'assignmentNote'},
+    {
+      '1': 'savings_account_id',
+      '3': 16,
+      '4': 1,
+      '5': 9,
+      '10': 'savingsAccountId'
+    },
   ],
 };
 
@@ -439,7 +446,8 @@ final $typed_data.Uint8List incomingPaymentObjectDescriptor = $convert.base64Dec
     'NvbW1vbi52MS5Nb25leVILdW5hbGxvY2F0ZWQSJgoFc3RhdGUYDCABKA4yEC5jb21tb24udjEu'
     'U1RBVEVSBXN0YXRlEjsKC3JlY2VpdmVkX2F0GA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbW'
     'VzdGFtcFIKcmVjZWl2ZWRBdBIfCgthc3NpZ25lZF9ieRgOIAEoCVIKYXNzaWduZWRCeRInCg9h'
-    'c3NpZ25tZW50X25vdGUYDyABKAlSDmFzc2lnbm1lbnROb3Rl');
+    'c3NpZ25tZW50X25vdGUYDyABKAlSDmFzc2lnbm1lbnROb3RlEiwKEnNhdmluZ3NfYWNjb3VudF'
+    '9pZBgQIAEoCVIQc2F2aW5nc0FjY291bnRJZA==');
 
 @$core.Deprecated('Use incomingPaymentSearchRequestDescriptor instead')
 const IncomingPaymentSearchRequest$json = {
@@ -494,15 +502,22 @@ const IncomingPaymentAssignRequest$json = {
     {'1': 'payment_id', '3': 1, '4': 1, '5': 9, '10': 'paymentId'},
     {'1': 'loan_account_id', '3': 2, '4': 1, '5': 9, '10': 'loanAccountId'},
     {'1': 'note', '3': 3, '4': 1, '5': 9, '10': 'note'},
+    {
+      '1': 'savings_account_id',
+      '3': 4,
+      '4': 1,
+      '5': 9,
+      '10': 'savingsAccountId'
+    },
   ],
 };
 
 /// Descriptor for `IncomingPaymentAssignRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List incomingPaymentAssignRequestDescriptor =
-    $convert.base64Decode(
-        'ChxJbmNvbWluZ1BheW1lbnRBc3NpZ25SZXF1ZXN0Eh0KCnBheW1lbnRfaWQYASABKAlSCXBheW'
-        '1lbnRJZBImCg9sb2FuX2FjY291bnRfaWQYAiABKAlSDWxvYW5BY2NvdW50SWQSEgoEbm90ZRgD'
-        'IAEoCVIEbm90ZQ==');
+final $typed_data.Uint8List incomingPaymentAssignRequestDescriptor = $convert.base64Decode(
+    'ChxJbmNvbWluZ1BheW1lbnRBc3NpZ25SZXF1ZXN0Eh0KCnBheW1lbnRfaWQYASABKAlSCXBheW'
+    '1lbnRJZBImCg9sb2FuX2FjY291bnRfaWQYAiABKAlSDWxvYW5BY2NvdW50SWQSEgoEbm90ZRgD'
+    'IAEoCVIEbm90ZRIsChJzYXZpbmdzX2FjY291bnRfaWQYBCABKAlSEHNhdmluZ3NBY2NvdW50SW'
+    'Q=');
 
 @$core.Deprecated('Use incomingPaymentAssignResponseDescriptor instead')
 const IncomingPaymentAssignResponse$json = {

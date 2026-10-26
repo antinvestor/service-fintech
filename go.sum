@@ -52,10 +52,14 @@ buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261024205209-8
 buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261024205209-89e02b325c73.1/go.mod h1:8gdUKmVLTQXp1V1ztecPv+0jfBBqFNPxTMHJyzguu+A=
 buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261026020512-fd6c8982efbc.1 h1:69bUaB8Gx9N1LTrlmlMb3AZOHXXEEk2UK9Z18UxtE6A=
 buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261026020512-fd6c8982efbc.1/go.mod h1:h5utGMpHVE9TWilHLtPrjn7gVJv67q0Un25bQd2VlP8=
+buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261026060821-d764531c988f.1 h1:fktnBQAC0L5MAOeOQVcUcnFkAEybvqodEaFFotqIdfw=
+buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261026060821-d764531c988f.1/go.mod h1:WjSBCnUpo0Lnqbp+YQ+ay7EvgcFcAVqLexqxLBTsfhs=
 buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261024205209-89e02b325c73.2 h1:MXmar2rAmISbYvDDdcIN15YmDGyQgEp7u1O9c9KdUiQ=
 buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261024205209-89e02b325c73.2/go.mod h1:nndsBACBREsWM9cd+mq1tMvXhZNzC5Oa1P1g5DGPB3w=
 buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261026020512-fd6c8982efbc.2 h1:2tK5GCIzp0ubACVBR+wDt7lIpfhZVFngRWSkYKwTFck=
 buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261026020512-fd6c8982efbc.2/go.mod h1:nndsBACBREsWM9cd+mq1tMvXhZNzC5Oa1P1g5DGPB3w=
+buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261026060821-d764531c988f.2 h1:KsXPV/F3aqYI08nZxPr2Ts4X8H/+2iMIGkkIqGyA8EQ=
+buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261026060821-d764531c988f.2/go.mod h1:nndsBACBREsWM9cd+mq1tMvXhZNzC5Oa1P1g5DGPB3w=
 buf.build/gen/go/antinvestor/payment/connectrpc/go/v2 v2.0.2-20260831184824-a4a7e9defafa.1 h1:J/x8ATKU9+NbwL+9w3AJkXlMVBkhl94kaunucb90n58=
 buf.build/gen/go/antinvestor/payment/connectrpc/go/v2 v2.0.2-20260831184824-a4a7e9defafa.1/go.mod h1:uWffTPQnhaxQ8PNtM5kBMCLLVSVM0L8A+ccaUZVnXDA=
 buf.build/gen/go/antinvestor/payment/protocolbuffers/go v1.36.12-20260831184824-a4a7e9defafa.2 h1:P+jq3JQygoRJQjMEPuOsfHlH5zub8N0d7TCTMCfD06E=

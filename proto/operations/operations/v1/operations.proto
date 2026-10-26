@@ -158,6 +158,9 @@ message IncomingPaymentObject {
   // person did.
   string assigned_by = 14;
   string assignment_note = 15;
+  // savings_account_id is set when the payment was a deposit to the payer's
+  // own savings account.
+  string savings_account_id = 16;
 }
 
 // IncomingPaymentSearchRequest lists received payments, newest first.
@@ -175,15 +178,18 @@ message IncomingPaymentSearchResponse {
   repeated IncomingPaymentObject data = 1;
 }
 
-// IncomingPaymentAssignRequest ties an unmatched payment to the loan it was
-// meant for and allocates it. The amount is the rail's; nobody types one.
-// The loan must take repayments and belong to the product the rail credited.
+// IncomingPaymentAssignRequest ties an unmatched payment to the loan or the
+// savings account it was meant for, and allocates it. The amount is the
+// rail's; nobody types one. Name exactly one target: the loan must take
+// repayments, the savings account must be open and individually owned, and
+// either must belong to the product the rail credited.
 message IncomingPaymentAssignRequest {
   string payment_id = 1;
   string loan_account_id = 2;
   // note says why the payment belongs to this loan; it is kept on the
   // payment for audit.
   string note = 3;
+  string savings_account_id = 4;
 }
 
 message IncomingPaymentAssignResponse {

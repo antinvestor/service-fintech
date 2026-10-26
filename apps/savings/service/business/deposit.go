@@ -15,10 +15,14 @@
 package business
 
 import (
+	"strings"
+
 	"context"
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/pitabwire/frame/v3/security"
 
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
@@ -94,6 +98,16 @@ func (b *depositBusiness) Record(
 	ctx context.Context,
 	req *savingsv1.DepositRecordRequest,
 ) (*savingsv1.DepositObject, error) {
+	// A deposit is the saver's own payment, recorded by the payment rail
+	// (operations matches it to their account). Nobody records one by hand,
+	// and no one takes cash on a saver's behalf.
+	if claims := security.ClaimsFromContext(ctx); claims == nil || !claims.IsInternalSystem() {
+		return nil, ErrDepositRecordInternalOnly
+	}
+	if strings.EqualFold(strings.TrimSpace(req.GetChannel()), depositChannelCash) {
+		return nil, ErrCashDepositRefused
+	}
+
 	idempotencyKey := req.GetIdempotencyKey()
 	if idempotencyKey == "" {
 		return nil, ErrIdempotencyKeyRequired

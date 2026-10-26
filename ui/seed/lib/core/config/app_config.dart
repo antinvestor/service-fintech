@@ -87,6 +87,12 @@ abstract final class AppConfig {
   static String get seedBaseUrl =>
       _seedExplicit.isNotEmpty ? _seedExplicit : '$_apiBaseUrl/seed';
 
+  // ── Savings service endpoint ───────────────────────────────────────
+
+  static const String _savingsExplicit = String.fromEnvironment('SAVINGS_URL');
+  static String get savingsBaseUrl =>
+      _savingsExplicit.isNotEmpty ? _savingsExplicit : '$_apiBaseUrl/savings';
+
   // ── Funding service endpoint ───────────────────────────────────────
 
   static const String _fundingExplicit = String.fromEnvironment('FUNDING_URL');
@@ -138,6 +144,7 @@ abstract final class AppConfig {
     'loans': loansBaseUrl,
     'seed': seedBaseUrl,
     'funding': fundingBaseUrl,
+    'savings': savingsBaseUrl,
     'operations': operationsBaseUrl,
     'files': filesBaseUrl,
     'audit': auditBaseUrl,

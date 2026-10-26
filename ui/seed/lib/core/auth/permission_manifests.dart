@@ -6,6 +6,8 @@ import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show LoansRouteModule;
 import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
     show OperationsRouteModule;
+import 'package:antinvestor_ui_savings/antinvestor_ui_savings.dart'
+    show SavingsRouteModule;
 
 void registerPermissionManifests() {
   final registry = PermissionRegistry.instance;
@@ -101,6 +103,7 @@ void registerPermissionManifests() {
   registry.register(LoansRouteModule().permissionManifest);
   registry.register(FundingRouteModule().permissionManifest);
   registry.register(OperationsRouteModule().permissionManifest);
+  registry.register(SavingsRouteModule().permissionManifest);
 
   registry.register(
     const PermissionManifest(

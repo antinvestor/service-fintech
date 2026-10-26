@@ -89,19 +89,25 @@ func (b *paymentRoutingBusiness) borrowerLoanResult(
 	ctx context.Context,
 	loan *loansv1.LoanAccountObject,
 ) (*identificationResult, error) {
-	result := &identificationResult{
+	return &identificationResult{
 		Strategy:  strategyBorrowerLoan,
 		ClientID:  loan.GetClientId(),
 		LoanID:    loan.GetId(),
 		ProductID: loan.GetProductId(),
+		ProfileID: b.profileOfClient(ctx, loan.GetClientId()),
+	}, nil
+}
+
+// profileOfClient is the client's profile id, or "" when it cannot be read.
+func (b *paymentRoutingBusiness) profileOfClient(ctx context.Context, clientID string) string {
+	if b.clients == nil || b.clients.LenderIdentity == nil {
+		return ""
 	}
-	if b.clients.LenderIdentity != nil {
-		if resp, err := b.clients.LenderIdentity.ClientGet(ctx,
-			&fieldv1.ClientGetRequest{Id: loan.GetClientId()}); err == nil {
-			result.ProfileID = resp.GetData().GetProfileId()
-		}
+	resp, err := b.clients.LenderIdentity.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
+	if err != nil {
+		return ""
 	}
-	return result, nil
+	return resp.GetData().GetProfileId()
 }
 
 // repayableLoan loads a loan by id and returns it when it can take money.

@@ -10,6 +10,8 @@ import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show LoansRouteModule;
 import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
     show OperationsRouteModule;
+import 'package:antinvestor_ui_savings/antinvestor_ui_savings.dart'
+    show SavingsRouteModule;
 
 import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/logging/app_logger.dart';
@@ -300,6 +302,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ...LimitsFeature.routes(),
           ...LoansRouteModule().buildRoutes(),
           ...FundingRouteModule().buildRoutes(),
+          ...SavingsRouteModule().buildRoutes(),
           ...OperationsRouteModule(pickLoan: pickLoanAccount).buildRoutes(),
         ],
       ),

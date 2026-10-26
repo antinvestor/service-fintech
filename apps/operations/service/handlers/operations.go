@@ -379,9 +379,10 @@ func (s *OperationsServer) IncomingPaymentAssign(
 	audit.WithResource(ctx, audit.ResourcePayment, req.GetPaymentId())
 	audit.WithAction(ctx, "assign")
 	audit.WithDetail(ctx, "loan_account_id", req.GetLoanAccountId())
+	audit.WithDetail(ctx, "savings_account_id", req.GetSavingsAccountId())
 
 	payment, allocation, err := s.prBusiness.AssignPayment(
-		ctx, req.GetPaymentId(), req.GetLoanAccountId(), req.GetNote(),
+		ctx, req.GetPaymentId(), req.GetLoanAccountId(), req.GetSavingsAccountId(), req.GetNote(),
 	)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
@@ -422,6 +423,7 @@ func incomingPaymentToAPI(m *models.IncomingPayment) *operationsv1.IncomingPayme
 		ReceivedAt:             timestamppb.New(m.CreatedAt),
 		AssignedBy:             props.GetString("assigned_by"),
 		AssignmentNote:         props.GetString("assignment_note"),
+		SavingsAccountId:       props.GetString("savings_account_id"),
 	}
 }
 

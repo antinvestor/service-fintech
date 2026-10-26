@@ -77,18 +77,21 @@ final incomingPaymentListProvider =
       IncomingPaymentFilter
     >(IncomingPaymentList.new);
 
-/// Ties an unmatched payment to its loan. A direct client call: the result
-/// of a person's action is never cached, so a refusal can be retried.
+/// Ties an unmatched payment to its loan or, when [savingsAccountId] is
+/// given instead, to a saver's account. A direct client call: the result of
+/// a person's action is never cached, so a refusal can be retried.
 Future<IncomingPaymentAssignResponse> assignIncomingPayment(
   OperationsServiceClient client, {
   required String paymentId,
-  required String loanAccountId,
+  String loanAccountId = '',
+  String savingsAccountId = '',
   required String note,
 }) {
   return client.incomingPaymentAssign(
     IncomingPaymentAssignRequest(
       paymentId: paymentId,
       loanAccountId: loanAccountId,
+      savingsAccountId: savingsAccountId,
       note: note,
     ),
   );

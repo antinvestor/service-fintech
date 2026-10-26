@@ -24,11 +24,21 @@ class SavingsRouteModule extends RouteModule {
   List<RouteBase> buildRoutes() => [
     GoRoute(
       path: '/savings',
-      builder: (context, state) => const SavingsAccountsScreen(),
+      builder: (context, state) => Consumer(
+        builder: (context, ref, _) => SavingsAccountsScreen(
+          canManage: ref.watch(hasPermissionProvider('savings_account_manage')),
+        ),
+      ),
       routes: [
         GoRoute(
           path: 'products',
-          builder: (context, state) => const SavingsProductsScreen(),
+          builder: (context, state) => Consumer(
+            builder: (context, ref, _) => SavingsProductsScreen(
+              canManage: ref.watch(
+                hasPermissionProvider('savings_product_manage'),
+              ),
+            ),
+          ),
         ),
         GoRoute(
           path: 'withdrawals/pending',
@@ -43,8 +53,16 @@ class SavingsRouteModule extends RouteModule {
         ),
         GoRoute(
           path: ':accountId',
-          builder: (context, state) => SavingsAccountDetailScreen(
-            accountId: state.pathParameters['accountId']!,
+          builder: (context, state) => Consumer(
+            builder: (context, ref, _) => SavingsAccountDetailScreen(
+              accountId: state.pathParameters['accountId']!,
+              canManageAccount: ref.watch(
+                hasPermissionProvider('savings_account_manage'),
+              ),
+              canWithdraw: ref.watch(
+                hasPermissionProvider('withdrawal_manage'),
+              ),
+            ),
           ),
           routes: [
             GoRoute(
@@ -122,11 +140,6 @@ class SavingsRouteModule extends RouteModule {
         key: 'deposit_view',
         label: 'View Deposits',
         scope: PermissionScope.feature,
-      ),
-      PermissionEntry(
-        key: 'deposit_manage',
-        label: 'Record Deposits',
-        scope: PermissionScope.action,
       ),
       PermissionEntry(
         key: 'withdrawal_view',

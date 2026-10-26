@@ -164,6 +164,17 @@ type savingsEnv struct {
 	iaRepo  repository.InterestAccrualRepository
 }
 
+// railCtx is the payment rail (operations' service account) acting in the
+// env's partition: the only caller that may record a deposit.
+func (e *savingsEnv) railCtx() context.Context {
+	return (&security.AuthenticationClaims{
+		TenantID:         "tenant-savings",
+		PartitionID:      "partition-savings",
+		Roles:            []string{security.ConstantSystemInternalRole},
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "service_operations"},
+	}).ClaimsToContext(e.ctx, security.WithoutInternalTenancySkip())
+}
+
 func (s *savingsSuite) newEnv() *savingsEnv {
 	s.T().Helper()
 
@@ -288,7 +299,7 @@ func (s *savingsSuite) TestDepositCreditsBalanceAndCompletesRow() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	result, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	result, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("KES", "500"),
 		IdempotencyKey:   "dep-1",
@@ -319,9 +330,9 @@ func (s *savingsSuite) TestDepositIsIdempotentOnTheKey() {
 		IdempotencyKey:   "dep-retry",
 	}
 
-	first, err := e.deposit.Record(e.ctx, req)
+	first, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().NoError(err)
-	second, err := e.deposit.Record(e.ctx, req)
+	second, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().NoError(err)
 
 	s.Equal(first.GetId(), second.GetId(), "a retry must resolve to the original deposit")
@@ -346,7 +357,7 @@ func (s *savingsSuite) TestDepositRetryFinishesAnUnsettledClaim() {
 	}
 
 	e.ops.fail = errOperationsDown
-	_, err := e.deposit.Record(e.ctx, req)
+	_, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().Error(err)
 
 	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())
@@ -354,7 +365,7 @@ func (s *savingsSuite) TestDepositRetryFinishesAnUnsettledClaim() {
 	s.Zero(balance.Balance, "a failed posting must credit nothing")
 
 	e.ops.fail = nil
-	result, err := e.deposit.Record(e.ctx, req)
+	result, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().NoError(err)
 	s.Equal(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED, result.GetStatus())
 
@@ -368,7 +379,7 @@ func (s *savingsSuite) TestDepositRequiresIdempotencyKeyWithTheGateOff() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("KES", "500"),
 	})
@@ -380,7 +391,7 @@ func (s *savingsSuite) TestDepositRejectsAForeignCurrency() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("USD", "100"),
 		IdempotencyKey:   "dep-usd",
@@ -399,7 +410,7 @@ func (s *savingsSuite) TestDepositPostsZeroDecimalCurrencyAtFaceValue() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "JPY")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("JPY", "100000"),
 		IdempotencyKey:   "dep-jpy",
@@ -422,7 +433,7 @@ func (s *savingsSuite) TestDepositRoutesThroughServerDerivedLedgerRefs() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("KES", "100"),
 		IdempotencyKey:   "dep-route",
@@ -642,7 +653,7 @@ func (s *savingsSuite) TestStatementDefaultsOrdersAndCarriesARunningBalance() {
 // fund puts settled money into an account through the real deposit path.
 func (s *savingsSuite) fund(e *savingsEnv, account *models.SavingsAccount, units, key string) {
 	s.T().Helper()
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money(account.CurrencyCode, units),
 		IdempotencyKey:   key,
@@ -753,4 +764,25 @@ func balanceIDFor(s *savingsSuite, e *savingsEnv, accountID string) string {
 	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, accountID)
 	s.Require().NoError(err)
 	return balance.GetID()
+}
+
+func (s *savingsSuite) TestDepositsComeOnlyFromThePaymentRail() {
+	e := s.newEnv()
+	account := e.seedAccount(s, "KES")
+
+	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+		SavingsAccountId: account.GetID(),
+		Amount:           models.MinorUnitsToMoney(10_000, "KES"),
+		Channel:          "mobile_money",
+		IdempotencyKey:   "by-hand",
+	})
+	s.Require().ErrorIs(err, business.ErrDepositRecordInternalOnly, "a person never types a deposit")
+
+	_, err = e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
+		SavingsAccountId: account.GetID(),
+		Amount:           models.MinorUnitsToMoney(10_000, "KES"),
+		Channel:          "cash",
+		IdempotencyKey:   "cash",
+	})
+	s.Require().ErrorIs(err, business.ErrCashDepositRefused)
 }

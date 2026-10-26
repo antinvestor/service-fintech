@@ -891,6 +891,7 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
     $3.Timestamp? receivedAt,
     $core.String? assignedBy,
     $core.String? assignmentNote,
+    $core.String? savingsAccountId,
   }) {
     final result = IncomingPaymentObject._();
     if (id != null) result.id = id;
@@ -909,6 +910,7 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
     if (receivedAt != null) result.receivedAt = receivedAt;
     if (assignedBy != null) result.assignedBy = assignedBy;
     if (assignmentNote != null) result.assignmentNote = assignmentNote;
+    if (savingsAccountId != null) result.savingsAccountId = savingsAccountId;
     return result;
   }
 
@@ -944,6 +946,7 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
         subBuilder: $3.Timestamp.$_createMessage)
     ..aOS(14, _omitFieldNames ? '' : 'assignedBy')
     ..aOS(15, _omitFieldNames ? '' : 'assignmentNote')
+    ..aOS(16, _omitFieldNames ? '' : 'savingsAccountId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1120,6 +1123,17 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
   $core.bool hasAssignmentNote() => $_has(14);
   @$pb.TagNumber(15)
   void clearAssignmentNote() => $_clearField(15);
+
+  /// savings_account_id is set when the payment was a deposit to the payer's
+  /// own savings account.
+  @$pb.TagNumber(16)
+  $core.String get savingsAccountId => $_getSZ(15);
+  @$pb.TagNumber(16)
+  set savingsAccountId($core.String value) => $_setString(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasSavingsAccountId() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearSavingsAccountId() => $_clearField(16);
 }
 
 /// IncomingPaymentSearchRequest lists received payments, newest first.
@@ -1286,19 +1300,23 @@ class IncomingPaymentSearchResponse extends $pb.GeneratedMessage {
   $pb.PbList<IncomingPaymentObject> get data => $_getList(0);
 }
 
-/// IncomingPaymentAssignRequest ties an unmatched payment to the loan it was
-/// meant for and allocates it. The amount is the rail's; nobody types one.
-/// The loan must take repayments and belong to the product the rail credited.
+/// IncomingPaymentAssignRequest ties an unmatched payment to the loan or the
+/// savings account it was meant for, and allocates it. The amount is the
+/// rail's; nobody types one. Name exactly one target: the loan must take
+/// repayments, the savings account must be open and individually owned, and
+/// either must belong to the product the rail credited.
 class IncomingPaymentAssignRequest extends $pb.GeneratedMessage {
   factory IncomingPaymentAssignRequest({
     $core.String? paymentId,
     $core.String? loanAccountId,
     $core.String? note,
+    $core.String? savingsAccountId,
   }) {
     final result = IncomingPaymentAssignRequest._();
     if (paymentId != null) result.paymentId = paymentId;
     if (loanAccountId != null) result.loanAccountId = loanAccountId;
     if (note != null) result.note = note;
+    if (savingsAccountId != null) result.savingsAccountId = savingsAccountId;
     return result;
   }
 
@@ -1318,6 +1336,7 @@ class IncomingPaymentAssignRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'paymentId')
     ..aOS(2, _omitFieldNames ? '' : 'loanAccountId')
     ..aOS(3, _omitFieldNames ? '' : 'note')
+    ..aOS(4, _omitFieldNames ? '' : 'savingsAccountId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1376,6 +1395,15 @@ class IncomingPaymentAssignRequest extends $pb.GeneratedMessage {
   $core.bool hasNote() => $_has(2);
   @$pb.TagNumber(3)
   void clearNote() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get savingsAccountId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set savingsAccountId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasSavingsAccountId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearSavingsAccountId() => $_clearField(4);
 }
 
 class IncomingPaymentAssignResponse extends $pb.GeneratedMessage {
