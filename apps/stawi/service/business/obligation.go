@@ -33,8 +33,6 @@ import (
 // Identity's group and membership values, as identity stores them.
 const (
 	membershipTypeMember int32 = 3
-	groupStateDeleted    int32 = 5
-	groupStateShutdown   int32 = 6
 	// basisPoints is 100% in basis points.
 	basisPoints int64 = 10_000
 )
@@ -120,7 +118,7 @@ func (b *groupObligationBusiness) Raise(ctx context.Context, groupID, periodID s
 	if period.EndDate == nil {
 		return nil, apperrors.NewError(apperrors.Unprocessable, "the period has no end date to fall due on")
 	}
-	if state := int32(group.GetState()); state == groupStateDeleted || state == groupStateShutdown {
+	if !liveState(group.GetState()) {
 		return nil, apperrors.NewError(apperrors.Unprocessable, "the group no longer collects savings")
 	}
 	if group.GetSavingAmount() <= 0 {
@@ -165,9 +163,14 @@ func (b *groupObligationBusiness) Raise(ctx context.Context, groupID, periodID s
 // and every member still owing is charged the group's late fine once. The
 // reply is the period statement members are sent.
 func (b *groupObligationBusiness) Close(ctx context.Context, groupID, periodID string) (map[string]any, error) {
-	group, _, err := b.groupPeriod(ctx, groupID, periodID)
+	group, period, err := b.groupPeriod(ctx, groupID, periodID)
 	if err != nil {
 		return nil, err
+	}
+	// Late fines fall due only once members have had the whole period to
+	// pay: a period still running is not closed.
+	if !periodClosable(period, time.Now().UTC()) {
+		return nil, ErrPeriodStillRunning
 	}
 
 	resp, err := b.operations.GroupPeriodClose(ctx, &operationsv1.GroupPeriodCloseRequest{
@@ -233,14 +236,36 @@ func (b *groupObligationBusiness) groupPeriod(
 	return group, period, nil
 }
 
+// ErrPeriodStillRunning is returned when a period that has neither ended
+// nor been frozen is asked to close.
+var ErrPeriodStillRunning = apperrors.NewError(apperrors.Unprocessable,
+	"the period has not ended; it closes after its end date or once frozen")
+
+// periodClosable reports whether a period may be closed and its late fines
+// charged: it was frozen, it is no longer active, or its end date has passed.
+func periodClosable(period *models.Period, now time.Time) bool {
+	if period.Properties.GetString(propertyFrozenAt) != "" ||
+		period.State != int32(constants.StateActive) {
+		return true
+	}
+	return period.EndDate != nil && !period.EndDate.After(now)
+}
+
 // savingMember reports whether a membership owes the period's savings: a
 // regular member whose membership is still live.
 func savingMember(membership *identityv1.MembershipObject) bool {
 	if membership.GetMembershipType() != membershipTypeMember {
 		return false
 	}
-	state := int32(membership.GetState())
-	return state != groupStateDeleted && state != groupStateShutdown
+	return liveState(membership.GetState())
+}
+
+// liveState reports whether an identity group or membership still takes
+// part. Identity stores the platform STATE enum and starts records at
+// CREATED; nothing moves a membership to ACTIVE, so only deactivated and
+// deleted records are out.
+func liveState(state commonv1.STATE) bool {
+	return state != commonv1.STATE_INACTIVE && state != commonv1.STATE_DELETED
 }
 
 // raiseSummary shapes the raise reply for the savings workflow: every

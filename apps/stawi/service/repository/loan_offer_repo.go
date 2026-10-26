@@ -35,8 +35,11 @@ type LoanOfferRepository interface {
 	// originating in windows other than exceptWindowID.
 	CountOpenElsewhere(ctx context.Context, membershipID, exceptWindowID string) (int64, error)
 	// ListPendingOrigination returns up to limit accepted offers whose loan
-	// is not yet disbursed, least recently touched first.
-	ListPendingOrigination(ctx context.Context, limit int) ([]*models.LoanOffer, error)
+	// is not yet disbursed and that are not held off after a failure.
+	ListPendingOrigination(ctx context.Context, now time.Time, limit int) ([]*models.LoanOffer, error)
+	// ListUncancelledLoans returns up to limit failed offers whose unpaid
+	// loan could not be cancelled and that are not held off after a failure.
+	ListUncancelledLoans(ctx context.Context, now time.Time, limit int) ([]*models.LoanOffer, error)
 	// ListExpired returns up to limit unanswered open offers whose expiry
 	// is at or before now.
 	ListExpired(ctx context.Context, now time.Time, limit int) ([]*models.LoanOffer, error)
@@ -76,11 +79,28 @@ func (r *loanOfferRepository) CountOpenElsewhere(
 	return count, err
 }
 
-func (r *loanOfferRepository) ListPendingOrigination(ctx context.Context, limit int) ([]*models.LoanOffer, error) {
+func (r *loanOfferRepository) ListPendingOrigination(
+	ctx context.Context,
+	now time.Time,
+	limit int,
+) ([]*models.LoanOffer, error) {
 	var offers []*models.LoanOffer
 	err := r.Pool().DB(ctx, true).
-		Where("origination_status = ?", models.OriginationPending).
-		Order("modified_at ASC").Limit(limit).Find(&offers).Error
+		Where("origination_status = ? AND (retry_at IS NULL OR retry_at <= ?)", models.OriginationPending, now).
+		Order("created_at ASC").Limit(limit).Find(&offers).Error
+	return offers, err
+}
+
+func (r *loanOfferRepository) ListUncancelledLoans(
+	ctx context.Context,
+	now time.Time,
+	limit int,
+) ([]*models.LoanOffer, error) {
+	var offers []*models.LoanOffer
+	err := r.Pool().DB(ctx, true).
+		Where("origination_status = ? AND loan_account_id <> '' AND properties->>'loan_cancelled' = 'false'"+
+			" AND (retry_at IS NULL OR retry_at <= ?)", models.OriginationFailed, now).
+		Order("created_at ASC").Limit(limit).Find(&offers).Error
 	return offers, err
 }
 

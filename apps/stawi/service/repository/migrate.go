@@ -50,6 +50,7 @@ func migratePool(ctx context.Context, dbPool pool.Pool, migrationsDirPath string
 		&models.RequestLog{},
 		&models.LoanWindow{},
 		&models.LoanOffer{},
+		&models.Notice{},
 		&audit.Event{},
 	); err != nil {
 		return err

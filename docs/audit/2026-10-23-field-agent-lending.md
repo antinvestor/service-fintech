@@ -1569,3 +1569,84 @@ nothing disbursed after a loan account was created.
 - an offer reached through another group is refused.
 
 Lint: 0 issues.
+
+## 52. Addendum 2026-10-26 — Stawi phases 4–5: group cycles run on trustage
+
+**Change.**
+
+- *Jobs replace workflows.* Stawi's three remaining workflows (group
+  lifecycle, period lifecycle, savings collection) never ran and are
+  deleted, together with every callback route that only they reached.
+- *Connect API.* Stawi now serves `stawi.v1.StawiService` over Connect, with
+  two RPCs:
+  - `StawiJobRun` (`stawi_job_run`, service accounts only, also refused in
+    the business layer);
+  - `LoanOfferRespond`. The JSON route stays.
+- *The jobs.* Each is bounded and idempotent, reads across tenants, and acts
+  in each item's partition. An item that fails waits 10 minutes before a
+  retry.
+  - `GROUP_LIFECYCLE`, every 15 minutes:
+    - A group identity holds active gets a tenure, ledger accounts, a single
+      lender registration, its first period and that period's obligations.
+      Each member and leader gets one welcome.
+    - A deactivated or deleted group opens no new period; its current period
+      still closes on time.
+  - `CLOSE_DUE_PERIODS`, hourly:
+    - Charges late fines once in operations.
+    - Opens exactly one next period and raises its obligations.
+    - Opens the loan window when due, which makes offers.
+    - Sends each member their statement once, and closes the old period
+      last.
+  - `SEND_REMINDERS`, daily at 06:00 UTC: reminds members still owing at 72 h
+    and 24 h before the end, once per offset, and sends leaders who is
+    behind.
+  - `LOAN_OFFERS`, every 10 minutes: resumes pending originations, expires
+    stale offers, and retries failed loan cancels.
+- *Notices.* Notifications go by profile id and are recorded under a unique
+  notice key before sending, so none repeats. If a send fails, the record
+  is removed so a later run retries.
+- *Closing a period* is refused while it is still running (not frozen and
+  before its end date), so no late fine is charged early.
+- *Group and membership states.* Identity stores the platform `STATE` enum
+  and starts every record at CREATED; nothing moves a membership to ACTIVE.
+  - Phase 2 compared against fintech's internal constants (5 and 6), which
+    never match, so deleted or deactivated groups and members were not
+    excluded.
+  - Phase 3 required an ACTIVE membership, so in practice no member would
+    ever be offered a loan.
+  - Both now use one rule (`liveState`): out only when INACTIVE or DELETED.
+- *Other fixes.*
+  - The loan window counted existing windows instead of completed periods,
+    so it never opened.
+  - Closing a period reset its end date to "now".
+  - A tenure could be left open under its last closed period.
+- *Configuration.* Stawi's setup requires the trustage sync when running
+  securely.
+- *Grants and namespace.* service-authentication `20261026_11`:
+  - trustage gets the `/stawi` audience and `stawi_job_run`;
+  - `service_stawi` is narrowed by the seven retired permissions.
+
+**Deploy.**
+- `TRUSTAGE_SERVICE_URI` on stawi's setup Job.
+- A trustage connect route for `stawi.v1.` to the Stawi service.
+- Apply auth migrations `20261026_09`, `_10` and `_11`.
+
+**Open.**
+- Identity cannot list groups across tenants or filter them by state, so
+  each lifecycle run reads the tenant's whole group list. A state filter in
+  identity would fix this.
+- The Stawi group types the jobs run (`STAWI_GROUP_TYPES`, default 2, 5, 6)
+  need confirming against how groups are created.
+- If the service crashes between recording a notice and sending it, that one
+  notice is lost. Duplicates were judged the worse risk.
+
+**Verified.** Stawi tests:
+- each job refuses non-internal callers;
+- group setup is idempotent;
+- a due period closes once, opens one next period and notifies once;
+- a period not yet ended is untouched;
+- reminders go once per offset;
+- the loan offer sweep resumes, expires and retries cancels.
+
+New queries run on Postgres. Trustage validation passes for the four Stawi
+workflows. Lint: 0 issues.

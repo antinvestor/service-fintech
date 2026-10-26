@@ -69,10 +69,7 @@ func (b *loanWindowBusiness) Evaluate(ctx context.Context, groupID string) (map[
 		return nil, err
 	}
 
-	completedPeriods, err := b.lwRepo.CountByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
+	completedPeriods := b.completedPeriods(ctx, groupID)
 
 	maturityPeriod := groupInt32Property(group, "loan_maturity_periods", b.product.LoanMaturityPeriods)
 	gracePeriod := groupInt32Property(group, "loan_grace_period", b.product.LoanGracePeriod)
@@ -101,6 +98,17 @@ func (b *loanWindowBusiness) Evaluate(ctx context.Context, groupID string) (map[
 		"cycle_position":    cycle,
 		"completed_periods": completedPeriods,
 	}, nil
+}
+
+// completedPeriods counts the periods of the group's tenure that came before
+// its current one, which is what the loan cycle is measured in. A group with
+// no open period has completed none that count.
+func (b *loanWindowBusiness) completedPeriods(ctx context.Context, groupID string) int32 {
+	period, err := b.perRepo.GetCurrentByGroupID(ctx, groupID)
+	if err != nil || period == nil || period.GetID() == "" || period.State != int32(constants.StateActive) {
+		return 0
+	}
+	return period.Position - 1
 }
 
 // currentPeriodEnd renders the group's current period end date, or an empty
@@ -147,7 +155,9 @@ func (b *loanWindowBusiness) Open(ctx context.Context, groupID string) (*models.
 		}
 	}
 
-	periodicAmount := groupInt64Property(group, "periodic_amount", 0)
+	// The window lends against the members' periodic savings: a group
+	// property can set it, otherwise it is the group's saving amount.
+	periodicAmount := groupInt64Property(group, "periodic_amount", group.GetSavingAmount())
 	if periodicAmount <= 0 {
 		return nil, apperrors.NewError(apperrors.Unprocessable,
 			"group has no periodic savings amount configured")

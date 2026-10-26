@@ -22,6 +22,7 @@ package stawiv1
 
 import (
 	_ "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -38,76 +39,97 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// GroupRequest addresses a single group.
-type GroupRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+// StawiJob is a periodic job the platform scheduler runs.
+type StawiJob int32
 
-func (x *GroupRequest) Reset() {
-	*x = GroupRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+const (
+	StawiJob_STAWI_JOB_UNSPECIFIED StawiJob = 0
+	// Sets up groups identity holds active (ledger accounts, lender
+	// registration, tenure, first period, its obligations, a welcome), and
+	// stops new periods for groups identity shut down or deactivated.
+	StawiJob_STAWI_JOB_GROUP_LIFECYCLE StawiJob = 1
+	// Closes periods whose end date has passed: late fines in operations,
+	// the next period and its obligations, the loan window, and each
+	// member's period summary.
+	StawiJob_STAWI_JOB_CLOSE_DUE_PERIODS StawiJob = 2
+	// Reminds members still owing a period's savings at fixed offsets before
+	// it ends, once per offset, and tells the group's leaders who is behind.
+	StawiJob_STAWI_JOB_SEND_REMINDERS StawiJob = 3
+	// Finishes accepted offers whose loan is not paid yet, closes offers
+	// nobody answered in time, and retries cancelling the loans of offers
+	// that could not be paid.
+	StawiJob_STAWI_JOB_LOAN_OFFERS StawiJob = 4
+)
 
-func (x *GroupRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GroupRequest) ProtoMessage() {}
-
-func (x *GroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+// Enum value maps for StawiJob.
+var (
+	StawiJob_name = map[int32]string{
+		0: "STAWI_JOB_UNSPECIFIED",
+		1: "STAWI_JOB_GROUP_LIFECYCLE",
+		2: "STAWI_JOB_CLOSE_DUE_PERIODS",
+		3: "STAWI_JOB_SEND_REMINDERS",
+		4: "STAWI_JOB_LOAN_OFFERS",
 	}
-	return mi.MessageOf(x)
+	StawiJob_value = map[string]int32{
+		"STAWI_JOB_UNSPECIFIED":       0,
+		"STAWI_JOB_GROUP_LIFECYCLE":   1,
+		"STAWI_JOB_CLOSE_DUE_PERIODS": 2,
+		"STAWI_JOB_SEND_REMINDERS":    3,
+		"STAWI_JOB_LOAN_OFFERS":       4,
+	}
+)
+
+func (x StawiJob) Enum() *StawiJob {
+	p := new(StawiJob)
+	*p = x
+	return p
 }
 
-// Deprecated: Use GroupRequest.ProtoReflect.Descriptor instead.
-func (*GroupRequest) Descriptor() ([]byte, []int) {
+func (x StawiJob) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (StawiJob) Descriptor() protoreflect.EnumDescriptor {
+	return file_stawi_v1_stawi_proto_enumTypes[0].Descriptor()
+}
+
+func (StawiJob) Type() protoreflect.EnumType {
+	return &file_stawi_v1_stawi_proto_enumTypes[0]
+}
+
+func (x StawiJob) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use StawiJob.Descriptor instead.
+func (StawiJob) EnumDescriptor() ([]byte, []int) {
 	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GroupRequest) GetGroupId() string {
-	if x != nil {
-		return x.GroupId
-	}
-	return ""
-}
-
-// GroupTransitionRequest moves a group to a new state.
-type GroupTransitionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	State         int32                  `protobuf:"varint,2,opt,name=state,proto3" json:"state,omitempty"`
-	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+type StawiJobRunRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Job   StawiJob               `protobuf:"varint,1,opt,name=job,proto3,enum=stawi.v1.StawiJob" json:"job,omitempty"`
+	// Most items to process in this run. 0 uses the service default.
+	BatchSize     int32 `protobuf:"varint,2,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GroupTransitionRequest) Reset() {
-	*x = GroupTransitionRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[1]
+func (x *StawiJobRunRequest) Reset() {
+	*x = StawiJobRunRequest{}
+	mi := &file_stawi_v1_stawi_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GroupTransitionRequest) String() string {
+func (x *StawiJobRunRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GroupTransitionRequest) ProtoMessage() {}
+func (*StawiJobRunRequest) ProtoMessage() {}
 
-func (x *GroupTransitionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[1]
+func (x *StawiJobRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_stawi_v1_stawi_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -118,56 +140,49 @@ func (x *GroupTransitionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GroupTransitionRequest.ProtoReflect.Descriptor instead.
-func (*GroupTransitionRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use StawiJobRunRequest.ProtoReflect.Descriptor instead.
+func (*StawiJobRunRequest) Descriptor() ([]byte, []int) {
+	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GroupTransitionRequest) GetGroupId() string {
+func (x *StawiJobRunRequest) GetJob() StawiJob {
 	if x != nil {
-		return x.GroupId
+		return x.Job
 	}
-	return ""
+	return StawiJob_STAWI_JOB_UNSPECIFIED
 }
 
-func (x *GroupTransitionRequest) GetState() int32 {
+func (x *StawiJobRunRequest) GetBatchSize() int32 {
 	if x != nil {
-		return x.State
+		return x.BatchSize
 	}
 	return 0
 }
 
-func (x *GroupTransitionRequest) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
-
-// GroupPeriodRequest addresses a period within a group.
-type GroupPeriodRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	PeriodId      string                 `protobuf:"bytes,2,opt,name=period_id,json=periodId,proto3" json:"period_id,omitempty"`
+type StawiJobRunResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Processed int32                  `protobuf:"varint,1,opt,name=processed,proto3" json:"processed,omitempty"`
+	// True when the batch was full and more work may be waiting.
+	More          bool `protobuf:"varint,2,opt,name=more,proto3" json:"more,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GroupPeriodRequest) Reset() {
-	*x = GroupPeriodRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[2]
+func (x *StawiJobRunResponse) Reset() {
+	*x = StawiJobRunResponse{}
+	mi := &file_stawi_v1_stawi_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GroupPeriodRequest) String() string {
+func (x *StawiJobRunResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GroupPeriodRequest) ProtoMessage() {}
+func (*StawiJobRunResponse) ProtoMessage() {}
 
-func (x *GroupPeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[2]
+func (x *StawiJobRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_stawi_v1_stawi_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -178,26 +193,25 @@ func (x *GroupPeriodRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GroupPeriodRequest.ProtoReflect.Descriptor instead.
-func (*GroupPeriodRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{2}
+// Deprecated: Use StawiJobRunResponse.ProtoReflect.Descriptor instead.
+func (*StawiJobRunResponse) Descriptor() ([]byte, []int) {
+	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GroupPeriodRequest) GetGroupId() string {
+func (x *StawiJobRunResponse) GetProcessed() int32 {
 	if x != nil {
-		return x.GroupId
+		return x.Processed
 	}
-	return ""
+	return 0
 }
 
-func (x *GroupPeriodRequest) GetPeriodId() string {
+func (x *StawiJobRunResponse) GetMore() bool {
 	if x != nil {
-		return x.PeriodId
+		return x.More
 	}
-	return ""
+	return false
 }
 
-// GroupLoanOfferRequest acts on an accepted loan offer.
 // LoanOfferRespondRequest answers a loan offer. response is 1 accept,
 // 2 reject; other answers are recorded as given and close the offer.
 type LoanOfferRespondRequest struct {
@@ -211,7 +225,7 @@ type LoanOfferRespondRequest struct {
 
 func (x *LoanOfferRespondRequest) Reset() {
 	*x = LoanOfferRespondRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +237,7 @@ func (x *LoanOfferRespondRequest) String() string {
 func (*LoanOfferRespondRequest) ProtoMessage() {}
 
 func (x *LoanOfferRespondRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
+	mi := &file_stawi_v1_stawi_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +250,7 @@ func (x *LoanOfferRespondRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoanOfferRespondRequest.ProtoReflect.Descriptor instead.
 func (*LoanOfferRespondRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{3}
+	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *LoanOfferRespondRequest) GetGroupId() string {
@@ -260,81 +274,30 @@ func (x *LoanOfferRespondRequest) GetResponse() int32 {
 	return 0
 }
 
-type GroupLoanOfferRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
-	OfferId       string                 `protobuf:"bytes,2,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GroupLoanOfferRequest) Reset() {
-	*x = GroupLoanOfferRequest{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GroupLoanOfferRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GroupLoanOfferRequest) ProtoMessage() {}
-
-func (x *GroupLoanOfferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GroupLoanOfferRequest.ProtoReflect.Descriptor instead.
-func (*GroupLoanOfferRequest) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *GroupLoanOfferRequest) GetGroupId() string {
-	if x != nil {
-		return x.GroupId
-	}
-	return ""
-}
-
-func (x *GroupLoanOfferRequest) GetOfferId() string {
-	if x != nil {
-		return x.OfferId
-	}
-	return ""
-}
-
-// CallbackResponse is the loosely typed JSON body every callback returns.
-type CallbackResponse struct {
+// LoanOfferRespondResponse reports the offer after the answer: an accepted
+// offer whose loan is still being made reads origination_status "pending".
+type LoanOfferRespondResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Data          *structpb.Struct       `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CallbackResponse) Reset() {
-	*x = CallbackResponse{}
-	mi := &file_stawi_v1_stawi_proto_msgTypes[5]
+func (x *LoanOfferRespondResponse) Reset() {
+	*x = LoanOfferRespondResponse{}
+	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CallbackResponse) String() string {
+func (x *LoanOfferRespondResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CallbackResponse) ProtoMessage() {}
+func (*LoanOfferRespondResponse) ProtoMessage() {}
 
-func (x *CallbackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_stawi_v1_stawi_proto_msgTypes[5]
+func (x *LoanOfferRespondResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_stawi_v1_stawi_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -345,12 +308,12 @@ func (x *CallbackResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CallbackResponse.ProtoReflect.Descriptor instead.
-func (*CallbackResponse) Descriptor() ([]byte, []int) {
-	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use LoanOfferRespondResponse.ProtoReflect.Descriptor instead.
+func (*LoanOfferRespondResponse) Descriptor() ([]byte, []int) {
+	return file_stawi_v1_stawi_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *CallbackResponse) GetData() *structpb.Struct {
+func (x *LoanOfferRespondResponse) GetData() *structpb.Struct {
 	if x != nil {
 		return x.Data
 	}
@@ -361,63 +324,34 @@ var File_stawi_v1_stawi_proto protoreflect.FileDescriptor
 
 const file_stawi_v1_stawi_proto_rawDesc = "" +
 	"\n" +
-	"\x14stawi/v1/stawi.proto\x12\bstawi.v1\x1a\x1bcommon/v1/permissions.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1cgoogle/protobuf/struct.proto\")\n" +
-	"\fGroupRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"a\n" +
-	"\x16GroupTransitionRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x14\n" +
-	"\x05state\x18\x02 \x01(\x05R\x05state\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"L\n" +
-	"\x12GroupPeriodRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x1b\n" +
-	"\tperiod_id\x18\x02 \x01(\tR\bperiodId\"k\n" +
-	"\x17LoanOfferRespondRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x19\n" +
-	"\boffer_id\x18\x02 \x01(\tR\aofferId\x12\x1a\n" +
-	"\bresponse\x18\x03 \x01(\x05R\bresponse\"M\n" +
-	"\x15GroupLoanOfferRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x19\n" +
-	"\boffer_id\x18\x02 \x01(\tR\aofferId\"?\n" +
-	"\x10CallbackResponse\x12+\n" +
-	"\x04data\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x04data2\x82\x1d\n" +
-	"\x14StawiWorkflowService\x12\x97\x01\n" +
-	"\x13GroupCheckFormation\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"L\x82\xb5\x18\x14\n" +
-	"\x12stawi_group_manage\x82\xd3\xe4\x93\x02.:\x01*\")/api/v1/groups/{group_id}/check-formation\x12\x91\x01\n" +
-	"\x10GroupSetupLedger\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"I\x82\xb5\x18\x14\n" +
-	"\x12stawi_group_manage\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/groups/{group_id}/setup-ledger\x12\x97\x01\n" +
-	"\x13GroupRegisterLender\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"L\x82\xb5\x18\x14\n" +
-	"\x12stawi_group_manage\x82\xd3\xe4\x93\x02.:\x01*\")/api/v1/groups/{group_id}/register-lender\x12\x88\x01\n" +
-	"\fGroupWelcome\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"D\x82\xb5\x18\x14\n" +
-	"\x12stawi_group_manage\x82\xd3\xe4\x93\x02&:\x01*\"!/api/v1/groups/{group_id}/welcome\x12\x98\x01\n" +
-	"\x0fGroupTransition\x12 .stawi.v1.GroupTransitionRequest\x1a\x1a.stawi.v1.CallbackResponse\"G\x82\xb5\x18\x14\n" +
-	"\x12stawi_group_manage\x82\xd3\xe4\x93\x02):\x01*\"$/api/v1/groups/{group_id}/transition\x12\x8a\x01\n" +
-	"\x10GroupMembersList\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"B\x82\xb5\x18\x12\n" +
-	"\x10stawi_group_view\x82\xd3\xe4\x93\x02#\x12!/api/v1/groups/{group_id}/members\x90\x02\x01\x12\x8d\x01\n" +
+	"\x14stawi/v1/stawi.proto\x12\bstawi.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1bcommon/v1/permissions.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1cgoogle/protobuf/struct.proto\"q\n" +
+	"\x12StawiJobRunRequest\x120\n" +
+	"\x03job\x18\x01 \x01(\x0e2\x12.stawi.v1.StawiJobB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x03job\x12)\n" +
 	"\n" +
-	"TenureOpen\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"K\x82\xb5\x18\x15\n" +
-	"\x13stawi_tenure_manage\x82\xd3\xe4\x93\x02,:\x01*\"'/api/v1/groups/{group_id}/create-tenure\x12\x8b\x01\n" +
-	"\n" +
-	"PeriodOpen\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"I\x82\xb5\x18\x15\n" +
-	"\x13stawi_period_manage\x82\xd3\xe4\x93\x02*:\x01*\"%/api/v1/groups/{group_id}/open-period\x12\xa0\x01\n" +
-	"\vPeriodClose\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"W\x82\xb5\x18\x15\n" +
-	"\x13stawi_period_manage\x82\xd3\xe4\x93\x028:\x01*\"3/api/v1/groups/{group_id}/periods/{period_id}/close\x12\xa2\x01\n" +
-	"\fPeriodFreeze\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"X\x82\xb5\x18\x15\n" +
-	"\x13stawi_period_manage\x82\xd3\xe4\x93\x029:\x01*\"4/api/v1/groups/{group_id}/periods/{period_id}/freeze\x12\xa2\x01\n" +
-	"\fPeriodExtend\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"X\x82\xb5\x18\x15\n" +
-	"\x13stawi_period_manage\x82\xd3\xe4\x93\x029:\x01*\"4/api/v1/groups/{group_id}/periods/{period_id}/extend\x12\xbc\x01\n" +
-	"\x13ObligationCalculate\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"k\x82\xb5\x18\x19\n" +
-	"\x17stawi_obligation_manage\x82\xd3\xe4\x93\x02H:\x01*\"C/api/v1/groups/{group_id}/periods/{period_id}/calculate-obligations\x12\xb6\x01\n" +
-	"\x19ObligationReconcilePeriod\x12\x1c.stawi.v1.GroupPeriodRequest\x1a\x1a.stawi.v1.CallbackResponse\"_\x82\xb5\x18\x19\n" +
-	"\x17stawi_obligation_manage\x82\xd3\xe4\x93\x02<:\x01*\"7/api/v1/groups/{group_id}/periods/{period_id}/reconcile\x12\xa1\x01\n" +
-	"\x12LoanWindowEvaluate\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"W\x82\xb5\x18\x1a\n" +
-	"\x18stawi_loan_window_manage\x82\xd3\xe4\x93\x023:\x01*\"./api/v1/groups/{group_id}/evaluate-loan-window\x12\x99\x01\n" +
-	"\x0eLoanWindowOpen\x12\x16.stawi.v1.GroupRequest\x1a\x1a.stawi.v1.CallbackResponse\"S\x82\xb5\x18\x1a\n" +
-	"\x18stawi_loan_window_manage\x82\xd3\xe4\x93\x02/:\x01*\"*/api/v1/groups/{group_id}/loan-window/open\x12\xb4\x01\n" +
-	"\x10LoanOfferRespond\x12!.stawi.v1.LoanOfferRespondRequest\x1a\x1a.stawi.v1.CallbackResponse\"a\x82\xb5\x18\x1a\n" +
-	"\x18stawi_loan_offer_respond\x82\xd3\xe4\x93\x02=:\x01*\"8/api/v1/groups/{group_id}/loan-offers/{offer_id}/respond\x12\x93\x01\n" +
-	"\x11LoanAccountCreate\x12\x1f.stawi.v1.GroupLoanOfferRequest\x1a\x1a.stawi.v1.CallbackResponse\"A\x82\xb5\x18\x13\n" +
-	"\x11stawi_loan_create\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/api/v1/groups/{group_id}/loans\x1a\xde\a\x82\xb5\x18\xd9\a\n" +
-	"\rservice_stawi\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\xb2\x01\b\x01\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\xb2\x01\b\x02\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\xb2\x01\b\x03\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_create\x1a\x14\b\x04\x12\x10stawi_group_view\x1a.\b\x05\x12\x18stawi_loan_offer_respond\x12\x10stawi_group_view\x1a\xb2\x01\b\x06\x12\x10stawi_group_view\x12\x12stawi_group_manage\x12\x13stawi_tenure_manage\x12\x13stawi_period_manage\x12\x17stawi_obligation_manage\x12\x18stawi_loan_window_manage\x12\x18stawi_loan_offer_respond\x12\x11stawi_loan_createB\xb4\x01\n" +
+	"batch_size\x18\x02 \x01(\x05B\n" +
+	"\xbaH\a\x1a\x05\x18\x88'(\x00R\tbatchSize\"G\n" +
+	"\x13StawiJobRunResponse\x12\x1c\n" +
+	"\tprocessed\x18\x01 \x01(\x05R\tprocessed\x12\x12\n" +
+	"\x04more\x18\x02 \x01(\bR\x04more\"\x88\x01\n" +
+	"\x17LoanOfferRespondRequest\x12\"\n" +
+	"\bgroup_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\agroupId\x12\"\n" +
+	"\boffer_id\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aofferId\x12%\n" +
+	"\bresponse\x18\x03 \x01(\x05B\t\xbaH\x06\x1a\x04\x18\x05(\x01R\bresponse\"G\n" +
+	"\x18LoanOfferRespondResponse\x12+\n" +
+	"\x04data\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x04data*\x9e\x01\n" +
+	"\bStawiJob\x12\x19\n" +
+	"\x15STAWI_JOB_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19STAWI_JOB_GROUP_LIFECYCLE\x10\x01\x12\x1f\n" +
+	"\x1bSTAWI_JOB_CLOSE_DUE_PERIODS\x10\x02\x12\x1c\n" +
+	"\x18STAWI_JOB_SEND_REMINDERS\x10\x03\x12\x19\n" +
+	"\x15STAWI_JOB_LOAN_OFFERS\x10\x042\x93\x04\n" +
+	"\fStawiService\x12\xbc\x01\n" +
+	"\x10LoanOfferRespond\x12!.stawi.v1.LoanOfferRespondRequest\x1a\".stawi.v1.LoanOfferRespondResponse\"a\x82\xb5\x18\x1a\n" +
+	"\x18stawi_loan_offer_respond\x82\xd3\xe4\x93\x02=:\x01*\"8/api/v1/groups/{group_id}/loan-offers/{offer_id}/respond\x12_\n" +
+	"\vStawiJobRun\x12\x1c.stawi.v1.StawiJobRunRequest\x1a\x1d.stawi.v1.StawiJobRunResponse\"\x13\x82\xb5\x18\x0f\n" +
+	"\rstawi_job_run\x1a\xe2\x01\x82\xb5\x18\xdd\x01\n" +
+	"\rservice_stawi\x12\x18stawi_loan_offer_respond\x12\rstawi_job_run\x1a\x1c\b\x01\x12\x18stawi_loan_offer_respond\x1a\x1c\b\x02\x12\x18stawi_loan_offer_respond\x1a\x1c\b\x03\x12\x18stawi_loan_offer_respond\x1a\x1c\b\x05\x12\x18stawi_loan_offer_respond\x1a+\b\x06\x12\x18stawi_loan_offer_respond\x12\rstawi_job_runB\xb4\x01\n" +
 	"\fcom.stawi.v1B\n" +
 	"StawiProtoP\x01ZWgithub.com/antinvestor/service-fintech/gen/go/stawi/protocolbuffers/go/stawi/v1;stawiv1\xa2\x02\x03SXX\xaa\x02\bStawi.V1\xca\x02\bStawi\\V1\xe2\x02\x14Stawi\\V1\\GPBMetadata\xea\x02\tStawi::V1b\x06proto3"
 
@@ -433,57 +367,28 @@ func file_stawi_v1_stawi_proto_rawDescGZIP() []byte {
 	return file_stawi_v1_stawi_proto_rawDescData
 }
 
-var file_stawi_v1_stawi_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_stawi_v1_stawi_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_stawi_v1_stawi_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_stawi_v1_stawi_proto_goTypes = []any{
-	(*GroupRequest)(nil),            // 0: stawi.v1.GroupRequest
-	(*GroupTransitionRequest)(nil),  // 1: stawi.v1.GroupTransitionRequest
-	(*GroupPeriodRequest)(nil),      // 2: stawi.v1.GroupPeriodRequest
-	(*LoanOfferRespondRequest)(nil), // 3: stawi.v1.LoanOfferRespondRequest
-	(*GroupLoanOfferRequest)(nil),   // 4: stawi.v1.GroupLoanOfferRequest
-	(*CallbackResponse)(nil),        // 5: stawi.v1.CallbackResponse
-	(*structpb.Struct)(nil),         // 6: google.protobuf.Struct
+	(StawiJob)(0),                    // 0: stawi.v1.StawiJob
+	(*StawiJobRunRequest)(nil),       // 1: stawi.v1.StawiJobRunRequest
+	(*StawiJobRunResponse)(nil),      // 2: stawi.v1.StawiJobRunResponse
+	(*LoanOfferRespondRequest)(nil),  // 3: stawi.v1.LoanOfferRespondRequest
+	(*LoanOfferRespondResponse)(nil), // 4: stawi.v1.LoanOfferRespondResponse
+	(*structpb.Struct)(nil),          // 5: google.protobuf.Struct
 }
 var file_stawi_v1_stawi_proto_depIdxs = []int32{
-	6,  // 0: stawi.v1.CallbackResponse.data:type_name -> google.protobuf.Struct
-	0,  // 1: stawi.v1.StawiWorkflowService.GroupCheckFormation:input_type -> stawi.v1.GroupRequest
-	0,  // 2: stawi.v1.StawiWorkflowService.GroupSetupLedger:input_type -> stawi.v1.GroupRequest
-	0,  // 3: stawi.v1.StawiWorkflowService.GroupRegisterLender:input_type -> stawi.v1.GroupRequest
-	0,  // 4: stawi.v1.StawiWorkflowService.GroupWelcome:input_type -> stawi.v1.GroupRequest
-	1,  // 5: stawi.v1.StawiWorkflowService.GroupTransition:input_type -> stawi.v1.GroupTransitionRequest
-	0,  // 6: stawi.v1.StawiWorkflowService.GroupMembersList:input_type -> stawi.v1.GroupRequest
-	0,  // 7: stawi.v1.StawiWorkflowService.TenureOpen:input_type -> stawi.v1.GroupRequest
-	0,  // 8: stawi.v1.StawiWorkflowService.PeriodOpen:input_type -> stawi.v1.GroupRequest
-	2,  // 9: stawi.v1.StawiWorkflowService.PeriodClose:input_type -> stawi.v1.GroupPeriodRequest
-	2,  // 10: stawi.v1.StawiWorkflowService.PeriodFreeze:input_type -> stawi.v1.GroupPeriodRequest
-	2,  // 11: stawi.v1.StawiWorkflowService.PeriodExtend:input_type -> stawi.v1.GroupPeriodRequest
-	2,  // 12: stawi.v1.StawiWorkflowService.ObligationCalculate:input_type -> stawi.v1.GroupPeriodRequest
-	2,  // 13: stawi.v1.StawiWorkflowService.ObligationReconcilePeriod:input_type -> stawi.v1.GroupPeriodRequest
-	0,  // 14: stawi.v1.StawiWorkflowService.LoanWindowEvaluate:input_type -> stawi.v1.GroupRequest
-	0,  // 15: stawi.v1.StawiWorkflowService.LoanWindowOpen:input_type -> stawi.v1.GroupRequest
-	3,  // 16: stawi.v1.StawiWorkflowService.LoanOfferRespond:input_type -> stawi.v1.LoanOfferRespondRequest
-	4,  // 17: stawi.v1.StawiWorkflowService.LoanAccountCreate:input_type -> stawi.v1.GroupLoanOfferRequest
-	5,  // 18: stawi.v1.StawiWorkflowService.GroupCheckFormation:output_type -> stawi.v1.CallbackResponse
-	5,  // 19: stawi.v1.StawiWorkflowService.GroupSetupLedger:output_type -> stawi.v1.CallbackResponse
-	5,  // 20: stawi.v1.StawiWorkflowService.GroupRegisterLender:output_type -> stawi.v1.CallbackResponse
-	5,  // 21: stawi.v1.StawiWorkflowService.GroupWelcome:output_type -> stawi.v1.CallbackResponse
-	5,  // 22: stawi.v1.StawiWorkflowService.GroupTransition:output_type -> stawi.v1.CallbackResponse
-	5,  // 23: stawi.v1.StawiWorkflowService.GroupMembersList:output_type -> stawi.v1.CallbackResponse
-	5,  // 24: stawi.v1.StawiWorkflowService.TenureOpen:output_type -> stawi.v1.CallbackResponse
-	5,  // 25: stawi.v1.StawiWorkflowService.PeriodOpen:output_type -> stawi.v1.CallbackResponse
-	5,  // 26: stawi.v1.StawiWorkflowService.PeriodClose:output_type -> stawi.v1.CallbackResponse
-	5,  // 27: stawi.v1.StawiWorkflowService.PeriodFreeze:output_type -> stawi.v1.CallbackResponse
-	5,  // 28: stawi.v1.StawiWorkflowService.PeriodExtend:output_type -> stawi.v1.CallbackResponse
-	5,  // 29: stawi.v1.StawiWorkflowService.ObligationCalculate:output_type -> stawi.v1.CallbackResponse
-	5,  // 30: stawi.v1.StawiWorkflowService.ObligationReconcilePeriod:output_type -> stawi.v1.CallbackResponse
-	5,  // 31: stawi.v1.StawiWorkflowService.LoanWindowEvaluate:output_type -> stawi.v1.CallbackResponse
-	5,  // 32: stawi.v1.StawiWorkflowService.LoanWindowOpen:output_type -> stawi.v1.CallbackResponse
-	5,  // 33: stawi.v1.StawiWorkflowService.LoanOfferRespond:output_type -> stawi.v1.CallbackResponse
-	5,  // 34: stawi.v1.StawiWorkflowService.LoanAccountCreate:output_type -> stawi.v1.CallbackResponse
-	18, // [18:35] is the sub-list for method output_type
-	1,  // [1:18] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	0, // 0: stawi.v1.StawiJobRunRequest.job:type_name -> stawi.v1.StawiJob
+	5, // 1: stawi.v1.LoanOfferRespondResponse.data:type_name -> google.protobuf.Struct
+	3, // 2: stawi.v1.StawiService.LoanOfferRespond:input_type -> stawi.v1.LoanOfferRespondRequest
+	1, // 3: stawi.v1.StawiService.StawiJobRun:input_type -> stawi.v1.StawiJobRunRequest
+	4, // 4: stawi.v1.StawiService.LoanOfferRespond:output_type -> stawi.v1.LoanOfferRespondResponse
+	2, // 5: stawi.v1.StawiService.StawiJobRun:output_type -> stawi.v1.StawiJobRunResponse
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_stawi_v1_stawi_proto_init() }
@@ -496,13 +401,14 @@ func file_stawi_v1_stawi_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_stawi_v1_stawi_proto_rawDesc), len(file_stawi_v1_stawi_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   6,
+			NumEnums:      1,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_stawi_v1_stawi_proto_goTypes,
 		DependencyIndexes: file_stawi_v1_stawi_proto_depIdxs,
+		EnumInfos:         file_stawi_v1_stawi_proto_enumTypes,
 		MessageInfos:      file_stawi_v1_stawi_proto_msgTypes,
 	}.Build()
 	File_stawi_v1_stawi_proto = out.File

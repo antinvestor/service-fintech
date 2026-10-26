@@ -27,9 +27,6 @@ import (
 type ClientGroupBusiness interface {
 	Create(ctx context.Context, group *identityv1.ClientGroupObject) (*identityv1.ClientGroupObject, error)
 	Get(ctx context.Context, id string) (*identityv1.ClientGroupObject, error)
-	Transition(ctx context.Context, groupID string, newState int32, reason string) error
-	CheckFormation(ctx context.Context, groupID string) (map[string]interface{}, error)
-	WelcomeGroup(ctx context.Context, groupID string) error
 	SetupLedgerAccounts(ctx context.Context, groupID string) error
 	RegisterWithLender(ctx context.Context, groupID string) error
 }
@@ -53,6 +50,7 @@ type TenureBusiness interface {
 // PeriodBusiness handles period lifecycle operations.
 type PeriodBusiness interface {
 	Open(ctx context.Context, groupID string) (*models.Period, error)
+	OpenNext(ctx context.Context, previous *models.Period) (*models.Period, error)
 	Close(ctx context.Context, periodID string) error
 	Freeze(ctx context.Context, periodID string) (*models.Period, error)
 	Extend(ctx context.Context, periodID, reason string) (*models.Period, error)
@@ -82,10 +80,12 @@ type LoanOfferBusiness interface {
 	OfferGenerator
 	Respond(ctx context.Context, groupID, offerID string, response int32) (*models.LoanOffer, error)
 	CreateLoanAccount(ctx context.Context, groupID, offerID string) (map[string]any, error)
-	// ResumePendingOrigination and ExpireStale are bounded, idempotent
-	// sweeps for a scheduled job.
-	ResumePendingOrigination(ctx context.Context, batch int) (OriginationSweep, error)
-	ExpireStale(ctx context.Context, now time.Time, batch int) (int, error)
+	// ResumePendingOrigination, ExpireStale and RetryLoanCancels are
+	// bounded, idempotent sweeps for a scheduled job. Each lists offers
+	// across tenants and works on each inside its own partition (act).
+	ResumePendingOrigination(ctx context.Context, batch int, act PartitionActor) (OriginationSweep, error)
+	ExpireStale(ctx context.Context, now time.Time, batch int, act PartitionActor) (int, error)
+	RetryLoanCancels(ctx context.Context, now time.Time, batch int, act PartitionActor) (CancelSweep, error)
 }
 
 // GroupObligationBusiness raises and closes a period's member obligations,

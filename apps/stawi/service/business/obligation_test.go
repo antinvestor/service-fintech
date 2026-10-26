@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pitabwire/frame/v3/data"
+
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
@@ -106,13 +108,14 @@ func newObligationFixture() *obligationFixture {
 		context.Background(),
 		stawiproduct.ProductConfig{LateFineRate1: 1000},
 		&fakeGroups{group: &identityv1.ClientGroupObject{
-			Id: "group-1", CurrencyCode: "KES", SavingAmount: 50_000, State: commonv1.STATE(constants.StateActive),
+			Id: "group-1", CurrencyCode: "KES", SavingAmount: 50_000, State: commonv1.STATE_ACTIVE,
 		}},
 		&fakeMembers{members: []*identityv1.MembershipObject{
-			membership("m1", membershipTypeMember, int32(constants.StateActive)),
-			membership("m2", membershipTypeMember, int32(constants.StateActive)),
-			membership("agent", 2, int32(constants.StateActive)),
-			membership("gone", membershipTypeMember, groupStateDeleted),
+			membership("m1", membershipTypeMember, int32(commonv1.STATE_ACTIVE)),
+			// Identity starts memberships at CREATED and nothing activates them.
+			membership("m2", membershipTypeMember, int32(commonv1.STATE_CREATED)),
+			membership("agent", 2, int32(commonv1.STATE_ACTIVE)),
+			membership("gone", membershipTypeMember, int32(commonv1.STATE_DELETED)),
 		}},
 		periods,
 		ops,
@@ -190,6 +193,8 @@ func TestCloseSendsTheGroupsLateFineAndReturnsTheStatement(t *testing.T) {
 		Outstanding: kes(50_000),
 	}
 
+	ended := time.Now().UTC().Add(-time.Hour)
+	f.periods.period.EndDate = &ended
 	result, err := f.biz.Close(t.Context(), "group-1", "period-1")
 	require.NoError(t, err)
 
@@ -205,4 +210,21 @@ func TestCloseSendsTheGroupsLateFineAndReturnsTheStatement(t *testing.T) {
 	assert.EqualValues(t, 50_000, members[0]["savings_total"])
 	assert.EqualValues(t, 50_000, result["total_outstanding"])
 	assert.EqualValues(t, 50_000, result["collected"])
+}
+
+// Late fines fall due only after members had the whole period: a period
+// still running cannot be closed, until it ends or is frozen.
+func TestCloseRefusesAPeriodStillRunning(t *testing.T) {
+	t.Parallel()
+	f := newObligationFixture()
+	running := time.Now().UTC().Add(48 * time.Hour)
+	f.periods.period.EndDate = &running
+
+	_, err := f.biz.Close(t.Context(), "group-1", "period-1")
+	require.ErrorIs(t, err, ErrPeriodStillRunning)
+	assert.Nil(t, f.ops.closed, "no fine is charged")
+
+	f.periods.period.Properties = data.JSONMap{propertyFrozenAt: time.Now().UTC().Format(time.RFC3339)}
+	_, err = f.biz.Close(t.Context(), "group-1", "period-1")
+	require.NoError(t, err, "a frozen period closes")
 }

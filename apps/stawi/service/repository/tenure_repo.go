@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package repository //nolint:dupl // similar patterns for different entity types
+package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
@@ -29,6 +30,15 @@ import (
 type TenureRepository interface {
 	datastore.BaseRepository[*models.Tenure]
 	GetActiveByGroupID(ctx context.Context, groupID string) (*models.Tenure, error)
+	// LatestByGroupIDs returns each named group's most recent tenure; a
+	// group with none is absent from the map.
+	LatestByGroupIDs(ctx context.Context, groupIDs []string) (map[string]*models.Tenure, error)
+	// ListPendingSetup returns up to limit active tenures whose setup has
+	// not finished and is not held off after a failure.
+	ListPendingSetup(ctx context.Context, now time.Time, limit int) ([]*models.Tenure, error)
+	// ListDueForCheck returns up to limit active tenures whose group was
+	// last compared with identity before checkedBefore, or never.
+	ListDueForCheck(ctx context.Context, checkedBefore time.Time, limit int) ([]*models.Tenure, error)
 }
 
 // NewTenureRepository creates a new TenureRepository.
@@ -53,4 +63,46 @@ func (r *tenureRepository) GetActiveByGroupID(ctx context.Context, groupID strin
 		First(&tenure).
 		Error
 	return &tenure, err
+}
+
+func (r *tenureRepository) LatestByGroupIDs(
+	ctx context.Context,
+	groupIDs []string,
+) (map[string]*models.Tenure, error) {
+	latest := make(map[string]*models.Tenure, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return latest, nil
+	}
+	var tenures []*models.Tenure
+	err := r.Pool().DB(ctx, true).
+		Where("group_id IN ? AND state != ?", groupIDs, constants.StateDeleted).
+		Order("created_at ASC").Find(&tenures).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, t := range tenures {
+		latest[t.GroupID] = t
+	}
+	return latest, nil
+}
+
+func (r *tenureRepository) ListPendingSetup(ctx context.Context, now time.Time, limit int) ([]*models.Tenure, error) {
+	var tenures []*models.Tenure
+	err := r.Pool().DB(ctx, true).
+		Where("state = ? AND welcomed = ? AND (setup_retry_at IS NULL OR setup_retry_at <= ?)",
+			constants.StateActive, false, now).
+		Order("created_at ASC").Limit(limit).Find(&tenures).Error
+	return tenures, err
+}
+
+func (r *tenureRepository) ListDueForCheck(
+	ctx context.Context,
+	checkedBefore time.Time,
+	limit int,
+) ([]*models.Tenure, error) {
+	var tenures []*models.Tenure
+	err := r.Pool().DB(ctx, true).
+		Where("state = ? AND (checked_at IS NULL OR checked_at < ?)", constants.StateActive, checkedBefore).
+		Order("checked_at ASC NULLS FIRST").Limit(limit).Find(&tenures).Error
+	return tenures, err
 }

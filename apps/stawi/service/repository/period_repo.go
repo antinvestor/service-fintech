@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package repository //nolint:dupl // similar patterns for different entity types
+package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
@@ -29,6 +30,14 @@ import (
 type PeriodRepository interface {
 	datastore.BaseRepository[*models.Period]
 	GetCurrentByGroupID(ctx context.Context, groupID string) (*models.Period, error)
+	// GetByParentID returns the period opened after parentID.
+	GetByParentID(ctx context.Context, parentID string) (*models.Period, error)
+	// ListDueToClose returns up to limit open periods whose end date has
+	// passed and that are not held off after a failed close.
+	ListDueToClose(ctx context.Context, now time.Time, limit int) ([]*models.Period, error)
+	// ListDueForReminder returns up to limit open, still running periods
+	// whose next reminder is due.
+	ListDueForReminder(ctx context.Context, now time.Time, limit int) ([]*models.Period, error)
 }
 
 // NewPeriodRepository creates a new PeriodRepository.
@@ -53,4 +62,28 @@ func (r *periodRepository) GetCurrentByGroupID(ctx context.Context, groupID stri
 		First(&period).
 		Error
 	return &period, err
+}
+
+func (r *periodRepository) GetByParentID(ctx context.Context, parentID string) (*models.Period, error) {
+	var period models.Period
+	err := r.Pool().DB(ctx, true).Where("parent_period_id = ?", parentID).First(&period).Error
+	return &period, err
+}
+
+func (r *periodRepository) ListDueToClose(ctx context.Context, now time.Time, limit int) ([]*models.Period, error) {
+	var periods []*models.Period
+	err := r.Pool().DB(ctx, true).
+		Where("state = ? AND end_date IS NOT NULL AND end_date <= ? AND (close_retry_at IS NULL OR close_retry_at <= ?)",
+			constants.StateActive, now, now).
+		Order("end_date ASC").Limit(limit).Find(&periods).Error
+	return periods, err
+}
+
+func (r *periodRepository) ListDueForReminder(ctx context.Context, now time.Time, limit int) ([]*models.Period, error) {
+	var periods []*models.Period
+	err := r.Pool().DB(ctx, true).
+		Where("state = ? AND end_date > ? AND next_reminder_at IS NOT NULL AND next_reminder_at <= ?",
+			constants.StateActive, now, now).
+		Order("next_reminder_at ASC").Limit(limit).Find(&periods).Error
+	return periods, err
 }

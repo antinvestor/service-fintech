@@ -82,8 +82,11 @@ type LoanOffer struct {
 	// OriginationStatus is empty until the member accepts; see
 	// OriginationPending and its siblings.
 	OriginationStatus string `gorm:"type:varchar(20);index:idx_lo_origination"`
-	State             int32
-	Properties        data.JSONMap
+	// RetryAt is when the scheduled sweep may next try an offer whose last
+	// step failed, so one stuck offer never blocks the rest.
+	RetryAt    *time.Time `gorm:"index:idx_lo_retry_at"`
+	State      int32
+	Properties data.JSONMap
 }
 
 // Origination statuses of an accepted offer. Pending covers every step from
@@ -123,12 +126,19 @@ const (
 // Tenure represents a group's lifecycle period (e.g. 52 weeks).
 type Tenure struct {
 	data.BaseModel
-	GroupID    string `gorm:"type:varchar(50);index:idx_ten_group;not null"`
-	StartDate  *time.Time
-	EndDate    *time.Time
-	Duration   int32 // number of periods
-	Position   int32
-	Welcomed   bool
+	GroupID   string `gorm:"type:varchar(50);index:idx_ten_group;not null"`
+	StartDate *time.Time
+	EndDate   *time.Time
+	Duration  int32 // number of periods
+	Position  int32
+	// Welcomed marks a tenure whose setup finished: ledger accounts, lender
+	// registration, the first period and its obligations, and the welcome.
+	Welcomed bool
+	// SetupRetryAt holds setup off a tenure whose last attempt failed.
+	SetupRetryAt *time.Time
+	// CheckedAt is when the group's state in identity was last compared
+	// with this tenure.
+	CheckedAt  *time.Time `gorm:"index:idx_ten_checked_at"`
 	State      int32
 	Properties data.JSONMap
 }
@@ -149,12 +159,31 @@ type Period struct {
 	// enforced by a partial index created in postMigrate (parent_period_id <> '')
 	// so every tenure can have exactly one first period.
 	ParentPeriodID string `gorm:"type:varchar(50);index:idx_per_parent"`
+	// CloseRetryAt holds closing off a due period whose last attempt failed.
+	CloseRetryAt *time.Time
+	// NextReminderAt is when members still owing are next reminded; empty
+	// once every reminder of the period has gone out.
+	NextReminderAt *time.Time `gorm:"index:idx_per_next_reminder"`
 	State          int32
 	Properties     data.JSONMap
 }
 
 func (m *Period) TableName() string { return "periods" }
 func (m *Period) SetVersion(v uint) { m.Version = v }
+
+// Notice records a notification stawi sent, under a key naming what it was
+// about (for example a period, a member and a reminder offset). The unique
+// key is claimed before the message goes out, so a retried job never sends
+// the same message twice.
+type Notice struct {
+	data.BaseModel
+	Key       string `gorm:"type:varchar(250);uniqueIndex:uq_notices_key;not null"`
+	GroupID   string `gorm:"type:varchar(50);index:idx_notice_group"`
+	ProfileID string `gorm:"type:varchar(50)"`
+	Template  string `gorm:"type:varchar(100)"`
+}
+
+func (m *Notice) TableName() string { return "notices" }
 
 // Motion represents a group voting/decision motion.
 type Motion struct {

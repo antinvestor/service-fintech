@@ -58,10 +58,16 @@ const (
 	UssdPinSet        = "template.fintech.ussd.pin_set"
 )
 
-// Group (chama) lending, sent to the member.
+// Group (chama) savings and lending, sent to the member unless the name
+// says otherwise.
 const (
-	GroupLoanOffered = "template.fintech.group.loan_offered"
-	GroupLoanFailed  = "template.fintech.group.loan_failed"
+	GroupLoanOffered     = "template.fintech.group.loan_offered"
+	GroupLoanFailed      = "template.fintech.group.loan_failed"
+	GroupWelcome         = "template.fintech.group.welcome"
+	GroupPeriodSummary   = "template.fintech.group.period_summary"
+	GroupSavingsReminder = "template.fintech.group.savings_reminder"
+	// GroupLeaderArrears goes to the group's leaders.
+	GroupLeaderArrears = "template.fintech.group.leader_arrears"
 )
 
 // Client onboarding and KYC messages.
@@ -114,6 +120,7 @@ const (
 	VarOrganization = "organization_name"
 	VarGroupName    = "group_name"
 	VarExpiresOn    = "expires_on"
+	VarMemberCount  = "member_count"
 )
 
 //nolint:gochecknoglobals // template registry is declared once at package init
@@ -153,6 +160,50 @@ func groupTemplates() []notification.Template {
 			VarAmount,
 			VarCurrency,
 			VarReason,
+		),
+		notification.New(
+			GroupWelcome,
+			"{{.group_name}} is now active",
+			"{{.group_name}} is now active. Save {{.currency}} {{.amount}} each period; the first is due {{.due_date}}.",
+			"Welcome to {{.group_name}}.\n\nThe group is now active. Each member saves {{.currency}} {{.amount}} "+
+				"every period; the first period's savings are due {{.due_date}}.\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarDueDate,
+		),
+		notification.New(
+			GroupPeriodSummary,
+			"Your {{.group_name}} period statement",
+			"{{.group_name}}: this period you saved {{.currency}} {{.amount}}. Still owing: {{.currency}} {{.balance}}.",
+			"The period at {{.group_name}} has closed.\n\nYou saved {{.currency}} {{.amount}}.\n"+
+				"Still owing, including any late fine: {{.currency}} {{.balance}}.\n",
+			VarGroupName,
+			VarAmount,
+			VarBalance,
+			VarCurrency,
+		),
+		notification.New(
+			GroupSavingsReminder,
+			"Your {{.group_name}} savings are due {{.due_date}}",
+			"{{.group_name}}: you still owe {{.currency}} {{.amount}} of this period's savings, due {{.due_date}}.",
+			"You still owe {{.currency}} {{.amount}} of this period's savings at {{.group_name}}.\n\n"+
+				"Please pay by {{.due_date}} to avoid a late fine.\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarDueDate,
+		),
+		notification.New(
+			GroupLeaderArrears,
+			"{{.member_count}} {{.group_name}} members still owe savings",
+			"{{.group_name}}: {{.member_count}} members still owe savings due {{.due_date}}: {{.summary}}",
+			"{{.member_count}} members of {{.group_name}} still owe this period's savings, due {{.due_date}}:\n\n"+
+				"{{.summary}}\n",
+			VarGroupName,
+			VarMemberCount,
+			VarDueDate,
+			VarSummary,
 		),
 	}
 }

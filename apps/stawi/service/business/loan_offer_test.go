@@ -124,9 +124,21 @@ func (r *memOfferRepo) CountOpenElsewhere(_ context.Context, membershipID, excep
 	}, 0))), nil
 }
 
-func (r *memOfferRepo) ListPendingOrigination(_ context.Context, limit int) ([]*models.LoanOffer, error) {
+func (r *memOfferRepo) ListPendingOrigination(
+	_ context.Context,
+	now time.Time,
+	limit int,
+) ([]*models.LoanOffer, error) {
 	return r.filter(func(o *models.LoanOffer) bool {
-		return o.OriginationStatus == models.OriginationPending
+		return o.OriginationStatus == models.OriginationPending && (o.RetryAt == nil || !o.RetryAt.After(now))
+	}, limit), nil
+}
+
+func (r *memOfferRepo) ListUncancelledLoans(_ context.Context, now time.Time, limit int) ([]*models.LoanOffer, error) {
+	return r.filter(func(o *models.LoanOffer) bool {
+		cancelled, recorded := o.Properties[propLoanCancelled].(bool)
+		return o.OriginationStatus == models.OriginationFailed && o.LoanAccountID != "" &&
+			recorded && !cancelled && (o.RetryAt == nil || !o.RetryAt.After(now))
 	}, limit), nil
 }
 
@@ -297,13 +309,30 @@ func (l *fakeLender) Disburse(_ context.Context, loanAccountID, key string) (*lo
 func (l *fakeLender) CancelLoanAccount(_ context.Context, loanAccountID, _ string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.injected("cancel"); err != nil {
+		return err
+	}
 	l.cancelled = append(l.cancelled, loanAccountID)
 	return nil
 }
 
+// sameContext works on every item in the caller's own context.
+func sameContext(ctx context.Context, _ *data.BaseModel) context.Context { return ctx }
+
 type fakeIdentity struct {
 	identityv1connect.IdentityServiceClient
 	memberships map[string]*identityv1.MembershipObject
+	groups      map[string]*identityv1.ClientGroupObject
+}
+
+func (f *fakeIdentity) ClientGroupGet(
+	_ context.Context, req *identityv1.ClientGroupGetRequest,
+) (*identityv1.ClientGroupGetResponse, error) {
+	g, ok := f.groups[req.GetId()]
+	if !ok {
+		return nil, connect.NewError(connect.CodeNotFound, "group not found")
+	}
+	return &identityv1.ClientGroupGetResponse{Data: g}, nil
 }
 
 func (f *fakeIdentity) MembershipGet(
@@ -347,11 +376,17 @@ func (f *fakeProfiles) GetById( //nolint:revive,staticcheck // the generated cli
 type recordingSender struct {
 	mu   sync.Mutex
 	sent []*notificationv1.Notification
+	// failNext fails that many sends before any goes through.
+	failNext int
 }
 
 func (s *recordingSender) Send(_ context.Context, n *notificationv1.Notification) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.failNext > 0 {
+		s.failNext--
+		return errors.New("notification service unavailable")
+	}
 	s.sent = append(s.sent, n)
 	return nil
 }
@@ -569,7 +604,7 @@ func TestRespondAccept_OriginatesAndDisbursesOnce(t *testing.T) {
 	require.Error(t, err, "an offer is not reachable through another group")
 	_, err = f.biz.CreateLoanAccount(t.Context(), testGroupID, offer.GetID())
 	require.NoError(t, err)
-	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10)
+	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10, sameContext)
 	require.NoError(t, err)
 	assert.Zero(t, sweep.Scanned)
 
@@ -597,7 +632,13 @@ func TestRespondAccept_TransientFailureResumes(t *testing.T) {
 	assert.NotEmpty(t, propString(stored, propLastError))
 	assert.Empty(t, propString(stored, propAttemptUntil))
 
-	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10)
+	// The failed offer is held off for a while, so it cannot keep a sweep
+	// busy, then resumed.
+	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10, sameContext)
+	require.NoError(t, err)
+	assert.Zero(t, sweep.Scanned, "held off until its retry time")
+	f.biz.now = func() time.Time { return f.now.Add(sweepRetryAfter) }
+	sweep, err = f.biz.ResumePendingOrigination(t.Context(), 10, sameContext)
 	require.NoError(t, err)
 	assert.Equal(t, OriginationSweep{Scanned: 1, Disbursed: 1}, sweep)
 
@@ -622,7 +663,8 @@ func TestRespondAccept_LostApprovalReplyIsReadBack(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, models.OriginationPending, got.OriginationStatus)
 
-	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10)
+	f.biz.now = func() time.Time { return f.now.Add(sweepRetryAfter) }
+	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10, sameContext)
 	require.NoError(t, err)
 	assert.Equal(t, 1, sweep.Disbursed)
 	assert.Equal(t, 1, f.lender.approves)
@@ -648,7 +690,7 @@ func TestRespondAccept_PermanentRefusalFails(t *testing.T) {
 	assert.Equal(t, []string{messages.GroupLoanFailed}, f.sender.templates())
 
 	// The failed offer is not resumed and answering again reports the failure.
-	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10)
+	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10, sameContext)
 	require.NoError(t, err)
 	assert.Zero(t, sweep.Scanned)
 	_, err = f.accept(t, offer.GetID())
@@ -671,6 +713,41 @@ func TestRespondAccept_RefusedPayoutCancelsLoan(t *testing.T) {
 	require.NotEmpty(t, stored.LoanAccountID)
 	assert.Equal(t, []string{stored.LoanAccountID}, f.lender.cancelled)
 	assert.Equal(t, true, stored.Properties[propLoanCancelled])
+
+	sweep, err := f.biz.RetryLoanCancels(t.Context(), f.now, 10, sameContext)
+	require.NoError(t, err)
+	assert.Zero(t, sweep.Scanned, "a cancelled loan is not cancelled again")
+}
+
+// A cancel that failed after the payout was refused is retried by the
+// sweep, after a pause, until the loan is closed; then never again.
+func TestRetryLoanCancels_RetriesAFailedCancelOnce(t *testing.T) {
+	f := newOfferFixture(t)
+	offer := f.openOffer()
+	f.lender.failAlways["disburse"] = connect.NewError(connect.CodeFailedPrecondition, "payout refused")
+	f.lender.failOnce["cancel"] = connect.NewError(connect.CodeUnavailable, "loans unavailable")
+
+	_, err := f.accept(t, offer.GetID())
+	require.Error(t, err)
+	stored := f.repo.get(t, offer.GetID())
+	assert.Equal(t, false, stored.Properties[propLoanCancelled])
+	assert.Empty(t, f.lender.cancelled)
+
+	sweep, err := f.biz.RetryLoanCancels(t.Context(), f.now, 10, sameContext)
+	require.NoError(t, err)
+	assert.Zero(t, sweep.Scanned, "held off until its retry time")
+
+	later := f.now.Add(sweepRetryAfter)
+	sweep, err = f.biz.RetryLoanCancels(t.Context(), later, 10, sameContext)
+	require.NoError(t, err)
+	assert.Equal(t, CancelSweep{Scanned: 1, Cancelled: 1}, sweep)
+	assert.Equal(t, []string{stored.LoanAccountID}, f.lender.cancelled)
+	assert.Equal(t, true, f.repo.get(t, offer.GetID()).Properties[propLoanCancelled])
+
+	sweep, err = f.biz.RetryLoanCancels(t.Context(), later.Add(time.Hour), 10, sameContext)
+	require.NoError(t, err)
+	assert.Zero(t, sweep.Scanned)
+	assert.Len(t, f.lender.cancelled, 1)
 }
 
 // A member without a verified mobile number has nowhere to be paid: the
@@ -706,7 +783,7 @@ func TestRespondAccept_AttemptInFlightIsLeftAlone(t *testing.T) {
 
 	// Once the lease lapses, the next attempt takes over.
 	f.biz.now = func() time.Time { return f.now.Add(3 * time.Minute) }
-	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10)
+	sweep, err := f.biz.ResumePendingOrigination(t.Context(), 10, sameContext)
 	require.NoError(t, err)
 	assert.Equal(t, 1, sweep.Disbursed)
 }
@@ -757,7 +834,7 @@ func TestExpireStale_ClosesOnlyUnansweredExpiredOffers(t *testing.T) {
 		ExpiryDate: func() *time.Time { t := f.now.Add(time.Hour); return &t }(),
 	})
 
-	expired, err := f.biz.ExpireStale(t.Context(), f.now, 10)
+	expired, err := f.biz.ExpireStale(t.Context(), f.now, 10, sameContext)
 	require.NoError(t, err)
 	assert.Equal(t, 1, expired)
 	assert.Equal(t, int32(constants.StateInactive), f.repo.get(t, stale.GetID()).State)

@@ -26,6 +26,7 @@ import (
 	notificationv1 "buf.build/gen/go/antinvestor/notification/protocolbuffers/go/notification/v1"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"connectrpc.com/connect/v2"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -56,17 +57,23 @@ type OriginationSweep struct {
 
 // ResumePendingOrigination drives up to batch accepted offers whose loan is
 // not yet disbursed. Each offer resumes at the step it recorded last, so a
-// repeat call never originates or pays a second loan. It is the entry for
-// the scheduled job; nothing in stawi runs it on a timer.
-func (b *loanOfferBusiness) ResumePendingOrigination(ctx context.Context, batch int) (OriginationSweep, error) {
+// repeat call never originates or pays a second loan. Offers are listed
+// across tenants and each is worked inside its own partition (act). It is
+// the entry for the scheduled job; nothing in stawi runs it on a timer.
+func (b *loanOfferBusiness) ResumePendingOrigination(
+	ctx context.Context,
+	batch int,
+	act PartitionActor,
+) (OriginationSweep, error) {
 	var sweep OriginationSweep
-	offers, err := b.offers.ListPendingOrigination(ctx, sweepBatch(batch))
+	listCtx := security.SkipTenancyChecksOnClaims(ctx)
+	offers, err := b.offers.ListPendingOrigination(listCtx, b.now().UTC(), sweepBatch(batch))
 	if err != nil {
 		return sweep, fmt.Errorf("list pending origination: %w", err)
 	}
 	for _, offer := range offers {
 		sweep.Scanned++
-		advanceErr := b.advance(ctx, offer)
+		advanceErr := b.advance(act(ctx, &offer.BaseModel), offer)
 		switch offer.OriginationStatus {
 		case models.OriginationDisbursed:
 			sweep.Disbursed++
@@ -86,8 +93,13 @@ func (b *loanOfferBusiness) ResumePendingOrigination(ctx context.Context, batch 
 // ExpireStale closes up to batch open offers nobody answered before their
 // expiry, returning how many it closed. Respond already refuses an expired
 // offer; this only stops it showing as open.
-func (b *loanOfferBusiness) ExpireStale(ctx context.Context, now time.Time, batch int) (int, error) {
-	offers, err := b.offers.ListExpired(ctx, now, sweepBatch(batch))
+func (b *loanOfferBusiness) ExpireStale(
+	ctx context.Context,
+	now time.Time,
+	batch int,
+	act PartitionActor,
+) (int, error) {
+	offers, err := b.offers.ListExpired(security.SkipTenancyChecksOnClaims(ctx), now, sweepBatch(batch))
 	if err != nil {
 		return 0, fmt.Errorf("list expired offers: %w", err)
 	}
@@ -95,7 +107,7 @@ func (b *loanOfferBusiness) ExpireStale(ctx context.Context, now time.Time, batc
 	for _, offer := range offers {
 		offer.State = int32(constants.StateInactive)
 		setProp(offer, propClosedReason, "expired")
-		if saveErr := b.save(ctx, offer); saveErr != nil {
+		if saveErr := b.save(act(ctx, &offer.BaseModel), offer); saveErr != nil {
 			// Answered or expired by a concurrent call; it is not ours to close.
 			if errors.Is(saveErr, errOfferChanged) {
 				continue
@@ -106,6 +118,65 @@ func (b *loanOfferBusiness) ExpireStale(ctx context.Context, now time.Time, batc
 	}
 	return expired, nil
 }
+
+// CancelSweep reports one RetryLoanCancels call.
+type CancelSweep struct {
+	Scanned   int `json:"scanned"`
+	Cancelled int `json:"cancelled"`
+}
+
+// RetryLoanCancels cancels, again, the unpaid loans of up to batch failed
+// offers whose first cancel did not go through, so their funding is
+// released. Cancelling a loan the lender already cancelled is accepted, so a
+// repeat changes nothing; a cancel that fails again waits before the next
+// try.
+func (b *loanOfferBusiness) RetryLoanCancels(
+	ctx context.Context,
+	now time.Time,
+	batch int,
+	act PartitionActor,
+) (CancelSweep, error) {
+	var sweep CancelSweep
+	offers, err := b.offers.ListUncancelledLoans(security.SkipTenancyChecksOnClaims(ctx), now, sweepBatch(batch))
+	if err != nil {
+		return sweep, fmt.Errorf("list uncancelled loans: %w", err)
+	}
+	for _, offer := range offers {
+		sweep.Scanned++
+		actCtx := act(ctx, &offer.BaseModel)
+		if b.cancelUnpaidLoan(actCtx, offer) {
+			sweep.Cancelled++
+		}
+		if saveErr := b.save(actCtx, offer); saveErr != nil {
+			util.Log(ctx).WithError(saveErr).WithField("offer_id", offer.GetID()).
+				Warn("could not record the retried cancel of a failed offer's loan")
+		}
+	}
+	return sweep, nil
+}
+
+// cancelUnpaidLoan cancels a failed offer's loan and records the outcome on
+// the offer, which the caller saves.
+func (b *loanOfferBusiness) cancelUnpaidLoan(ctx context.Context, offer *models.LoanOffer) bool {
+	// The loans service refuses to cancel a loan whose payout is under way,
+	// so this cannot close a loan that is being paid.
+	err := b.lender.CancelLoanAccount(ctx, offer.LoanAccountID,
+		"group loan offer "+offer.GetID()+" could not be paid out")
+	setProp(offer, propLoanCancelled, err == nil)
+	if err != nil {
+		util.Log(ctx).WithError(err).WithField("offer_id", offer.GetID()).
+			Error("could not cancel the unpaid loan of a failed offer; a later run retries")
+		retryAt := b.now().UTC().Add(sweepRetryAfter)
+		offer.RetryAt = &retryAt
+		return false
+	}
+	offer.RetryAt = nil
+	return true
+}
+
+// sweepRetryAfter is how long an offer whose last step failed waits before
+// the scheduled job tries it again.
+const sweepRetryAfter = 10 * time.Minute
 
 func sweepBatch(batch int) int {
 	switch {
@@ -134,6 +205,7 @@ func (b *loanOfferBusiness) advance(ctx context.Context, offer *models.LoanOffer
 	switch {
 	case err == nil:
 		delete(offer.Properties, propLastError)
+		offer.RetryAt = nil
 		// The loans service tells the borrower the money is on its way
 		// (LoanDisbursed); a second message from stawi would duplicate it.
 		return b.save(ctx, offer)
@@ -143,6 +215,8 @@ func (b *loanOfferBusiness) advance(ctx context.Context, offer *models.LoanOffer
 		// Recording the reason also releases the attempt; if this write is
 		// lost the attempt lapses on its own after originationAttemptLease.
 		setProp(offer, propLastError, err.Error())
+		retryAt := b.now().UTC().Add(sweepRetryAfter)
+		offer.RetryAt = &retryAt
 		if saveErr := b.save(ctx, offer); saveErr != nil {
 			util.Log(ctx).WithError(saveErr).WithField("offer_id", offer.GetID()).
 				Debug("could not record origination error on the offer")
@@ -374,14 +448,7 @@ func (b *loanOfferBusiness) fail(ctx context.Context, offer *models.LoanOffer, c
 	}
 
 	if offer.LoanAccountID != "" {
-		// The loans service refuses to cancel a loan whose payout is under
-		// way, so this cannot close a loan that is being paid.
-		cancelErr := b.lender.CancelLoanAccount(ctx, offer.LoanAccountID,
-			"group loan offer "+offer.GetID()+" could not be paid out")
-		if cancelErr != nil {
-			logger.WithError(cancelErr).Error("could not cancel the unpaid loan of a failed offer")
-		}
-		setProp(offer, propLoanCancelled, cancelErr == nil)
+		b.cancelUnpaidLoan(ctx, offer)
 		if err := b.save(ctx, offer); err != nil {
 			logger.WithError(err).Error("could not record the cancel of a failed offer's loan")
 		}

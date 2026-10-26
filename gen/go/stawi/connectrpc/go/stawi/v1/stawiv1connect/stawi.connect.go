@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	// StawiWorkflowServiceName is the fully-qualified name of the StawiWorkflowService service.
-	StawiWorkflowServiceName = "stawi.v1.StawiWorkflowService"
+	// StawiServiceName is the fully-qualified name of the StawiService service.
+	StawiServiceName = "stawi.v1.StawiService"
 )
 
 // These constants are the procedure names of the RPCs defined in this package. They're exposed at
@@ -38,663 +38,99 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// StawiWorkflowServiceGroupCheckFormationProcedure is the procedure name of the
-	// StawiWorkflowService's GroupCheckFormation RPC.
-	StawiWorkflowServiceGroupCheckFormationProcedure = "/stawi.v1.StawiWorkflowService/GroupCheckFormation"
-	// StawiWorkflowServiceGroupSetupLedgerProcedure is the procedure name of the StawiWorkflowService's
-	// GroupSetupLedger RPC.
-	StawiWorkflowServiceGroupSetupLedgerProcedure = "/stawi.v1.StawiWorkflowService/GroupSetupLedger"
-	// StawiWorkflowServiceGroupRegisterLenderProcedure is the procedure name of the
-	// StawiWorkflowService's GroupRegisterLender RPC.
-	StawiWorkflowServiceGroupRegisterLenderProcedure = "/stawi.v1.StawiWorkflowService/GroupRegisterLender"
-	// StawiWorkflowServiceGroupWelcomeProcedure is the procedure name of the StawiWorkflowService's
-	// GroupWelcome RPC.
-	StawiWorkflowServiceGroupWelcomeProcedure = "/stawi.v1.StawiWorkflowService/GroupWelcome"
-	// StawiWorkflowServiceGroupTransitionProcedure is the procedure name of the StawiWorkflowService's
-	// GroupTransition RPC.
-	StawiWorkflowServiceGroupTransitionProcedure = "/stawi.v1.StawiWorkflowService/GroupTransition"
-	// StawiWorkflowServiceGroupMembersListProcedure is the procedure name of the StawiWorkflowService's
-	// GroupMembersList RPC.
-	StawiWorkflowServiceGroupMembersListProcedure = "/stawi.v1.StawiWorkflowService/GroupMembersList"
-	// StawiWorkflowServiceTenureOpenProcedure is the procedure name of the StawiWorkflowService's
-	// TenureOpen RPC.
-	StawiWorkflowServiceTenureOpenProcedure = "/stawi.v1.StawiWorkflowService/TenureOpen"
-	// StawiWorkflowServicePeriodOpenProcedure is the procedure name of the StawiWorkflowService's
-	// PeriodOpen RPC.
-	StawiWorkflowServicePeriodOpenProcedure = "/stawi.v1.StawiWorkflowService/PeriodOpen"
-	// StawiWorkflowServicePeriodCloseProcedure is the procedure name of the StawiWorkflowService's
-	// PeriodClose RPC.
-	StawiWorkflowServicePeriodCloseProcedure = "/stawi.v1.StawiWorkflowService/PeriodClose"
-	// StawiWorkflowServicePeriodFreezeProcedure is the procedure name of the StawiWorkflowService's
-	// PeriodFreeze RPC.
-	StawiWorkflowServicePeriodFreezeProcedure = "/stawi.v1.StawiWorkflowService/PeriodFreeze"
-	// StawiWorkflowServicePeriodExtendProcedure is the procedure name of the StawiWorkflowService's
-	// PeriodExtend RPC.
-	StawiWorkflowServicePeriodExtendProcedure = "/stawi.v1.StawiWorkflowService/PeriodExtend"
-	// StawiWorkflowServiceObligationCalculateProcedure is the procedure name of the
-	// StawiWorkflowService's ObligationCalculate RPC.
-	StawiWorkflowServiceObligationCalculateProcedure = "/stawi.v1.StawiWorkflowService/ObligationCalculate"
-	// StawiWorkflowServiceObligationReconcilePeriodProcedure is the procedure name of the
-	// StawiWorkflowService's ObligationReconcilePeriod RPC.
-	StawiWorkflowServiceObligationReconcilePeriodProcedure = "/stawi.v1.StawiWorkflowService/ObligationReconcilePeriod"
-	// StawiWorkflowServiceLoanWindowEvaluateProcedure is the procedure name of the
-	// StawiWorkflowService's LoanWindowEvaluate RPC.
-	StawiWorkflowServiceLoanWindowEvaluateProcedure = "/stawi.v1.StawiWorkflowService/LoanWindowEvaluate"
-	// StawiWorkflowServiceLoanWindowOpenProcedure is the procedure name of the StawiWorkflowService's
-	// LoanWindowOpen RPC.
-	StawiWorkflowServiceLoanWindowOpenProcedure = "/stawi.v1.StawiWorkflowService/LoanWindowOpen"
-	// StawiWorkflowServiceLoanOfferRespondProcedure is the procedure name of the StawiWorkflowService's
+	// StawiServiceLoanOfferRespondProcedure is the procedure name of the StawiService's
 	// LoanOfferRespond RPC.
-	StawiWorkflowServiceLoanOfferRespondProcedure = "/stawi.v1.StawiWorkflowService/LoanOfferRespond"
-	// StawiWorkflowServiceLoanAccountCreateProcedure is the procedure name of the
-	// StawiWorkflowService's LoanAccountCreate RPC.
-	StawiWorkflowServiceLoanAccountCreateProcedure = "/stawi.v1.StawiWorkflowService/LoanAccountCreate"
+	StawiServiceLoanOfferRespondProcedure = "/stawi.v1.StawiService/LoanOfferRespond"
+	// StawiServiceStawiJobRunProcedure is the procedure name of the StawiService's StawiJobRun RPC.
+	StawiServiceStawiJobRunProcedure = "/stawi.v1.StawiService/StawiJobRun"
 )
 
 var (
-	stawiWorkflowServiceGroupCheckFormationSpec = sync.OnceValue(func() connect.Spec {
+	stawiServiceLoanOfferRespondSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("GroupCheckFormation"),
-			Procedure:  StawiWorkflowServiceGroupCheckFormationProcedure,
+			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiService").Methods().ByName("LoanOfferRespond"),
+			Procedure:  StawiServiceLoanOfferRespondProcedure,
 		}
 	})
-	stawiWorkflowServiceGroupSetupLedgerSpec = sync.OnceValue(func() connect.Spec {
+	stawiServiceStawiJobRunSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("GroupSetupLedger"),
-			Procedure:  StawiWorkflowServiceGroupSetupLedgerProcedure,
-		}
-	})
-	stawiWorkflowServiceGroupRegisterLenderSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("GroupRegisterLender"),
-			Procedure:  StawiWorkflowServiceGroupRegisterLenderProcedure,
-		}
-	})
-	stawiWorkflowServiceGroupWelcomeSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("GroupWelcome"),
-			Procedure:  StawiWorkflowServiceGroupWelcomeProcedure,
-		}
-	})
-	stawiWorkflowServiceGroupTransitionSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("GroupTransition"),
-			Procedure:  StawiWorkflowServiceGroupTransitionProcedure,
-		}
-	})
-	stawiWorkflowServiceGroupMembersListSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType:       connect.StreamTypeUnary,
-			Schema:           v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("GroupMembersList"),
-			Procedure:        StawiWorkflowServiceGroupMembersListProcedure,
-			IdempotencyLevel: connect.IdempotencyNoSideEffects,
-		}
-	})
-	stawiWorkflowServiceTenureOpenSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("TenureOpen"),
-			Procedure:  StawiWorkflowServiceTenureOpenProcedure,
-		}
-	})
-	stawiWorkflowServicePeriodOpenSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("PeriodOpen"),
-			Procedure:  StawiWorkflowServicePeriodOpenProcedure,
-		}
-	})
-	stawiWorkflowServicePeriodCloseSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("PeriodClose"),
-			Procedure:  StawiWorkflowServicePeriodCloseProcedure,
-		}
-	})
-	stawiWorkflowServicePeriodFreezeSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("PeriodFreeze"),
-			Procedure:  StawiWorkflowServicePeriodFreezeProcedure,
-		}
-	})
-	stawiWorkflowServicePeriodExtendSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("PeriodExtend"),
-			Procedure:  StawiWorkflowServicePeriodExtendProcedure,
-		}
-	})
-	stawiWorkflowServiceObligationCalculateSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("ObligationCalculate"),
-			Procedure:  StawiWorkflowServiceObligationCalculateProcedure,
-		}
-	})
-	stawiWorkflowServiceObligationReconcilePeriodSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("ObligationReconcilePeriod"),
-			Procedure:  StawiWorkflowServiceObligationReconcilePeriodProcedure,
-		}
-	})
-	stawiWorkflowServiceLoanWindowEvaluateSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("LoanWindowEvaluate"),
-			Procedure:  StawiWorkflowServiceLoanWindowEvaluateProcedure,
-		}
-	})
-	stawiWorkflowServiceLoanWindowOpenSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("LoanWindowOpen"),
-			Procedure:  StawiWorkflowServiceLoanWindowOpenProcedure,
-		}
-	})
-	stawiWorkflowServiceLoanOfferRespondSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("LoanOfferRespond"),
-			Procedure:  StawiWorkflowServiceLoanOfferRespondProcedure,
-		}
-	})
-	stawiWorkflowServiceLoanAccountCreateSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService").Methods().ByName("LoanAccountCreate"),
-			Procedure:  StawiWorkflowServiceLoanAccountCreateProcedure,
+			Schema:     v1.File_stawi_v1_stawi_proto.Services().ByName("StawiService").Methods().ByName("StawiJobRun"),
+			Procedure:  StawiServiceStawiJobRunProcedure,
 		}
 	})
 )
 
-// StawiWorkflowServiceClient is a client for the stawi.v1.StawiWorkflowService service.
-type StawiWorkflowServiceClient interface {
-	GroupCheckFormation(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupSetupLedger(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupRegisterLender(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupWelcome(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupTransition(context.Context, *v1.GroupTransitionRequest) (*v1.CallbackResponse, error)
-	GroupMembersList(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	TenureOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	PeriodOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	PeriodClose(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	PeriodFreeze(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	PeriodExtend(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	// ObligationCalculate raises the period's savings obligation for every
-	// member in operations, which applies money they already paid. Calling it
-	// again raises nothing new and reports who still owes.
-	ObligationCalculate(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	// ObligationReconcilePeriod closes the period's obligations in operations:
-	// each member still owing is fined once, and the statement is returned.
-	ObligationReconcilePeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	LoanWindowOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
+// StawiServiceClient is a client for the stawi.v1.StawiService service.
+type StawiServiceClient interface {
 	// LoanOfferRespond records a member's answer to a loan offer. A member
 	// answers only their own offers; staff and services may answer any.
-	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error)
-	LoanAccountCreate(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error)
+	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.LoanOfferRespondResponse, error)
+	// StawiJobRun runs one batch of a periodic job. Called by the platform
+	// scheduler (trustage); nothing in the service runs on a timer.
+	StawiJobRun(context.Context, *v1.StawiJobRunRequest) (*v1.StawiJobRunResponse, error)
 }
 
-// NewStawiWorkflowServiceClient constructs a client for the stawi.v1.StawiWorkflowService service.
-// Multiple service clients may share a single connect.Client.
-func NewStawiWorkflowServiceClient(client *connect.Client) StawiWorkflowServiceClient {
-	return &stawiWorkflowServiceClient{client: client}
+// NewStawiServiceClient constructs a client for the stawi.v1.StawiService service. Multiple service
+// clients may share a single connect.Client.
+func NewStawiServiceClient(client *connect.Client) StawiServiceClient {
+	return &stawiServiceClient{client: client}
 }
 
-// StawiWorkflowServiceHandler is an implementation of the stawi.v1.StawiWorkflowService service.
-type StawiWorkflowServiceHandler interface {
-	GroupCheckFormation(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupSetupLedger(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupRegisterLender(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupWelcome(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	GroupTransition(context.Context, *v1.GroupTransitionRequest) (*v1.CallbackResponse, error)
-	GroupMembersList(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	TenureOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	PeriodOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	PeriodClose(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	PeriodFreeze(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	PeriodExtend(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	// ObligationCalculate raises the period's savings obligation for every
-	// member in operations, which applies money they already paid. Calling it
-	// again raises nothing new and reports who still owes.
-	ObligationCalculate(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	// ObligationReconcilePeriod closes the period's obligations in operations:
-	// each member still owing is fined once, and the statement is returned.
-	ObligationReconcilePeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error)
-	LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
-	LoanWindowOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error)
+// StawiServiceHandler is an implementation of the stawi.v1.StawiService service.
+type StawiServiceHandler interface {
 	// LoanOfferRespond records a member's answer to a loan offer. A member
 	// answers only their own offers; staff and services may answer any.
-	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error)
-	LoanAccountCreate(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error)
+	LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.LoanOfferRespondResponse, error)
+	// StawiJobRun runs one batch of a periodic job. Called by the platform
+	// scheduler (trustage); nothing in the service runs on a timer.
+	StawiJobRun(context.Context, *v1.StawiJobRunRequest) (*v1.StawiJobRunResponse, error)
 }
 
-// RegisterStawiWorkflowServiceHandler registers svc as the stawi.v1.StawiWorkflowService
-// implementation on server.
-func RegisterStawiWorkflowServiceHandler(server *connect.Server, svc StawiWorkflowServiceHandler) {
-	adapter := stawiWorkflowServiceHandler{svc: svc}
+// RegisterStawiServiceHandler registers svc as the stawi.v1.StawiService implementation on server.
+func RegisterStawiServiceHandler(server *connect.Server, svc StawiServiceHandler) {
+	adapter := stawiServiceHandler{svc: svc}
 	server.Register(
-		connect.Method{Spec: stawiWorkflowServiceGroupCheckFormationSpec(), Handler: adapter.groupCheckFormation},
-		connect.Method{Spec: stawiWorkflowServiceGroupSetupLedgerSpec(), Handler: adapter.groupSetupLedger},
-		connect.Method{Spec: stawiWorkflowServiceGroupRegisterLenderSpec(), Handler: adapter.groupRegisterLender},
-		connect.Method{Spec: stawiWorkflowServiceGroupWelcomeSpec(), Handler: adapter.groupWelcome},
-		connect.Method{Spec: stawiWorkflowServiceGroupTransitionSpec(), Handler: adapter.groupTransition},
-		connect.Method{Spec: stawiWorkflowServiceGroupMembersListSpec(), Handler: adapter.groupMembersList},
-		connect.Method{Spec: stawiWorkflowServiceTenureOpenSpec(), Handler: adapter.tenureOpen},
-		connect.Method{Spec: stawiWorkflowServicePeriodOpenSpec(), Handler: adapter.periodOpen},
-		connect.Method{Spec: stawiWorkflowServicePeriodCloseSpec(), Handler: adapter.periodClose},
-		connect.Method{Spec: stawiWorkflowServicePeriodFreezeSpec(), Handler: adapter.periodFreeze},
-		connect.Method{Spec: stawiWorkflowServicePeriodExtendSpec(), Handler: adapter.periodExtend},
-		connect.Method{Spec: stawiWorkflowServiceObligationCalculateSpec(), Handler: adapter.obligationCalculate},
-		connect.Method{Spec: stawiWorkflowServiceObligationReconcilePeriodSpec(), Handler: adapter.obligationReconcilePeriod},
-		connect.Method{Spec: stawiWorkflowServiceLoanWindowEvaluateSpec(), Handler: adapter.loanWindowEvaluate},
-		connect.Method{Spec: stawiWorkflowServiceLoanWindowOpenSpec(), Handler: adapter.loanWindowOpen},
-		connect.Method{Spec: stawiWorkflowServiceLoanOfferRespondSpec(), Handler: adapter.loanOfferRespond},
-		connect.Method{Spec: stawiWorkflowServiceLoanAccountCreateSpec(), Handler: adapter.loanAccountCreate},
+		connect.Method{Spec: stawiServiceLoanOfferRespondSpec(), Handler: adapter.loanOfferRespond},
+		connect.Method{Spec: stawiServiceStawiJobRunSpec(), Handler: adapter.stawiJobRun},
 	)
 }
 
-// UnimplementedStawiWorkflowServiceHandler returns CodeUnimplemented from all methods.
-type UnimplementedStawiWorkflowServiceHandler struct{}
+// UnimplementedStawiServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedStawiServiceHandler struct{}
 
-func (UnimplementedStawiWorkflowServiceHandler) GroupCheckFormation(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.GroupCheckFormation is not implemented")
+func (UnimplementedStawiServiceHandler) LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.LoanOfferRespondResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiService.LoanOfferRespond is not implemented")
 }
 
-func (UnimplementedStawiWorkflowServiceHandler) GroupSetupLedger(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.GroupSetupLedger is not implemented")
+func (UnimplementedStawiServiceHandler) StawiJobRun(context.Context, *v1.StawiJobRunRequest) (*v1.StawiJobRunResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiService.StawiJobRun is not implemented")
 }
 
-func (UnimplementedStawiWorkflowServiceHandler) GroupRegisterLender(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.GroupRegisterLender is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) GroupWelcome(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.GroupWelcome is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) GroupTransition(context.Context, *v1.GroupTransitionRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.GroupTransition is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) GroupMembersList(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.GroupMembersList is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) TenureOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.TenureOpen is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) PeriodOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.PeriodOpen is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) PeriodClose(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.PeriodClose is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) PeriodFreeze(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.PeriodFreeze is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) PeriodExtend(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.PeriodExtend is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) ObligationCalculate(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.ObligationCalculate is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) ObligationReconcilePeriod(context.Context, *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.ObligationReconcilePeriod is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) LoanWindowEvaluate(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.LoanWindowEvaluate is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) LoanWindowOpen(context.Context, *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.LoanWindowOpen is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) LoanOfferRespond(context.Context, *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.LoanOfferRespond is not implemented")
-}
-
-func (UnimplementedStawiWorkflowServiceHandler) LoanAccountCreate(context.Context, *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "stawi.v1.StawiWorkflowService.LoanAccountCreate is not implemented")
-}
-
-type stawiWorkflowServiceClient struct {
+type stawiServiceClient struct {
 	client *connect.Client
 }
 
-func (c *stawiWorkflowServiceClient) GroupCheckFormation(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceGroupCheckFormationSpec(), req, &res); err != nil {
+func (c *stawiServiceClient) LoanOfferRespond(ctx context.Context, req *v1.LoanOfferRespondRequest) (*v1.LoanOfferRespondResponse, error) {
+	var res v1.LoanOfferRespondResponse
+	if err := c.client.CallUnary(ctx, stawiServiceLoanOfferRespondSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
 }
 
-func (c *stawiWorkflowServiceClient) GroupSetupLedger(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceGroupSetupLedgerSpec(), req, &res); err != nil {
+func (c *stawiServiceClient) StawiJobRun(ctx context.Context, req *v1.StawiJobRunRequest) (*v1.StawiJobRunResponse, error) {
+	var res v1.StawiJobRunResponse
+	if err := c.client.CallUnary(ctx, stawiServiceStawiJobRunSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
 }
 
-func (c *stawiWorkflowServiceClient) GroupRegisterLender(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceGroupRegisterLenderSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
+type stawiServiceHandler struct{ svc StawiServiceHandler }
 
-func (c *stawiWorkflowServiceClient) GroupWelcome(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceGroupWelcomeSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) GroupTransition(ctx context.Context, req *v1.GroupTransitionRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceGroupTransitionSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) GroupMembersList(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceGroupMembersListSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) TenureOpen(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceTenureOpenSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) PeriodOpen(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServicePeriodOpenSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) PeriodClose(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServicePeriodCloseSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) PeriodFreeze(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServicePeriodFreezeSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) PeriodExtend(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServicePeriodExtendSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) ObligationCalculate(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceObligationCalculateSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) ObligationReconcilePeriod(ctx context.Context, req *v1.GroupPeriodRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceObligationReconcilePeriodSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) LoanWindowEvaluate(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceLoanWindowEvaluateSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) LoanWindowOpen(ctx context.Context, req *v1.GroupRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceLoanWindowOpenSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) LoanOfferRespond(ctx context.Context, req *v1.LoanOfferRespondRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceLoanOfferRespondSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *stawiWorkflowServiceClient) LoanAccountCreate(ctx context.Context, req *v1.GroupLoanOfferRequest) (*v1.CallbackResponse, error) {
-	var res v1.CallbackResponse
-	if err := c.client.CallUnary(ctx, stawiWorkflowServiceLoanAccountCreateSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-type stawiWorkflowServiceHandler struct{ svc StawiWorkflowServiceHandler }
-
-func (h stawiWorkflowServiceHandler) groupCheckFormation(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.GroupCheckFormation(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) groupSetupLedger(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.GroupSetupLedger(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) groupRegisterLender(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.GroupRegisterLender(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) groupWelcome(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.GroupWelcome(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) groupTransition(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupTransitionRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.GroupTransition(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) groupMembersList(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.GroupMembersList(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) tenureOpen(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.TenureOpen(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) periodOpen(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.PeriodOpen(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) periodClose(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupPeriodRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.PeriodClose(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) periodFreeze(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupPeriodRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.PeriodFreeze(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) periodExtend(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupPeriodRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.PeriodExtend(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) obligationCalculate(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupPeriodRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.ObligationCalculate(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) obligationReconcilePeriod(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupPeriodRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.ObligationReconcilePeriod(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) loanWindowEvaluate(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.LoanWindowEvaluate(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) loanWindowOpen(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.LoanWindowOpen(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h stawiWorkflowServiceHandler) loanOfferRespond(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+func (h stawiServiceHandler) loanOfferRespond(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
 	var req v1.LoanOfferRespondRequest
 	if err := stream.Receive(&req); err != nil {
 		return err
@@ -706,12 +142,12 @@ func (h stawiWorkflowServiceHandler) loanOfferRespond(ctx context.Context, _ con
 	return stream.Send(res)
 }
 
-func (h stawiWorkflowServiceHandler) loanAccountCreate(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.GroupLoanOfferRequest
+func (h stawiServiceHandler) stawiJobRun(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.StawiJobRunRequest
 	if err := stream.Receive(&req); err != nil {
 		return err
 	}
-	res, err := h.svc.LoanAccountCreate(ctx, &req)
+	res, err := h.svc.StawiJobRun(ctx, &req)
 	if err != nil {
 		return err
 	}

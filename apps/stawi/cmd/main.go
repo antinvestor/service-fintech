@@ -21,6 +21,8 @@ import (
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
 	"github.com/antinvestor/common/v3"
 	"github.com/antinvestor/common/v3/connection"
 	"github.com/antinvestor/common/v3/permissions"
@@ -31,6 +33,7 @@ import (
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/security/authorizer"
+	connectInterceptors "github.com/pitabwire/frame/v3/security/interceptors/connect"
 	"github.com/pitabwire/frame/v3/security/interceptors/httptor"
 	"github.com/pitabwire/frame/v3/setup"
 	"github.com/pitabwire/frame/v3/tenancy"
@@ -39,6 +42,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	aconfig "github.com/antinvestor/service-fintech/apps/stawi/config"
+	"github.com/antinvestor/service-fintech/gen/go/stawi/connectrpc/go/stawi/v1/stawiv1connect"
 	stawiv1 "github.com/antinvestor/service-fintech/gen/go/stawi/protocolbuffers/go/stawi/v1"
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
@@ -62,9 +66,9 @@ import (
 // data access for every fintech service.
 const namespaceTenancyAccess = "tenancy_access"
 
-// manifestServiceName is the proto service in stawi.v1 that carries the
-// service_permissions manifest for the workflow callback routes.
-const manifestServiceName = "StawiWorkflowService"
+// manifestServiceName is stawi's proto service: served over Connect, and
+// the service_permissions manifest of the service_stawi namespace.
+const manifestServiceName = "StawiService"
 
 type appRepositories struct {
 	tenure     stawirepo.TenureRepository
@@ -73,6 +77,7 @@ type appRepositories struct {
 	infraction stawirepo.InfractionRepository
 	loanWindow stawirepo.LoanWindowRepository
 	loanOffer  stawirepo.LoanOfferRepository
+	notice     stawirepo.NoticeRepository
 	auditRepo  audit.Repository
 }
 
@@ -84,6 +89,7 @@ type appBusinesses struct {
 	loanWindow stawibusiness.LoanWindowBusiness
 	loanOffer  stawibusiness.LoanOfferBusiness
 	obligation stawibusiness.GroupObligationBusiness
+	jobs       *stawibusiness.StawiJobs
 }
 
 func main() {
@@ -116,7 +122,7 @@ func main() {
 	log := util.Log(ctx)
 
 	// The stawi.v1 manifest owns the service_stawi permission namespace: it
-	// names every workflow callback route and the permission each requires.
+	// names every RPC and route and the permission each requires.
 	manifestSD := stawiv1.File_stawi_v1_stawi_proto.Services().ByName(manifestServiceName)
 
 	// Setup job (DO_SETUP / argv setup): schema plus permission manifest
@@ -194,6 +200,7 @@ func initRepositories(ctx context.Context, dbPool pool.Pool, workMan workerpool.
 		infraction: stawirepo.NewInfractionRepository(ctx, dbPool, workMan),
 		loanWindow: stawirepo.NewLoanWindowRepository(ctx, dbPool, workMan),
 		loanOffer:  stawirepo.NewLoanOfferRepository(ctx, dbPool, workMan),
+		notice:     stawirepo.NewNoticeRepository(ctx, dbPool, workMan),
 		auditRepo:  audit.NewRepository(ctx, dbPool, workMan),
 	}
 }
@@ -210,7 +217,8 @@ func initBusinesses(
 	groupBiz := stawibusiness.NewClientGroupBusiness(ctx, product, identityCli, platformClients)
 	membershipBiz := stawibusiness.NewMembershipBusiness(ctx, identityCli)
 	tenureBiz := stawibusiness.NewTenureBusiness(ctx, product, identityCli, repos.tenure, repos.period)
-	periodBiz := stawibusiness.NewPeriodBusiness(ctx, repos.tenure, repos.period)
+	periodBiz := stawibusiness.NewPeriodBusiness(ctx, product, repos.tenure, repos.period)
+	notifier := notify.New(platformClients.NotificationClient, messages.Registry())
 
 	// Accepted offers become loans in the loans service and are paid to the
 	// member's own contact; members hear about offers by profile id.
@@ -223,7 +231,7 @@ func initBusinesses(
 		Clients:  platformClients.LenderIdentity,
 		Profiles: platformClients.ProfileClient,
 		Lender:   stawibusiness.NewLoansGroupLender(platformClients.LenderLoanMgmt),
-		Notifier: notify.New(platformClients.NotificationClient, messages.Registry()),
+		Notifier: notifier,
 	})
 	loanWindowBiz := stawibusiness.NewLoanWindowBusiness(
 		ctx, product, identityCli, repos.loanWindow, repos.period, repos.tenure, loanOfferBiz,
@@ -231,6 +239,25 @@ func initBusinesses(
 	obligationBiz := stawibusiness.NewGroupObligationBusiness(
 		ctx, product, groupBiz, membershipBiz, repos.period, operationsCli,
 	)
+
+	// Groups are set up, periods closed, members reminded and offers
+	// finished only when the platform scheduler (trustage) runs the jobs.
+	jobs := stawibusiness.NewStawiJobs(stawibusiness.JobDeps{
+		Product:    product,
+		Directory:  stawibusiness.NewGroupDirectory(product, identityCli),
+		Groups:     groupBiz,
+		Members:    membershipBiz,
+		Tenures:    repos.tenure,
+		Periods:    repos.period,
+		Tenure:     tenureBiz,
+		Period:     periodBiz,
+		Obligation: obligationBiz,
+		LoanWindow: loanWindowBiz,
+		LoanOffers: loanOfferBiz,
+		Notices:    repos.notice,
+		Notifier:   notifier,
+		Subject:    cfg.Name(),
+	})
 
 	return appBusinesses{
 		group:      groupBiz,
@@ -240,18 +267,12 @@ func initBusinesses(
 		loanWindow: loanWindowBiz,
 		loanOffer:  loanOfferBiz,
 		obligation: obligationBiz,
+		jobs:       jobs,
 	}
 }
 
-// buildHandler wires the callback routes behind the frame security chain.
-// Stawi moves money — a bare mux made every endpoint reachable by anyone with
-// network access to the pod.
-//
-// The chain, outermost first, is: context setup → authentication (JWT bearer,
-// claims into context) → tenancy claims binding (so pool.DB is RLS-scoped) →
-// partition data access (Plane 1) → internal-principal tenant assertion →
-// audit → per-route function access (Plane 2, permissions from the stawi.v1
-// manifest) → mux.
+// buildHandler serves StawiService over Connect and the loan offer answer
+// route over plain JSON, each behind the frame security chain.
 func buildHandler(
 	ctx context.Context,
 	sm security.Manager,
@@ -259,22 +280,68 @@ func buildHandler(
 	biz appBusinesses,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
-	log := util.Log(ctx)
-
-	mux := http.NewServeMux()
-	handlers.RegisterWorkflowCallbacks(mux, handlers.Businesses{
-		Group:      biz.group,
-		Membership: biz.membership,
-		Tenure:     biz.tenure,
-		Period:     biz.period,
-		LoanWindow: biz.loanWindow,
-		LoanOffer:  biz.loanOffer,
-		Obligation: biz.obligation,
+	root := http.NewServeMux()
+	root.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
 	})
+	connecthttp.Mount(root, buildConnectServer(ctx, sm, manifestSD, biz, auditCli))
+	root.Handle("/", buildRoutes(ctx, sm, manifestSD, biz, auditCli))
+
+	return httptor.ContextSetupMiddleware(ctx, root)
+}
+
+// buildConnectServer serves StawiService behind the standard interceptor
+// chain: authentication, partition data access, internal-principal tenant
+// assertion, per-RPC function access from the manifest, then audit.
+func buildConnectServer(
+	ctx context.Context,
+	sm security.Manager,
+	manifestSD protoreflect.ServiceDescriptor,
+	biz appBusinesses,
+	auditCli auditv1connect.AuditServiceClient,
+) *connect.Server {
+	auth := sm.GetAuthorizer(ctx)
+	tenancyAccess := connectInterceptors.NewTenancyAccessInterceptor(
+		authorizer.NewTenancyAccessChecker(auth, namespaceTenancyAccess))
+	functionAccess := connectInterceptors.NewFunctionAccessInterceptor(
+		authorizer.NewFunctionChecker(auth, permissions.ForService(manifestSD).Namespace),
+		permissions.BuildProcedureMap(manifestSD))
+
+	interceptorList, err := connectInterceptors.DefaultList(
+		ctx, sm.GetAuthenticator(ctx),
+		tenancyAccess, tenantassert.Interceptor(), functionAccess,
+		clients.AuditInterceptor("service_stawi", auditCli))
+	if err != nil {
+		util.Log(ctx).WithError(err).Fatal("main -- could not create default interceptors")
+	}
+
+	server := connect.NewServer(interceptorList...)
+	stawiv1connect.RegisterStawiServiceHandler(server, handlers.NewStawiServer(biz.jobs, biz.loanOffer))
+	return server
+}
+
+// buildRoutes serves the plain JSON routes. Stawi moves money — a bare mux
+// made every endpoint reachable by anyone with network access to the pod.
+//
+// The chain, outermost first, is: authentication (JWT bearer, claims into
+// context) → tenancy claims binding (so pool.DB is RLS-scoped) → partition
+// data access (Plane 1) → internal-principal tenant assertion → audit →
+// per-route function access (Plane 2, permissions from the stawi.v1
+// manifest) → mux.
+func buildRoutes(
+	ctx context.Context,
+	sm security.Manager,
+	manifestSD protoreflect.ServiceDescriptor,
+	biz appBusinesses,
+	auditCli auditv1connect.AuditServiceClient,
+) http.Handler {
+	mux := http.NewServeMux()
+	handlers.RegisterRoutes(mux, biz.loanOffer)
 
 	routes, routesErr := handlers.BuildRoutePermissions(manifestSD)
 	if routesErr != nil {
-		log.WithError(routesErr).Fatal("main -- stawi permission manifest is invalid")
+		util.Log(ctx).WithError(routesErr).Fatal("main -- stawi permission manifest is invalid")
 	}
 
 	auth := sm.GetAuthorizer(ctx)
@@ -286,16 +353,7 @@ func buildHandler(
 	secured = tenantassert.Middleware(secured)
 	secured = httptor.TenancyAccessMiddleware(secured, tenancyChecker)
 	secured = tenancy.ClaimsMiddleware(secured, nil)
-	secured = httptor.AuthenticationMiddleware(secured, sm.GetAuthenticator(ctx))
-
-	root := http.NewServeMux()
-	root.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
-	root.Handle("/", secured)
-
-	return httptor.ContextSetupMiddleware(ctx, root)
+	return httptor.AuthenticationMiddleware(secured, sm.GetAuthenticator(ctx))
 }
 
 func buildServiceOptions(ctx context.Context, handler http.Handler, repos appRepositories) []frame.Option {
@@ -335,7 +393,7 @@ func setupOperationsClient(
 }
 
 // registerSetupSteps adds the setup-job steps: schema migration, then the
-// group workflows.
+// scheduled workflows that run stawi's jobs.
 func registerSetupSteps(svc *frame.Service, cfg *aconfig.StawiConfig) {
 	// The advisory lock serialises overlapping migrate Jobs on the same
 	// database so concurrent DDL cannot race.
@@ -344,13 +402,10 @@ func registerSetupSteps(svc *frame.Service, cfg *aconfig.StawiConfig) {
 			return stawirepo.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
 	})
-	// Stawi's group workflows are registered by the setup job, never at
-	// runtime start. A failed sync is logged, as it always has been, so it
-	// cannot block a deploy of the group callbacks themselves.
+	// Groups are set up, periods closed and members reminded only when
+	// trustage fires stawi's schedules, so a deploy that cannot register
+	// them fails rather than ship groups that never move.
 	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
-		if syncErr := trustage.SyncWorkflows(ctx, cfg, false); syncErr != nil {
-			util.Log(ctx).WithError(syncErr).Warn("trustage workflow sync failed")
-		}
-		return nil
+		return trustage.SyncWorkflows(ctx, cfg, cfg.IsRunSecurely())
 	})
 }

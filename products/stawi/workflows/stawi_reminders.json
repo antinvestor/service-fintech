@@ -1,0 +1,93 @@
+{
+  "version": "1.2",
+  "name": "stawi_reminders",
+  "description": "Daily at 06:00 UTC: StawiJobRun(SEND_REMINDERS) reminds members still owing a period's savings at the configured offsets before it ends, once per member and offset, and tells the group's leaders who is behind.",
+  "input": {
+    "schedule_name": "stawi_reminders"
+  },
+  "config": {
+    "process_commands": [
+      "stawi.v1.StawiService/StawiJobRun"
+    ],
+    "terminal_states": [
+      "stalled"
+    ],
+    "owner": "fintech"
+  },
+  "schedules": [
+    {
+      "name": "stawi_reminders",
+      "cron_expr": "0 6 * * *",
+      "timezone": "UTC",
+      "input_payload": {}
+    }
+  ],
+  "steps": [
+    {
+      "id": "run",
+      "type": "call",
+      "name": "RUN \u2014 one bounded batch; repeats while the service reports more",
+      "call": {
+        "action": "connect.call",
+        "input": {
+          "service": "stawi.v1.StawiService",
+          "rpc": "StawiJobRun",
+          "request": {
+            "job": "STAWI_JOB_SEND_REMINDERS",
+            "batchSize": 200
+          }
+        },
+        "output_var": "batch"
+      },
+      "retry": {
+        "max_attempts": 3,
+        "initial_interval": "10s",
+        "backoff_coefficient": 2.0,
+        "max_interval": "2m"
+      },
+      "on_success": [
+        {
+          "condition": "has(vars.batch.more) && vars.batch.more == true",
+          "target": "run"
+        },
+        {
+          "condition": "true",
+          "target": "end"
+        }
+      ],
+      "on_failure": "stalled"
+    },
+    {
+      "id": "stalled",
+      "type": "call",
+      "name": "STALLED (terminal) \u2014 the job failed after retries; the next schedule tries again",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "error",
+          "message": "stawi_reminders stalled after retries",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}",
+            "execution_id": "{{ metadata.execution_id }}"
+          }
+        }
+      },
+      "on_success": "end"
+    },
+    {
+      "id": "end",
+      "type": "call",
+      "name": "END \u2014 instance terminal",
+      "call": {
+        "action": "log.entry",
+        "input": {
+          "level": "info",
+          "message": "stawi_reminders done",
+          "data": {
+            "instance_id": "{{ metadata.instance_id }}"
+          }
+        }
+      }
+    }
+  ]
+}

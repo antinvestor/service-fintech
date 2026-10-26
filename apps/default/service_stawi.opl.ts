@@ -32,61 +32,11 @@ class service_stawi implements Namespace {
     member: profile_user[]
     service: (profile_user | tenancy_access)[]
 
-    granted_stawi_group_view: (profile_user | service_stawi)[]
-    granted_stawi_group_manage: (profile_user | service_stawi)[]
-    granted_stawi_tenure_manage: (profile_user | service_stawi)[]
-    granted_stawi_period_manage: (profile_user | service_stawi)[]
-    granted_stawi_obligation_manage: (profile_user | service_stawi)[]
-    granted_stawi_loan_window_manage: (profile_user | service_stawi)[]
     granted_stawi_loan_offer_respond: (profile_user | service_stawi)[]
-    granted_stawi_loan_create: (profile_user | service_stawi)[]
+    granted_stawi_job_run: (profile_user | service_stawi)[]
   }
 
   permits = {
-    stawi_group_view: (ctx: Context): boolean =>
-      this.related.admin.includes(ctx.subject) ||
-      this.related.member.includes(ctx.subject) ||
-      this.related.operator.includes(ctx.subject) ||
-      this.related.owner.includes(ctx.subject) ||
-      this.related.service.includes(ctx.subject) ||
-      this.related.viewer.includes(ctx.subject) ||
-      this.related.granted_stawi_group_view.includes(ctx.subject),
-
-    stawi_group_manage: (ctx: Context): boolean =>
-      this.related.admin.includes(ctx.subject) ||
-      this.related.operator.includes(ctx.subject) ||
-      this.related.owner.includes(ctx.subject) ||
-      this.related.service.includes(ctx.subject) ||
-      this.related.granted_stawi_group_manage.includes(ctx.subject),
-
-    stawi_tenure_manage: (ctx: Context): boolean =>
-      this.related.admin.includes(ctx.subject) ||
-      this.related.operator.includes(ctx.subject) ||
-      this.related.owner.includes(ctx.subject) ||
-      this.related.service.includes(ctx.subject) ||
-      this.related.granted_stawi_tenure_manage.includes(ctx.subject),
-
-    stawi_period_manage: (ctx: Context): boolean =>
-      this.related.admin.includes(ctx.subject) ||
-      this.related.operator.includes(ctx.subject) ||
-      this.related.owner.includes(ctx.subject) ||
-      this.related.service.includes(ctx.subject) ||
-      this.related.granted_stawi_period_manage.includes(ctx.subject),
-
-    stawi_obligation_manage: (ctx: Context): boolean =>
-      this.related.admin.includes(ctx.subject) ||
-      this.related.operator.includes(ctx.subject) ||
-      this.related.owner.includes(ctx.subject) ||
-      this.related.service.includes(ctx.subject) ||
-      this.related.granted_stawi_obligation_manage.includes(ctx.subject),
-
-    stawi_loan_window_manage: (ctx: Context): boolean =>
-      this.related.admin.includes(ctx.subject) ||
-      this.related.operator.includes(ctx.subject) ||
-      this.related.owner.includes(ctx.subject) ||
-      this.related.service.includes(ctx.subject) ||
-      this.related.granted_stawi_loan_window_manage.includes(ctx.subject),
-
     stawi_loan_offer_respond: (ctx: Context): boolean =>
       this.related.admin.includes(ctx.subject) ||
       this.related.member.includes(ctx.subject) ||
@@ -95,11 +45,8 @@ class service_stawi implements Namespace {
       this.related.service.includes(ctx.subject) ||
       this.related.granted_stawi_loan_offer_respond.includes(ctx.subject),
 
-    stawi_loan_create: (ctx: Context): boolean =>
-      this.related.admin.includes(ctx.subject) ||
-      this.related.operator.includes(ctx.subject) ||
-      this.related.owner.includes(ctx.subject) ||
+    stawi_job_run: (ctx: Context): boolean =>
       this.related.service.includes(ctx.subject) ||
-      this.related.granted_stawi_loan_create.includes(ctx.subject),
+      this.related.granted_stawi_job_run.includes(ctx.subject),
   }
 }

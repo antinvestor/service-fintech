@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
@@ -184,7 +183,7 @@ func (b *loanOfferBusiness) ineligibility(
 	if membership.GetMembershipType() != membershipTypeMember {
 		return skipNotMember, nil
 	}
-	if membership.GetState() != commonv1.STATE_ACTIVE {
+	if !liveState(membership.GetState()) {
 		return skipInactive, nil
 	}
 	clientID := membershipClientID(membership)
