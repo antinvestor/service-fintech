@@ -112,7 +112,7 @@ func TestPayout_ClientRecipientResolvedAndDestinationSentToRail(t *testing.T) {
 	assert.Equal(t, "profile-1", recipient.GetProfileId(), "the client is paid through its profile")
 	assert.Equal(t, "contact-1", recipient.GetContactId(), "the verified contact id reaches the rail")
 	assert.Empty(t, recipient.GetDetail(), "no number is ever sent by operations")
-	assert.Equal(t, "mobile_money", pay.last.GetData().GetRoute())
+	assert.Empty(t, pay.last.GetData().GetRoute(), "the payment service routes the payout, not operations")
 }
 
 func TestPayout_DestinationNotRecipientNeverPostsLedger(t *testing.T) {

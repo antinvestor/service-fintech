@@ -314,7 +314,6 @@ func (t *TeamCommissions) Payout(
 				"member_id":            movement.MemberID,
 				"recipient_profile_id": dest.ProfileID,
 				fieldPaymentAccount:    dest.ContactID,
-				fieldPaymentChannel:    "mobile_money",
 			}).ToProtoStruct(),
 		}, constants.TransferTypeTeamCommissionPayout),
 	})

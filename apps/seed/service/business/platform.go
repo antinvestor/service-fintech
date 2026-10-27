@@ -86,7 +86,6 @@ func (c *loansLoanCreator) CreateApplication(
 	props, propErr := structpb.NewStruct(map[string]any{
 		"data_verification_confirmed": true,
 		"payment_account_ref":         req.PayoutAccountRef,
-		"payment_channel":             "mobile_money",
 	})
 	if propErr != nil {
 		return "", fmt.Errorf("loan request properties: %w", propErr)

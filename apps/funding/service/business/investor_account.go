@@ -518,7 +518,6 @@ func (b *investorAccountBusiness) withdrawInner(
 		data.JSONMap{
 			"recipient_profile_id": dest.ProfileID,
 			"payment_account_ref":  dest.ContactID,
-			"payment_channel":      "mobile_money",
 		},
 	); toErr != nil {
 		// Only a refusal means nothing moved: the payout was checked and

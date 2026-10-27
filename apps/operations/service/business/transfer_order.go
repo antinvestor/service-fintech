@@ -807,7 +807,6 @@ func (b *transferOrderBusiness) sendPayment(
 	ctx context.Context,
 	order *models.TransferOrder,
 	recipientID string,
-	route string,
 ) error {
 	if b.clients == nil || b.clients.PaymentClient == nil {
 		return errPaymentClientUnavailable
@@ -825,7 +824,7 @@ func (b *transferOrderBusiness) sendPayment(
 		return recipientErr
 	}
 	if recipientErr == nil {
-		order.SetPayoutTarget(profileID, route, destination)
+		order.SetPayoutTarget(profileID, destination)
 	}
 
 	// Claim the payout exactly once. The payment service does not dedupe on
@@ -863,11 +862,9 @@ func (b *transferOrderBusiness) sendPayment(
 // attempt holds, and records the payment id the rail returns.
 func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models.TransferOrder) error {
 	recipientID := order.PayoutRecipient()
-	route := order.PayoutRoute()
 	req := (&paymentv1.SendRequest_builder{
 		Data: (&paymentv1.Payment_builder{
 			ReferenceId: order.Reference,
-			Route:       route,
 			Recipient: (&commonv1.ContactLink_builder{
 				ProfileId: recipientID,
 				ContactId: order.PayoutDestination(),
@@ -1084,7 +1081,7 @@ func (b *transferOrderBusiness) handleLoanDisbursement(ctx context.Context, orde
 		WithField(fieldLoanID, loanID).
 		Info("loan disbursement: creating payment initiation for member payout")
 
-	if err := b.sendPayment(ctx, order, memberID, "loan_disbursement"); err != nil {
+	if err := b.sendPayment(ctx, order, memberID); err != nil {
 		return fmt.Errorf("loan disbursement payment for member %s: %w", memberID, err)
 	}
 
@@ -1219,12 +1216,7 @@ func (b *transferOrderBusiness) handleDisbursement(ctx context.Context, order *m
 		WithField("payment_channel", paymentChannel).
 		Info("initiating external disbursement")
 
-	route := paymentChannel
-	if route == "" {
-		route = "disbursement"
-	}
-
-	if err := b.sendPayment(ctx, order, recipientID, route); err != nil {
+	if err := b.sendPayment(ctx, order, recipientID); err != nil {
 		return fmt.Errorf("disbursement payment for recipient %s: %w", recipientID, err)
 	}
 
@@ -1264,12 +1256,7 @@ func (b *transferOrderBusiness) handleDisbursementReversalReroute(
 		WithField("new_channel", newChannel).
 		Info("disbursement reversal rerouted to new channel")
 
-	route := newChannel
-	if route == "" {
-		route = "disbursement_reroute"
-	}
-
-	if err := b.sendPayment(ctx, order, recipientID, route); err != nil {
+	if err := b.sendPayment(ctx, order, recipientID); err != nil {
 		return fmt.Errorf("rerouted disbursement for recipient %s: %w", recipientID, err)
 	}
 
@@ -1361,7 +1348,7 @@ func (b *transferOrderBusiness) handleTerminalDisbursement(ctx context.Context, 
 	logger.WithField("member_id", memberID).
 		Info("terminal disbursement: initiating payout to member")
 
-	if err := b.sendPayment(ctx, order, memberID, "terminal_disbursement"); err != nil {
+	if err := b.sendPayment(ctx, order, memberID); err != nil {
 		return fmt.Errorf("terminal disbursement payment for member %s: %w", memberID, err)
 	}
 
@@ -1565,7 +1552,7 @@ func (b *transferOrderBusiness) handleExternalLendingPayback(ctx context.Context
 		WithField("funding_id", fundingID).
 		Info("external lending payback: initiating funder payout")
 
-	if err := b.sendPayment(ctx, order, funderID, "external_lending_payback"); err != nil {
+	if err := b.sendPayment(ctx, order, funderID); err != nil {
 		return fmt.Errorf("external lending payback payment for funder %s: %w", funderID, err)
 	}
 
@@ -1674,11 +1661,7 @@ func (b *transferOrderBusiness) handleAgentCommission(ctx context.Context, order
 // before the ledger leg posts, and a payout the rail rejects is reversed, as
 // for a loan disbursement.
 func (b *transferOrderBusiness) handleInvestorWithdrawal(ctx context.Context, order *models.TransferOrder) error {
-	route := extraDataString(order, "payment_channel")
-	if route == "" {
-		route = "investor_withdrawal"
-	}
-	if err := b.sendPayment(ctx, order, "", route); err != nil {
+	if err := b.sendPayment(ctx, order, ""); err != nil {
 		return fmt.Errorf("investor withdrawal payout: %w", err)
 	}
 	return nil
@@ -1687,11 +1670,7 @@ func (b *transferOrderBusiness) handleInvestorWithdrawal(ctx context.Context, or
 // handleTeamCommissionPayout pays a team's commission out to one of its
 // members' own verified mobile-money contact, checked like any payout.
 func (b *transferOrderBusiness) handleTeamCommissionPayout(ctx context.Context, order *models.TransferOrder) error {
-	route := extraDataString(order, "payment_channel")
-	if route == "" {
-		route = "team_commission_payout"
-	}
-	if err := b.sendPayment(ctx, order, "", route); err != nil {
+	if err := b.sendPayment(ctx, order, ""); err != nil {
 		return fmt.Errorf("team commission payout: %w", err)
 	}
 	return nil

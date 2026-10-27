@@ -352,7 +352,6 @@ func (b *loanOfferBusiness) loanRequestFor(
 	// service keeps its own verification gate for products that require it.
 	props, err := structpb.NewStruct(map[string]any{
 		"payment_account_ref": payoutContactID,
-		"payment_channel":     "mobile_money",
 		"group_offer_id":      offer.GetID(),
 	})
 	if err != nil {
