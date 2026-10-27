@@ -35,7 +35,7 @@ func (r *countingReaper) Run(context.Context) error {
 
 func TestLimitsJobsRunTheNamedReaperForInternalCallersOnly(t *testing.T) {
 	resv, approvals := &countingReaper{}, &countingReaper{}
-	jobs := business.NewLimitsJobs(resv, approvals, nil)
+	jobs := business.NewLimitsJobs(resv, approvals)
 
 	internal := (&security.AuthenticationClaims{
 		Roles: []string{security.ConstantSystemInternalRole},

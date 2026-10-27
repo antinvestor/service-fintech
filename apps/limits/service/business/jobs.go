@@ -19,7 +19,6 @@ import (
 	"errors"
 
 	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
-	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/security"
 )
 
@@ -38,18 +37,21 @@ type jobRunner interface {
 
 // LimitsJobs runs the limits service's periodic work, one pass per call. The
 // platform scheduler (trustage) calls it; nothing in the service runs on a
-// timer. Each pass holds a Postgres advisory lock, so overlapping calls on
-// any number of replicas reap once.
+// timer. Overlapping calls on any number of replicas reap once without a
+// lock: every expiry is a conditional update on the row's status, and only
+// the rows a pass actually transitioned are audited and announced.
+//
+// A session advisory lock taken through the connection pool used to guard
+// each pass; its unlock could run on another pooled connection, leaving the
+// lock held by an idle connection and every later pass skipped.
 type LimitsJobs struct {
 	reservations jobRunner
 	approvals    jobRunner
-	pool         pool.Pool
 }
 
-// NewLimitsJobs wires the reapers. p may be nil in tests, in which case a
-// pass runs without the leader lock.
-func NewLimitsJobs(reservations, approvals jobRunner, p pool.Pool) *LimitsJobs {
-	return &LimitsJobs{reservations: reservations, approvals: approvals, pool: p}
+// NewLimitsJobs wires the reapers.
+func NewLimitsJobs(reservations, approvals jobRunner) *LimitsJobs {
+	return &LimitsJobs{reservations: reservations, approvals: approvals}
 }
 
 // Run runs one pass of job. Reapers work across every tenant, so the pass
@@ -63,9 +65,9 @@ func (j *LimitsJobs) Run(ctx context.Context, job limitsv1.LimitsJob) error {
 	ctx = security.SkipTenancyChecksOnClaims(ctx)
 	switch job {
 	case limitsv1.LimitsJob_LIMITS_JOB_RESERVATION_EXPIRY:
-		return WithLeaderLock(ctx, j.pool, LockKeyReservationReaper, j.reservations.Run)
+		return j.reservations.Run(ctx)
 	case limitsv1.LimitsJob_LIMITS_JOB_APPROVAL_EXPIRY:
-		return WithLeaderLock(ctx, j.pool, LockKeyApprovalReaper, j.approvals.Run)
+		return j.approvals.Run(ctx)
 	case limitsv1.LimitsJob_LIMITS_JOB_UNSPECIFIED:
 	}
 	return ErrUnknownJob

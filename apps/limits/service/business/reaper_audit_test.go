@@ -28,6 +28,7 @@ import (
 	"github.com/pitabwire/frame/v3/frametests"
 	"github.com/pitabwire/frame/v3/frametests/definition"
 	testpostgres "github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 
@@ -277,6 +278,37 @@ func (s *ReaperAuditSuite) TestApprovalReaper_ConcurrentPassesExpireOnce() {
 		s.Len(e.searchAudit(tenantA, s, approvalIDs[i], business.VerbApprovalExpired), 1,
 			"exactly one expiry audit row per approval however many passes raced")
 	}
+}
+
+// TestLimitsJobs_ReapWhileAnotherSessionHoldsTheOldLeaderLock holds the
+// advisory lock key the reservation reaper used to take, on a connection of
+// its own, as a pooled connection left holding it would. The job must still
+// reap: it may not depend on a session lock taken through the pool.
+func (s *ReaperAuditSuite) TestLimitsJobs_ReapWhileAnotherSessionHoldsTheOldLeaderLock() {
+	e := s.env()
+	sqlDB, err := e.dbPool.DB(e.systemCtx, false).DB()
+	s.Require().NoError(err)
+	conn, err := sqlDB.Conn(e.systemCtx)
+	s.Require().NoError(err)
+	defer func() { _ = conn.Close() }()
+	const oldReservationReaperKey = 6_120_260_001
+	_, err = conn.ExecContext(e.systemCtx, "SELECT pg_advisory_lock($1)", oldReservationReaperKey)
+	s.Require().NoError(err)
+
+	makerCtx := s.WithAuthClaims(e.systemCtx, "tenant-a", "partition-a", "wf-maker-1")
+	stale := sampleResvForReaper("reaper-leaked-lock", models.ReservationStatusActive,
+		time.Now().Add(-time.Minute).UTC())
+	s.Require().NoError(e.resvRepo.Create(makerCtx, stale))
+
+	internal := (&security.AuthenticationClaims{
+		Roles: []string{security.ConstantSystemInternalRole},
+	}).ClaimsToContext(e.systemCtx)
+	jobs := business.NewLimitsJobs(e.resvReaper, e.approvalReaper)
+	s.Require().NoError(jobs.Run(internal, limitsv1.LimitsJob_LIMITS_JOB_RESERVATION_EXPIRY))
+
+	got, err := e.resvRepo.GetByID(makerCtx, stale.ID)
+	s.Require().NoError(err)
+	s.Equal(models.ReservationStatusExpired, got.Status)
 }
 
 // TestDecide_RacesReaper_ConvergesToOneOutcome fires a rejection and reaper
