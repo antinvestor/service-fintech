@@ -609,6 +609,16 @@ func (r *allocOrderRepoStub) CreateIfAbsent(_ context.Context, order *models.Tra
 	return nil
 }
 
+func (r *allocOrderRepoStub) SumConsumedObligationOrders(_ context.Context, paymentID string) (int64, error) {
+	var total int64
+	for ref, o := range r.byReference {
+		if strings.HasPrefix(ref, "payment:"+paymentID+":obligation:") && o.ObligationConsumed {
+			total += o.Amount
+		}
+	}
+	return total, nil
+}
+
 func (r *allocOrderRepoStub) GetByReference(_ context.Context, ref string) (*models.TransferOrder, error) {
 	if o, ok := r.byReference[ref]; ok {
 		return o, nil
@@ -866,4 +876,44 @@ func TestNotifiedPropertiesCannotPreDecideThePayment(t *testing.T) {
 	for _, key := range decidedPaymentProperties() {
 		assert.NotContains(t, props, key)
 	}
+}
+
+// A run that consumed obligations and stopped before recording its outcome
+// leaves the payment looking unallocated. The re-run spends only what that
+// run did not, even though the obligation it paid is no longer open.
+func TestAllocatePayment_RerunSpendsOnlyWhatEarlierRunsLeft(t *testing.T) {
+	t.Parallel()
+
+	paymentRepo := newIncomingPaymentRepoStub()
+	payment := &models.IncomingPayment{
+		TransactionID: "txn-rerun", Amount: 75_000, Currency: "UGX",
+		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+		Properties: data.JSONMap{"product_id": "prod-1"},
+	}
+	payment.GenID(context.Background())
+	paymentRepo.store(payment)
+
+	// ob-1 was paid in full by the run that stopped, so it is closed; ob-2
+	// is still open.
+	obligations := &allocObligationRepoStub{obligations: []*models.Obligation{newSavingsObligation("ob-2", 50_000)}}
+	prior := &models.TransferOrder{Reference: "payment:" + payment.GetID() + ":obligation:ob-1",
+		Amount: 50_000, Currency: "UGX", ObligationConsumed: true}
+	prior.GenID(context.Background())
+	orders := &allocOrderRepoStub{
+		byReference: map[string]*models.TransferOrder{prior.Reference: prior},
+		obligations: obligations,
+	}
+	business := &paymentRoutingBusiness{
+		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
+		ipRepo:    paymentRepo,
+		obRepo:    obligations,
+		toRepo:    orders,
+	}
+
+	result, err := business.AllocatePayment(context.Background(), payment.GetID())
+	require.NoError(t, err)
+	assert.Equal(t, int64(25_000), obligations.consumed["ob-2"], "only the 25 000 the first run left is spent")
+	assert.EqualValues(t, 75_000, result["allocated_amount"])
+	stored, _ := paymentRepo.GetByID(context.Background(), payment.GetID())
+	assert.Equal(t, int32(constants.StateInactive), stored.State)
 }

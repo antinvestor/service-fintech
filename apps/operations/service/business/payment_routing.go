@@ -938,6 +938,17 @@ func (b *paymentRoutingBusiness) allocateToMember(
 		return di.Before(dj)
 	})
 
+	// What earlier runs already paid to obligations is spoken for, whether or
+	// not they got to record it: a run that consumed obligations and stopped
+	// before recording its remainder must not spend the payment again on
+	// whatever obligations are still open.
+	alreadyPaid, sumErr := b.toRepo.SumConsumedObligationOrders(ctx, paymentID)
+	if sumErr != nil {
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
+		return nil, fmt.Errorf("could not read what the payment already paid: %w", sumErr)
+	}
+	startAmount = max(min(startAmount, payment.Amount-alreadyPaid), 0)
+
 	buckets := buildAllocationBuckets()
 	remainingAmount, allocations := b.runAllocationBuckets(
 		ctx, logger, buckets, obligations, payment, paymentID, membershipID, startAmount,
@@ -1104,10 +1115,12 @@ func (b *paymentRoutingBusiness) allocateBucket(
 		case allocationSkipped:
 			continue
 		case allocationRecordedEarlier:
-			// An earlier run wrote this order and consumed the obligation
-			// but did not get to record its outcome. The money is spoken
-			// for: count it toward this payment, do not consume again.
-			allocAmount = to.Amount
+			// An earlier run wrote this order and consumed the obligation.
+			// Its amount is already taken out of what this run may spend
+			// (SumConsumedObligationOrders); it is neither consumed nor
+			// counted again.
+			allocations = append(allocations, allocationEntry(bkt, obl, to, to.Amount, originalAmount))
+			continue
 		case allocationDone:
 			obl.Amount = originalAmount - allocAmount
 			if obl.Amount <= 0 {
@@ -1117,18 +1130,7 @@ func (b *paymentRoutingBusiness) allocateBucket(
 
 		remainingAmount -= allocAmount
 		totalAllocated += allocAmount
-		allocations = append(allocations, map[string]interface{}{
-			"bucket":             bkt.name,
-			"obligation_id":      obl.GetID(),
-			fieldTransferOrderID: to.GetID(),
-			fieldAmount:          allocAmount,
-			"partial":            allocAmount < originalAmount,
-			"from_account":       to.DebitAccountRef,
-			"to_account":         to.CreditAccountRef,
-			fieldCurrency:        to.Currency,
-			"type":               to.OrderType,
-			fieldReference:       to.Reference,
-		})
+		allocations = append(allocations, allocationEntry(bkt, obl, to, allocAmount, originalAmount))
 
 		logger.WithField("bucket", bkt.name).
 			WithField("obligation_id", obl.GetID()).
@@ -1137,6 +1139,27 @@ func (b *paymentRoutingBusiness) allocateBucket(
 	}
 
 	return totalAllocated, allocations
+}
+
+// allocationEntry describes one allocation order in an allocation outcome.
+func allocationEntry(
+	bkt allocationBucket,
+	obl *models.Obligation,
+	to *models.TransferOrder,
+	amount, owed int64,
+) map[string]interface{} {
+	return map[string]interface{}{
+		"bucket":             bkt.name,
+		"obligation_id":      obl.GetID(),
+		fieldTransferOrderID: to.GetID(),
+		fieldAmount:          amount,
+		"partial":            amount < owed,
+		"from_account":       to.DebitAccountRef,
+		"to_account":         to.CreditAccountRef,
+		fieldCurrency:        to.Currency,
+		"type":               to.OrderType,
+		fieldReference:       to.Reference,
+	}
 }
 
 // allocateObligation writes the transfer order for one (payment, obligation)

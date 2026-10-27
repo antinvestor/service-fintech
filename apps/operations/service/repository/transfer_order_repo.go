@@ -32,6 +32,10 @@ import (
 // TransferOrderRepository provides data access for transfer orders.
 type TransferOrderRepository interface {
 	datastore.BaseRepository[*models.TransferOrder]
+	// SumConsumedObligationOrders is what a payment's allocation has already
+	// paid to obligations: the total of its "payment:<id>:obligation:<id>"
+	// orders whose obligation was consumed.
+	SumConsumedObligationOrders(ctx context.Context, paymentID string) (int64, error)
 	// GetByReference looks up a transfer order by its caller-supplied reference.
 	// The reference is used as an idempotency key: callers must pass a stable,
 	// deterministic value (e.g. "repayment:{id}:principal") and a unique index
@@ -486,4 +490,15 @@ func (r *transferOrderRepository) ListUnexecutedAllocations(
 		return nil, err
 	}
 	return orders, nil
+}
+
+// SumConsumedObligationOrders is served by idx_to_allocation_payment, the
+// allocation orders keyed on the payment they spend.
+func (r *transferOrderRepository) SumConsumedObligationOrders(ctx context.Context, paymentID string) (int64, error) {
+	var total int64
+	err := r.dbPool.DB(ctx, false).Raw(`SELECT COALESCE(SUM(amount), 0) FROM transfer_orders
+WHERE deleted_at IS NULL AND extra_data ->> 'source' = 'payment_allocation'
+  AND extra_data ->> 'payment_id' = ? AND reference LIKE ? AND obligation_consumed = true`,
+		paymentID, "payment:"+paymentID+":obligation:%").Scan(&total).Error
+	return total, err
 }

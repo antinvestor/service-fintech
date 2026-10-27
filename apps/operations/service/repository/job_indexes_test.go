@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pitabwire/frame/v3/data"
 	"gorm.io/gorm"
 )
 
@@ -75,4 +76,38 @@ ORDER BY modified_at LIMIT 100`,
 	for index, query := range cases {
 		s.Contains(s.planOf(e, query), index)
 	}
+}
+
+// What a payment's allocation already paid is the total of its consumed
+// obligation orders only, read through the payment's index.
+func (s *claimsSuite) TestSumConsumedObligationOrders() {
+	e := s.newEnv()
+	s.applyMigrations(e)
+
+	for _, o := range []struct {
+		ref      string
+		payment  string
+		amount   int64
+		consumed bool
+	}{
+		{"payment:p1:obligation:a", "p1", 500, true},
+		{"payment:p1:obligation:b", "p1", 300, false}, // written, never consumed
+		{"payment:p1:member:m", "p1", 900, false},     // the suspense funding
+		{"payment:p2:obligation:a", "p2", 700, true},  // another payment's
+	} {
+		order := s.newOrder(e.ctx, o.ref)
+		order.Amount = o.amount
+		order.ObligationConsumed = o.consumed
+		order.ExtraData = data.JSONMap{"source": "payment_allocation", "payment_id": o.payment}
+		s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, order))
+	}
+
+	paid, err := e.orders.SumConsumedObligationOrders(e.ctx, "p1")
+	s.Require().NoError(err)
+	s.EqualValues(500, paid)
+
+	s.Contains(s.planOf(e, `SELECT COALESCE(SUM(amount), 0) FROM transfer_orders
+WHERE deleted_at IS NULL AND extra_data ->> 'source' = 'payment_allocation'
+  AND extra_data ->> 'payment_id' = 'p1' AND reference LIKE 'payment:p1:obligation:%' AND obligation_consumed = true`),
+		"idx_to_allocation_payment")
 }

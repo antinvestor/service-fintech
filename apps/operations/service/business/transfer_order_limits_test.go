@@ -68,7 +68,11 @@ type stubTransferOrderRepo struct {
 	findErr error
 }
 
-func (r *stubTransferOrderRepo) Pool() pool.Pool                 { return nil }
+func (r *stubTransferOrderRepo) Pool() pool.Pool { return nil }
+
+func (r *stubTransferOrderRepo) SumConsumedObligationOrders(context.Context, string) (int64, error) {
+	return 0, nil
+}
 func (r *stubTransferOrderRepo) WorkManager() workerpool.Manager { return nil }
 func (r *stubTransferOrderRepo) GetByID(_ context.Context, _ string) (*models.TransferOrder, error) {
 	if r.findErr != nil {
