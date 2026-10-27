@@ -62,6 +62,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/dbrole"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 	"github.com/antinvestor/service-fintech/pkg/messages"
 	"github.com/antinvestor/service-fintech/pkg/notify"
@@ -71,6 +72,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/audit"
 )
 
+//nolint:funlen // linear service wiring; splitting hurts readability
 func main() {
 	tmpCtx := context.Background()
 
@@ -103,6 +105,7 @@ func main() {
 			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
 	})
+	svc.Setup().RegisterFunc(dbrole.StepName, dbrole.Step(svc.DatastoreManager()))
 	// The loans jobs (delinquency, reminders, funder settlement, offer
 	// expiry) run only when trustage fires their schedules, so a deploy that
 	// cannot register them fails rather than ship a loan book nothing ages.
@@ -128,6 +131,7 @@ func main() {
 		}
 		return
 	}
+	dbrole.MustVerify(ctx, svc.DatastoreManager())
 
 	sm := svc.SecurityManager()
 
