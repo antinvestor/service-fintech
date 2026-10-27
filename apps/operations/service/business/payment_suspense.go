@@ -286,8 +286,17 @@ func (b *paymentRoutingBusiness) applySuspensePayment(
 		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
 		return 0, nil
 	}
-	available = min(available, freshRemainder)
-	if available <= 0 {
+	// What the payment's runs already paid to obligations is spoken for even
+	// when a run stopped before recording its remainder: the buckets do not
+	// count those pairs again, so the spendable amount must exclude them.
+	alreadyPaid, sumErr := b.toRepo.SumConsumedObligationOrders(ctx, fresh.GetID())
+	if sumErr != nil {
+		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
+		return 0, fmt.Errorf("could not read what the payment already paid: %w", sumErr)
+	}
+	spendable := max(min(freshRemainder, fresh.Amount-alreadyPaid), 0)
+	available = min(available, spendable)
+	if available <= 0 && spendable == freshRemainder {
 		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
 		return 0, nil
 	}
@@ -300,13 +309,15 @@ func (b *paymentRoutingBusiness) applySuspensePayment(
 	leftover, allocations := b.runAllocationBuckets(
 		ctx, logger, buckets, obligations, fresh, fresh.GetID(), membershipID, available,
 	)
-	consumed := available - leftover
-	if consumed <= 0 {
+	consumed := max(available-leftover, 0)
+	if consumed <= 0 && spendable == freshRemainder {
 		b.releaseAllocationLease(ctx, logger, fresh.GetID(), lease)
 		return 0, nil
 	}
 
-	remaining := freshRemainder - consumed
+	// A recorded remainder that still counted what a stopped run paid is
+	// corrected here too, even when nothing new was applied.
+	remaining := spendable - consumed
 	state := resolvePaymentState(remaining, fresh.Amount-remaining)
 	landed, outcomeErr := b.ipRepo.SetAllocationOutcome(ctx, fresh.GetID(), lease, state, remaining)
 	if outcomeErr != nil {
