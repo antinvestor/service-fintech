@@ -59,7 +59,12 @@ type LoanFundingClaimRepository interface {
 	// still the claim's: false means another call took the claim over.
 	Complete(ctx context.Context, loanRequestID string, lease time.Time) (bool, error)
 
-	// ReleaseHeld drops the allocating claim this call holds under lease
+	// Abandon turns the allocating claim this call holds under lease into an
+	// abandoning one, which can no longer be completed, and reports whether
+	// it did. A claim completed or taken over is left alone.
+	Abandon(ctx context.Context, loanRequestID string, lease time.Time) (bool, error)
+
+	// ReleaseHeld drops the allocating or abandoning claim this call holds under lease
 	// after its allocation failed, so the request can be funded on a later
 	// attempt, and reports whether it did. A completed claim, or one another
 	// call took over, is never dropped.
@@ -112,10 +117,11 @@ func (r *loanFundingClaimRepository) Claim(
 	// is taken over, in one conditional write, so only one caller wins it.
 	var taken []struct{ ClaimedAt time.Time }
 	err = r.Pool().DB(ctx, false).Raw(`UPDATE loan_funding_claims
-SET claimed_at = now(), modified_at = now(), version = version + 1
-WHERE loan_request_id = ? AND deleted_at IS NULL AND status = ?
+SET status = ?, claimed_at = now(), modified_at = now(), version = version + 1
+WHERE loan_request_id = ? AND deleted_at IS NULL AND status IN (?, ?)
   AND (claimed_at IS NULL OR claimed_at < now() - make_interval(secs => ?))
-RETURNING claimed_at`, claim.LoanRequestID, models.LoanFundingClaimAllocating, leaseSeconds).Scan(&taken).Error
+RETURNING claimed_at`, models.LoanFundingClaimAllocating, claim.LoanRequestID,
+		models.LoanFundingClaimAllocating, models.LoanFundingClaimAbandoning, leaseSeconds).Scan(&taken).Error
 	if err != nil {
 		return ClaimHeld, time.Time{}, err
 	}
@@ -128,7 +134,7 @@ RETURNING claimed_at`, claim.LoanRequestID, models.LoanFundingClaimAllocating, l
 		First(existing, "loan_request_id = ?", claim.LoanRequestID).Error; err != nil {
 		return ClaimHeld, time.Time{}, err
 	}
-	if existing.Status == models.LoanFundingClaimAllocating {
+	if existing.Status != models.LoanFundingClaimComplete {
 		return ClaimHeld, time.Time{}, nil
 	}
 	return ClaimCompleted, time.Time{}, nil
@@ -146,6 +152,18 @@ WHERE loan_request_id = ? AND deleted_at IS NULL AND status = ? AND claimed_at =
 	return result.RowsAffected > 0, result.Error
 }
 
+func (r *loanFundingClaimRepository) Abandon(
+	ctx context.Context,
+	loanRequestID string,
+	lease time.Time,
+) (bool, error) {
+	result := r.Pool().DB(ctx, false).Exec(`UPDATE loan_funding_claims
+SET status = ?, modified_at = now(), version = version + 1
+WHERE loan_request_id = ? AND deleted_at IS NULL AND status = ? AND claimed_at = ?`,
+		models.LoanFundingClaimAbandoning, loanRequestID, models.LoanFundingClaimAllocating, lease)
+	return result.RowsAffected > 0, result.Error
+}
+
 func (r *loanFundingClaimRepository) ReleaseHeld(
 	ctx context.Context,
 	loanRequestID string,
@@ -153,8 +171,8 @@ func (r *loanFundingClaimRepository) ReleaseHeld(
 ) (bool, error) {
 	result := r.Pool().DB(ctx, false).
 		Unscoped().
-		Where("loan_request_id = ? AND claimed_at = ? AND status = ?",
-			loanRequestID, lease, models.LoanFundingClaimAllocating).
+		Where("loan_request_id = ? AND claimed_at = ? AND status IN ?", loanRequestID, lease,
+			[]int32{models.LoanFundingClaimAllocating, models.LoanFundingClaimAbandoning}).
 		Delete(&models.LoanFundingClaim{})
 	return result.RowsAffected > 0, result.Error
 }

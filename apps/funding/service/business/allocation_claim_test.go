@@ -59,12 +59,21 @@ func (e *fundingEnv) allocationBusinessWithClaims(
 	amount int64,
 	claims repository.LoanFundingClaimRepository,
 ) business.FundingAllocationBusiness {
+	return e.allocationBusinessWith(s, amount, claims, repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan))
+}
+
+func (e *fundingEnv) allocationBusinessWith(
+	s *fundingSuite,
+	amount int64,
+	claims repository.LoanFundingClaimRepository,
+	fundings repository.LoanFundingRepository,
+) business.FundingAllocationBusiness {
 	s.T().Helper()
 	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_lfclaim_request ON loan_funding_claims (loan_request_id)
 		 WHERE deleted_at IS NULL`).Error)
 	return business.NewFundingAllocationBusiness(e.ctx, nil,
-		repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan),
+		fundings,
 		claims,
 		repository.NewLossAbsorptionRepository(e.ctx, e.dbPool, e.workMan),
 		fixedLoanRequests{amount: amount, currency: "KES"}, e.iaRepo,
@@ -349,4 +358,69 @@ func (s *fundingSuite) TestReserveAndActivateChangesNothingWhenShort() {
 
 	s.Require().ErrorIs(ftRepo.ReserveAndActivate(e.ctx, tranche), repository.ErrInvestorInsufficientFunds)
 	s.Equal(int32(constants.StateJustCreated), e.tranche(s, tranche.GetID()).State)
+}
+
+// voidFails is a funding store whose voids fail.
+type voidFails struct {
+	repository.LoanFundingRepository
+}
+
+func (voidFails) VoidAndRelease(context.Context, string) (bool, []string, error) {
+	return false, nil, errors.New("connection reset")
+}
+
+// An allocation being given back keeps its claim until the void is done: if
+// the void fails the claim stays (abandoning), and once its lease lapses the
+// next call voids what is left before allocating, so the capital is never
+// committed twice.
+func (s *fundingSuite) TestFailedAbandonKeepsTheClaimUntilVoided() {
+	e := s.newEnv()
+	investor := e.seedInvestor(s, "KES", 50_000)
+	claims := completeFails{err: errors.New("connection reset"),
+		LoanFundingClaimRepository: repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan)}
+	failing := e.allocationBusinessWith(s, 10_000, claims,
+		voidFails{repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan)})
+
+	_, err := failing.SourceForRequest(e.ctx, "lr-abandon")
+	s.Require().Error(err)
+
+	var claim models.LoanFundingClaim
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).First(&claim, "loan_request_id = ?", "lr-abandon").Error)
+	s.Equal(models.LoanFundingClaimAbandoning, claim.Status, "the claim outlives a void that failed")
+	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.EqualValues(10_000, acct.ReservedBalance)
+
+	// While its lease is live, nobody allocates on top of it.
+	fa := e.allocationBusiness(s, 10_000)
+	_, err = fa.SourceForRequest(e.ctx, "lr-abandon")
+	s.Require().ErrorIs(err, business.ErrAllocationInProgress)
+
+	// Once it lapses, the next call voids the leftover and funds afresh.
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE loan_funding_claims SET claimed_at = now() - interval '1 hour' WHERE loan_request_id = ?`,
+		"lr-abandon").Error)
+	result, err := fa.SourceForRequest(e.ctx, "lr-abandon")
+	s.Require().NoError(err)
+	s.True(result.FullyFunded)
+	acct, err = e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.EqualValues(10_000, acct.ReservedBalance, "the leftover was given back, not committed twice")
+}
+
+// A fresh claim on a request that still has active fundings (left by a call
+// that died after dropping its claim) voids them before allocating.
+func (s *fundingSuite) TestFreshClaimVoidsLeftoverFundings() {
+	e := s.newEnv()
+	investor := e.seedInvestor(s, "KES", 50_000)
+	_, leftover := e.fundingWithTranche(s, "lr-leftover", investor, 4_000)
+	s.Require().NoError(repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan).
+		ReserveAndActivate(e.ctx, leftover))
+
+	result, err := e.allocationBusiness(s, 10_000).SourceForRequest(e.ctx, "lr-leftover")
+	s.Require().NoError(err)
+	s.EqualValues(10_000, result.TotalAllocated)
+	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.EqualValues(10_000, acct.ReservedBalance)
 }

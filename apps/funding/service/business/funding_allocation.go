@@ -148,19 +148,15 @@ func (b *fundingAllocationBusiness) SourceForRequest(
 		return b.buildPersistedResult(ctx, loanRequestID, requestInfo)
 	case repository.ClaimHeld:
 		return nil, ErrAllocationInProgress
-	case repository.ClaimTakenOver:
-		// The previous holder stopped part way: give back what it reserved
-		// and void what it wrote before building the allocation afresh.
-		// Compensating writes: run under cleanupCtx (see above).
-		logger.Warn("taking over an allocation left unfinished; voiding what it left")
-		fundings, loadErr := b.lfRepo.GetByLoanRequestID(cleanupCtx, loanRequestID)
-		if loadErr != nil {
-			return nil, fmt.Errorf("load the unfinished allocation: %w", loadErr)
-		}
-		if _, _, voidErr := b.voidActiveFundings(cleanupCtx, fundings); voidErr != nil {
+	case repository.ClaimTakenOver, repository.ClaimTaken:
+		// Whatever is still active for the request belongs to no completed
+		// allocation: a holder that stopped part way (taken over), or one
+		// that died while giving its allocation back: any leftover is voided and its capital given back before building the
+		// allocation afresh, so it is never committed twice.
+		if voidErr := b.voidLeftovers(cleanupCtx, logger, loanRequestID, outcome); voidErr != nil {
+			b.releaseClaim(cleanupCtx, logger, loanRequestID, lease)
 			return nil, voidErr
 		}
-	case repository.ClaimTaken:
 	}
 
 	result, run, err := b.allocate(ctx, logger, loanRequestID, requestInfo)
@@ -258,10 +254,36 @@ func (b *fundingAllocationBusiness) completeClaim(
 	return claimUnconfirmed
 }
 
-// abandonRun drops the allocating claim this call holds and gives back what
-// the run reserved. The claim is dropped first and only an allocating one
-// is: when it turns out completed under this lease after all, nothing is
-// voided and true is returned. ctx must not be cancellable.
+// voidLeftovers voids every active funding recorded for a request this call
+// has just claimed, giving back the capital behind it. ctx must not be
+// cancellable: these are compensating writes (see SourceForRequest).
+func (b *fundingAllocationBusiness) voidLeftovers(
+	ctx context.Context,
+	logger *util.LogEntry,
+	loanRequestID string,
+	outcome repository.ClaimOutcome,
+) error {
+	fundings, err := b.lfRepo.GetByLoanRequestID(ctx, loanRequestID)
+	if err != nil {
+		return fmt.Errorf("load what is recorded for the request: %w", err)
+	}
+	released, _, err := b.voidActiveFundings(ctx, fundings)
+	if err != nil {
+		return err
+	}
+	if released > 0 || outcome == repository.ClaimTakenOver {
+		logger.WithField("voided", released).Warn("voided an allocation left unfinished before allocating afresh")
+	}
+	return nil
+}
+
+// abandonRun gives back what one allocation run reserved and then drops the
+// claim. The claim is first turned from allocating to abandoning under this
+// lease, so a completion that landed late is never voided (true is returned
+// then) and the claim cannot complete while the run is voided. The claim is
+// dropped only after the void: if the void fails, or the process dies, the
+// abandoning claim stays, and once its lease lapses the next call takes it
+// over and voids what is left. ctx must not be cancellable.
 func (b *fundingAllocationBusiness) abandonRun(
 	ctx context.Context,
 	logger *util.LogEntry,
@@ -269,19 +291,17 @@ func (b *fundingAllocationBusiness) abandonRun(
 	lease time.Time,
 	run allocationRun,
 ) bool {
-	released, err := b.claimRepo.ReleaseHeld(ctx, loanRequestID, lease)
+	abandoned, err := b.claimRepo.Abandon(ctx, loanRequestID, lease)
 	if err != nil {
 		// Unknown whether a completion landed: keeping the capital reserved
 		// is the safe side; a takeover after the lease voids it if not.
 		logger.WithError(err).
-			Error("could not release the allocation lock; capital stays reserved until a takeover voids it")
+			Error("could not abandon the allocation claim; capital stays reserved until a takeover voids it")
 		return false
 	}
-	if !released {
+	if !abandoned {
 		status, held, readErr := b.claimRepo.HeldBy(ctx, loanRequestID, lease)
 		if readErr != nil {
-			// Unknown whether it completed: keeping the capital reserved is
-			// the safe side; a takeover after the lease voids it if not.
 			logger.WithError(readErr).
 				Error("could not tell whether an abandoned allocation completed; capital stays reserved")
 			return false
@@ -289,8 +309,17 @@ func (b *fundingAllocationBusiness) abandonRun(
 		if held && status == models.LoanFundingClaimComplete {
 			return true
 		}
+		// Taken over: give back this run's own fundings; the claim is the
+		// other call's.
+		b.voidRun(ctx, logger, run)
+		return false
 	}
-	b.voidRun(ctx, logger, run)
+	if _, _, voidErr := b.voidActiveFundings(ctx, run.fundings); voidErr != nil {
+		logger.WithError(voidErr).
+			Error("could not give back an abandoned allocation; the claim stays until a takeover voids it")
+		return false
+	}
+	b.releaseClaim(ctx, logger, loanRequestID, lease)
 	return false
 }
 

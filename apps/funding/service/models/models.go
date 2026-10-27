@@ -157,8 +157,9 @@ const (
 // the allocation that the winner persisted rather than reserving investor
 // capital a second time.
 //
-// Status is LoanFundingClaimAllocating while an allocation is being built
-// and LoanFundingClaimComplete once it is. ClaimedAt leases an allocating
+// Status is LoanFundingClaimAllocating while an allocation is being built,
+// LoanFundingClaimAbandoning while a failed one is being given back, and
+// LoanFundingClaimComplete once it is built. ClaimedAt leases an allocating
 // claim to the call building it: a call that finds the lease lapsed voids the
 // partial allocation the holder left and builds it afresh.
 type LoanFundingClaim struct {
@@ -173,6 +174,11 @@ type LoanFundingClaim struct {
 const (
 	// LoanFundingClaimAllocating is a claim whose allocation is being built.
 	LoanFundingClaimAllocating int32 = 1
+	// LoanFundingClaimAbandoning is a claim whose holder is giving its
+	// allocation back. It is never completed; it is dropped once the
+	// allocation is voided, or taken over like an allocating claim once its
+	// lease lapses.
+	LoanFundingClaimAbandoning int32 = 2
 	// LoanFundingClaimComplete is a claim whose allocation is finished.
 	LoanFundingClaimComplete int32 = 3
 )
