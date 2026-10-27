@@ -34,6 +34,15 @@ type obligationRecorder struct {
 
 	raised *business.GroupObligationsRaise
 	closed *business.GroupPeriodClose
+	asked  *business.GroupMemberSavingsQuery
+}
+
+func (r *obligationRecorder) GroupMemberSavings(
+	_ context.Context,
+	req business.GroupMemberSavingsQuery,
+) ([]business.MemberSavings, error) {
+	r.asked = &req
+	return []business.MemberSavings{{MembershipID: "m1", Saved: 250_050, Arrears: 10_000}}, nil
 }
 
 func (r *obligationRecorder) RaiseGroupObligations(
@@ -73,8 +82,30 @@ func TestGroupObligationsAreManagedOnlyByInternalServices(t *testing.T) {
 	_, err = srv.GroupPeriodClose(staff, &operationsv1.GroupPeriodCloseRequest{GroupId: "g1"})
 	require.Error(t, err)
 	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	_, err = srv.GroupMemberStanding(staff, &operationsv1.GroupMemberStandingRequest{GroupId: "g1"})
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	assert.Nil(t, rec.raised)
 	assert.Nil(t, rec.closed)
+	assert.Nil(t, rec.asked)
+}
+
+func TestGroupMemberStandingReportsMoneyInTheGroupsCurrency(t *testing.T) {
+	rec := &obligationRecorder{}
+	srv := NewOperationsServer(nil, nil, rec, nil, nil, nil)
+
+	resp, err := srv.GroupMemberStanding(internalCaller(), &operationsv1.GroupMemberStandingRequest{
+		GroupId: "g1", MembershipIds: []string{"m1"}, CurrencyCode: "kes",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, rec.asked)
+	assert.Equal(t, "KES", rec.asked.Currency)
+	require.Len(t, resp.GetMembers(), 1)
+	member := resp.GetMembers()[0]
+	assert.Equal(t, "m1", member.GetMembershipId())
+	assert.Equal(t, "KES", member.GetSaved().GetCurrencyCode())
+	assert.Equal(t, int64(2500), member.GetSaved().GetUnits())
+	assert.Equal(t, int64(100), member.GetArrears().GetUnits())
 }
 
 func TestGroupObligationsRaiseConvertsMoneyToMinorUnits(t *testing.T) {

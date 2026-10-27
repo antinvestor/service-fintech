@@ -17,9 +17,12 @@ package business
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
+	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 	"github.com/pitabwire/util/decimalx"
@@ -44,7 +47,26 @@ const (
 	skipOpenLoan      = "has_open_loan"
 	skipOpenOffer     = "has_open_offer"
 	skipAlreadyOffers = "already_offered"
+	skipInArrears     = "in_arrears"
+	skipNoSavings     = "no_savings"
 )
+
+// MemberSavingsReader is the part of operations that says where members
+// stand on a group's savings. Operations owns the obligations and the money
+// paid against them.
+type MemberSavingsReader interface {
+	GroupMemberStanding(
+		ctx context.Context,
+		req *operationsv1.GroupMemberStandingRequest,
+	) (*operationsv1.GroupMemberStandingResponse, error)
+}
+
+// memberSavings is a member's standing in minor units of the window's
+// currency.
+type memberSavings struct {
+	saved   int64
+	arrears int64
+}
 
 // GenerateForWindow offers a loan to every eligible member of the window's
 // group and returns how many offers it made. It is idempotent per (window,
@@ -59,13 +81,14 @@ const (
 //   - group registration recorded the member's lender client id;
 //   - the loans service holds no open loan for that client (pending
 //     disbursement, active, delinquent, in default or restructured);
-//   - the member has no offer still open or originating in another window.
+//   - the member has no offer still open or originating in another window;
+//   - operations holds the member in no arrears: nothing overdue on their
+//     savings and no unpaid penalty.
 //
-// Every eligible member is offered the same amount: what the group's saving
-// policy says a member has saved by now — the window's periodic amount for
-// each completed period of the tenure — times the window's leverage. Members'
-// actual savings balances live in operations, which has no read API for them
-// yet, so the offer cannot be priced off what each member really paid.
+// An eligible member is offered what they have actually saved in the group
+// times the window's leverage, capped at what the saving policy allows by
+// now: the window's periodic amount for each completed period of the
+// tenure, times the leverage. A member who has saved nothing is not offered.
 func (b *loanOfferBusiness) GenerateForWindow(
 	ctx context.Context,
 	group *identityv1.ClientGroupObject,
@@ -91,8 +114,8 @@ func (b *loanOfferBusiness) GenerateForWindow(
 	if err != nil {
 		return 0, apperrors.ErrDataNotFound.Extend("loan window period")
 	}
-	amount := policyOfferAmount(window, period.Position-1)
-	if amount <= 0 {
+	limit := policyOfferAmount(window, period.Position-1)
+	if limit <= 0 {
 		logger.Info("no savings to lend against yet; no offers made")
 		return 0, nil
 	}
@@ -111,7 +134,12 @@ func (b *loanOfferBusiness) GenerateForWindow(
 	if err != nil {
 		return 0, fmt.Errorf("list group members: %w", err)
 	}
+	savings, err := b.memberSavings(ctx, window, memberships, offered)
+	if err != nil {
+		return 0, err
+	}
 
+	terms := windowTerms{group: group, window: window, limit: limit, expiry: expiry}
 	made := 0
 	skipped := map[string]int{}
 	for _, membership := range memberships {
@@ -119,36 +147,62 @@ func (b *loanOfferBusiness) GenerateForWindow(
 			skipped[skipAlreadyOffers]++
 			continue
 		}
-		reason, eligErr := b.ineligibility(ctx, window, membership)
-		if eligErr != nil {
-			return made, eligErr
+		reason, offerErr := b.offerMember(ctx, terms, membership, savings[membership.GetId()])
+		if offerErr != nil {
+			return made, offerErr
 		}
 		if reason != "" {
 			skipped[reason]++
 			continue
 		}
-
-		offer := newWindowOffer(ctx, group, window, membership, amount, expiry)
-		created, createErr := b.createOffer(ctx, offer)
-		if createErr != nil {
-			return made, createErr
-		}
-		if !created {
-			skipped[skipAlreadyOffers]++
-			continue
-		}
 		made++
-		b.notifyMember(ctx, offer, messages.GroupLoanOffered, map[string]any{
-			messages.VarGroupName: group.GetName(),
-			messages.VarAmount:    messages.FormatAmount(offer.Currency, offer.Amount),
-			messages.VarCurrency:  offer.Currency,
-			messages.VarExpiresOn: messages.FormatDate(offer.ExpiryDate),
-		})
 	}
 
 	logger.WithField("offers_made", made).WithField("skipped", skipped).
 		WithField("members", len(memberships)).Info("loan window offers made")
 	return made, nil
+}
+
+// windowTerms are what every offer in a window shares.
+type windowTerms struct {
+	group  *identityv1.ClientGroupObject
+	window *models.LoanWindow
+	limit  int64
+	expiry time.Time
+}
+
+// offerMember offers the member a loan sized off their savings and tells
+// them, returning why they were passed over instead, or "" when offered.
+func (b *loanOfferBusiness) offerMember(
+	ctx context.Context,
+	terms windowTerms,
+	membership *identityv1.MembershipObject,
+	standing memberSavings,
+) (string, error) {
+	reason, err := b.ineligibility(ctx, terms.window, membership)
+	if err != nil || reason != "" {
+		return reason, err
+	}
+	amount, reason := savingsOfferAmount(terms.window, standing, terms.limit)
+	if reason != "" {
+		return reason, nil
+	}
+
+	offer := newWindowOffer(ctx, terms.group, terms.window, membership, amount, terms.expiry)
+	created, err := b.createOffer(ctx, offer)
+	if err != nil {
+		return "", err
+	}
+	if !created {
+		return skipAlreadyOffers, nil
+	}
+	b.notifyMember(ctx, offer, messages.GroupLoanOffered, map[string]any{
+		messages.VarGroupName: terms.group.GetName(),
+		messages.VarAmount:    messages.FormatAmount(offer.Currency, offer.Amount),
+		messages.VarCurrency:  offer.Currency,
+		messages.VarExpiresOn: messages.FormatDate(offer.ExpiryDate),
+	})
+	return "", nil
 }
 
 // policyOfferAmount prices an offer from the group's saving policy:
@@ -160,6 +214,74 @@ func policyOfferAmount(window *models.LoanWindow, completedPeriods int32) int64 
 	decimals := moneyx.Decimals(window.Currency)
 	saved := decimalx.FromMinorUnits(window.PeriodicAmount*int64(completedPeriods), decimals)
 	return calculation.CalculateMaxLoanAmount(saved, window.LeverageHundredths).ToMinorUnits(decimals)
+}
+
+// savingsOfferAmount sizes a member's offer: what they saved times the
+// window's leverage, never above the policy limit. It returns why the member
+// gets no offer instead when they are in arrears or saved nothing.
+func savingsOfferAmount(window *models.LoanWindow, standing memberSavings, limit int64) (int64, string) {
+	if standing.arrears > 0 {
+		return 0, skipInArrears
+	}
+	if standing.saved <= 0 {
+		return 0, skipNoSavings
+	}
+	decimals := moneyx.Decimals(window.Currency)
+	saved := decimalx.FromMinorUnits(standing.saved, decimals)
+	amount := calculation.CalculateMaxLoanAmount(saved, window.LeverageHundredths).ToMinorUnits(decimals)
+	if amount <= 0 {
+		return 0, skipNoSavings
+	}
+	return min(amount, limit), ""
+}
+
+// memberSavings asks operations, in one call, where the group's regular
+// members not yet offered in the window stand. A member operations does not
+// report has saved nothing.
+func (b *loanOfferBusiness) memberSavings(
+	ctx context.Context,
+	window *models.LoanWindow,
+	memberships []*identityv1.MembershipObject,
+	offered map[string]bool,
+) (map[string]memberSavings, error) {
+	ids := make([]string, 0, len(memberships))
+	for _, m := range memberships {
+		if m.GetMembershipType() == membershipTypeMember && !offered[m.GetId()] {
+			ids = append(ids, m.GetId())
+		}
+	}
+	standings := make(map[string]memberSavings, len(ids))
+	if len(ids) == 0 {
+		return standings, nil
+	}
+	if b.savings == nil {
+		return nil, apperrors.NewError(apperrors.ServiceUnavailable,
+			"members' savings are required to size offers")
+	}
+
+	resp, err := b.savings.GroupMemberStanding(ctx, &operationsv1.GroupMemberStandingRequest{
+		GroupId:       window.GroupID,
+		MembershipIds: ids,
+		CurrencyCode:  window.Currency,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read members' savings: %w", err)
+	}
+	decimals := moneyx.Decimals(window.Currency)
+	for _, row := range resp.GetMembers() {
+		saved, arrears := row.GetSaved(), row.GetArrears()
+		for _, amount := range []*commonv1.Money{saved, arrears} {
+			if code := amount.GetCurrencyCode(); code != "" && !strings.EqualFold(code, window.Currency) {
+				return nil, apperrors.NewError(apperrors.Unprocessable,
+					"operations reported savings in another currency")
+			}
+		}
+		standings[row.GetMembershipId()] = memberSavings{
+			saved:   moneyx.ToSmallestUnit(saved, decimals),
+			arrears: moneyx.ToSmallestUnit(arrears, decimals),
+		}
+	}
+	return standings, nil
 }
 
 // offerExpiry closes an offer when the window's period ends, which is the

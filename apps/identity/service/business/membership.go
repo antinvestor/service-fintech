@@ -99,7 +99,6 @@ func (b *membershipBusiness) Get(ctx context.Context, id string) (*models.Member
 	return membership, nil
 }
 
-//nolint:dupl // membership and client group search share a filter shape
 func (b *membershipBusiness) Search(
 	ctx context.Context,
 	query, groupID, profileID string,

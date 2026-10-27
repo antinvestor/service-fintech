@@ -2175,6 +2175,16 @@ const ClientGroupSearchRequest$json = {
       '6': '.common.v1.STATE',
       '10': 'state'
     },
+    {
+      '1': 'states',
+      '3': 9,
+      '4': 3,
+      '5': 14,
+      '6': '.common.v1.STATE',
+      '8': {},
+      '10': 'states'
+    },
+    {'1': 'group_types', '3': 10, '4': 3, '5': 5, '8': {}, '10': 'groupTypes'},
   ],
 };
 
@@ -2187,7 +2197,9 @@ final $typed_data.Uint8List clientGroupSearchRequestDescriptor = $convert.base64
     'dCAyMDAaEXRoaXMubGltaXQgPD0gMjAwUgZjdXJzb3ISJwoJcGFyZW50X2lkGAUgASgJQgq6SA'
     'fYAQFyAhgoUghwYXJlbnRJZBIpCgpwcm9kdWN0X2lkGAYgASgJQgq6SAfYAQFyAhgoUglwcm9k'
     'dWN0SWQSHQoKZ3JvdXBfdHlwZRgHIAEoBVIJZ3JvdXBUeXBlEiYKBXN0YXRlGAggASgOMhAuY2'
-    '9tbW9uLnYxLlNUQVRFUgVzdGF0ZQ==');
+    '9tbW9uLnYxLlNUQVRFUgVzdGF0ZRIyCgZzdGF0ZXMYCSADKA4yEC5jb21tb24udjEuU1RBVEVC'
+    'CLpIBZIBAhAIUgZzdGF0ZXMSKQoLZ3JvdXBfdHlwZXMYCiADKAVCCLpIBZIBAhAgUgpncm91cF'
+    'R5cGVz');
 
 @$core.Deprecated('Use clientGroupSearchResponseDescriptor instead')
 const ClientGroupSearchResponse$json = {

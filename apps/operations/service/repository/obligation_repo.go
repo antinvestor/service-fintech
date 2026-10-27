@@ -33,6 +33,13 @@ type ObligationRepository interface {
 	GetByMembershipID(ctx context.Context, membershipID string) ([]*models.Obligation, error)
 	GetByPeriodID(ctx context.Context, periodID string) ([]*models.Obligation, error)
 	GetByCauseID(ctx context.Context, causeID string) ([]*models.Obligation, error)
+	// GetGroupMemberObligations reads every obligation of the given causes
+	// the group raised for the members, paid ones included.
+	GetGroupMemberObligations(
+		ctx context.Context,
+		groupID string,
+		membershipIDs, causeTypes []string,
+	) ([]*models.Obligation, error)
 
 	// ConsumeAmount deducts amount from an active obligation in a single
 	// conditional UPDATE and deactivates it once nothing is left. It reports
@@ -135,5 +142,21 @@ func (r *obligationRepository) GetByPeriodID(ctx context.Context, periodID strin
 func (r *obligationRepository) GetByCauseID(ctx context.Context, causeID string) ([]*models.Obligation, error) {
 	var obligations []*models.Obligation
 	err := r.Pool().DB(ctx, true).Where("cause_id = ?", causeID).Find(&obligations).Error
+	return obligations, err
+}
+
+func (r *obligationRepository) GetGroupMemberObligations(
+	ctx context.Context,
+	groupID string,
+	membershipIDs, causeTypes []string,
+) ([]*models.Obligation, error) {
+	var obligations []*models.Obligation
+	if len(membershipIDs) == 0 || len(causeTypes) == 0 {
+		return obligations, nil
+	}
+	// membership_id leads: it is indexed, and a member's obligations are few.
+	err := r.Pool().DB(ctx, true).
+		Where("membership_id IN ? AND cause_id = ? AND cause_type IN ?", membershipIDs, groupID, causeTypes).
+		Find(&obligations).Error
 	return obligations, err
 }

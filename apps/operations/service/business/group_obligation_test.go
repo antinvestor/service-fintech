@@ -61,6 +61,17 @@ func (r *memObligationRepo) GetByPeriodID(_ context.Context, periodID string) ([
 	return r.copies(func(o *models.Obligation) bool { return o.PeriodID == periodID }), nil
 }
 
+func (r *memObligationRepo) GetGroupMemberObligations(
+	_ context.Context,
+	groupID string,
+	membershipIDs, causeTypes []string,
+) ([]*models.Obligation, error) {
+	return r.copies(func(o *models.Obligation) bool {
+		return o.CauseID == groupID && slices.Contains(membershipIDs, o.MembershipID) &&
+			slices.Contains(causeTypes, o.CauseType)
+	}), nil
+}
+
 func (r *memObligationRepo) CreateIfAbsent(_ context.Context, obligation *models.Obligation) (bool, error) {
 	for _, existing := range r.rows {
 		if existing.MembershipID == obligation.MembershipID && existing.PeriodID == obligation.PeriodID &&

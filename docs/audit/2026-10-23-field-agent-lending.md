@@ -1650,3 +1650,37 @@ Lint: 0 issues.
 
 New queries run on Postgres. Trustage validation passes for the four Stawi
 workflows. Lint: 0 issues.
+
+## 53. Addendum 2026-10-27 — group search filters; offers follow each member's savings
+
+**Group search.** Identity's `ClientGroupSearch` ignored its `state`,
+`group_type`, `parent_id` and `product_id` filters. It now applies them,
+plus new `states` and `group_types` lists. Stawi's lifecycle job asks only
+for ACTIVE groups of `STAWI_GROUP_TYPES` (2, 5, 6, confirmed by the user), so
+a run no longer pages through the whole tenant. Shutdown still looks each
+running tenure's group up by id: listing every deleted group would only grow.
+
+**Offers follow savings.** Operations gains `GroupMemberStanding`
+(`group_obligation_manage`, internal callers only), returning each member's:
+- *saved:* paid against periodic savings obligations, partial payments
+  included;
+- *arrears:* past-due unpaid savings plus unpaid penalties.
+
+Only the group's obligations in the requested currency count.
+
+Stawi's offer rule:
+- A member in arrears gets no offer (`in_arrears`), and neither does one who
+  has saved nothing (`no_savings`).
+- Otherwise the offer is the smaller of saved × leverage and the policy limit.
+- If the standing call fails, no offers are made and the run is retried.
+
+**SDKs.** Dart identity 0.8.3, operations 0.4.9.
+
+**Verified.**
+- identity: Postgres test of each filter and the legacy fields.
+- operations: standing with full, partial and future-due payments,
+  penalties, another group, and currency; the handler is internal-only; the
+  repository query runs on Postgres.
+- stawi: more savings gives a bigger offer; arrears or no savings gives none;
+  the cap holds; a retry offers nobody twice; a failed call makes no offers.
+- Lint: 0 issues.

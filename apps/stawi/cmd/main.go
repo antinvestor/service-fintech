@@ -231,6 +231,7 @@ func initBusinesses(
 		Clients:  platformClients.LenderIdentity,
 		Profiles: platformClients.ProfileClient,
 		Lender:   stawibusiness.NewLoansGroupLender(platformClients.LenderLoanMgmt),
+		Savings:  operationsCli,
 		Notifier: notifier,
 	})
 	loanWindowBiz := stawibusiness.NewLoanWindowBusiness(

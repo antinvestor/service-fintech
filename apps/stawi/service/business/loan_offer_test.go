@@ -29,10 +29,12 @@ import (
 	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	notificationv1 "buf.build/gen/go/antinvestor/notification/protocolbuffers/go/notification/v1"
+	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/util/moneyx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -345,6 +347,33 @@ func (f *fakeIdentity) MembershipGet(
 	return &identityv1.MembershipGetResponse{Data: m}, nil
 }
 
+// fakeSavings answers for members' savings the way operations does, in the
+// group's currency, and records who was asked about.
+type fakeSavings struct {
+	standing map[string]memberSavings // minor units of KES
+	asked    []string
+	fail     error
+}
+
+func (f *fakeSavings) GroupMemberStanding(
+	_ context.Context, req *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	if f.fail != nil {
+		return nil, f.fail
+	}
+	f.asked = append(f.asked, req.GetMembershipIds()...)
+	resp := &operationsv1.GroupMemberStandingResponse{}
+	for _, id := range req.GetMembershipIds() {
+		row := f.standing[id]
+		resp.Members = append(resp.Members, &operationsv1.MemberStanding{
+			MembershipId: id,
+			Saved:        moneyx.FromMinorUnitsByCurrency(req.GetCurrencyCode(), row.saved),
+			Arrears:      moneyx.FromMinorUnitsByCurrency(req.GetCurrencyCode(), row.arrears),
+		})
+	}
+	return resp, nil
+}
+
 type fakeClients struct {
 	fieldv1connect.FieldServiceClient
 	profileByClient map[string]string
@@ -419,6 +448,7 @@ type offerFixture struct {
 	identity *fakeIdentity
 	profiles *fakeProfiles
 	members  *fakeMembers
+	savings  *fakeSavings
 	window   *models.LoanWindow
 	group    *identityv1.ClientGroupObject
 	now      time.Time
@@ -475,6 +505,8 @@ func newOfferFixture(t *testing.T) *offerFixture {
 	identity := &fakeIdentity{memberships: byID}
 	profiles := &fakeProfiles{payoutContact: map[string]string{"p-ok": "contact-ok"}}
 	members := &fakeMembers{members: memberships}
+	// 4,000.00 saved × 2.00 leverage is exactly the policy limit.
+	savings := &fakeSavings{standing: map[string]memberSavings{"m-ok": {saved: 400_000}}}
 
 	biz := NewLoanOfferBusiness(context.Background(), LoanOfferDeps{
 		Product:  stawiproduct.ProductConfig{LoanProductID: "stawi", LoanTenurePeriods: 4, LoanInterestRatePA: 2400},
@@ -485,13 +517,14 @@ func newOfferFixture(t *testing.T) *offerFixture {
 		Clients:  &fakeClients{profileByClient: map[string]string{"c-ok": "p-ok"}},
 		Profiles: profiles,
 		Lender:   lender,
+		Savings:  savings,
 		Notifier: notify.NewWithSender(sender, messages.Registry()),
 	}).(*loanOfferBusiness)
 	biz.now = func() time.Time { return now }
 
 	return &offerFixture{
 		biz: biz, repo: repo, lender: lender, sender: sender, identity: identity, profiles: profiles,
-		members: members, window: window, now: now,
+		members: members, savings: savings, window: window, now: now,
 		group: &identityv1.ClientGroupObject{Id: testGroupID, Name: "Umoja Chama", CurrencyCode: "KES"},
 	}
 }
@@ -567,6 +600,88 @@ func TestGenerateForWindow_NoSavingsNoOffers(t *testing.T) {
 	made, err := f.biz.GenerateForWindow(t.Context(), f.group, f.window)
 	require.NoError(t, err)
 	assert.Zero(t, made)
+}
+
+// addSaver adds an eligible regular member who saved the given amount.
+func (f *offerFixture) addSaver(t *testing.T, id string, standing memberSavings) {
+	t.Helper()
+	m := member(t, id, "p-"+id, "c-"+id, membershipTypeMember, commonv1.STATE_ACTIVE)
+	f.members.members = append(f.members.members, m)
+	f.identity.memberships[id] = m
+	f.savings.standing[id] = standing
+}
+
+func (f *offerFixture) offerAmounts(t *testing.T) map[string]int64 {
+	t.Helper()
+	offers, err := f.repo.GetByLoanWindowID(t.Context(), testWindow)
+	require.NoError(t, err)
+	out := map[string]int64{}
+	for _, o := range offers {
+		out[o.MembershipID] = o.Amount
+	}
+	return out
+}
+
+// Each member is offered what they actually saved times the leverage: the
+// one who saved more is offered more.
+func TestGenerateForWindow_OfferFollowsEachMembersSavings(t *testing.T) {
+	f := newOfferFixture(t)
+	f.savings.standing["m-ok"] = memberSavings{saved: 100_000}
+	f.addSaver(t, "m-rich", memberSavings{saved: 300_000})
+
+	made, err := f.biz.GenerateForWindow(t.Context(), f.group, f.window)
+	require.NoError(t, err)
+	assert.Equal(t, 2, made)
+	assert.Equal(t, map[string]int64{"m-ok": 200_000, "m-rich": 600_000}, f.offerAmounts(t))
+	assert.ElementsMatch(t, []string{"m-ok", "m-inactive", "m-noclient", "m-borrower", "m-rich"}, f.savings.asked,
+		"only regular members are asked about")
+
+	// A retry asks only about members not yet offered and offers nobody twice.
+	f.savings.asked = nil
+	made, err = f.biz.GenerateForWindow(t.Context(), f.group, f.window)
+	require.NoError(t, err)
+	assert.Zero(t, made)
+	assert.NotContains(t, f.savings.asked, "m-ok")
+	assert.NotContains(t, f.savings.asked, "m-rich")
+}
+
+// A member behind on savings or penalties gets no offer, however much they
+// saved; a member who saved nothing gets none either.
+func TestGenerateForWindow_MemberInArrearsOrWithoutSavingsGetsNoOffer(t *testing.T) {
+	f := newOfferFixture(t)
+	f.savings.standing["m-ok"] = memberSavings{saved: 400_000, arrears: 1}
+	f.addSaver(t, "m-none", memberSavings{})
+	f.addSaver(t, "m-good", memberSavings{saved: 50_000})
+
+	made, err := f.biz.GenerateForWindow(t.Context(), f.group, f.window)
+	require.NoError(t, err)
+	assert.Equal(t, 1, made)
+	assert.Equal(t, map[string]int64{"m-good": 100_000}, f.offerAmounts(t))
+}
+
+// Savings beyond what the policy expects by now lend no more than the
+// policy limit.
+func TestGenerateForWindow_OfferIsCappedAtThePolicyLimit(t *testing.T) {
+	f := newOfferFixture(t)
+	f.savings.standing["m-ok"] = memberSavings{saved: 1_000_000}
+
+	made, err := f.biz.GenerateForWindow(t.Context(), f.group, f.window)
+	require.NoError(t, err)
+	assert.Equal(t, 1, made)
+	// 4 completed periods × 1,000.00 × 2.00, not 10,000.00 × 2.00.
+	assert.Equal(t, map[string]int64{"m-ok": 800_000}, f.offerAmounts(t))
+}
+
+// Without members' savings no offer can be sized, so none is made and the
+// window's offers are retried.
+func TestGenerateForWindow_SavingsUnavailableMakesNoOffers(t *testing.T) {
+	f := newOfferFixture(t)
+	f.savings.fail = connect.NewError(connect.CodeUnavailable, "operations unavailable")
+
+	made, err := f.biz.GenerateForWindow(t.Context(), f.group, f.window)
+	require.Error(t, err)
+	assert.Zero(t, made)
+	assert.Empty(t, f.offerAmounts(t))
 }
 
 // ---------------------------------------------------------------------------

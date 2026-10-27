@@ -123,6 +123,13 @@ func (c *countingOperationsClient) GroupPeriodClose(
 	panic("stub: GroupPeriodClose not expected")
 }
 
+func (c *countingOperationsClient) GroupMemberStanding(
+	_ context.Context,
+	_ *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	panic("stub: GroupMemberStanding not expected")
+}
+
 func (c *countingOperationsClient) snapshot() []*operationsv1.TransferOrderObject {
 	c.mu.Lock()
 	defer c.mu.Unlock()

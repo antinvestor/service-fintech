@@ -172,4 +172,24 @@ extension type OperationsServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// GroupMemberStanding reports what each member has saved in a group and
+  /// what they are behind on, so the group service can size what it lends
+  /// them. Read only; only service accounts hold the permission.
+  Future<operationsv1operations.GroupMemberStandingResponse> groupMemberStanding(
+    operationsv1operations.GroupMemberStandingRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.OperationsService.groupMemberStanding,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

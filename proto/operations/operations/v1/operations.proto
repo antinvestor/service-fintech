@@ -306,6 +306,33 @@ message GroupPeriodCloseResponse {
   common.v1.Money outstanding = 3;
 }
 
+// GroupMemberStandingRequest asks where members stand across a group's
+// savings: what they have saved and what they are behind on.
+message GroupMemberStandingRequest {
+  string group_id = 1;
+  // membership_ids are the members asked about, at most 1000.
+  repeated string membership_ids = 2;
+  // currency_code is the group's currency; only obligations in it count.
+  string currency_code = 3;
+}
+
+// MemberStanding is one member's savings record in a group.
+message MemberStanding {
+  string membership_id = 1;
+  // saved is everything paid against the member's periodic savings
+  // obligations, partial payments included.
+  common.v1.Money saved = 2;
+  // arrears is what the member still owes on savings obligations past their
+  // due date, plus unpaid penalties.
+  common.v1.Money arrears = 3;
+}
+
+message GroupMemberStandingResponse {
+  // members has one row per requested membership, in the order asked; a
+  // member with no obligations has zero saved and zero arrears.
+  repeated MemberStanding members = 1;
+}
+
 service OperationsService {
   option (common.v1.service_permissions) = {
     namespace: "service_operations"
@@ -431,6 +458,15 @@ service OperationsService {
   // each member still owing, and reports the period's statement. Called by
   // the group service; retrying charges no second penalty.
   rpc GroupPeriodClose(GroupPeriodCloseRequest) returns (GroupPeriodCloseResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["group_obligation_manage"]
+    };
+  }
+
+  // GroupMemberStanding reports what each member has saved in a group and
+  // what they are behind on, so the group service can size what it lends
+  // them. Read only; only service accounts hold the permission.
+  rpc GroupMemberStanding(GroupMemberStandingRequest) returns (GroupMemberStandingResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["group_obligation_manage"]
     };

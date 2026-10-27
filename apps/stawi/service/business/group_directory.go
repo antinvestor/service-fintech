@@ -61,11 +61,15 @@ func NewGroupDirectory(
 	return &identityGroupDirectory{product: product, identity: identity}
 }
 
+// ActiveGroups asks identity for only the active groups of stawi's types, so
+// a run pages through the groups it runs rather than the whole tenant. The
+// filter is checked again here so an identity that ignores it still yields
+// only groups stawi runs.
 func (d *identityGroupDirectory) ActiveGroups(ctx context.Context) ([]*identityv1.ClientGroupObject, error) {
 	var active []*identityv1.ClientGroupObject
 	for page := range maxGroupSearchPages {
 		offset := page * int(groupSearchPage)
-		groups, err := d.searchPage(ctx, offset)
+		groups, err := d.searchPage(ctx, offset, commonv1.STATE_ACTIVE)
 		if err != nil {
 			return nil, err
 		}
@@ -81,11 +85,12 @@ func (d *identityGroupDirectory) ActiveGroups(ctx context.Context) ([]*identityv
 	return active, nil
 }
 
-func (d *identityGroupDirectory) searchPage(ctx context.Context, offset int) ([]*identityv1.ClientGroupObject, error) {
-	stream, err := d.identity.ClientGroupSearch(ctx, &identityv1.ClientGroupSearchRequest{
-		State:  commonv1.STATE_ACTIVE,
-		Cursor: &commonv1.PageCursor{Limit: groupSearchPage, Page: strconv.Itoa(offset)},
-	})
+func (d *identityGroupDirectory) searchPage(
+	ctx context.Context,
+	offset int,
+	states ...commonv1.STATE,
+) ([]*identityv1.ClientGroupObject, error) {
+	stream, err := d.identity.ClientGroupSearch(ctx, d.searchRequest(offset, states...))
 	if err != nil {
 		return nil, fmt.Errorf("client group search: %w", err)
 	}
@@ -99,6 +104,19 @@ func (d *identityGroupDirectory) searchPage(ctx context.Context, offset int) ([]
 			return nil, fmt.Errorf("client group search: %w", recvErr)
 		}
 		groups = append(groups, msg.GetData()...)
+	}
+}
+
+// searchRequest asks identity for one page of the groups of stawi's types
+// in the given states.
+func (d *identityGroupDirectory) searchRequest(
+	offset int,
+	states ...commonv1.STATE,
+) *identityv1.ClientGroupSearchRequest {
+	return &identityv1.ClientGroupSearchRequest{
+		States:     states,
+		GroupTypes: d.product.GroupTypes,
+		Cursor:     &commonv1.PageCursor{Limit: groupSearchPage, Page: strconv.Itoa(offset)},
 	}
 }
 

@@ -686,3 +686,40 @@ func (s *claimsSuite) TestObligationCreateIfAbsentHoldsOnePerMemberPeriodAndCaus
 	s.Require().NoError(err)
 	s.Len(period, 5)
 }
+
+// A group's member obligations are read paid or not, and only for the group,
+// members and causes asked.
+func (s *claimsSuite) TestGetGroupMemberObligationsReadsOnlyWhatWasAsked() {
+	e := s.newEnv()
+
+	create := func(member, cause, group, period string, state int32) {
+		o := &models.Obligation{
+			MembershipID: member, CauseType: cause, CauseID: group, PeriodID: period,
+			Amount: 1000, Currency: "KES", State: state,
+		}
+		o.GenID(e.ctx)
+		created, err := e.obs.CreateIfAbsent(e.ctx, o)
+		s.Require().NoError(err)
+		s.Require().True(created)
+	}
+	create("member-1", "periodic_saving", "group-1", "period-1", constants.StateInactive)
+	create("member-1", "penalty", "group-1", "period-1", constants.StateActive)
+	create("member-2", "periodic_saving", "group-1", "period-1", constants.StateActive)
+	create("member-3", "periodic_saving", "group-1", "period-1", constants.StateActive)
+	create("member-1", "periodic_saving", "group-2", "period-9", constants.StateActive)
+	create("member-1", "loan_principal", "group-1", "period-1", constants.StateActive)
+
+	found, err := e.obs.GetGroupMemberObligations(e.ctx, "group-1",
+		[]string{"member-1", "member-2"}, []string{"periodic_saving", "penalty"})
+	s.Require().NoError(err)
+	s.Len(found, 3)
+	for _, o := range found {
+		s.Equal("group-1", o.CauseID)
+		s.NotEqual("member-3", o.MembershipID)
+		s.NotEqual("loan_principal", o.CauseType)
+	}
+
+	none, err := e.obs.GetGroupMemberObligations(e.ctx, "group-1", nil, []string{"penalty"})
+	s.Require().NoError(err)
+	s.Empty(none)
+}

@@ -376,6 +376,13 @@ func (s *stubOperationsClient) GroupPeriodClose(
 	panic("stub: GroupPeriodClose not expected")
 }
 
+func (s *stubOperationsClient) GroupMemberStanding(
+	_ context.Context,
+	_ *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	panic("stub: GroupMemberStanding not expected")
+}
+
 // Compile-time check.
 var _ operationsv1connect.OperationsServiceClient = (*stubOperationsClient)(nil)
 

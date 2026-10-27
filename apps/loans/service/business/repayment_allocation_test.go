@@ -105,6 +105,13 @@ func (c *recordingOperationsClient) GroupPeriodClose(
 	panic("stub: GroupPeriodClose not expected")
 }
 
+func (c *recordingOperationsClient) GroupMemberStanding(
+	_ context.Context,
+	_ *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	panic("stub: GroupMemberStanding not expected")
+}
+
 func (c *recordingOperationsClient) references() map[string]int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()

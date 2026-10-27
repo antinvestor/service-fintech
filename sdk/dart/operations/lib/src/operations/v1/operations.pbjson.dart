@@ -823,6 +823,74 @@ final $typed_data.Uint8List groupPeriodCloseResponseDescriptor = $convert.base64
     'EC5jb21tb24udjEuTW9uZXlSCWNvbGxlY3RlZBIyCgtvdXRzdGFuZGluZxgDIAEoCzIQLmNvbW'
     '1vbi52MS5Nb25leVILb3V0c3RhbmRpbmc=');
 
+@$core.Deprecated('Use groupMemberStandingRequestDescriptor instead')
+const GroupMemberStandingRequest$json = {
+  '1': 'GroupMemberStandingRequest',
+  '2': [
+    {'1': 'group_id', '3': 1, '4': 1, '5': 9, '10': 'groupId'},
+    {'1': 'membership_ids', '3': 2, '4': 3, '5': 9, '10': 'membershipIds'},
+    {'1': 'currency_code', '3': 3, '4': 1, '5': 9, '10': 'currencyCode'},
+  ],
+};
+
+/// Descriptor for `GroupMemberStandingRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List groupMemberStandingRequestDescriptor =
+    $convert.base64Decode(
+        'ChpHcm91cE1lbWJlclN0YW5kaW5nUmVxdWVzdBIZCghncm91cF9pZBgBIAEoCVIHZ3JvdXBJZB'
+        'IlCg5tZW1iZXJzaGlwX2lkcxgCIAMoCVINbWVtYmVyc2hpcElkcxIjCg1jdXJyZW5jeV9jb2Rl'
+        'GAMgASgJUgxjdXJyZW5jeUNvZGU=');
+
+@$core.Deprecated('Use memberStandingDescriptor instead')
+const MemberStanding$json = {
+  '1': 'MemberStanding',
+  '2': [
+    {'1': 'membership_id', '3': 1, '4': 1, '5': 9, '10': 'membershipId'},
+    {
+      '1': 'saved',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'saved'
+    },
+    {
+      '1': 'arrears',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.common.v1.Money',
+      '10': 'arrears'
+    },
+  ],
+};
+
+/// Descriptor for `MemberStanding`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List memberStandingDescriptor = $convert.base64Decode(
+    'Cg5NZW1iZXJTdGFuZGluZxIjCg1tZW1iZXJzaGlwX2lkGAEgASgJUgxtZW1iZXJzaGlwSWQSJg'
+    'oFc2F2ZWQYAiABKAsyEC5jb21tb24udjEuTW9uZXlSBXNhdmVkEioKB2FycmVhcnMYAyABKAsy'
+    'EC5jb21tb24udjEuTW9uZXlSB2FycmVhcnM=');
+
+@$core.Deprecated('Use groupMemberStandingResponseDescriptor instead')
+const GroupMemberStandingResponse$json = {
+  '1': 'GroupMemberStandingResponse',
+  '2': [
+    {
+      '1': 'members',
+      '3': 1,
+      '4': 3,
+      '5': 11,
+      '6': '.operations.v1.MemberStanding',
+      '10': 'members'
+    },
+  ],
+};
+
+/// Descriptor for `GroupMemberStandingResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List groupMemberStandingResponseDescriptor =
+    $convert.base64Decode(
+        'ChtHcm91cE1lbWJlclN0YW5kaW5nUmVzcG9uc2USNwoHbWVtYmVycxgBIAMoCzIdLm9wZXJhdG'
+        'lvbnMudjEuTWVtYmVyU3RhbmRpbmdSB21lbWJlcnM=');
+
 const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
   '1': 'OperationsService',
   '2': [
@@ -882,6 +950,12 @@ const $core.Map<$core.String, $core.dynamic> OperationsServiceBase$json = {
       '3': '.operations.v1.GroupPeriodCloseResponse',
       '4': {}
     },
+    {
+      '1': 'GroupMemberStanding',
+      '2': '.operations.v1.GroupMemberStandingRequest',
+      '3': '.operations.v1.GroupMemberStandingResponse',
+      '4': {}
+    },
   ],
   '3': {},
 };
@@ -931,6 +1005,10 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.operations.v1.GroupPeriodCloseRequest': GroupPeriodCloseRequest$json,
   '.operations.v1.GroupPeriodCloseResponse': GroupPeriodCloseResponse$json,
   '.operations.v1.GroupMemberOutstanding': GroupMemberOutstanding$json,
+  '.operations.v1.GroupMemberStandingRequest': GroupMemberStandingRequest$json,
+  '.operations.v1.GroupMemberStandingResponse':
+      GroupMemberStandingResponse$json,
+  '.operations.v1.MemberStanding': MemberStanding$json,
 };
 
 /// Descriptor for `OperationsService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -957,15 +1035,17 @@ final $typed_data.Uint8List operationsServiceDescriptor = $convert.base64Decode(
     'xpZ2F0aW9uc1JhaXNlUmVzcG9uc2UiHYK1GBkKF2dyb3VwX29ibGlnYXRpb25fbWFuYWdlEoIB'
     'ChBHcm91cFBlcmlvZENsb3NlEiYub3BlcmF0aW9ucy52MS5Hcm91cFBlcmlvZENsb3NlUmVxdW'
     'VzdBonLm9wZXJhdGlvbnMudjEuR3JvdXBQZXJpb2RDbG9zZVJlc3BvbnNlIh2CtRgZChdncm91'
-    'cF9vYmxpZ2F0aW9uX21hbmFnZRrNBIK1GMgEChJzZXJ2aWNlX29wZXJhdGlvbnMSEHRyYW5zZm'
-    'VyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbnRfbm90aWZ5EhBwYXltZW50X2FsbG9j'
-    'YXRlEgxwYXltZW50X3ZpZXcSEm9wZXJhdGlvbnNfam9iX3J1bhIXZ3JvdXBfb2JsaWdhdGlvbl'
-    '9tYW5hZ2UaUwgBEhB0cmFuc2Zlcl9leGVjdXRlEg10cmFuc2Zlcl92aWV3Eg5wYXltZW50X25v'
-    'dGlmeRIQcGF5bWVudF9hbGxvY2F0ZRIMcGF5bWVudF92aWV3GlMIAhIQdHJhbnNmZXJfZXhlY3'
-    'V0ZRINdHJhbnNmZXJfdmlldxIOcGF5bWVudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDHBh'
-    'eW1lbnRfdmlldxpTCAMSEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbn'
-    'Rfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRlEgxwYXltZW50X3ZpZXcaHwgEEg10cmFuc2Zlcl92'
-    'aWV3EgxwYXltZW50X3ZpZXcaEQgFEg10cmFuc2Zlcl92aWV3GoABCAYSEHRyYW5zZmVyX2V4ZW'
-    'N1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1lbnRfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRlEgxw'
-    'YXltZW50X3ZpZXcSEm9wZXJhdGlvbnNfam9iX3J1bhIXZ3JvdXBfb2JsaWdhdGlvbl9tYW5hZ2'
-    'U=');
+    'cF9vYmxpZ2F0aW9uX21hbmFnZRKLAQoTR3JvdXBNZW1iZXJTdGFuZGluZxIpLm9wZXJhdGlvbn'
+    'MudjEuR3JvdXBNZW1iZXJTdGFuZGluZ1JlcXVlc3QaKi5vcGVyYXRpb25zLnYxLkdyb3VwTWVt'
+    'YmVyU3RhbmRpbmdSZXNwb25zZSIdgrUYGQoXZ3JvdXBfb2JsaWdhdGlvbl9tYW5hZ2UazQSCtR'
+    'jIBAoSc2VydmljZV9vcGVyYXRpb25zEhB0cmFuc2Zlcl9leGVjdXRlEg10cmFuc2Zlcl92aWV3'
+    'Eg5wYXltZW50X25vdGlmeRIQcGF5bWVudF9hbGxvY2F0ZRIMcGF5bWVudF92aWV3EhJvcGVyYX'
+    'Rpb25zX2pvYl9ydW4SF2dyb3VwX29ibGlnYXRpb25fbWFuYWdlGlMIARIQdHJhbnNmZXJfZXhl'
+    'Y3V0ZRINdHJhbnNmZXJfdmlldxIOcGF5bWVudF9ub3RpZnkSEHBheW1lbnRfYWxsb2NhdGUSDH'
+    'BheW1lbnRfdmlldxpTCAISEHRyYW5zZmVyX2V4ZWN1dGUSDXRyYW5zZmVyX3ZpZXcSDnBheW1l'
+    'bnRfbm90aWZ5EhBwYXltZW50X2FsbG9jYXRlEgxwYXltZW50X3ZpZXcaUwgDEhB0cmFuc2Zlcl'
+    '9leGVjdXRlEg10cmFuc2Zlcl92aWV3Eg5wYXltZW50X25vdGlmeRIQcGF5bWVudF9hbGxvY2F0'
+    'ZRIMcGF5bWVudF92aWV3Gh8IBBINdHJhbnNmZXJfdmlldxIMcGF5bWVudF92aWV3GhEIBRINdH'
+    'JhbnNmZXJfdmlldxqAAQgGEhB0cmFuc2Zlcl9leGVjdXRlEg10cmFuc2Zlcl92aWV3Eg5wYXlt'
+    'ZW50X25vdGlmeRIQcGF5bWVudF9hbGxvY2F0ZRIMcGF5bWVudF92aWV3EhJvcGVyYXRpb25zX2'
+    'pvYl9ydW4SF2dyb3VwX29ibGlnYXRpb25fbWFuYWdl');

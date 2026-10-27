@@ -458,6 +458,12 @@ func (r *obligationRepoStub) GetByCauseID(context.Context, string) ([]*models.Ob
 	return nil, errUnexpectedStubCall
 }
 
+func (r *obligationRepoStub) GetGroupMemberObligations(
+	context.Context, string, []string, []string,
+) ([]*models.Obligation, error) {
+	return nil, errUnexpectedStubCall
+}
+
 func (r *obligationRepoStub) CreateIfAbsent(context.Context, *models.Obligation) (bool, error) {
 	return false, errUnexpectedStubCall
 }

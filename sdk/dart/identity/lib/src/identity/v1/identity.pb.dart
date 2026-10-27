@@ -6119,6 +6119,8 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     $core.String? productId,
     $core.int? groupType,
     $1.STATE? state,
+    $core.Iterable<$1.STATE>? states,
+    $core.Iterable<$core.int>? groupTypes,
   }) {
     final result = ClientGroupSearchRequest._();
     if (query != null) result.query = query;
@@ -6129,6 +6131,8 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     if (productId != null) result.productId = productId;
     if (groupType != null) result.groupType = groupType;
     if (state != null) result.state = state;
+    if (states != null) result.states.addAll(states);
+    if (groupTypes != null) result.groupTypes.addAll(groupTypes);
     return result;
   }
 
@@ -6155,6 +6159,11 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     ..aI(7, _omitFieldNames ? '' : 'groupType')
     ..aE<$1.STATE>(8, _omitFieldNames ? '' : 'state',
         enumValues: $1.STATE.values)
+    ..pc<$1.STATE>(9, _omitFieldNames ? '' : 'states', $pb.PbFieldType.KE,
+        valueOf: $1.STATE.valueOf,
+        enumValues: $1.STATE.values,
+        defaultEnumValue: $1.STATE.CREATED)
+    ..p<$core.int>(10, _omitFieldNames ? '' : 'groupTypes', $pb.PbFieldType.K3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -6255,6 +6264,15 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
   $core.bool hasState() => $_has(7);
   @$pb.TagNumber(8)
   void clearState() => $_clearField(8);
+
+  /// Optional: only groups in any of these states. CREATED is the zero
+  /// value of state, so a caller that wants created groups lists it here.
+  @$pb.TagNumber(9)
+  $pb.PbList<$1.STATE> get states => $_getList(8);
+
+  /// Optional: only groups of any of these types.
+  @$pb.TagNumber(10)
+  $pb.PbList<$core.int> get groupTypes => $_getList(9);
 }
 
 class ClientGroupSearchResponse extends $pb.GeneratedMessage {

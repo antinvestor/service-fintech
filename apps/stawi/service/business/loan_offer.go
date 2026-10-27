@@ -70,6 +70,9 @@ type LoanOfferDeps struct {
 	Clients  fieldv1connect.FieldServiceClient
 	Profiles profilev1connect.ProfileServiceClient
 	Lender   GroupLender
+	// Savings reads what each member has saved and owes in operations; an
+	// offer is sized off it.
+	Savings  MemberSavingsReader
 	Notifier *notify.Notifier
 }
 
@@ -82,6 +85,7 @@ type loanOfferBusiness struct {
 	clients  fieldv1connect.FieldServiceClient
 	profiles profilev1connect.ProfileServiceClient
 	lender   GroupLender
+	savings  MemberSavingsReader
 	notifier *notify.Notifier
 	now      func() time.Time
 }
@@ -98,6 +102,7 @@ func NewLoanOfferBusiness(_ context.Context, deps LoanOfferDeps) LoanOfferBusine
 		clients:  deps.Clients,
 		profiles: deps.Profiles,
 		lender:   deps.Lender,
+		savings:  deps.Savings,
 		notifier: deps.Notifier,
 		now:      time.Now,
 	}

@@ -84,4 +84,14 @@ abstract final class OperationsService {
     operationsv1operations.GroupPeriodCloseRequest.new,
     operationsv1operations.GroupPeriodCloseResponse.new,
   );
+
+  /// GroupMemberStanding reports what each member has saved in a group and
+  /// what they are behind on, so the group service can size what it lends
+  /// them. Read only; only service accounts hold the permission.
+  static const groupMemberStanding = connect.Spec(
+    '/$name/GroupMemberStanding',
+    connect.StreamType.unary,
+    operationsv1operations.GroupMemberStandingRequest.new,
+    operationsv1operations.GroupMemberStandingResponse.new,
+  );
 }

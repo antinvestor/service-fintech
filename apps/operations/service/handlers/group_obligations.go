@@ -152,6 +152,42 @@ func (s *OperationsServer) GroupPeriodClose(
 	}, nil
 }
 
+// GroupMemberStanding reports what each member has saved in a group and
+// what they are behind on. Read only, and for internal services alone: it
+// sizes what the group service lends.
+func (s *OperationsServer) GroupMemberStanding(
+	ctx context.Context,
+	req *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	if s.obBusiness == nil {
+		return nil, apperrors.CleanErr(apperrors.NewError(apperrors.ServiceUnavailable,
+			"group obligations are not available"))
+	}
+
+	currency := strings.ToUpper(strings.TrimSpace(req.GetCurrencyCode()))
+	members, err := s.obBusiness.GroupMemberSavings(ctx, business.GroupMemberSavingsQuery{
+		GroupID:       req.GetGroupId(),
+		Currency:      currency,
+		MembershipIDs: req.GetMembershipIds(),
+	})
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+
+	out := make([]*operationsv1.MemberStanding, 0, len(members))
+	for _, member := range members {
+		out = append(out, &operationsv1.MemberStanding{
+			MembershipId: member.MembershipID,
+			Saved:        moneyx.FromMinorUnitsByCurrency(currency, member.Saved),
+			Arrears:      moneyx.FromMinorUnitsByCurrency(currency, member.Arrears),
+		})
+	}
+	return &operationsv1.GroupMemberStandingResponse{Members: out}, nil
+}
+
 // minorUnitsIn converts an amount to minor units, refusing one in a currency
 // other than the request's. An absent amount is zero.
 func minorUnitsIn(amount *commonv1.Money, currency string) (int64, error) {

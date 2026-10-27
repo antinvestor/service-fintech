@@ -54,6 +54,7 @@ type TransferOrderBusiness interface {
 type ObligationBusiness interface {
 	RaiseGroupObligations(ctx context.Context, req GroupObligationsRaise) (*GroupPeriodStanding, error)
 	CloseGroupPeriod(ctx context.Context, req GroupPeriodClose) (*GroupPeriodStanding, error)
+	GroupMemberSavings(ctx context.Context, req GroupMemberSavingsQuery) ([]MemberSavings, error)
 	CheckForMember(ctx context.Context, membershipID string) (map[string]interface{}, error)
 	CreateLoanObligations(ctx context.Context, loanAccountID string, entries []ScheduleEntryInfo) error
 	GetStatus(ctx context.Context, obligationID string) (map[string]interface{}, error)
