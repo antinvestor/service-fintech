@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -128,13 +129,30 @@ func (p *platform) settlePayout(reference string, status commonv1.STATUS) {
 	p.payoutStatus[reference] = status
 }
 
-// serve mounts one fake on its own test server.
+// serve mounts one fake on its own test server. Like a real peer, it refuses
+// a call that names no tenant: every caller here is a service account, which
+// the platform's tenant assertion accepts only with X-Tenant-Id.
 func serve(register func(*connect.Server)) *httptest.Server {
-	server := connect.NewServer()
+	server := connect.NewServer(requireTenant())
 	register(server)
 	mux := http.NewServeMux()
 	connecthttp.Mount(mux, server)
 	return httptest.NewServer(mux)
+}
+
+// requireTenant refuses a call without X-Tenant-Id, as tenantassert does for
+// an internal caller.
+func requireTenant() connect.ServerInterceptor {
+	return func(next connect.ServerFunc) connect.ServerFunc {
+		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {
+			info, ok := connect.CallInfoForServerContext(ctx)
+			if !ok || strings.TrimSpace(info.RequestHeader().Get("X-Tenant-Id")) == "" {
+				return connect.NewError(connect.CodeInvalidArgument,
+					"e2e peer: "+spec.Procedure+" called without X-Tenant-Id")
+			}
+			return next(ctx, spec, stream)
+		}
+	}
 }
 
 // --- field (identity binary): clients and who may act for them ---
