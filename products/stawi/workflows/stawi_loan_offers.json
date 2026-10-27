@@ -35,7 +35,8 @@
           "request": {
             "job": "STAWI_JOB_LOAN_OFFERS",
             "batchSize": 200
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

@@ -1684,3 +1684,35 @@ Stawi's offer rule:
 - stawi: more savings gives a bigger offer; arrears or no savings gives none;
   the cap holds; a retry offers nobody twice; a failed call makes no offers.
 - Lint: 0 issues.
+
+## 54. Addendum 2026-10-27 — trustage is set up from each service's setup code
+
+**Decision (user).** Trustage must not know about services beyond running
+their workflows. Each service sets it up from its own setup code, as with
+migrations and notification templates. Trustage's operator route config
+(`TRUSTAGE_CONNECT_ROUTES`) is therefore not the way services are reached.
+
+**Change.**
+
+- *service-trustage* (PR #122): a `connect.call` step may carry an optional
+  `endpoint`, the base URL of the service the workflow belongs to.
+  - The call carries trustage's own token, so the endpoint must be a bare
+    `http(s)` base URL on a trusted in-cluster host (default `.svc` and
+    `.svc.cluster.local`).
+  - An operator route still wins over it, so existing routes are unchanged.
+- *Every fintech workflow* (loans, operations, limits, savings, stawi) names
+  its service with `"endpoint": "${SERVICE_ENDPOINT}"`. A test fails any
+  shipped `connect.call` without it.
+- *`pkg/trustage.SyncWorkflows`* fills the placeholder with the service's own
+  address when the setup Job registers its workflows:
+  `http://<service>.<namespace>.svc:80`, with the namespace read from the pod
+  and `TRUSTAGE_CALLBACK_ENDPOINT` as an override (e.g. loans deployed as
+  `service-fintech-loans` under the Stawi product).
+- *Trustage's own address* defaults to
+  `http://service-trustage.trustage.svc:80` for a secure setup. No service
+  needs `TRUSTAGE_SERVICE_URI` set; local development without trustage still
+  skips.
+
+**Deploy.** Release service-trustage #122 before relying on these workflows.
+Limits isn't in the cluster manifests yet; where it runs, its default name is
+`service-limits`.

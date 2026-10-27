@@ -35,7 +35,8 @@
           "request": {
             "job": "LOAN_JOB_PAID_OFF_NOTICES",
             "batchSize": 200
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

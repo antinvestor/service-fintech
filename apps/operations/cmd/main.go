@@ -94,7 +94,7 @@ func main() {
 	// only when trustage fires the settle schedule, so a deploy that cannot
 	// register it fails rather than ship repayments nothing retries.
 	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
-		return trustage.SyncWorkflows(ctx, &cfg, cfg.IsRunSecurely())
+		return trustage.SyncWorkflows(ctx, &cfg, "service-operations", cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)

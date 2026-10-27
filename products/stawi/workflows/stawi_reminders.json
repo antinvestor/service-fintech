@@ -35,7 +35,8 @@
           "request": {
             "job": "STAWI_JOB_SEND_REMINDERS",
             "batchSize": 200
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

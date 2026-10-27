@@ -35,7 +35,8 @@
           "request": {
             "job": "SAVINGS_JOB_ACCRUE_INTEREST",
             "batchSize": 500
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

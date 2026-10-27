@@ -407,6 +407,6 @@ func registerSetupSteps(svc *frame.Service, cfg *aconfig.StawiConfig) {
 	// trustage fires stawi's schedules, so a deploy that cannot register
 	// them fails rather than ship groups that never move.
 	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
-		return trustage.SyncWorkflows(ctx, cfg, cfg.IsRunSecurely())
+		return trustage.SyncWorkflows(ctx, cfg, "service-stawi", cfg.IsRunSecurely())
 	})
 }

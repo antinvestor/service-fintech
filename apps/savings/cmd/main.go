@@ -92,7 +92,7 @@ func main() {
 	// deploy that cannot register it fails rather than ship savings that
 	// never earn.
 	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
-		return trustage.SyncWorkflows(ctx, &cfg, cfg.IsRunSecurely())
+		return trustage.SyncWorkflows(ctx, &cfg, "service-savings", cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)

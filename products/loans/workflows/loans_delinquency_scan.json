@@ -35,7 +35,8 @@
           "request": {
             "job": "LOAN_JOB_DELINQUENCY_SCAN",
             "batchSize": 500
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

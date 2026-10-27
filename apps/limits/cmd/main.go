@@ -107,7 +107,7 @@ func main() {
 	// their schedules, so a deploy that cannot register them fails rather
 	// than ship holds that never lapse.
 	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
-		return trustage.SyncWorkflows(ctx, &cfg, cfg.IsRunSecurely())
+		return trustage.SyncWorkflows(ctx, &cfg, "service-limits", cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
