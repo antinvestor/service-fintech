@@ -856,6 +856,9 @@ func (s *savingsSuite) TestInterestJobAccruesEachDayOnce() {
 	funded := e.seedAccount(s, "KES")
 	s.fund(e, funded, "1000", "dep-interest")
 	e.seedAccount(s, "KES") // nothing to accrue
+	// Both opened the day before: the last closed day is theirs to settle.
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE savings_accounts SET created_at = created_at - interval '1 day'`).Error)
 	jobs := business.NewSavingsJobs(e.saRepo, e.accrual, "service_savings")
 
 	_, _, err := jobs.Run(e.ctx, savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
@@ -875,4 +878,37 @@ func (s *savingsSuite) TestInterestJobAccruesEachDayOnce() {
 	still, err := e.sbRepo.GetBySavingsAccountID(e.ctx, funded.GetID())
 	s.Require().NoError(err)
 	s.Equal(balance.TotalInterest, still.TotalInterest)
+}
+
+// An account the job missed for days accrues each missed day once, one
+// period per day, not only the last one.
+func (s *savingsSuite) TestInterestJobCatchesUpEachMissedDay() {
+	e := s.newEnv()
+	funded := e.seedAccount(s, "KES")
+	s.fund(e, funded, "1000", "dep-catch-up")
+	lastClosed := time.Now().UTC().Truncate(24 * time.Hour)
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE savings_accounts SET interest_accrued_through = ? WHERE id = ?`,
+		lastClosed.AddDate(0, 0, -3), funded.GetID()).Error)
+	jobs := business.NewSavingsJobs(e.saRepo, e.accrual, "service_savings")
+
+	_, _, err := jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+
+	var periods []time.Time
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Raw(
+		`SELECT period_end FROM interest_accruals WHERE savings_account_id = ? ORDER BY period_end`,
+		funded.GetID()).Scan(&periods).Error)
+	s.Require().Len(periods, 3, "three missed days, three accruals")
+	for i, p := range periods {
+		s.True(p.Equal(lastClosed.AddDate(0, 0, i-2)), "day %d ends %s", i, p)
+	}
+	stored, err := e.saRepo.GetByID(e.ctx, funded.GetID())
+	s.Require().NoError(err)
+	s.Require().NotNil(stored.InterestAccruedThrough)
+	s.True(stored.InterestAccruedThrough.Equal(lastClosed))
+
+	again, _, err := jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+	s.Zero(again, "caught up")
 }
