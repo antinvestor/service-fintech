@@ -491,6 +491,7 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 ) (*operationsv1.TransferOrderExecuteResponse, error) {
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 
+	ctx = inRecordTenancy(ctx, la.TenantID, la.PartitionID)
 	return b.operationsCli.TransferOrderExecute(ctx, &operationsv1.TransferOrderExecuteRequest{
 		Data: transferorder.Typed(&operationsv1.TransferOrderObject{
 			// The loan asset grows and the product's cash goes out. The
@@ -515,6 +516,20 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 			}).ToProtoStruct(),
 		}, constants.TransferTypeDisbursement),
 	})
+}
+
+// inRecordTenancy names the record's tenancy on the peer calls made with
+// the returned context. Loans calls operations under its own service
+// account, which carries no tenant: the peer learns which tenant and
+// partition it acts in only from the X-Tenant-Id / X-Partition-Id headers,
+// and the client sets those from the context's tenancy. A request a person
+// made (staff disbursing a loan) has none, so without this the peer refuses
+// the call for naming no tenant.
+func inRecordTenancy(ctx context.Context, tenantID, partitionID string) context.Context {
+	if tenantID == "" || partitionID == "" {
+		return ctx
+	}
+	return util.SetTenancy(ctx, &security.AuthenticationClaims{TenantID: tenantID, PartitionID: partitionID})
 }
 
 func loanFundingReady(properties data.JSONMap) bool {
