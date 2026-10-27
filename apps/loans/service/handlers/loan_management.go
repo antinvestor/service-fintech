@@ -17,7 +17,6 @@ package handlers
 import (
 	"context"
 	"math"
-	"strconv"
 	"time"
 
 	"buf.build/gen/go/antinvestor/loans/connectrpc/go/v2/loans/v1/loansv1connect"
@@ -31,6 +30,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 )
 
 // LoanManagementServer implements the LoanManagementService RPC handler.
@@ -526,11 +526,9 @@ func (s *LoanManagementServer) LoanStatusChangeSearch(
 
 	cursor := req.GetCursor()
 	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		searchOpts = append(searchOpts,
+			data.WithSearchOffset(pagination.Page(cursor.GetPage())),
+			data.WithSearchLimit(pagination.Limit(cursor.GetLimit())))
 	}
 
 	andQueryVal := map[string]any{}

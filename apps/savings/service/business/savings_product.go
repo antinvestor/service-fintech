@@ -16,7 +16,6 @@ package business
 
 import (
 	"context"
-	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
@@ -27,6 +26,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/savings/service/events"
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 )
 
 type SavingsProductBusiness interface {
@@ -111,11 +111,9 @@ func (b *savingsProductBusiness) Search(
 
 	cursor := req.GetCursor()
 	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		searchOpts = append(searchOpts,
+			data.WithSearchOffset(pagination.Page(cursor.GetPage())),
+			data.WithSearchLimit(pagination.Limit(cursor.GetLimit())))
 	}
 
 	andQueryVal := map[string]any{}

@@ -18,10 +18,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -942,11 +942,9 @@ func (b *repaymentBusiness) Search(
 
 	cursor := req.GetCursor()
 	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		searchOpts = append(searchOpts,
+			data.WithSearchOffset(pagination.Page(cursor.GetPage())),
+			data.WithSearchLimit(pagination.Limit(cursor.GetLimit())))
 	}
 
 	if req.GetStatus() != loansv1.RepaymentStatus_REPAYMENT_STATUS_UNSPECIFIED {

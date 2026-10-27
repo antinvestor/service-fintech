@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +31,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/savings/service/events"
 	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 )
 
 type SavingsAccountBusiness interface {
@@ -145,11 +145,9 @@ func (b *savingsAccountBusiness) Search(
 
 	cursor := req.GetCursor()
 	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		searchOpts = append(searchOpts,
+			data.WithSearchOffset(pagination.Page(cursor.GetPage())),
+			data.WithSearchLimit(pagination.Limit(cursor.GetLimit())))
 	}
 
 	andQueryVal := map[string]any{}
