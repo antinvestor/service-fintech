@@ -27,6 +27,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/tenancy"
+	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -401,4 +402,26 @@ func TestMiddleware(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A person's tenant is carried on the context, so the peer calls a service
+// makes while serving them name it; their partition is not carried.
+func TestInterceptor_PersonsTenancyIsCarriedToPeerCalls(t *testing.T) {
+	var carried util.TenancyInfo
+	h := tenantassert.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		carried = util.GetTenancy(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequestWithContext(ctxWith(t, tenantClaims("t1")), http.MethodPost, "/x", nil)
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	require.NotNil(t, carried)
+	require.Equal(t, "t1", carried.GetTenantID())
+	require.Empty(t, carried.GetPartitionID(), "the person's partition is not the record's")
+
+	// An internal caller's tenancy is left as the platform set it.
+	carried = nil
+	req = httptest.NewRequestWithContext(ctxWith(t, internalClaims("")), http.MethodPost, "/x", nil)
+	req.Header.Set(tenantassert.HeaderTenantID, "t4")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	require.Nil(t, carried)
 }

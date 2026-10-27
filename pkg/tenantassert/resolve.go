@@ -40,6 +40,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/tenancy"
+	"github.com/pitabwire/util"
 )
 
 // HeaderTenantID is the request header an internal principal uses to name
@@ -125,9 +126,27 @@ func requestedTenant(field, header string) (string, error) {
 // it named. Frame's legacy binder marks internal callers Skip, which disables
 // tenancy binding entirely; rebinding tenant-only (no partition list) keeps
 // every partition of that tenant visible while excluding every other tenant.
-// Tenant principals keep the claims frame already bound for them.
+//
+// A tenant principal (a person) keeps the claims frame already bound for
+// them, and their tenant is also set as the context's tenancy: a service
+// calls its peers under its own tenant-less service account, and the client
+// names the tenant and partition it acts in (X-Tenant-Id, X-Partition-Id)
+// only from the context's tenancy, so without this every peer call made
+// while serving a person was refused for naming no tenant.
 func bindInternal(ctx context.Context, claims *security.AuthenticationClaims, tenant string) context.Context {
-	if claims == nil || !claims.IsInternalSystem() {
+	if claims == nil {
+		return ctx
+	}
+	if !claims.IsInternalSystem() {
+		if util.GetTenancy(ctx) == nil && strings.TrimSpace(claims.GetTenantID()) != "" {
+			// Tenant only: the person's own partition is not the record's,
+			// and a peer that scopes by partition must not take one for the
+			// other. A call that acts on a record names its partition itself.
+			return util.SetTenancy(ctx, &security.AuthenticationClaims{
+				TenantID: claims.GetTenantID(),
+				AccessID: claims.GetAccessID(),
+			})
+		}
 		return ctx
 	}
 	return tenancy.WithClaims(ctx, &tenancy.Claims{
