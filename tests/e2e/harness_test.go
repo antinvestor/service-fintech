@@ -24,9 +24,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	"github.com/antinvestor/common/v3/interceptors"
-	"github.com/pitabwire/frame/v3/config"
 	"github.com/pitabwire/frame/v3/security"
-	"github.com/pitabwire/frame/v3/security/authorizer"
 )
 
 // Hosts the real services are reached under. Each service's clients are
@@ -132,13 +130,4 @@ func (t *tokens) Authenticate(
 	claims.NormalizeIdentity()
 	ctx = security.JwtToContext(ctx, token)
 	return claims.ClaimsToContext(ctx), nil
-}
-
-// permissive is Keto in the deployment's local mode
-// (AUTHORIZATION_MODE=disabled): the tenancy and per-RPC permission
-// interceptors run and ask it, and it allows. The relation tuples are
-// platform configuration, not behaviour under test.
-func permissive() security.Authorizer {
-	cfg := &config.ConfigurationDefault{AuthorizationMode: config.AuthorizationModeDisabled}
-	return authorizer.NewKetoAdapter(cfg, nil)
 }

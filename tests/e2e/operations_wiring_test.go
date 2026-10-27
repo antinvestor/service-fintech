@@ -75,7 +75,7 @@ type operationsService struct {
 
 // operationsOptions replicates apps/operations/cmd/main.go
 // setupServiceOptions and setupConnectServer. Keep it in step with main.go.
-// Only the authenticator and the authorizer differ.
+// Only the authenticator differs; the authorizer is the real Keto.
 func operationsOptions(
 	ctx context.Context,
 	cfg *aconfig.OperationsConfig,
