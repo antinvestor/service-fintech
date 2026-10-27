@@ -51,7 +51,10 @@ func (repo *repaymentScheduleRepository) GetActivByLoanAccountID(
 	loanAccountID string,
 ) (*models.RepaymentSchedule, error) {
 	schedule := models.RepaymentSchedule{}
-	err := repo.Pool().DB(ctx, true).
+	// Schedules and their entries are read from the primary: repayments
+	// allocate against them, and a lagging replica could hide an installment
+	// that was just paid.
+	err := repo.Pool().DB(ctx, false).
 		Where("loan_account_id = ? AND is_active = ?", loanAccountID, true).
 		Order("generated_at DESC NULLS LAST, schedule_version DESC, id DESC").
 		First(&schedule).Error

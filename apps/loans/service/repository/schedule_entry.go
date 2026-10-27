@@ -78,7 +78,7 @@ func (repo *scheduleEntryRepository) GetByScheduleID(
 	scheduleID string,
 ) ([]*models.ScheduleEntry, error) {
 	var entries []*models.ScheduleEntry
-	err := repo.Pool().DB(ctx, true).
+	err := repo.Pool().DB(ctx, false).
 		Where("schedule_id = ?", scheduleID).
 		Order("installment_number ASC").
 		Find(&entries).Error
@@ -96,7 +96,7 @@ func (repo *scheduleEntryRepository) GetOverdueEntries(
 	var entries []*models.ScheduleEntry
 	// Only the active schedule counts: entries of a superseded (restructured)
 	// schedule must not drive arrears or penalties.
-	err := repo.Pool().DB(ctx, true).
+	err := repo.Pool().DB(ctx, false).
 		Table("schedule_entries").
 		Joins("JOIN repayment_schedules rs ON rs.id = schedule_entries.schedule_id AND rs.is_active = true AND rs.deleted_at IS NULL").
 		Where("schedule_entries.loan_account_id = ? AND schedule_entries.due_date < ? AND schedule_entries.status != ? "+
@@ -115,7 +115,7 @@ func (repo *scheduleEntryRepository) GetByLoanAccountID(
 	loanAccountID string,
 ) ([]*models.ScheduleEntry, error) {
 	var entries []*models.ScheduleEntry
-	err := repo.Pool().DB(ctx, true).
+	err := repo.Pool().DB(ctx, false).
 		Where("loan_account_id = ?", loanAccountID).
 		Order("installment_number ASC").
 		Find(&entries).Error
@@ -158,7 +158,7 @@ func (repo *scheduleEntryRepository) ClearPenaltyApplied(ctx context.Context, en
 
 func (repo *scheduleEntryRepository) CountActiveEntries(ctx context.Context, loanAccountID string) (int64, error) {
 	var count int64
-	err := repo.Pool().DB(ctx, true).
+	err := repo.Pool().DB(ctx, false).
 		Table("schedule_entries").
 		Joins("JOIN repayment_schedules rs ON rs.id = schedule_entries.schedule_id AND rs.is_active = true AND rs.deleted_at IS NULL").
 		Where("schedule_entries.loan_account_id = ? AND schedule_entries.deleted_at IS NULL", loanAccountID).

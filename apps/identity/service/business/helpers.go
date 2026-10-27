@@ -25,6 +25,8 @@ import (
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/workerpool"
+
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 )
 
 // workerpoolConsumeStream wraps workerpool.ConsumeResultStream for use in business methods.
@@ -44,10 +46,10 @@ const searchableTSQuery = "searchable @@ websearch_to_tsquery( 'english', ?) "
 
 const (
 	// defaultSearchLimit is applied when a cursor omits a limit.
-	defaultSearchLimit = 50
+	defaultSearchLimit = pagination.DefaultLimit
 	// maxSearchLimit bounds how many rows a single search may stream so a
 	// caller cannot ask for the whole table.
-	maxSearchLimit = 200
+	maxSearchLimit = pagination.MaxLimit
 )
 
 // cursorSearchOptions turns a page cursor into search options. The limit is
@@ -75,15 +77,7 @@ func cursorSearchOptions(cursor *commonv1.PageCursor) ([]data.SearchOption, erro
 
 // clampSearchLimit bounds a caller supplied page limit. Zero or negative means
 // "unset" and falls back to the default.
-func clampSearchLimit(limit int32) int {
-	if limit <= 0 {
-		return defaultSearchLimit
-	}
-	if limit > maxSearchLimit {
-		return maxSearchLimit
-	}
-	return int(limit)
-}
+func clampSearchLimit(limit int32) int { return pagination.Limit(limit) }
 
 // actorFromClaims resolves the identity of the caller from the request claims.
 // Every maker/checker attribution must come from here, never from a request
