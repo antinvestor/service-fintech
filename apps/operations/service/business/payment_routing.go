@@ -184,8 +184,14 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 
 	// An individual borrower's payment (no group) is matched to their loan
 	// first; group payments keep the membership strategies.
+	// A lookup that failed in transport is returned, so the payment is
+	// redelivered rather than routed to unidentified on a peer's outage.
 	if groupID == "" {
-		if result := b.identifyIndividual(ctx, productID, paymentRef, payerRef, payment.Currency); result != nil {
+		result, lookupErr := b.identifyIndividual(ctx, productID, paymentRef, payerRef, payment.Currency)
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+		if result != nil {
 			if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 				return nil, saveErr
 			}
@@ -194,7 +200,11 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 		}
 	}
 
-	if result := b.runIdentificationStrategies(ctx, logger, paymentRef, payerRef, payerName, groupID); result != nil {
+	result, lookupErr := b.runIdentificationStrategies(ctx, logger, paymentRef, payerRef, payerName, groupID)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
+	if result != nil {
 		if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 			return nil, saveErr
 		}
@@ -243,36 +253,49 @@ func (b *paymentRoutingBusiness) allocateIndividual(
 
 // identifyIndividual matches a payment with no group to the payer's own loan
 // or, failing that, their own savings account, of the product the rail
-// credited. It returns nil when neither matches.
+// credited. It returns nil when neither matches, and an error when a lookup
+// failed in transport.
 func (b *paymentRoutingBusiness) identifyIndividual(
 	ctx context.Context,
 	productID, paymentRef, payerRef, currency string,
-) *identificationResult {
-	if b.borrowerLoanMatching() {
-		if result, err := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); err == nil {
-			return result
+) (*identificationResult, error) {
+	strategies := []struct {
+		enabled bool
+		run     func() (*identificationResult, error)
+	}{
+		{b.borrowerLoanMatching(), func() (*identificationResult, error) {
+			return b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef)
+		}},
+		{b.borrowerSavingsMatching(), func() (*identificationResult, error) {
+			return b.identifySaverAccount(ctx, productID, paymentRef, payerRef)
+		}},
+		{b.investorDepositMatching(), func() (*identificationResult, error) {
+			return b.identifyInvestorDeposit(ctx, paymentRef, payerRef, currency)
+		}},
+	}
+	for _, s := range strategies {
+		if !s.enabled {
+			continue
+		}
+		result, err := s.run()
+		if err == nil {
+			return result, nil
+		}
+		if isTransientLookupError(err) {
+			return nil, err
 		}
 	}
-	if b.borrowerSavingsMatching() {
-		if result, err := b.identifySaverAccount(ctx, productID, paymentRef, payerRef); err == nil {
-			return result
-		}
-	}
-	if b.investorDepositMatching() {
-		if result, err := b.identifyInvestorDeposit(ctx, paymentRef, payerRef, currency); err == nil {
-			return result
-		}
-	}
-	return nil
+	return nil, nil //nolint:nilnil // no match is a valid answer, not an error
 }
 
 // runIdentificationStrategies walks the identification pipeline and returns the
-// first match, or nil when no strategy resolves a member.
+// first match, or nil when no strategy resolves a member. A lookup that
+// failed in transport stops the walk with its error.
 func (b *paymentRoutingBusiness) runIdentificationStrategies(
 	ctx context.Context,
 	logger *util.LogEntry,
 	paymentRef, payerRef, payerName, groupID string,
-) *identificationResult {
+) (*identificationResult, error) {
 	strategies := []identificationStrategy{
 		{
 			"direct membership ID",
@@ -319,10 +342,13 @@ func (b *paymentRoutingBusiness) runIdentificationStrategies(
 		if strategyErr == nil && result != nil {
 			logger.WithField(fieldMembershipID, result.MembershipID).
 				Info(fmt.Sprintf("payer identified via strategy %d: %s", i+1, s.name))
-			return result
+			return result, nil
+		}
+		if isTransientLookupError(strategyErr) {
+			return nil, fmt.Errorf("identify payer via %s: %w", s.name, strategyErr)
 		}
 	}
-	return nil
+	return nil, nil //nolint:nilnil // no match is a valid answer, not an error
 }
 
 // IdentifySender resolves a payer to a group member without recording a
@@ -341,7 +367,10 @@ func (b *paymentRoutingBusiness) IdentifySender(
 			"a sender identifier or payment reference is required")
 	}
 
-	result := b.runIdentificationStrategies(ctx, logger, reference, senderIdentifier, "", groupID)
+	result, lookupErr := b.runIdentificationStrategies(ctx, logger, reference, senderIdentifier, "", groupID)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
 	if result == nil {
 		return map[string]interface{}{
 			"identified":  false,

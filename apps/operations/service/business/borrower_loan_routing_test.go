@@ -284,3 +284,66 @@ func TestDefaultedLoanTakesTheBorrowersPayment(t *testing.T) {
 	paymentID, _ := result["payment_id"].(string)
 	assert.Contains(t, orders.byReference, "payment:"+paymentID+":loan:loan-d")
 }
+
+type unavailableLoansServer struct {
+	loansv1connect.UnimplementedLoanManagementServiceHandler
+}
+
+func (s *unavailableLoansServer) LoanAccountGet(
+	context.Context,
+	*loansv1.LoanAccountGetRequest,
+) (*loansv1.LoanAccountGetResponse, error) {
+	return nil, connect.NewError(connect.CodeUnavailable, "loans is restarting")
+}
+
+func (s *unavailableLoansServer) LoanAccountSearch(
+	context.Context,
+	*loansv1.LoanAccountSearchRequest,
+	loansv1connect.LoanManagementServiceLoanAccountSearchServerStream,
+) error {
+	return connect.NewError(connect.CodeUnavailable, "loans is restarting")
+}
+
+// A borrower's payment whose loan lookup failed in transport is returned as
+// an error, so the queue redelivers it, instead of being routed to the
+// unidentified account as if the payer had no loan.
+func TestBorrowerPaymentLookupOutageIsRetriedNotUnidentified(t *testing.T) {
+	routing, payments, _ := newBorrowerRouting(t, nil)
+	routing.clients.LenderLoanMgmt = loansv1connect.NewLoanManagementServiceClient(
+		serveConnect(t, func(s *connect.Server) {
+			loansv1connect.RegisterLoanManagementServiceHandler(s, &unavailableLoansServer{})
+		}))
+
+	result, err := routing.IdentifyPayment(context.Background(), map[string]interface{}{
+		"transaction_id":  "txn-outage",
+		"amount":          int64(50_000),
+		"currency":        "UGX",
+		"payer_reference": "+256701000111",
+		"product_id":      "prod-1",
+		"properties":      data.JSONMap{},
+	})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, connect.CodeUnavailable, connect.CodeOf(err))
+
+	stored, getErr := payments.GetByTransactionID(context.Background(), "txn-outage")
+	require.NoError(t, getErr)
+	assert.Empty(t, stored.OwnerID, "the payment is left unmatched for the redelivery")
+}
+
+// A payer with no loan, by contrast, is a decision: the payment goes to
+// unidentified.
+func TestBorrowerPaymentWithNoLoanIsUnidentified(t *testing.T) {
+	routing, _, _ := newBorrowerRouting(t, nil)
+
+	result, err := routing.IdentifyPayment(context.Background(), map[string]interface{}{
+		"transaction_id":  "txn-noloan",
+		"amount":          int64(50_000),
+		"currency":        "UGX",
+		"payer_reference": "+256701000111",
+		"product_id":      "prod-1",
+		"properties":      data.JSONMap{},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "unidentified", result["strategy"])
+}
