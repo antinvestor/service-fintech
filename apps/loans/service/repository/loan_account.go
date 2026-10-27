@@ -44,9 +44,14 @@ type LoanAccountRepository interface {
 	// under the offset and skip loans entirely.
 	PageByStatus(ctx context.Context, status int32, afterID string, limit int) ([]*models.LoanAccount, error)
 	// ClaimForAssessment leases up to limit loans due for a delinquency
-	// assessment and pushes each one's next assessment a day ahead.
-	// Concurrent callers never receive the same loan.
+	// assessment for a short while, so a loan the run does not get to is due
+	// again soon. Concurrent callers never receive the same loan. The
+	// returned loans carry the lease in NextAssessmentAt.
 	ClaimForAssessment(ctx context.Context, limit int) ([]*models.LoanAccount, error)
+	// ScheduleNextAssessment pushes an assessed loan's next assessment a day
+	// ahead, only while lease is still the loan's claim: a loan brought
+	// forward meanwhile (AssessSoon) keeps its earlier time.
+	ScheduleNextAssessment(ctx context.Context, loanAccountID string, lease time.Time) error
 	// AssessSoon brings a loan's next delinquency assessment forward to now,
 	// so a repayment that clears arrears is reflected on the next run.
 	AssessSoon(ctx context.Context, loanAccountID string) error
@@ -143,13 +148,17 @@ func (repo *loanAccountRepository) PageByStatus(
 	return accounts, nil
 }
 
+// assessmentLeaseMinutes is how long a claimed loan is held before another
+// run may assess it, when the run that claimed it did not get to it.
+const assessmentLeaseMinutes = 15
+
 // ClaimForAssessment claims through FOR UPDATE SKIP LOCKED on the
-// idx_la_assessment_due index. The claim is the schedule: a loan whose
-// assessment fails is looked at again the next day.
+// idx_la_assessment_due index, for assessmentLeaseMinutes; the run that
+// assesses the loan then schedules it for the next day.
 func (repo *loanAccountRepository) ClaimForAssessment(ctx context.Context, limit int) ([]*models.LoanAccount, error) {
 	var rows []*models.LoanAccount
 	err := repo.Pool().DB(ctx, false).Raw(`
-UPDATE loan_accounts SET next_assessment_at = now() + interval '1 day'
+UPDATE loan_accounts SET next_assessment_at = now() + make_interval(mins => ?)
 WHERE id IN (
     SELECT id FROM loan_accounts
     WHERE status IN (2, 3, 6) AND deleted_at IS NULL AND next_assessment_at <= now()
@@ -157,8 +166,17 @@ WHERE id IN (
     LIMIT ?
     FOR UPDATE SKIP LOCKED
 )
-RETURNING *`, limit).Scan(&rows).Error
+RETURNING *`, assessmentLeaseMinutes, limit).Scan(&rows).Error
 	return rows, err
+}
+
+func (repo *loanAccountRepository) ScheduleNextAssessment(
+	ctx context.Context,
+	loanAccountID string,
+	lease time.Time,
+) error {
+	return repo.Pool().DB(ctx, false).Exec(`UPDATE loan_accounts SET next_assessment_at = now() + interval '1 day'
+WHERE id = ? AND deleted_at IS NULL AND next_assessment_at = ?`, loanAccountID, lease).Error
 }
 
 func (repo *loanAccountRepository) AssessSoon(ctx context.Context, loanAccountID string) error {

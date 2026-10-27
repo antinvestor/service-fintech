@@ -47,18 +47,20 @@ func collectionFor(t *testing.T, currency string) (CollectionBusiness, *promptRe
 // shilling of UGX, which has no minor unit, is one unit, not a hundred.
 func TestCollectionLegacyAmountUsesTheCurrencysPrecision(t *testing.T) {
 	b, prompts := collectionFor(t, "UGX")
-	_, err := b.Initiate(claimsContext(t, "profile-agent"), &loansv1.InitiateCollectionRequest{
+	legacy := &loansv1.InitiateCollectionRequest{
 		LoanAccountId: "loan-1", ContactId: "contact-b", IdempotencyKey: "k-ugx",
-		Amount: "1500",
-	})
+	}
+	legacy.Amount = "1500" //nolint:staticcheck // the legacy field is what is read
+	_, err := b.Initiate(claimsContext(t, "profile-agent"), legacy)
 	require.NoError(t, err)
 	require.Len(t, prompts.sent, 1)
 	assert.Equal(t, int64(1500), prompts.sent[0].GetAmount().GetUnits())
 
-	_, err = b.Initiate(claimsContext(t, "profile-agent"), &loansv1.InitiateCollectionRequest{
+	legacy2 := &loansv1.InitiateCollectionRequest{
 		LoanAccountId: "loan-1", ContactId: "contact-b", IdempotencyKey: "k-frac",
-		Amount: "1500.5",
-	})
+	}
+	legacy2.Amount = "1500.5" //nolint:staticcheck // the legacy field is what is read
+	_, err = b.Initiate(claimsContext(t, "profile-agent"), legacy2)
 	require.ErrorIs(t, err, ErrRepaymentAmountInvalid, "UGX has no fractional unit to round to")
 }
 

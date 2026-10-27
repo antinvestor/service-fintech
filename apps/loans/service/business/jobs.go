@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"time"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"github.com/pitabwire/frame/v3/security"
@@ -30,6 +31,13 @@ import (
 // say.
 const defaultJobBatch = 200
 
+// maxJobBatch bounds one scheduled run, as in the operations service.
+const maxJobBatch = 5000
+
+// jobTimeBudget is how long one scheduled run works through its batch before
+// it stops and reports more, well inside the scheduler's request timeout.
+const jobTimeBudget = 2 * time.Minute
+
 var (
 	// ErrUnknownJob is returned for a job the service does not run.
 	ErrUnknownJob = apperrors.NewError(apperrors.BadRequest, "unknown loans job")
@@ -37,6 +45,8 @@ var (
 	// service account asks to run a job.
 	ErrJobCallerNotInternal = apperrors.NewError(apperrors.Forbidden,
 		"loan jobs are run only by internal services")
+	// ErrJobBatchSizeInvalid is returned for a batch size outside 0..5000.
+	ErrJobBatchSizeInvalid = apperrors.NewError(apperrors.BadRequest, "batch_size must be between 0 and 5000")
 )
 
 // LoanJobs runs the loans service's periodic work, one bounded batch per call.
@@ -80,7 +90,10 @@ func (j *LoanJobs) Run(ctx context.Context, job loansv1.LoanJob, batch int) (int
 	if claims == nil || !claims.IsInternalSystem() {
 		return 0, false, ErrJobCallerNotInternal
 	}
-	if batch <= 0 {
+	if batch < 0 || batch > maxJobBatch {
+		return 0, false, ErrJobBatchSizeInvalid
+	}
+	if batch == 0 {
 		batch = defaultJobBatch
 	}
 	ctx = security.SkipTenancyChecksOnClaims(ctx)

@@ -832,6 +832,10 @@ func (r *stubLoanAccountRepo) ClaimForAssessment(context.Context, int) ([]*loans
 
 func (r *stubLoanAccountRepo) AssessSoon(context.Context, string) error { return nil }
 
+func (r *stubLoanAccountRepo) ScheduleNextAssessment(context.Context, string, time.Time) error {
+	return nil
+}
+
 func (r *stubLoanAccountRepo) ClaimRepaymentLock(context.Context, string) (time.Time, bool, error) {
 	return time.Now(), true, nil
 }

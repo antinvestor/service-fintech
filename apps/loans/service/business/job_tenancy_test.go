@@ -138,3 +138,47 @@ func TestFundingSettlementJobActsInTheLoansPartition(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"partition-borrower"}, funding.partitions)
 }
+
+type schedulingLoans struct {
+	assessedLoans
+	scheduled []string
+}
+
+func (r *schedulingLoans) ScheduleNextAssessment(_ context.Context, id string, _ time.Time) error {
+	r.scheduled = append(r.scheduled, id)
+	return nil
+}
+
+// A scan out of time stops and reports more; the loans it did not assess are
+// not scheduled a day ahead, so they are due again once their claim lapses.
+// An assessed loan is.
+func TestDelinquencyScanStopsAtItsTimeBudget(t *testing.T) {
+	claimed := func() []*loansmodels.LoanAccount {
+		la := tenantLoan()
+		lease := time.Now().Add(15 * time.Minute)
+		la.NextAssessmentAt = &lease
+		return []*loansmodels.LoanAccount{la}
+	}
+	repo := &schedulingLoans{assessedLoans: assessedLoans{due: claimed()}}
+	scanner := NewDelinquencyScanner(repo, &overdueEntries{}, &recordingPenalties{}, nil, penaltyProducts{}, 7, 90)
+	scanner.timeBudget = -time.Second
+
+	processed, more, err := scanner.RunBatch(internalJobContext(), 10)
+	require.NoError(t, err)
+	assert.Zero(t, processed)
+	assert.True(t, more)
+	assert.Empty(t, repo.scheduled)
+
+	repo.due = claimed()
+	scanner.timeBudget = time.Minute
+	processed, _, err = scanner.RunBatch(internalJobContext(), 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, processed)
+	assert.Equal(t, []string{"loan-t"}, repo.scheduled)
+}
+
+func TestLoanJobBatchIsBounded(t *testing.T) {
+	jobs := NewLoanJobs(nil, nil, nil, &stubLoanRequestRepo{}, nil, nil)
+	_, _, err := jobs.Run(internalJobContext(), loansv1.LoanJob_LOAN_JOB_DELINQUENCY_SCAN, 5001)
+	require.ErrorIs(t, err, ErrJobBatchSizeInvalid)
+}

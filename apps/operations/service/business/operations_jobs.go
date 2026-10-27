@@ -38,6 +38,10 @@ const (
 	// settleAfter leaves a payment or order alone for this long after its
 	// last change, so the run that raised it can finish first.
 	settleAfter = 2 * time.Minute
+	// jobTimeBudget is how long one scheduled run works through its batch
+	// before it stops and reports more, well inside the scheduler's request
+	// timeout. Items it did not reach are listed again by the next run.
+	jobTimeBudget = 2 * time.Minute
 )
 
 var (
@@ -60,6 +64,8 @@ type OperationsJobs struct {
 	toRepo   repository.TransferOrderRepository
 	payouts  PayoutReconciler
 	subject  string
+	// timeBudget bounds one run; see jobTimeBudget.
+	timeBudget time.Duration
 }
 
 // NewOperationsJobs wires the jobs. subject is this service's own identity,
@@ -71,7 +77,10 @@ func NewOperationsJobs(
 	toRepo repository.TransferOrderRepository,
 	subject string,
 ) *OperationsJobs {
-	return &OperationsJobs{routing: routing, executor: executor, ipRepo: ipRepo, toRepo: toRepo, subject: subject}
+	return &OperationsJobs{
+		routing: routing, executor: executor, ipRepo: ipRepo, toRepo: toRepo, subject: subject,
+		timeBudget: jobTimeBudget,
+	}
 }
 
 // WithPayoutReconciler lets the jobs settle how payouts ended.
@@ -109,13 +118,17 @@ func (j *OperationsJobs) Run(ctx context.Context, job operationsv1.OperationsJob
 func (j *OperationsJobs) settlePayments(ctx context.Context, batch int) (int, bool, error) {
 	before := time.Now().UTC().Add(-settleAfter)
 	listCtx := security.SkipTenancyChecksOnClaims(ctx)
+	deadline := time.Now().Add(j.timeBudget)
 
 	leaseStaleBefore := time.Now().UTC().Add(-allocationLeaseStaleAfter)
 	payments, err := j.ipRepo.ListAwaitingAllocation(listCtx, before, leaseStaleBefore, batch)
 	if err != nil {
 		return 0, false, fmt.Errorf("payments awaiting allocation: %w", err)
 	}
-	for _, p := range payments {
+	for i, p := range payments {
+		if outOfTime(ctx, deadline) {
+			return i, true, ctx.Err()
+		}
 		if _, allocErr := j.routing.AllocatePayment(j.actIn(ctx, &p.BaseModel), p.GetID()); allocErr != nil {
 			util.Log(ctx).WithError(allocErr).WithField(fieldPaymentID, p.GetID()).
 				Warn("settle: payment allocation failed; next run retries")
@@ -126,7 +139,10 @@ func (j *OperationsJobs) settlePayments(ctx context.Context, batch int) (int, bo
 	if err != nil {
 		return len(payments), false, fmt.Errorf("allocation orders awaiting execution: %w", err)
 	}
-	for _, o := range orders {
+	for i, o := range orders {
+		if outOfTime(ctx, deadline) {
+			return len(payments) + i, true, ctx.Err()
+		}
 		actCtx := j.actIn(ctx, &o.BaseModel)
 		// A member's obligation order spends from their suspense: it posts
 		// only once the order funding that suspense has.
@@ -149,6 +165,12 @@ func (j *OperationsJobs) settlePayments(ctx context.Context, batch int) (int, bo
 			Info("settled matched payments")
 	}
 	return processed, len(payments) == batch || len(orders) == batch, nil
+}
+
+// outOfTime reports whether a run must stop: its caller has gone or its
+// time budget is spent.
+func outOfTime(ctx context.Context, deadline time.Time) bool {
+	return ctx.Err() != nil || time.Now().After(deadline)
 }
 
 // reconcilePayouts asks how payouts the rail accepted ended, oldest checked
