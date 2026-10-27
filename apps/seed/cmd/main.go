@@ -71,6 +71,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/dbrole"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
@@ -86,6 +87,7 @@ const manifestServiceName = "SeedService"
 
 var errNoDatabasePool = errors.New("no database pool configured")
 
+//nolint:funlen // linear service wiring; splitting hurts readability
 func main() {
 	tmpCtx := context.Background()
 
@@ -113,6 +115,7 @@ func main() {
 	svc.Setup().RegisterFunc(setup.NameMigrate, func(ctx context.Context) error {
 		return runSetup(ctx, svc, &cfg)
 	})
+	svc.Setup().RegisterFunc(dbrole.StepName, dbrole.Step(svc.DatastoreManager()))
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
 
@@ -130,6 +133,7 @@ func main() {
 		}
 		return
 	}
+	dbrole.MustVerify(ctx, svc.DatastoreManager())
 
 	sm := svc.SecurityManager()
 

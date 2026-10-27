@@ -48,6 +48,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/dbrole"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 	"github.com/antinvestor/service-fintech/pkg/trustage"
 
@@ -88,6 +89,7 @@ func main() {
 			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
 	})
+	svc.Setup().RegisterFunc(dbrole.StepName, dbrole.Step(svc.DatastoreManager()))
 	// Interest accrual runs only when trustage fires its schedule, so a
 	// deploy that cannot register it fails rather than ship savings that
 	// never earn.
@@ -107,6 +109,7 @@ func main() {
 		}
 		return
 	}
+	dbrole.MustVerify(ctx, svc.DatastoreManager())
 
 	sm := svc.SecurityManager()
 
