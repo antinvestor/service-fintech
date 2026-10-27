@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -40,12 +41,6 @@ import (
 
 const (
 	propertyRemainingAmount = "remaining_amount"
-	// defaultSearchLimit is used when a caller supplies a cursor without a
-	// limit, or no cursor at all.
-	defaultSearchLimit = 50
-	// maxSearchLimit bounds how many transfer orders one search page may
-	// return, so an unbounded caller limit cannot scan the whole table.
-	maxSearchLimit = 200
 )
 
 // OperationsServer implements the OperationsService RPC handler.
@@ -155,12 +150,12 @@ func (s *OperationsServer) TransferOrderSearch(
 	var searchOpts []data.SearchOption
 
 	offset := 0
-	limit := defaultSearchLimit
+	limit := pagination.DefaultLimit
 	if cursor := req.GetCursor(); cursor != nil {
 		if parsed, offsetErr := strconv.Atoi(cursor.GetPage()); offsetErr == nil && parsed > 0 {
 			offset = parsed
 		}
-		limit = clampSearchLimit(int(cursor.GetLimit()))
+		limit = pagination.Limit(cursor.GetLimit())
 	}
 	searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(limit))
 
@@ -196,20 +191,6 @@ func (s *OperationsServer) TransferOrderSearch(
 		}
 		return stream.Send(&operationsv1.TransferOrderSearchResponse{Data: apiResults})
 	})
-}
-
-// clampSearchLimit keeps a caller-supplied page size within a sane band. Zero
-// (the value a cursor carries when only a page was set) falls back to the
-// default rather than to "no limit".
-func clampSearchLimit(limit int) int {
-	switch {
-	case limit <= 0:
-		return defaultSearchLimit
-	case limit > maxSearchLimit:
-		return maxSearchLimit
-	default:
-		return limit
-	}
 }
 
 // validateTransferOrderInput rejects a new order that cannot post a balanced
@@ -379,12 +360,12 @@ func (s *OperationsServer) IncomingPaymentSearch(
 	stream operationsv1connect.OperationsServiceIncomingPaymentSearchServerStream,
 ) error {
 	offset := 0
-	limit := defaultSearchLimit
+	limit := pagination.DefaultLimit
 	if cursor := req.GetCursor(); cursor != nil {
 		if parsed, offsetErr := strconv.Atoi(cursor.GetPage()); offsetErr == nil && parsed > 0 {
 			offset = parsed
 		}
-		limit = clampSearchLimit(int(cursor.GetLimit()))
+		limit = pagination.Limit(cursor.GetLimit())
 	}
 	searchOpts := []data.SearchOption{data.WithSearchOffset(offset), data.WithSearchLimit(limit)}
 
