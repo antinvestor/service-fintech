@@ -17,6 +17,7 @@ package business_test
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -856,9 +857,12 @@ func (s *savingsSuite) TestInterestJobAccruesEachDayOnce() {
 	funded := e.seedAccount(s, "KES")
 	s.fund(e, funded, "1000", "dep-interest")
 	e.seedAccount(s, "KES") // nothing to accrue
-	// Both opened the day before: the last closed day is theirs to settle.
+	// Both opened, and the deposit landed, the day before: the last closed
+	// day is theirs to settle, on the deposited balance.
 	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
 		`UPDATE savings_accounts SET created_at = created_at - interval '1 day'`).Error)
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE deposits SET modified_at = modified_at - interval '1 day'`).Error)
 	jobs := business.NewSavingsJobs(e.saRepo, e.accrual, "service_savings")
 
 	_, _, err := jobs.Run(e.ctx, savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
@@ -886,6 +890,8 @@ func (s *savingsSuite) TestInterestJobCatchesUpEachMissedDay() {
 	e := s.newEnv()
 	funded := e.seedAccount(s, "KES")
 	s.fund(e, funded, "1000", "dep-catch-up")
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE deposits SET modified_at = modified_at - interval '4 days'`).Error)
 	lastClosed := time.Now().UTC().Truncate(24 * time.Hour)
 	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
 		`UPDATE savings_accounts SET interest_accrued_through = ? WHERE id = ?`,
@@ -911,4 +917,62 @@ func (s *savingsSuite) TestInterestJobCatchesUpEachMissedDay() {
 	again, _, err := jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
 	s.Require().NoError(err)
 	s.Zero(again, "caught up")
+}
+
+// A day accrued late earns interest on the balance the account held at its
+// end, not on money deposited since.
+func (s *savingsSuite) TestCatchUpAccruesOnTheBalanceOfTheDay() {
+	e := s.newEnv()
+	account := e.seedAccount(s, "KES")
+	s.fund(e, account, "1000", "dep-before")
+	before, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	lastClosed := time.Now().UTC().Truncate(24 * time.Hour)
+	// The first deposit landed three days ago; the job last settled the
+	// account two days ago, so one closed day is missed besides the last.
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE deposits SET modified_at = ? WHERE savings_account_id = ?`,
+		lastClosed.AddDate(0, 0, -3), account.GetID()).Error)
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE savings_accounts SET interest_accrued_through = ?, created_at = ? WHERE id = ?`,
+		lastClosed.AddDate(0, 0, -2), lastClosed.AddDate(0, 0, -4), account.GetID()).Error)
+	s.fund(e, account, "9000", "dep-after") // today, after every closed day
+
+	jobs := business.NewSavingsJobs(e.saRepo, e.accrual, "service_savings")
+	_, _, err = jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+
+	var used []int64
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Raw(
+		`SELECT balance_used FROM interest_accruals WHERE savings_account_id = ? ORDER BY period_end`,
+		account.GetID()).Scan(&used).Error)
+	s.Require().Len(used, 2)
+	s.Equal(before.Balance, used[0], "the missed day accrues on the pre-deposit balance")
+	s.Less(used[1], before.Balance*2, "today's deposit earns nothing for days before it")
+}
+
+// After the backfill, an account the job never settled accrues the last
+// closed day only, never its whole life.
+func (s *savingsSuite) TestBackfilledAccountDoesNotBackAccrue() {
+	e := s.newEnv()
+	account := e.seedAccount(s, "KES")
+	s.fund(e, account, "1000", "dep-old")
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE savings_accounts SET created_at = now() - interval '30 days', interest_accrued_through = NULL
+		 WHERE id = ?`, account.GetID()).Error)
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE deposits SET modified_at = now() - interval '30 days' WHERE savings_account_id = ?`,
+		account.GetID()).Error)
+	backfill, err := os.ReadFile("../../migrations/20261027_interest_accrued_through_backfill_up.sql")
+	s.Require().NoError(err)
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(string(backfill)).Error)
+
+	jobs := business.NewSavingsJobs(e.saRepo, e.accrual, "service_savings")
+	_, _, err = jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+
+	var count int64
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Raw(
+		`SELECT count(*) FROM interest_accruals WHERE savings_account_id = ?`, account.GetID()).Scan(&count).Error)
+	s.EqualValues(1, count, "the last closed day only")
 }

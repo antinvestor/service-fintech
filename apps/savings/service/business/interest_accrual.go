@@ -167,7 +167,21 @@ func (b *interestAccrualBusiness) Accrue(
 		return nil, err
 	}
 
-	accrued := computeAccrual(balance.Balance, product.InterestRate, periodStart, periodEnd)
+	// Interest for a period is earned on the balance the account held at its
+	// end, not on today's: a day accrued late must not pay interest on money
+	// deposited since. A period whose balance cannot be reconstructed is not
+	// accrued rather than guessed at.
+	moved, reliable, movedErr := b.sbRepo.MovementsAfter(ctx, savingsAccountID, periodEnd)
+	if movedErr != nil {
+		return nil, fmt.Errorf("read balance movements: %w", movedErr)
+	}
+	if !reliable {
+		logger.Warn("skipping accrual: the balance at the period end cannot be reconstructed")
+		return nil, ErrBalanceHistoryUnreliable
+	}
+	balanceUsed := balance.Balance - moved
+
+	accrued := computeAccrual(balanceUsed, product.InterestRate, periodStart, periodEnd)
 	if accrued <= 0 {
 		logger.Info("skipping accrual: computed amount is zero")
 		return nil, ErrAccrualAmountZero
@@ -180,7 +194,7 @@ func (b *interestAccrualBusiness) Accrue(
 		PeriodStart:      &periodStart,
 		PeriodEnd:        &periodEnd,
 		RateApplied:      product.InterestRate,
-		BalanceUsed:      balance.Balance,
+		BalanceUsed:      balanceUsed,
 	}
 	ia.GenID(ctx)
 	ia.CopyPartitionInfo(&sa.BaseModel)
@@ -224,7 +238,7 @@ func (b *interestAccrualBusiness) Accrue(
 			"period_start":        periodStart.UTC().Format(time.RFC3339),
 			"period_end":          periodEnd.UTC().Format(time.RFC3339),
 			"rate_bps":            product.InterestRate,
-			"balance_used":        balance.Balance,
+			"balance_used":        balanceUsed,
 			fieldCurrency:         sa.CurrencyCode,
 		},
 		Parent: &ia.BaseModel,
@@ -406,7 +420,8 @@ func isAccrualSkip(err error) bool {
 	return errors.Is(err, ErrAccountNotActive) ||
 		errors.Is(err, ErrProductRateZero) ||
 		errors.Is(err, ErrBalanceZero) ||
-		errors.Is(err, ErrAccrualAmountZero)
+		errors.Is(err, ErrAccrualAmountZero) ||
+		errors.Is(err, ErrBalanceHistoryUnreliable)
 }
 
 func (b *interestAccrualBusiness) Search(
