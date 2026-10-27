@@ -1734,3 +1734,33 @@ so the defaults above would have pointed every workflow at nothing.
 - *Audiences*: trustage requests `/operations`, `/savings`, `/limits` and
   `/stawi`; operations, savings and limits request `/trustage` for their setup
   Jobs (Hydra already allows them, tenancy migrations `_03`, `_05`, `_08`, `_11`).
+
+## 55. Addendum 2026-10-27 — payouts are routed by the payment service
+
+**Decision (user).** "Payments out should be a problem for the payment service
+and will be determined by partition and the contacts supported or recorded
+forms. This should not be scattered in other services."
+
+**Change.**
+
+- *Operations* no longer names a route on `Send`: a payout carries the
+  recipient's profile id and verified contact id, nothing else. The
+  per-handler route names (`loan_disbursement`, `investor_withdrawal`, …) and
+  the `payment_channel` fallbacks are gone.
+- *Funding, loans (team commission), Stawi and Seed* stop writing the
+  hard-coded `payment_channel: mobile_money` hint. The loans disbursement and
+  savings withdrawal `channel` fields stay as what the user chose; they no
+  longer steer routing.
+- *service-payment* (PR #313): `Send` ignores a caller's route, resolves the
+  payee's contact through profile (a named contact must be on the payee's
+  profile; a profile alone is paid on its verified mobile number), and types
+  the payment by contact kind (`msisdn`, `email`); tx routing then picks a
+  route by the payment's partition and that type. Fixed on the way: `Send`
+  stored `PaymentType "Bank Transfers"` in a `varchar(10)` column, so no payout
+  could ever be saved; the out queue published the contact id where providers
+  dial a number, and never registered a route's publisher, so every payout
+  publish failed.
+
+**Production.** A partition's mobile payouts need one `tx` route row
+(`route_type` `msisdn` or `any`, `uri` the integration's payments topic) and
+the provider's credentials; neither exists yet.

@@ -94,19 +94,17 @@ func (m *TransferOrder) PayoutFailed() bool { return m.PayoutStatus == PayoutSta
 // handler for the execution in progress; never persisted.
 type payoutTarget struct {
 	recipientID string
-	route       string
 	destination string
 }
 
-// SetPayoutTarget records who the payout goes to (a profile id), the rail
-// route, and the verified destination contact id ("" lets the rail choose the
-// recipient's default).
-func (m *TransferOrder) SetPayoutTarget(recipientID, route, destination string) {
-	m.payout = payoutTarget{recipientID: recipientID, route: route, destination: destination}
+// SetPayoutTarget records who the payout goes to (a profile id) and the
+// verified destination contact id ("" lets the payment service pay the
+// recipient's default number). The payment service routes the payout.
+func (m *TransferOrder) SetPayoutTarget(recipientID, destination string) {
+	m.payout = payoutTarget{recipientID: recipientID, destination: destination}
 }
 
 func (m *TransferOrder) PayoutRecipient() string   { return m.payout.recipientID }
-func (m *TransferOrder) PayoutRoute() string       { return m.payout.route }
 func (m *TransferOrder) PayoutDestination() string { return m.payout.destination }
 
 // Obligation represents a financial obligation for a member.
