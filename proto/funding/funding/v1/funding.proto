@@ -92,6 +92,7 @@ message InvestorAccountGetRequest {
 message InvestorAccountGetResponse {
   InvestorAccountObject data = 1;
 }
+
 // InvestorStatementEntryType is what moved an investor's capital.
 enum InvestorStatementEntryType {
   INVESTOR_STATEMENT_ENTRY_TYPE_UNSPECIFIED = 0;
@@ -167,6 +168,7 @@ message InvestorStatementResponse {
   // caller narrows the period.
   bool truncated = 6;
 }
+
 // PayoutFailedApplyRequest tells the service that originated a payout that
 // the payment rail failed it after accepting it. Operations has already
 // reversed the ledger leg; the originator undoes its own record. Applying
