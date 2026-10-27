@@ -41,6 +41,9 @@ type RepaymentRepository interface {
 	// ListByLoanAccountID returns up to limit repayments of a loan in
 	// posting order.
 	ListByLoanAccountID(ctx context.Context, loanAccountID string, limit int) ([]*models.Repayment, error)
+	// ListUnapplied returns up to limit repayments of a loan that were
+	// recorded but never applied, oldest first.
+	ListUnapplied(ctx context.Context, loanAccountID string, limit int) ([]*models.Repayment, error)
 	// ClaimFundingUnsettled leases up to limit repayments that are still to
 	// be shared out to funders and whose lease is free or older than
 	// leaseSeconds. Concurrent callers never receive the same repayment.
@@ -112,6 +115,25 @@ func (repo *repaymentRepository) ListByLoanAccountID(
 	var rows []*models.Repayment
 	err := repo.Pool().DB(ctx, true).
 		Where("loan_account_id = ?", loanAccountID).
+		Order("created_at ASC, id ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// ListUnapplied reads the loan's range of idx_rep_loan_created; a loan has
+// at most a handful of repayments still to apply.
+func (repo *repaymentRepository) ListUnapplied(
+	ctx context.Context,
+	loanAccountID string,
+	limit int,
+) ([]*models.Repayment, error) {
+	var rows []*models.Repayment
+	err := repo.Pool().DB(ctx, false).
+		Where("loan_account_id = ? AND applied_at IS NULL", loanAccountID).
 		Order("created_at ASC, id ASC").
 		Limit(limit).
 		Find(&rows).Error

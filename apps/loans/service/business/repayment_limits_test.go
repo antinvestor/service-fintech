@@ -122,6 +122,14 @@ func (r *stubRepaymentRepo) ListByLoanAccountID(
 	return nil, nil
 }
 
+func (r *stubRepaymentRepo) ListUnapplied(
+	_ context.Context,
+	_ string,
+	_ int,
+) ([]*loansmodels.Repayment, error) {
+	return nil, nil
+}
+
 var _ repository.RepaymentRepository = (*stubRepaymentRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.Repayment] = (*stubRepaymentRepo)(nil)
 

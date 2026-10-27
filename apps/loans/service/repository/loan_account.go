@@ -52,10 +52,13 @@ type LoanAccountRepository interface {
 	AssessSoon(ctx context.Context, loanAccountID string) error
 	// ClaimRepaymentLock takes the loan's repayment lease, so repayments on
 	// one loan are allocated one at a time. A lease older than the timeout is
-	// taken over, so a crashed holder never blocks the loan for long.
-	ClaimRepaymentLock(ctx context.Context, loanAccountID string) (bool, error)
-	// ReleaseRepaymentLock gives the lease back.
-	ReleaseRepaymentLock(ctx context.Context, loanAccountID string) error
+	// taken over, so a crashed holder never blocks the loan for long. The
+	// returned lease identifies this holder to ReleaseRepaymentLock.
+	ClaimRepaymentLock(ctx context.Context, loanAccountID string) (lease time.Time, claimed bool, err error)
+	// ReleaseRepaymentLock gives the lease back, only if it is still the one
+	// claimed: a holder that outlived its lease must not free the loan from
+	// under the repayment that took it over.
+	ReleaseRepaymentLock(ctx context.Context, loanAccountID string, lease time.Time) error
 	// ClaimPaidOffUnnoticed leases up to limit paid-off loans whose pay-off
 	// downstream products never acknowledged, leaving alone loans paid off
 	// in the last few minutes (their own notice may still be in flight).
@@ -168,17 +171,30 @@ func (repo *loanAccountRepository) AssessSoon(ctx context.Context, loanAccountID
 // repaymentLockLease bounds how long a repayment may hold its loan.
 const repaymentLockLeaseSeconds = 120
 
-func (repo *loanAccountRepository) ClaimRepaymentLock(ctx context.Context, loanAccountID string) (bool, error) {
-	result := repo.Pool().DB(ctx, false).Exec(`UPDATE loan_accounts SET repayment_locked_at = now()
+func (repo *loanAccountRepository) ClaimRepaymentLock(
+	ctx context.Context,
+	loanAccountID string,
+) (time.Time, bool, error) {
+	var rows []struct{ RepaymentLockedAt time.Time }
+	err := repo.Pool().DB(ctx, false).Raw(`UPDATE loan_accounts SET repayment_locked_at = now()
 WHERE id = ? AND deleted_at IS NULL
-  AND (repayment_locked_at IS NULL OR repayment_locked_at < now() - make_interval(secs => ?))`,
-		loanAccountID, repaymentLockLeaseSeconds)
-	return result.RowsAffected > 0, result.Error
+  AND (repayment_locked_at IS NULL OR repayment_locked_at < now() - make_interval(secs => ?))
+RETURNING repayment_locked_at`,
+		loanAccountID, repaymentLockLeaseSeconds).Scan(&rows).Error
+	if err != nil || len(rows) == 0 {
+		return time.Time{}, false, err
+	}
+	return rows[0].RepaymentLockedAt, true, nil
 }
 
-func (repo *loanAccountRepository) ReleaseRepaymentLock(ctx context.Context, loanAccountID string) error {
+func (repo *loanAccountRepository) ReleaseRepaymentLock(
+	ctx context.Context,
+	loanAccountID string,
+	lease time.Time,
+) error {
 	return repo.Pool().DB(ctx, false).Exec(
-		`UPDATE loan_accounts SET repayment_locked_at = NULL WHERE id = ?`, loanAccountID).Error
+		`UPDATE loan_accounts SET repayment_locked_at = NULL WHERE id = ? AND repayment_locked_at = ?`,
+		loanAccountID, lease).Error
 }
 
 // paidOffNoticeLeaseSeconds bounds how long one run holds a loan's notice;

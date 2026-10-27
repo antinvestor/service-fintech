@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 
@@ -831,11 +832,13 @@ func (r *stubLoanAccountRepo) ClaimForAssessment(context.Context, int) ([]*loans
 
 func (r *stubLoanAccountRepo) AssessSoon(context.Context, string) error { return nil }
 
-func (r *stubLoanAccountRepo) ClaimRepaymentLock(context.Context, string) (bool, error) {
-	return true, nil
+func (r *stubLoanAccountRepo) ClaimRepaymentLock(context.Context, string) (time.Time, bool, error) {
+	return time.Now(), true, nil
 }
 
-func (r *stubLoanAccountRepo) ReleaseRepaymentLock(context.Context, string) error { return nil }
+func (r *stubLoanAccountRepo) ReleaseRepaymentLock(context.Context, string, time.Time) error {
+	return nil
+}
 
 func (r *stubLoanAccountRepo) ClaimPaidOffUnnoticed(context.Context, int) ([]*loansmodels.LoanAccount, error) {
 	return nil, nil

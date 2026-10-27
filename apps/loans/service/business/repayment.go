@@ -178,7 +178,7 @@ func (b *repaymentBusiness) recordInner(
 		return nil, ErrLoanAccountNotFound
 	}
 
-	locked, lockErr := b.loanAccountRepo.ClaimRepaymentLock(ctx, la.GetID())
+	lease, locked, lockErr := b.loanAccountRepo.ClaimRepaymentLock(ctx, la.GetID())
 	if lockErr != nil {
 		return nil, fmt.Errorf("claim the loan for repayment: %w", lockErr)
 	}
@@ -186,7 +186,7 @@ func (b *repaymentBusiness) recordInner(
 		return nil, ErrRepaymentInProgress
 	}
 	defer func() {
-		if relErr := b.loanAccountRepo.ReleaseRepaymentLock(ctx, la.GetID()); relErr != nil {
+		if relErr := b.loanAccountRepo.ReleaseRepaymentLock(ctx, la.GetID(), lease); relErr != nil {
 			logger.WithError(relErr).Warn("could not release the loan's repayment lease; it lapses on its own")
 		}
 	}()
@@ -197,6 +197,21 @@ func (b *repaymentBusiness) recordInner(
 			return nil, ErrIdempotencyKeyConflict
 		}
 		return b.finishRepayment(ctx, logger, la, existing, req)
+	}
+
+	// A repayment recorded but not yet applied has claimed installments the
+	// paid columns do not show yet. It is finished before a new allocation
+	// is computed, or the new payment would be allocated against the same
+	// installments.
+	finished, pendingErr := b.finishUnappliedRepayments(ctx, logger, la)
+	if pendingErr != nil {
+		return nil, pendingErr
+	}
+	if finished {
+		// Finishing may have moved the loan on, as far as paying it off.
+		if la, err = b.loanAccountRepo.GetByID(ctx, la.GetID()); err != nil {
+			return nil, ErrLoanAccountNotFound
+		}
 	}
 
 	if !isRepayableStatus(la.Status) {
@@ -252,6 +267,40 @@ func (b *repaymentBusiness) recordInner(
 		return nil, claimErr
 	}
 	return b.finishRepayment(ctx, logger, la, stored, req)
+}
+
+// maxUnappliedRepayments bounds how many unfinished repayments one call
+// takes the rest of the way; normally there is none, after a failure one.
+const maxUnappliedRepayments = 10
+
+// finishUnappliedRepayments finishes, under the loan's repayment lease, every
+// repayment of the loan that was recorded but never applied, in the order
+// they were recorded. It reports whether there was any. One that cannot be
+// finished now leaves the loan refusing new repayments until it is.
+func (b *repaymentBusiness) finishUnappliedRepayments(
+	ctx context.Context,
+	logger *util.LogEntry,
+	la *models.LoanAccount,
+) (bool, error) {
+	pending, err := b.repaymentRepo.ListUnapplied(ctx, la.GetID(), maxUnappliedRepayments)
+	if err != nil {
+		return false, fmt.Errorf("read the loan's unfinished repayments: %w", err)
+	}
+	for _, r := range pending {
+		resume := &loansv1.RepaymentRecordRequest{
+			LoanAccountId:    r.LoanAccountID,
+			IdempotencyKey:   r.IdempotencyKey,
+			PaymentReference: r.PaymentReference,
+			PayerReference:   r.PayerReference,
+			Channel:          r.Channel,
+		}
+		if _, finErr := b.finishRepayment(ctx, logger, la, r, resume); finErr != nil {
+			logger.WithError(finErr).WithField("repayment_id", r.GetID()).
+				Warn("an earlier repayment on the loan is still unfinished; refusing a new one until it is")
+			return false, ErrRepaymentInProgress
+		}
+	}
+	return len(pending) > 0, nil
 }
 
 // finishRepayment takes a recorded repayment the rest of the way: the ledger
