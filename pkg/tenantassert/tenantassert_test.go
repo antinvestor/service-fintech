@@ -404,8 +404,8 @@ func TestMiddleware(t *testing.T) {
 	}
 }
 
-// A person's tenancy is carried on the context, so the peer calls a service
-// makes while serving them name the person's tenant and partition.
+// A person's tenant is carried on the context, so the peer calls a service
+// makes while serving them name it; their partition is not carried.
 func TestInterceptor_PersonsTenancyIsCarriedToPeerCalls(t *testing.T) {
 	var carried util.TenancyInfo
 	h := tenantassert.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -416,7 +416,7 @@ func TestInterceptor_PersonsTenancyIsCarriedToPeerCalls(t *testing.T) {
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	require.NotNil(t, carried)
 	require.Equal(t, "t1", carried.GetTenantID())
-	require.Equal(t, "partition-a", carried.GetPartitionID())
+	require.Empty(t, carried.GetPartitionID(), "the person's partition is not the record's")
 
 	// An internal caller's tenancy is left as the platform set it.
 	carried = nil

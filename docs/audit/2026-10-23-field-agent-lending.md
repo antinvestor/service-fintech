@@ -1803,7 +1803,8 @@ fix is in the shared client's partition interceptor in `common`.
 **Follow-up (same day).** The tenant-less peer calls are closed for every
 service at once in `pkg/tenantassert`, which each service chains after
 authentication: a person's tenancy is now set as the request context's
-tenancy, so every peer call made while serving them names their tenant and
+tenancy (tenant only: their own partition is not the record's), so every peer
+call made while serving them names their tenant and
 partition. Internal callers are unchanged (the platform already binds the
 tenancy they name). The per-call fix in loans' disbursement stays, since it
 names the loan's own tenancy.
