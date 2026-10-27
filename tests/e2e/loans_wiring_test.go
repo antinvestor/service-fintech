@@ -82,8 +82,8 @@ func newLoansPeers(router http.RoundTripper, f *fakes, token string) loansPeers 
 
 // loansOptions replicates apps/loans/cmd/main.go setupServiceOptions and
 // setupConnectServer. The cmd package is main, so the wiring is copied; keep
-// it in step with main.go. Only the authenticator (an OIDC stand-in) and the
-// authorizer (Keto in its disabled mode) differ.
+// it in step with main.go. Only the authenticator differs (an OIDC
+// stand-in); the authorizer is frame's Keto adapter against a real Keto.
 func loansOptions(
 	ctx context.Context,
 	cfg *aconfig.LoanManagementConfig,

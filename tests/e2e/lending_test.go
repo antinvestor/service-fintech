@@ -15,9 +15,12 @@
 // Package e2e_test runs the real loans and operations services together,
 // each on its own database and behind its real Connect handler, with only
 // the platform edge (ledger, payment rail, profile, identity, funding,
-// limits, notification, OIDC and Keto) faked. It proves one loan's money
-// across the service seam: origination, disbursement, repayment from the
-// rail, and a payout the rail fails after accepting it.
+// limits, notification and OIDC) faked. Authorization is a real Ory Keto
+// loaded with the production OPL and the tuples tenancy writes for this
+// scenario. It proves one loan's money across the service seam:
+// origination, disbursement, repayment from the rail, and a payout the rail
+// fails after accepting it; and that the people and services in it can do
+// only what their roles and grants allow.
 package e2e_test
 
 import (
@@ -41,6 +44,7 @@ import (
 	"github.com/pitabwire/frame/v3/frametests"
 	"github.com/pitabwire/frame/v3/frametests/definition"
 	"github.com/pitabwire/frame/v3/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/v3/frametests/rlstest"
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 	moneyx "github.com/pitabwire/util/moneyx"
@@ -64,9 +68,15 @@ const (
 	paymentPublisher = "e2e-payment-service"
 
 	staffToken      = "token-staff"
+	staffProfile    = "profile-credit-manager"
 	loansToken      = "token-service-loans"
 	operationsToken = "token-service-operations"
 	schedulerToken  = "token-service-trustage"
+
+	// Service accounts' profile ids: the subject Keto checks.
+	loansServiceProfile      = "service_loans"
+	operationsServiceProfile = "service_operations"
+	trustageServiceProfile   = "service_trustage"
 
 	settleWait = 30 * time.Second
 	settleTick = 200 * time.Millisecond
@@ -96,6 +106,13 @@ type lendingSuite struct {
 	partitionID string
 	productID   string
 
+	// The lender's partition (partitionID) is a child of the tenant's
+	// platform partition, where its service accounts live.
+	platformPartitionID string
+
+	authz   security.Authorizer
+	tenancy *tenancyKeto
+
 	platform *platform
 	fakes    *fakes
 	router   *hostRouter
@@ -122,6 +139,8 @@ func TestLending(t *testing.T) {
 }
 
 func (s *lendingSuite) SetupSuite() {
+	namespaces, err := ketoNamespaces()
+	s.Require().NoError(err)
 	s.InitResourceFunc = func(_ context.Context) []definition.TestResource {
 		return []definition.TestResource{
 			testpostgres.NewWithOpts(
@@ -130,6 +149,7 @@ func (s *lendingSuite) SetupSuite() {
 				definition.WithCredential("s3cr3t"),
 				definition.WithEnableLogging(false),
 			),
+			newKetoResource(namespaces),
 		}
 	}
 	s.FrameBaseTestSuite.SetupSuite()
@@ -137,6 +157,11 @@ func (s *lendingSuite) SetupSuite() {
 	s.ctx = s.T().Context()
 	s.tenantID = util.IDString()
 	s.partitionID = util.IDString()
+	s.platformPartitionID = util.IDString()
+
+	s.authz = s.ketoAuthorizer()
+	s.tenancy = newTenancyKeto(s.authz)
+	s.syncTenancy()
 
 	s.platform = newPlatform()
 	s.fakes = startFakes(s.platform)
@@ -165,6 +190,31 @@ func (s *lendingSuite) TearDownSuite() {
 	s.FrameBaseTestSuite.TearDownSuite()
 }
 
+func (s *lendingSuite) ketoAuthorizer() security.Authorizer {
+	for _, r := range s.Resources() {
+		if r.Name() == ketoImage {
+			authz, err := newKetoAuthorizer(s.ctx, r)
+			s.Require().NoError(err)
+			return authz
+		}
+	}
+	s.Require().FailNow("keto resource not found")
+	return nil
+}
+
+// syncTenancy writes what tenancy's sync handlers write for the lender: its
+// partition under the platform partition, the staff member's access, and
+// the service accounts' policies over the platform partition's tree.
+func (s *lendingSuite) syncTenancy() {
+	platform := tenancyPath(s.tenantID, s.platformPartitionID)
+	lender := tenancyPath(s.tenantID, s.partitionID)
+	s.Require().NoError(s.tenancy.partitionSynced(s.ctx, platform, lender))
+	s.Require().NoError(s.tenancy.accessSynced(s.ctx, lender, staffProfile, roleAdmin))
+	for profileID, grants := range serviceAccountGrants() {
+		s.Require().NoError(s.tenancy.serviceAccountSynced(s.ctx, profileID, []string{platform, lender}, grants))
+	}
+}
+
 // issueTokens mints the principals the flow runs under. People carry their
 // tenancy; service accounts carry the internal role and no tenant, and name
 // the tenant they act for on each call (X-Tenant-Id), as in production.
@@ -175,10 +225,13 @@ func (s *lendingSuite) issueTokens() {
 			RegisteredClaims: jwt.RegisteredClaims{Subject: subject},
 		}
 	}
-	s.tokens.issue(staffToken, s.person("profile-credit-officer", "operator"))
-	s.tokens.issue(loansToken, service("service_loans"))
-	s.tokens.issue(operationsToken, service("service_operations"))
-	s.tokens.issue(schedulerToken, service("service_trustage"))
+	// The credit manager holds the admin role: opening and paying out a loan
+	// (loan_manage, disbursement_manage) and setting up products are not an
+	// operator's.
+	s.tokens.issue(staffToken, s.person(staffProfile, roleAdmin))
+	s.tokens.issue(loansToken, service(loansServiceProfile))
+	s.tokens.issue(operationsToken, service(operationsServiceProfile))
+	s.tokens.issue(schedulerToken, service(trustageServiceProfile))
 }
 
 func (s *lendingSuite) person(subject string, roles ...string) *security.AuthenticationClaims {
@@ -190,8 +243,12 @@ func (s *lendingSuite) person(subject string, roles ...string) *security.Authent
 	}
 }
 
-// database returns a fresh database on the suite's Postgres.
-func (s *lendingSuite) database() string {
+// database returns a fresh database on the suite's Postgres, and the
+// tenancy provider its service runs with: frame's Postgres row-level
+// security, with queries dropped to an unprivileged role once the schema is
+// migrated. The container's user is a superuser, and a superuser bypasses
+// RLS; the application role a deployment connects as must not.
+func (s *lendingSuite) database() (string, *rlstest.Provider) {
 	var db definition.DependancyConn
 	for _, r := range s.Resources() {
 		if r.Name() == testpostgres.PostgresqlDBImage && r.GetDS(s.ctx).IsDB() {
@@ -202,7 +259,15 @@ func (s *lendingSuite) database() string {
 	dsn, cleanup, err := db.GetRandomisedDS(s.ctx, util.RandomAlphaNumericString(8))
 	s.Require().NoError(err)
 	s.stops = append(s.stops, func() { cleanup(s.ctx) })
-	return dsn.String()
+	s.Require().NoError(rlstest.CreateRole(s.ctx, dsn.String()))
+	return dsn.String(), rlstest.New()
+}
+
+// enforceRLS grants the unprivileged role the migrated tables and switches
+// every later query to it.
+func (s *lendingSuite) enforceRLS(dsn string, rls *rlstest.Provider) {
+	s.Require().NoError(rlstest.GrantAll(s.ctx, dsn))
+	rls.Enable()
 }
 
 func (s *lendingSuite) startLoans() {
@@ -212,21 +277,24 @@ func (s *lendingSuite) startLoans() {
 	cfg.EventsQueueName = "e2e.loans.events"
 	cfg.EventsQueueURL = "mem://e2e.loans.events"
 
+	dsn, rls := s.database()
 	driver, server := frametests.WithHTTPTestDriver()
 	ctx, svc := frame.NewServiceWithContext(s.ctx,
 		frame.WithConfig(&cfg),
-		frame.WithDatastore(pool.WithConnection(s.database(), false)),
+		frame.WithTenancyProvider(rls),
+		frame.WithDatastore(pool.WithConnection(dsn, false)),
 		driver,
 	)
 	s.stops = append(s.stops, func() { svc.Stop(ctx) })
 
 	s.Require().NoError(loansrepo.Migrate(ctx, svc.DatastoreManager(), loansMigrations))
+	s.enforceRLS(dsn, rls)
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 	s.Require().NotNil(dbPool)
 	s.loansDB = dbPool.DB(ctx, false)
 
 	svc.Init(ctx, loansOptions(ctx, &cfg, svc.EventsManager(), dbPool, svc.WorkManager(),
-		newLoansPeers(s.router, s.fakes, loansToken), s.tokens, permissive())...)
+		newLoansPeers(s.router, s.fakes, loansToken), s.tokens, s.authz)...)
 	s.Require().NoError(svc.Run(ctx, ""))
 	s.Require().NotNil(server())
 	s.router.route(strings.TrimPrefix(loansHost, "http://"), server().URL)
@@ -239,10 +307,12 @@ func (s *lendingSuite) startOperations() {
 	cfg.EventsQueueName = "e2e.operations.events"
 	cfg.EventsQueueURL = "mem://e2e.operations.events"
 
+	dsn, rls := s.database()
 	driver, server := frametests.WithHTTPTestDriver()
 	ctx, svc := frame.NewServiceWithContext(s.ctx,
 		frame.WithConfig(&cfg),
-		frame.WithDatastore(pool.WithConnection(s.database(), false)),
+		frame.WithTenancyProvider(rls),
+		frame.WithDatastore(pool.WithConnection(dsn, false)),
 		driver,
 	)
 	s.stops = append(s.stops, func() { svc.Stop(ctx) })
@@ -250,6 +320,7 @@ func (s *lendingSuite) startOperations() {
 	// Operations ships no SQL migrations; its schema is the models plus
 	// postMigrate's partial unique indexes.
 	s.Require().NoError(opsrepo.Migrate(ctx, svc.DatastoreManager(), s.T().TempDir()))
+	s.enforceRLS(dsn, rls)
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 	s.Require().NotNil(dbPool)
 	s.opsDB = dbPool.DB(ctx, false)
@@ -257,7 +328,7 @@ func (s *lendingSuite) startOperations() {
 	platformClients := operationsPlatformClients(s.router, s.fakes, operationsToken)
 	opts, ops := operationsOptions(ctx, &cfg, svc.EventsManager(), dbPool, svc.WorkManager(),
 		platformClients.LenderRegistry, platformClients,
-		newLoansPeers(s.router, s.fakes, operationsToken).limits, s.tokens, permissive())
+		newLoansPeers(s.router, s.fakes, operationsToken).limits, s.tokens, s.authz)
 	// The payment service's side of the received-payment queue.
 	opts = append(opts, frame.WithRegisterPublisher(paymentPublisher, cfg.PaymentReceivedURI))
 	svc.Init(ctx, opts...)
@@ -325,8 +396,12 @@ func (s *lendingSuite) newBorrower(msisdn string) (*borrower, *fieldAgent) {
 	agentProfile := util.IDString()
 	agent := &fieldAgent{memberID: util.IDString()}
 	s.platform.addAgent(agentProfile, agent.memberID, b.clientID)
+	// A field agent's access in the lender's partition carries the member
+	// role only.
+	s.Require().NoError(s.tenancy.accessSynced(s.ctx, tenancyPath(s.tenantID, s.partitionID),
+		agentProfile, roleMember))
 	token := "token-agent-" + agentProfile
-	s.tokens.issue(token, s.person(agentProfile, "member"))
+	s.tokens.issue(token, s.person(agentProfile, roleMember))
 	agent.loans = loansv1connect.NewLoanManagementServiceClient(client(s.router, loansHost, token))
 	return b, agent
 }
