@@ -16,6 +16,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -55,6 +56,15 @@ type SavingsBalanceRepository interface {
 	// account, or a wrapped gorm.ErrRecordNotFound if the row has not been
 	// provisioned yet.
 	GetBySavingsAccountID(ctx context.Context, savingsAccountID string) (*models.SavingsBalance, error)
+
+	// BalanceAt is the account's balance as it stood at at: the running
+	// balance less the movements recorded after at (completed deposits and
+	// withdrawals by when they completed, interest by the day it was for),
+	// read in one statement on the primary so no movement lands between the
+	// two. reliable is false when a movement after at cannot be placed in
+	// time (a reversal says when it was reversed, not when the reversed
+	// movement landed).
+	BalanceAt(ctx context.Context, savingsAccountID string, at time.Time) (balance int64, reliable bool, err error)
 
 	// Ensure idempotently creates a zero-value balance row for the account if
 	// one does not yet exist. Safe to call repeatedly; the unique index on
@@ -178,4 +188,45 @@ func (r *savingsBalanceRepository) OpeningBalance(
 	}
 
 	return deposits + interest - withdrawals, nil
+}
+
+func (r *savingsBalanceRepository) BalanceAt(
+	ctx context.Context,
+	savingsAccountID string,
+	at time.Time,
+) (int64, bool, error) {
+	var rows []struct {
+		BalanceAt   int64
+		Unplaceable int64
+	}
+	err := r.Pool().DB(ctx, false).Raw(`SELECT
+  b.balance
+  - COALESCE((SELECT SUM(amount) FROM deposits
+              WHERE savings_account_id = @id AND deleted_at IS NULL AND status = @depDone AND modified_at > @at), 0)
+  + COALESCE((SELECT SUM(amount) FROM withdrawals
+              WHERE savings_account_id = @id AND deleted_at IS NULL AND status = @wdrDone AND modified_at > @at), 0)
+  - COALESCE((SELECT SUM(amount) FROM interest_accruals
+              WHERE savings_account_id = @id AND deleted_at IS NULL AND ledger_transaction_id <> ''
+                AND period_end > @at), 0)
+    AS balance_at,
+  (SELECT count(*) FROM deposits
+     WHERE savings_account_id = @id AND deleted_at IS NULL AND status = @depReversed AND modified_at > @at)
+  + (SELECT count(*) FROM withdrawals
+     WHERE savings_account_id = @id AND deleted_at IS NULL AND status = @wdrReversed AND modified_at > @at)
+    AS unplaceable
+FROM savings_balances b
+WHERE b.savings_account_id = @id AND b.deleted_at IS NULL`,
+		sql.Named("id", savingsAccountID), sql.Named("at", at.UTC()),
+		sql.Named("depDone", int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED)),
+		sql.Named("depReversed", int32(savingsv1.DepositStatus_DEPOSIT_STATUS_REVERSED)),
+		sql.Named("wdrDone", int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED)),
+		sql.Named("wdrReversed", int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_REVERSED)),
+	).Scan(&rows).Error
+	if err != nil {
+		return 0, false, err
+	}
+	if len(rows) == 0 {
+		return 0, false, ErrSavingsBalanceNotFound
+	}
+	return rows[0].BalanceAt, rows[0].Unplaceable == 0, nil
 }

@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
@@ -158,4 +159,28 @@ func TestJobsActInTheItemsPartition(t *testing.T) {
 	require.NotNil(t, tenancy, "peer calls name the item's tenant")
 	assert.Equal(t, "tenant-a", tenancy.GetTenantID())
 	assert.Equal(t, "partition-a", tenancy.GetPartitionID())
+}
+
+// A run out of time stops where it is and reports more; the next run picks
+// up what it did not reach.
+func TestSettleJobStopsAtItsTimeBudget(t *testing.T) {
+	routing, payments, orders := newBorrowerRouting(t, []*loansv1.LoanAccountObject{activeLoan("loan-1")})
+	_, err := routing.IdentifyPayment(context.Background(), borrowerPayment("txn-budget"))
+	require.NoError(t, err)
+
+	exec := &recordingExecutor{}
+	jobs := NewOperationsJobs(routing, exec, payments, orders, "service_operations")
+	jobs.timeBudget = -time.Second
+	processed, more, err := jobs.Run(internalContext(), operationsv1.OperationsJob_OPERATIONS_JOB_SETTLE_PAYMENTS, 50)
+	require.NoError(t, err)
+	assert.True(t, more, "out of time with work left")
+	assert.Zero(t, processed)
+	assert.Empty(t, exec.executed)
+
+	jobs.timeBudget = time.Minute
+	processed, more, err = jobs.Run(internalContext(), operationsv1.OperationsJob_OPERATIONS_JOB_SETTLE_PAYMENTS, 50)
+	require.NoError(t, err)
+	assert.False(t, more)
+	assert.Equal(t, 1, processed)
+	assert.Len(t, exec.executed, 1)
 }

@@ -15,6 +15,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -24,25 +25,31 @@ import (
 
 const timeLayout = time.RFC3339
 
-// decimalPrecision is the precision used by the String<->MinorUnits helpers
-// below. Money conversions go via moneyx and honour ISO 4217 per currency.
+// decimalPrecision is the precision of basis-point percentages. Money
+// conversions go via moneyx and honour ISO 4217 per currency.
 const decimalPrecision = 2
 
-// MinorUnitsToString converts an int64 minor-unit amount (e.g. cents) to a
-// decimal string with two fractional digits. 123456 -> "1234.56".
-func MinorUnitsToString(v int64) string {
-	return decimalx.FromMinorUnits(v, decimalPrecision).String()
+// MinorUnitsToString renders an int64 minor-unit amount as a decimal string
+// in the currency's own precision: 123456 KES -> "1234.56", 1500 UGX ->
+// "1500".
+func MinorUnitsToString(v int64, currency string) string {
+	return decimalx.FromMinorUnits(v, moneyx.Decimals(currency)).String()
 }
 
-// StringToMinorUnits parses a decimal string (e.g. "1234.56") into int64 minor
-// units. Uses string splitting to avoid float precision issues. Returns 0 on
-// parse error.
-func StringToMinorUnits(s string) int64 {
+// StringToMinorUnits parses a decimal string into int64 minor units of the
+// currency, in its own precision. An amount with more fractional digits than
+// the currency has is refused rather than rounded.
+func StringToMinorUnits(s, currency string) (int64, error) {
 	d, err := decimalx.NewFromString(s)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return d.ToMinorUnits(decimalPrecision)
+	decimals := moneyx.Decimals(currency)
+	minor := d.ToMinorUnits(decimals)
+	if decimalx.FromMinorUnits(minor, decimals).Cmp(d) != 0 {
+		return 0, fmt.Errorf("%s has more fractional digits than %s allows", s, currency)
+	}
+	return minor, nil
 }
 
 // BasisPointsToString converts basis points (int64) to a percentage string.

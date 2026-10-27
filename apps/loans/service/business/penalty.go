@@ -114,6 +114,12 @@ func (b *penaltyBusiness) Save(ctx context.Context, obj *loansv1.PenaltyObject) 
 	if laErr != nil {
 		return nil, ErrLoanAccountNotFound
 	}
+	// The penalty belongs to the loan's partition, whoever raises it: a
+	// scheduled scan or a staff member acting from a parent partition.
+	if la.PartitionID != "" {
+		penalty.TenantID = la.TenantID
+		penalty.PartitionID = la.PartitionID
+	}
 	if penalty.CurrencyCode == "" {
 		penalty.CurrencyCode = la.CurrencyCode
 	}

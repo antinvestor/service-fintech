@@ -184,8 +184,14 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 
 	// An individual borrower's payment (no group) is matched to their loan
 	// first; group payments keep the membership strategies.
+	// A lookup that failed in transport is returned, so the payment is
+	// redelivered rather than routed to unidentified on a peer's outage.
 	if groupID == "" {
-		if result := b.identifyIndividual(ctx, productID, paymentRef, payerRef, payment.Currency); result != nil {
+		result, lookupErr := b.identifyIndividual(ctx, productID, paymentRef, payerRef, payment.Currency)
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+		if result != nil {
 			if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 				return nil, saveErr
 			}
@@ -194,7 +200,11 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 		}
 	}
 
-	if result := b.runIdentificationStrategies(ctx, logger, paymentRef, payerRef, payerName, groupID); result != nil {
+	result, lookupErr := b.runIdentificationStrategies(ctx, logger, paymentRef, payerRef, payerName, groupID)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
+	if result != nil {
 		if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 			return nil, saveErr
 		}
@@ -243,36 +253,49 @@ func (b *paymentRoutingBusiness) allocateIndividual(
 
 // identifyIndividual matches a payment with no group to the payer's own loan
 // or, failing that, their own savings account, of the product the rail
-// credited. It returns nil when neither matches.
+// credited. It returns nil when neither matches, and an error when a lookup
+// failed in transport.
 func (b *paymentRoutingBusiness) identifyIndividual(
 	ctx context.Context,
 	productID, paymentRef, payerRef, currency string,
-) *identificationResult {
-	if b.borrowerLoanMatching() {
-		if result, err := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); err == nil {
-			return result
+) (*identificationResult, error) {
+	strategies := []struct {
+		enabled bool
+		run     func() (*identificationResult, error)
+	}{
+		{b.borrowerLoanMatching(), func() (*identificationResult, error) {
+			return b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef)
+		}},
+		{b.borrowerSavingsMatching(), func() (*identificationResult, error) {
+			return b.identifySaverAccount(ctx, productID, paymentRef, payerRef)
+		}},
+		{b.investorDepositMatching(), func() (*identificationResult, error) {
+			return b.identifyInvestorDeposit(ctx, paymentRef, payerRef, currency)
+		}},
+	}
+	for _, s := range strategies {
+		if !s.enabled {
+			continue
+		}
+		result, err := s.run()
+		if err == nil {
+			return result, nil
+		}
+		if isTransientLookupError(err) {
+			return nil, err
 		}
 	}
-	if b.borrowerSavingsMatching() {
-		if result, err := b.identifySaverAccount(ctx, productID, paymentRef, payerRef); err == nil {
-			return result
-		}
-	}
-	if b.investorDepositMatching() {
-		if result, err := b.identifyInvestorDeposit(ctx, paymentRef, payerRef, currency); err == nil {
-			return result
-		}
-	}
-	return nil
+	return nil, nil //nolint:nilnil // no match is a valid answer, not an error
 }
 
 // runIdentificationStrategies walks the identification pipeline and returns the
-// first match, or nil when no strategy resolves a member.
+// first match, or nil when no strategy resolves a member. A lookup that
+// failed in transport stops the walk with its error.
 func (b *paymentRoutingBusiness) runIdentificationStrategies(
 	ctx context.Context,
 	logger *util.LogEntry,
 	paymentRef, payerRef, payerName, groupID string,
-) *identificationResult {
+) (*identificationResult, error) {
 	strategies := []identificationStrategy{
 		{
 			"direct membership ID",
@@ -319,10 +342,13 @@ func (b *paymentRoutingBusiness) runIdentificationStrategies(
 		if strategyErr == nil && result != nil {
 			logger.WithField(fieldMembershipID, result.MembershipID).
 				Info(fmt.Sprintf("payer identified via strategy %d: %s", i+1, s.name))
-			return result
+			return result, nil
+		}
+		if isTransientLookupError(strategyErr) {
+			return nil, fmt.Errorf("identify payer via %s: %w", s.name, strategyErr)
 		}
 	}
-	return nil
+	return nil, nil //nolint:nilnil // no match is a valid answer, not an error
 }
 
 // IdentifySender resolves a payer to a group member without recording a
@@ -341,7 +367,10 @@ func (b *paymentRoutingBusiness) IdentifySender(
 			"a sender identifier or payment reference is required")
 	}
 
-	result := b.runIdentificationStrategies(ctx, logger, reference, senderIdentifier, "", groupID)
+	result, lookupErr := b.runIdentificationStrategies(ctx, logger, reference, senderIdentifier, "", groupID)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
 	if result == nil {
 		return map[string]interface{}{
 			"identified":  false,
@@ -909,6 +938,17 @@ func (b *paymentRoutingBusiness) allocateToMember(
 		return di.Before(dj)
 	})
 
+	// What earlier runs already paid to obligations is spoken for, whether or
+	// not they got to record it: a run that consumed obligations and stopped
+	// before recording its remainder must not spend the payment again on
+	// whatever obligations are still open.
+	alreadyPaid, sumErr := b.toRepo.SumConsumedObligationOrders(ctx, paymentID)
+	if sumErr != nil {
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
+		return nil, fmt.Errorf("could not read what the payment already paid: %w", sumErr)
+	}
+	startAmount = max(min(startAmount, payment.Amount-alreadyPaid), 0)
+
 	buckets := buildAllocationBuckets()
 	remainingAmount, allocations := b.runAllocationBuckets(
 		ctx, logger, buckets, obligations, payment, paymentID, membershipID, startAmount,
@@ -1075,10 +1115,12 @@ func (b *paymentRoutingBusiness) allocateBucket(
 		case allocationSkipped:
 			continue
 		case allocationRecordedEarlier:
-			// An earlier run wrote this order and consumed the obligation
-			// but did not get to record its outcome. The money is spoken
-			// for: count it toward this payment, do not consume again.
-			allocAmount = to.Amount
+			// An earlier run wrote this order and consumed the obligation.
+			// Its amount is already taken out of what this run may spend
+			// (SumConsumedObligationOrders); it is neither consumed nor
+			// counted again.
+			allocations = append(allocations, allocationEntry(bkt, obl, to, to.Amount, originalAmount))
+			continue
 		case allocationDone:
 			obl.Amount = originalAmount - allocAmount
 			if obl.Amount <= 0 {
@@ -1088,18 +1130,7 @@ func (b *paymentRoutingBusiness) allocateBucket(
 
 		remainingAmount -= allocAmount
 		totalAllocated += allocAmount
-		allocations = append(allocations, map[string]interface{}{
-			"bucket":             bkt.name,
-			"obligation_id":      obl.GetID(),
-			fieldTransferOrderID: to.GetID(),
-			fieldAmount:          allocAmount,
-			"partial":            allocAmount < originalAmount,
-			"from_account":       to.DebitAccountRef,
-			"to_account":         to.CreditAccountRef,
-			fieldCurrency:        to.Currency,
-			"type":               to.OrderType,
-			fieldReference:       to.Reference,
-		})
+		allocations = append(allocations, allocationEntry(bkt, obl, to, allocAmount, originalAmount))
 
 		logger.WithField("bucket", bkt.name).
 			WithField("obligation_id", obl.GetID()).
@@ -1108,6 +1139,27 @@ func (b *paymentRoutingBusiness) allocateBucket(
 	}
 
 	return totalAllocated, allocations
+}
+
+// allocationEntry describes one allocation order in an allocation outcome.
+func allocationEntry(
+	bkt allocationBucket,
+	obl *models.Obligation,
+	to *models.TransferOrder,
+	amount, owed int64,
+) map[string]interface{} {
+	return map[string]interface{}{
+		"bucket":             bkt.name,
+		"obligation_id":      obl.GetID(),
+		fieldTransferOrderID: to.GetID(),
+		fieldAmount:          amount,
+		"partial":            amount < owed,
+		"from_account":       to.DebitAccountRef,
+		"to_account":         to.CreditAccountRef,
+		fieldCurrency:        to.Currency,
+		"type":               to.OrderType,
+		fieldReference:       to.Reference,
+	}
 }
 
 // allocateObligation writes the transfer order for one (payment, obligation)

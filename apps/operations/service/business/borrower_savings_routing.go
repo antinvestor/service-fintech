@@ -59,8 +59,12 @@ func (b *paymentRoutingBusiness) identifySaverAccount(
 		return nil, errSaverAmbiguous
 	}
 	if paymentRef != "" {
-		if acct, err := b.openSavingsAccount(ctx, paymentRef); err == nil && acct.GetProductId() == productID {
+		acct, err := b.openSavingsAccount(ctx, paymentRef)
+		if err == nil && acct.GetProductId() == productID {
 			return b.saverResult(ctx, acct)
+		}
+		if isTransientLookupError(err) {
+			return nil, err
 		}
 	}
 	if payerRef == "" {

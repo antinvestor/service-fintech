@@ -18,9 +18,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
 	"gorm.io/gorm"
@@ -162,12 +162,17 @@ func (b *interestAccrualBusiness) Accrue(
 		return existing.ToAPI(), nil
 	}
 
-	sa, product, balance, err := b.accrualBasis(ctx, logger, savingsAccountID)
+	sa, product, err := b.accrualBasis(ctx, logger, savingsAccountID)
 	if err != nil {
 		return nil, err
 	}
 
-	accrued := computeAccrual(balance.Balance, product.InterestRate, periodStart, periodEnd)
+	balanceUsed, err := b.closingBalance(ctx, logger, savingsAccountID, periodEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	accrued := computeAccrual(balanceUsed, product.InterestRate, periodStart, periodEnd)
 	if accrued <= 0 {
 		logger.Info("skipping accrual: computed amount is zero")
 		return nil, ErrAccrualAmountZero
@@ -180,7 +185,7 @@ func (b *interestAccrualBusiness) Accrue(
 		PeriodStart:      &periodStart,
 		PeriodEnd:        &periodEnd,
 		RateApplied:      product.InterestRate,
-		BalanceUsed:      balance.Balance,
+		BalanceUsed:      balanceUsed,
 	}
 	ia.GenID(ctx)
 	ia.CopyPartitionInfo(&sa.BaseModel)
@@ -224,7 +229,7 @@ func (b *interestAccrualBusiness) Accrue(
 			"period_start":        periodStart.UTC().Format(time.RFC3339),
 			"period_end":          periodEnd.UTC().Format(time.RFC3339),
 			"rate_bps":            product.InterestRate,
-			"balance_used":        balance.Balance,
+			"balance_used":        balanceUsed,
 			fieldCurrency:         sa.CurrencyCode,
 		},
 		Parent: &ia.BaseModel,
@@ -239,45 +244,62 @@ func (b *interestAccrualBusiness) Accrue(
 	return ia.ToAPI(), nil
 }
 
-// accrualBasis loads the account, its product and its running balance, and
-// rejects the cases where there is nothing to accrue.
+// closingBalance is the balance interest for a period is earned on: what the
+// account held at the period's end, not today, so a day accrued late does
+// not pay interest on money deposited since. A period whose balance cannot
+// be reconstructed is not accrued rather than guessed at, and is not settled
+// either.
+func (b *interestAccrualBusiness) closingBalance(
+	ctx context.Context,
+	logger *util.LogEntry,
+	savingsAccountID string,
+	periodEnd time.Time,
+) (int64, error) {
+	balance, reliable, err := b.sbRepo.BalanceAt(ctx, savingsAccountID, periodEnd)
+	if err != nil {
+		return 0, fmt.Errorf("load the balance at the period end: %w", err)
+	}
+	if !reliable {
+		logger.Error("not accruing: the balance at the period end cannot be reconstructed")
+		return 0, ErrBalanceHistoryUnreliable
+	}
+	if balance <= 0 {
+		logger.Info("skipping accrual: zero balance at the period end")
+		return 0, ErrBalanceZero
+	}
+	return balance, nil
+}
+
+// accrualBasis loads the account and its product, and rejects the cases
+// where there is nothing to accrue.
 func (b *interestAccrualBusiness) accrualBasis(
 	ctx context.Context,
 	logger *util.LogEntry,
 	savingsAccountID string,
-) (*models.SavingsAccount, *models.SavingsProduct, *models.SavingsBalance, error) {
+) (*models.SavingsAccount, *models.SavingsProduct, error) {
 	sa, err := b.saRepo.GetByID(ctx, savingsAccountID)
 	if err != nil {
-		return nil, nil, nil, ErrSavingsAccountNotFound
+		return nil, nil, ErrSavingsAccountNotFound
 	}
 	if savingsv1.SavingsAccountStatus(sa.Status) != savingsv1.SavingsAccountStatus_SAVINGS_ACCOUNT_STATUS_ACTIVE {
 		logger.Info("skipping accrual on non-active savings account")
-		return nil, nil, nil, ErrAccountNotActive
+		return nil, nil, ErrAccountNotActive
 	}
 	if sa.ProductID == "" {
-		return nil, nil, nil, ErrSavingsAccountLedgerRefsMissing
+		return nil, nil, ErrSavingsAccountLedgerRefsMissing
 	}
 
 	product, err := b.spRepo.GetByID(ctx, sa.ProductID)
 	if err != nil {
-		return nil, nil, nil, ErrSavingsProductNotFound
+		return nil, nil, ErrSavingsProductNotFound
 	}
 	if product.InterestRate <= 0 {
 		logger.WithField("product_id", sa.ProductID).
 			Info("skipping accrual: product interest rate is zero")
-		return nil, nil, nil, ErrProductRateZero
+		return nil, nil, ErrProductRateZero
 	}
 
-	balance, err := b.sbRepo.GetBySavingsAccountID(ctx, savingsAccountID)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load running balance: %w", err)
-	}
-	if balance.Balance <= 0 {
-		logger.Info("skipping accrual: zero balance")
-		return nil, nil, nil, ErrBalanceZero
-	}
-
-	return sa, product, balance, nil
+	return sa, product, nil
 }
 
 // computeAccrual returns the interest due on balance over the period, in
@@ -401,7 +423,9 @@ func (b *interestAccrualBusiness) AccrueAllActive(
 }
 
 // isAccrualSkip reports whether an account was passed over for an ordinary
-// reason - nothing to accrue - rather than a failure worth alerting on.
+// reason - nothing to accrue for the period - rather than a failure worth
+// alerting on. A skipped period counts as settled. A period whose balance
+// cannot be reconstructed is not a skip: it is never settled unpaid.
 func isAccrualSkip(err error) bool {
 	return errors.Is(err, ErrAccountNotActive) ||
 		errors.Is(err, ErrProductRateZero) ||
@@ -420,11 +444,9 @@ func (b *interestAccrualBusiness) Search(
 
 	cursor := req.GetCursor()
 	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		searchOpts = append(searchOpts,
+			data.WithSearchOffset(pagination.Page(cursor.GetPage())),
+			data.WithSearchLimit(pagination.Limit(cursor.GetLimit())))
 	}
 
 	andQueryVal := map[string]any{}

@@ -41,6 +41,15 @@ type DueReminderJob struct {
 	notifier        *LoanNotifier
 	daysAhead       int
 	now             func() time.Time
+	// subject is this service's own identity, under which each reminder is
+	// sent inside its loan's tenancy.
+	subject string
+}
+
+// WithSubject names this service's identity for the reminders it sends.
+func (j *DueReminderJob) WithSubject(subject string) *DueReminderJob {
+	j.subject = subject
+	return j
 }
 
 // NewDueReminderJob builds the job. daysAhead is how many days before the
@@ -121,6 +130,7 @@ func (j *DueReminderJob) remindEntry(
 	if !isRepayableStatus(la.Status) {
 		return
 	}
+	ctx = actInLoan(ctx, j.subject, la)
 	switch kind {
 	case repository.ReminderDue:
 		j.notifier.NotifyPaymentDue(ctx, la, entry.Outstanding, entry.DueDate)

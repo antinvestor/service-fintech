@@ -42,6 +42,16 @@ type FundingSettlement struct {
 	loanAccountRepo repository.LoanAccountRepository
 	fundingCli      fundingv1connect.FundingServiceClient
 	commission      *AgentCommission
+	// subject is this service's own identity, under which the job settles
+	// each repayment inside its loan's partition.
+	subject string
+}
+
+// WithSubject names this service's identity, under which the settlement job
+// shares each repayment out inside its loan's own partition.
+func (s *FundingSettlement) WithSubject(subject string) *FundingSettlement {
+	s.subject = subject
+	return s
 }
 
 // WithCommission makes settlement credit the serving team's commission on
@@ -152,7 +162,9 @@ func (s *FundingSettlement) RunBatch(ctx context.Context, batch int) (int, bool,
 			logger.WithError(laErr).WithField("repayment_id", r.GetID()).Warn("loan of repayment not found")
 			continue
 		}
-		if settleErr := s.Settle(ctx, la, r); settleErr != nil {
+		// Settled as this service inside the loan's partition, so the
+		// commission and funder calls name the loan's tenant.
+		if settleErr := s.Settle(actInLoan(ctx, s.subject, la), la, r); settleErr != nil {
 			logger.WithError(settleErr).WithField("repayment_id", r.GetID()).
 				Warn("repayment not yet settled with funders; a later run retries")
 		}

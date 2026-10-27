@@ -16,12 +16,15 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/workerpool"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 // FundingTrancheRepository provides data access for funding tranches.
@@ -29,6 +32,13 @@ type FundingTrancheRepository interface {
 	datastore.BaseRepository[*models.FundingTranche]
 	GetByLoanFundingID(ctx context.Context, loanFundingID string) ([]*models.FundingTranche, error)
 	GetByLoanRequestID(ctx context.Context, loanRequestID string) ([]*models.FundingTranche, error)
+	// ReserveAndActivate reserves a pending tranche's capital on its investor
+	// account and marks the tranche active, in one transaction: an active
+	// investor tranche always holds its reservation and a pending one never
+	// does. It returns ErrInvestorInsufficientFunds when the account cannot
+	// cover the amount, or ErrInvestorExposureExceeded when it would pass
+	// the account's exposure limit, and changes nothing then.
+	ReserveAndActivate(ctx context.Context, tranche *models.FundingTranche) error
 }
 
 // NewFundingTrancheRepository creates a new FundingTrancheRepository.
@@ -71,4 +81,46 @@ func (r *fundingTrancheRepository) GetByLoanRequestID(
 		Order("tranche_level ASC").
 		Find(&tranches).Error
 	return tranches, err
+}
+
+func (r *fundingTrancheRepository) ReserveAndActivate(ctx context.Context, tranche *models.FundingTranche) error {
+	return r.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		// Lock the parent funding: a concurrent VoidAndRelease either voided
+		// it first, and nothing is reserved here, or waits for this
+		// reservation and gives it back.
+		var live []struct{ ID string }
+		if err := tx.Raw(`SELECT id FROM loan_fundings WHERE id = ? AND state = ? AND deleted_at IS NULL FOR UPDATE`,
+			tranche.LoanFundingID, int32(constants.StateActive)).Scan(&live).Error; err != nil {
+			return err
+		}
+		if len(live) == 0 {
+			return fmt.Errorf("funding %s of tranche %s is no longer active", tranche.LoanFundingID, tranche.GetID())
+		}
+		activated := tx.Exec(`UPDATE funding_tranches SET state = ?, modified_at = now(), version = version + 1
+WHERE id = ? AND state = ? AND deleted_at IS NULL`,
+			int32(constants.StateActive), tranche.GetID(), int32(constants.StateJustCreated))
+		if activated.Error != nil {
+			return activated.Error
+		}
+		if activated.RowsAffected == 0 {
+			return fmt.Errorf("tranche %s is no longer pending", tranche.GetID())
+		}
+		reserved := tx.Exec(`UPDATE investor_accounts
+SET reserved_balance = reserved_balance + ?, total_deployed = total_deployed + ?,
+    last_deployed_at = now(), modified_at = now(), version = version + 1
+WHERE id = ? AND deleted_at IS NULL AND `+reserveWithinLimits,
+			tranche.Amount, tranche.Amount, tranche.InvestorAccountID, tranche.Amount, tranche.Amount)
+		if reserved.Error != nil {
+			return reserved.Error
+		}
+		if reserved.RowsAffected == 0 {
+			account := &models.InvestorAccount{}
+			if err := tx.First(account, "id = ?", tranche.InvestorAccountID).Error; err != nil {
+				return err
+			}
+			return reserveRefusal(account, tranche.Amount)
+		}
+		tranche.State = int32(constants.StateActive)
+		return nil
+	})
 }

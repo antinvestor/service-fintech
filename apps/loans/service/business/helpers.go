@@ -16,12 +16,13 @@ package business
 
 import (
 	"context"
-	"strconv"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/workerpool"
 	"github.com/pitabwire/util"
+
+	"github.com/antinvestor/service-fintech/pkg/pagination"
 )
 
 // workerpoolConsumeStream wraps workerpool.ConsumeResultStream for use in business methods.
@@ -39,11 +40,9 @@ func buildSearchOptions(cursor *commonv1.PageCursor, andFilters map[string]any) 
 	var searchOpts []data.SearchOption
 
 	if cursor != nil {
-		offset, offsetErr := strconv.Atoi(cursor.GetPage())
-		if offsetErr != nil {
-			offset = 0
-		}
-		searchOpts = append(searchOpts, data.WithSearchOffset(offset), data.WithSearchLimit(int(cursor.GetLimit())))
+		searchOpts = append(searchOpts,
+			data.WithSearchOffset(pagination.Page(cursor.GetPage())),
+			data.WithSearchLimit(pagination.Limit(cursor.GetLimit())))
 	}
 
 	if len(andFilters) > 0 {

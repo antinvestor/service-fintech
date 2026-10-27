@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -55,7 +56,17 @@ var (
 		"a loss must name the product whose bad debt the funders take")
 	// ErrLossAmountNotPositive is returned for a zero or negative loss.
 	ErrLossAmountNotPositive = apperrors.NewError(apperrors.BadRequest, "loss amount must be positive")
+	// ErrAllocationInProgress is returned while another call is building the
+	// request's allocation. The caller retries; it never gets a partial one.
+	ErrAllocationInProgress = apperrors.NewError(apperrors.ServiceUnavailable,
+		"the loan request's funding is being allocated; retry shortly")
 )
+
+// allocationLeaseSeconds bounds how long a call may take to build an
+// allocation before another call may take the request over. An allocation is
+// a handful of reads and writes; a holder still running past this has
+// crashed or stalled.
+const allocationLeaseSeconds = 300
 
 type fundingAllocationBusiness struct {
 	eventsMan  fevents.Manager
@@ -117,28 +128,42 @@ func (b *fundingAllocationBusiness) SourceForRequest(
 		return nil, ErrLoanRequestNotFound
 	}
 
-	claim := &models.LoanFundingClaim{
-		LoanRequestID: loanRequestID,
-		Status:        int32(constants.StateActive),
-	}
+	claim := &models.LoanFundingClaim{LoanRequestID: loanRequestID}
 	claim.GenID(ctx)
 	claim.CopyPartitionInfo(&requestInfo.BaseModel)
 
-	created, claimErr := b.claimRepo.Claim(ctx, claim)
+	outcome, lease, claimErr := b.claimRepo.Claim(ctx, claim, allocationLeaseSeconds)
 	if claimErr != nil {
 		return nil, fmt.Errorf("claim allocation lock: %w", claimErr)
 	}
-	if !created {
+	// context.WithoutCancel is otherwise not used in this service. It is
+	// used here only for compensating writes that give investors' reserved
+	// capital back and drop the claim: once money state has changed they
+	// must finish even if the caller has gone away, or capital stays
+	// reserved for a loan that was never funded.
+	cleanupCtx := context.WithoutCancel(ctx)
+
+	switch outcome {
+	case repository.ClaimCompleted:
 		return b.buildPersistedResult(ctx, loanRequestID, requestInfo)
+	case repository.ClaimHeld:
+		return nil, ErrAllocationInProgress
+	case repository.ClaimTakenOver, repository.ClaimTaken:
+		// Whatever is still active for the request belongs to no completed
+		// allocation: a holder that stopped part way (taken over), or one
+		// that died while giving its allocation back: any leftover is voided and its capital given back before building the
+		// allocation afresh, so it is never committed twice.
+		if voidErr := b.voidLeftovers(cleanupCtx, logger, loanRequestID, outcome); voidErr != nil {
+			b.releaseClaim(cleanupCtx, logger, loanRequestID, lease)
+			return nil, voidErr
+		}
 	}
 
 	result, run, err := b.allocate(ctx, logger, loanRequestID, requestInfo)
 	if err != nil {
-		// Nothing was committed, so drop the lock and let the request be
-		// funded on a later attempt.
-		if releaseErr := b.claimRepo.Release(ctx, loanRequestID); releaseErr != nil {
-			logger.WithError(releaseErr).Error("could not release the allocation lock after a failed allocation")
-		}
+		// allocate gave back whatever it reserved; drop the lock and let the
+		// request be funded on a later attempt.
+		b.releaseClaim(cleanupCtx, logger, loanRequestID, lease)
 		return nil, err
 	}
 	if !result.FullyFunded {
@@ -147,66 +172,175 @@ func (b *fundingAllocationBusiness) SourceForRequest(
 		// after new capital arrives; give both back so a later attempt can
 		// fund the request in full.
 		logger.WithField("deficit", result.Deficit).Warn("loan request not fully funded; releasing allocation")
-		b.rollbackReservations(ctx, logger, run.reserved)
-		b.voidRecords(ctx, logger, run.written)
-		if releaseErr := b.claimRepo.Release(ctx, loanRequestID); releaseErr != nil {
-			logger.WithError(releaseErr).Error("could not release the allocation lock after a short allocation")
-		}
+		b.abandonRun(cleanupCtx, logger, loanRequestID, lease, run)
 		result.Allocations = nil
 		result.TotalAllocated = 0
 		result.Deficit = result.LoanAmount
+		return result, nil
 	}
-	return result, nil
-}
 
-// reservation is capital set aside on an investor account during allocation,
-// kept so a failed or short allocation can give it back, together with the
-// funding records this run wrote so they can be voided alongside.
-type reservation struct {
-	investorAccountID string
-	amount            int64
-}
-
-// writtenRecords are the funding and tranche rows one allocation run emitted.
-type writtenRecords struct {
-	fundings []*models.LoanFunding
-	tranches []*models.FundingTranche
-}
-
-// voidRecords marks the run's funding and tranche rows inactive, so a later
-// read of the request's allocation does not count capital that was given
-// back. Emitted through the same event path that created them.
-func (b *fundingAllocationBusiness) voidRecords(ctx context.Context, logger *util.LogEntry, written writtenRecords) {
-	for _, f := range written.fundings {
-		f.State = int32(constants.StateInactive)
-		if _, err := b.lfRepo.Update(ctx, f, "state"); err != nil {
-			logger.WithError(err).WithField("loan_funding_id", f.GetID()).Error("could not void loan funding record")
+	// Completing the claim is what makes the reservations stick; it runs
+	// under cleanupCtx (see above) so a caller going away cannot leave a
+	// fully reserved allocation behind an unfinished claim.
+	switch b.completeClaim(cleanupCtx, logger, loanRequestID, lease) {
+	case claimCompleted:
+		return result, nil
+	case claimLost:
+		// This call outlived its lease and another took the request over.
+		// Its fundings are voided with the conditional, transactional void:
+		// whichever of the two calls voids a funding gives its reservations
+		// back, once. Releasing this run's reservations directly could hand
+		// back capital the other call already gave back.
+		logger.Warn("allocation lease lapsed before it completed; voiding this run's allocation")
+		b.voidRun(cleanupCtx, logger, run)
+		return nil, ErrAllocationInProgress
+	case claimUnconfirmed:
+		// Still allocating under this lease after bounded retries: give the
+		// capital back rather than leave it for a takeover that may never
+		// come. abandonRun drops only an allocating claim, so an allocation
+		// whose completion landed after all is never voided.
+		if b.abandonRun(cleanupCtx, logger, loanRequestID, lease, run) {
+			return result, nil
 		}
 	}
-	for _, t := range written.tranches {
-		t.State = int32(constants.StateInactive)
-		if _, err := b.ftRepo.Update(ctx, t, "state"); err != nil {
-			logger.WithError(err).
-				WithField("funding_tranche_id", t.GetID()).
-				Error("could not void funding tranche record")
-		}
-	}
+	return nil, ErrAllocationInProgress
 }
 
-// rollbackReservations returns reserved capital to the investors' available
-// balances. Each release is logged on failure and the rest still run.
-func (b *fundingAllocationBusiness) rollbackReservations(
+// claimCompletion is what completing an allocation claim came to.
+type claimCompletion int
+
+const (
+	// claimCompleted: the claim is complete under this call's lease.
+	claimCompleted claimCompletion = iota
+	// claimLost: another call took the claim over.
+	claimLost
+	// claimUnconfirmed: it could not be completed or confirmed.
+	claimUnconfirmed
+)
+
+// completeAttempts bounds how often a failed completion is retried.
+const completeAttempts = 3
+
+// completeClaim completes the claim held under lease. A write that failed may
+// still have landed, so after a failure the claim is read back: completed
+// under this lease is success, taken over is lost, still allocating under
+// this lease is retried. ctx must not be cancellable.
+func (b *fundingAllocationBusiness) completeClaim(
 	ctx context.Context,
 	logger *util.LogEntry,
-	reserved []reservation,
-) {
-	for _, r := range reserved {
-		if _, err := b.iaRepo.AtomicRelease(ctx, r.investorAccountID, r.amount); err != nil {
-			logger.WithError(err).WithFields(map[string]any{
-				fieldInvestorAccountID: r.investorAccountID,
-				"amount":               r.amount,
-			}).Error("could not release investor reservation; capital stays reserved until reconciled")
+	loanRequestID string,
+	lease time.Time,
+) claimCompletion {
+	for range completeAttempts {
+		completed, err := b.claimRepo.Complete(ctx, loanRequestID, lease)
+		if err == nil && completed {
+			return claimCompleted
 		}
+		status, held, readErr := b.claimRepo.HeldBy(ctx, loanRequestID, lease)
+		if readErr != nil {
+			logger.WithError(errors.Join(err, readErr)).Warn("could not complete or read back the allocation claim")
+			continue
+		}
+		switch {
+		case held && status == models.LoanFundingClaimComplete:
+			return claimCompleted
+		case !held:
+			return claimLost
+		}
+		if err != nil {
+			logger.WithError(err).Warn("could not complete the allocation claim; retrying")
+		}
+	}
+	return claimUnconfirmed
+}
+
+// voidLeftovers voids every active funding recorded for a request this call
+// has just claimed, giving back the capital behind it. ctx must not be
+// cancellable: these are compensating writes (see SourceForRequest).
+func (b *fundingAllocationBusiness) voidLeftovers(
+	ctx context.Context,
+	logger *util.LogEntry,
+	loanRequestID string,
+	outcome repository.ClaimOutcome,
+) error {
+	fundings, err := b.lfRepo.GetByLoanRequestID(ctx, loanRequestID)
+	if err != nil {
+		return fmt.Errorf("load what is recorded for the request: %w", err)
+	}
+	released, _, err := b.voidActiveFundings(ctx, fundings)
+	if err != nil {
+		return err
+	}
+	if released > 0 || outcome == repository.ClaimTakenOver {
+		logger.WithField("voided", released).Warn("voided an allocation left unfinished before allocating afresh")
+	}
+	return nil
+}
+
+// abandonRun gives back what one allocation run reserved and then drops the
+// claim. The claim is first turned from allocating to abandoning under this
+// lease, so a completion that landed late is never voided (true is returned
+// then) and the claim cannot complete while the run is voided. The claim is
+// dropped only after the void: if the void fails, or the process dies, the
+// abandoning claim stays, and once its lease lapses the next call takes it
+// over and voids what is left. ctx must not be cancellable.
+func (b *fundingAllocationBusiness) abandonRun(
+	ctx context.Context,
+	logger *util.LogEntry,
+	loanRequestID string,
+	lease time.Time,
+	run allocationRun,
+) bool {
+	abandoned, err := b.claimRepo.Abandon(ctx, loanRequestID, lease)
+	if err != nil {
+		// Unknown whether a completion landed: keeping the capital reserved
+		// is the safe side; a takeover after the lease voids it if not.
+		logger.WithError(err).
+			Error("could not abandon the allocation claim; capital stays reserved until a takeover voids it")
+		return false
+	}
+	if !abandoned {
+		status, held, readErr := b.claimRepo.HeldBy(ctx, loanRequestID, lease)
+		if readErr != nil {
+			logger.WithError(readErr).
+				Error("could not tell whether an abandoned allocation completed; capital stays reserved")
+			return false
+		}
+		if held && status == models.LoanFundingClaimComplete {
+			return true
+		}
+		// Taken over: give back this run's own fundings; the claim is the
+		// other call's.
+		b.voidRun(ctx, logger, run)
+		return false
+	}
+	if _, _, voidErr := b.voidActiveFundings(ctx, run.fundings); voidErr != nil {
+		logger.WithError(voidErr).
+			Error("could not give back an abandoned allocation; the claim stays until a takeover voids it")
+		return false
+	}
+	b.releaseClaim(ctx, logger, loanRequestID, lease)
+	return false
+}
+
+// voidRun voids what one allocation run wrote and gives back what it
+// reserved.
+func (b *fundingAllocationBusiness) voidRun(ctx context.Context, logger *util.LogEntry, run allocationRun) {
+	if _, _, err := b.voidActiveFundings(ctx, run.fundings); err != nil {
+		logger.WithError(err).
+			Error("could not give back an allocation; capital stays reserved until a takeover or review voids it")
+	}
+}
+
+// releaseClaim drops the allocating claim this call holds under lease.
+func (b *fundingAllocationBusiness) releaseClaim(
+	ctx context.Context,
+	logger *util.LogEntry,
+	loanRequestID string,
+	lease time.Time,
+) {
+	if _, err := b.claimRepo.ReleaseHeld(ctx, loanRequestID, lease); err != nil {
+		logger.WithError(err).Error("could not release the allocation lock")
 	}
 }
 
@@ -227,21 +361,36 @@ func (b *fundingAllocationBusiness) allocate(
 	loanAmountDec := decimalx.FromMinorUnits(loanAmount, precision)
 	request := buildFundingRequest(requestInfo, loanAmountDec)
 
-	sources, err := b.gatherFundingSources(ctx, request, precision)
-	if err != nil {
-		return nil, allocationRun{}, err
-	}
-	calcResult := calculation.AllocateLoanFunding(request, sources)
+	var (
+		calcResult  calculation.FundingResult
+		allocations []Allocation
+		run         allocationRun
+	)
+	// A reservation refused because another loan took the investor's capital
+	// (or headroom) since the sources were read voids this attempt and
+	// allocates again from fresh balances, so the share falls through to the
+	// next investor instead of failing the loan.
+	for attempt := 1; ; attempt++ {
+		sources, err := b.gatherFundingSources(ctx, request, precision)
+		if err != nil {
+			return nil, allocationRun{}, err
+		}
+		calcResult = calculation.AllocateLoanFunding(request, sources)
 
-	if !calculation.VerifyTrancheAllocationInvariant(loanAmountDec, calcResult) {
-		logger.WithField("total_allocated", calcResult.TotalAllocated).
-			WithField("deficit", calcResult.Deficit).
-			Warn("loan request not fully funded")
-	}
+		if !calculation.VerifyTrancheAllocationInvariant(loanAmountDec, calcResult) {
+			logger.WithField("total_allocated", calcResult.TotalAllocated).
+				WithField("deficit", calcResult.Deficit).
+				Warn("loan request not fully funded")
+		}
 
-	allocations, run, err := b.persistAllocations(ctx, loanRequestID, requestInfo.Currency, precision, calcResult)
-	if err != nil {
-		return nil, allocationRun{}, err
+		allocations, run, err = b.persistAllocations(ctx, loanRequestID, requestInfo.Currency, precision, calcResult)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, errAllocationNotGivenBack) || !isReserveConflict(err) || attempt >= maxReserveAttempts {
+			return nil, allocationRun{}, err
+		}
+		logger.WithError(err).Info("an investor's capital was taken meanwhile; allocating again from fresh balances")
 	}
 
 	logger.WithField("loan_request_id", loanRequestID).
@@ -268,10 +417,27 @@ func (b *fundingAllocationBusiness) allocate(
 	}, run, nil
 }
 
-// allocationRun is what one allocation attempt reserved and wrote.
+// errAllocationNotGivenBack marks a failed allocation attempt whose partial
+// fundings and reservations could not be given back: nothing may be
+// allocated again on top of it.
+var errAllocationNotGivenBack = errors.New("a failed allocation could not be given back")
+
+// maxReserveAttempts bounds how often an allocation is rebuilt after a
+// reservation lost a race for an investor's capital.
+const maxReserveAttempts = 3
+
+// isReserveConflict reports whether a reservation was refused because the
+// investor no longer has the capital or headroom it was read with.
+func isReserveConflict(err error) bool {
+	return errors.Is(err, repository.ErrInvestorInsufficientFunds) ||
+		errors.Is(err, repository.ErrInvestorExposureExceeded)
+}
+
+// allocationRun is the funding records one allocation attempt wrote. Voiding
+// them gives back exactly what the attempt reserved: an investor tranche
+// holds its reservation exactly while it is active.
 type allocationRun struct {
-	reserved []reservation
-	written  writtenRecords
+	fundings []*models.LoanFunding
 }
 
 // persistAllocations creates the LoanFunding and FundingTranche records for
@@ -286,6 +452,23 @@ func (b *fundingAllocationBusiness) persistAllocations(
 ) ([]Allocation, allocationRun, error) {
 	allocations := make([]Allocation, 0, len(result.Allocations))
 	var run allocationRun
+	// Compensating writes only: giving back what this run reserved must
+	// finish even if the caller goes away (see SourceForRequest).
+	cleanupCtx := context.WithoutCancel(ctx)
+	fail := func(err error) ([]Allocation, allocationRun, error) {
+		// A partially reserved loan is not a funded loan: give back what
+		// this run reserved and void what it wrote before failing.
+		if _, _, voidErr := b.voidActiveFundings(cleanupCtx, run.fundings); voidErr != nil {
+			util.Log(ctx).WithError(voidErr).
+				Error("could not give back a failed allocation; capital stays reserved until reviewed")
+			// The original error is kept as text only (never wrapped): a run
+			// that could not be given back is not a reserve conflict to
+			// retry on top of.
+			return nil, allocationRun{}, fmt.Errorf("%w: %s (give back: %w)",
+				errAllocationNotGivenBack, err.Error(), voidErr)
+		}
+		return nil, allocationRun{}, err
+	}
 	for _, alloc := range result.Allocations {
 		if !alloc.Amount.IsPositive() {
 			continue
@@ -298,30 +481,26 @@ func (b *fundingAllocationBusiness) persistAllocations(
 		// Written synchronously: a record a later run or a rollback acts on
 		// must exist by the time this call returns.
 		if createErr := b.lfRepo.Create(ctx, funding); createErr != nil {
-			b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
-			b.voidRecords(ctx, util.Log(ctx), run.written)
-			return nil, allocationRun{}, fmt.Errorf("persist loan funding: %w", createErr)
+			return fail(fmt.Errorf("persist loan funding: %w", createErr))
 		}
-		run.written.fundings = append(run.written.fundings, funding)
+		run.fundings = append(run.fundings, funding)
 
 		investorAccountID := investorAccountIDForAlloc(alloc)
 		tranche := buildFundingTrancheRecord(ctx, funding.GetID(), investorAccountID, alloc, allocAmount, currency)
-		if createErr := b.ftRepo.Create(ctx, tranche); createErr != nil {
-			b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
-			b.voidRecords(ctx, util.Log(ctx), run.written)
-			return nil, allocationRun{}, fmt.Errorf("persist funding tranche: %w", createErr)
+		if investorAccountID != "" {
+			// Pending until its capital is reserved: the reservation and the
+			// tranche turning active are one transaction, so whoever voids an
+			// unfinished allocation gives back exactly what was reserved.
+			tranche.State = int32(constants.StateJustCreated)
 		}
-		run.written.tranches = append(run.written.tranches, tranche)
+		if createErr := b.ftRepo.Create(ctx, tranche); createErr != nil {
+			return fail(fmt.Errorf("persist funding tranche: %w", createErr))
+		}
 
 		if investorAccountID != "" {
-			if resErr := b.reserveInvestorBalance(ctx, investorAccountID, allocAmount); resErr != nil {
-				// A partially reserved loan is not a funded loan: give back
-				// what this run reserved and void what it wrote before failing.
-				b.rollbackReservations(ctx, util.Log(ctx), run.reserved)
-				b.voidRecords(ctx, util.Log(ctx), run.written)
-				return nil, allocationRun{}, resErr
+			if resErr := b.ftRepo.ReserveAndActivate(ctx, tranche); resErr != nil {
+				return fail(fmt.Errorf("reserve investor balance: %w", resErr))
 			}
-			run.reserved = append(run.reserved, reservation{investorAccountID: investorAccountID, amount: allocAmount})
 		}
 
 		allocations = append(allocations, Allocation{
@@ -841,21 +1020,6 @@ func appendInvestorSources(
 	return sources
 }
 
-// reserveInvestorBalance atomically increments the reserved balance on an
-// investor account using a SQL-level guard that prevents concurrent
-// over-commitment. Replaces the prior read-modify-write pattern.
-func (b *fundingAllocationBusiness) reserveInvestorBalance(
-	ctx context.Context,
-	investorAccountID string,
-	amount int64,
-) error {
-	_, err := b.iaRepo.AtomicReserve(ctx, investorAccountID, amount)
-	if err != nil {
-		return fmt.Errorf("reserve investor balance: %w", err)
-	}
-	return nil
-}
-
 func fundingSourceOwnerType(sourceType int32) string {
 	switch models.FundingSource(sourceType) {
 	case models.FundingSourceGroupSavings, models.FundingSourceGroupIncome:
@@ -887,39 +1051,53 @@ func (b *fundingAllocationBusiness) ReleaseForRequest(
 	if err != nil {
 		return 0, "", fmt.Errorf("load loan funding: %w", err)
 	}
-	var released int64
-	currency := ""
-	for _, funding := range fundings {
-		if funding.State != int32(constants.StateActive) {
-			continue
-		}
-		won, voidErr := b.lfRepo.VoidIfActive(ctx, funding.GetID())
-		if voidErr != nil {
-			return released, currency, fmt.Errorf("void loan funding %s: %w", funding.GetID(), voidErr)
-		}
-		if !won {
-			continue
-		}
-		currency = funding.Currency
-		tranches, trErr := b.ftRepo.GetByLoanFundingID(ctx, funding.GetID())
-		if trErr != nil {
-			return released, currency, fmt.Errorf("load tranches of %s: %w", funding.GetID(), trErr)
-		}
-		var reserved []reservation
-		for _, t := range tranches {
-			if t.InvestorAccountID != "" && t.State == int32(constants.StateActive) {
-				reserved = append(reserved, reservation{investorAccountID: t.InvestorAccountID, amount: t.Amount})
-			}
-		}
-		b.rollbackReservations(ctx, logger, reserved)
-		b.voidRecords(ctx, logger, writtenRecords{tranches: tranches})
-		released += funding.Amount
+	released, currency, err := b.voidActiveFundings(ctx, fundings)
+	if err != nil {
+		return released, currency, err
 	}
 	if releaseErr := b.claimRepo.Release(ctx, loanRequestID); releaseErr != nil {
 		logger.WithError(releaseErr).Error("could not release the allocation lock")
 	}
 	if released > 0 {
 		logger.WithField("released", released).Info("funding released for a cancelled loan")
+	}
+	return released, currency, nil
+}
+
+// voidActiveFundings voids each active funding record and gives back the
+// capital its reserved tranches hold, each funding in one transaction. A
+// funding someone else voided first is skipped, so a repeated or concurrent
+// void returns each reservation once, and a crash part way leaves every
+// funding either fully voided and released or untouched. It returns the
+// amount of funding voided and its currency.
+func (b *fundingAllocationBusiness) voidActiveFundings(
+	ctx context.Context,
+	fundings []*models.LoanFunding,
+) (int64, string, error) {
+	var released int64
+	currency := ""
+	for _, funding := range fundings {
+		if funding.State != int32(constants.StateActive) {
+			continue
+		}
+		won, unreleased, err := b.lfRepo.VoidAndRelease(ctx, funding.GetID())
+		if err != nil {
+			return released, currency, fmt.Errorf("void loan funding %s: %w", funding.GetID(), err)
+		}
+		if !won {
+			continue
+		}
+		for _, trancheID := range unreleased {
+			// Voided and flagged rather than blocking the rest: the account no
+			// longer holds what the tranche recorded as reserved.
+			util.Log(ctx).WithFields(map[string]any{
+				"loan_funding_id":    funding.GetID(),
+				"funding_tranche_id": trancheID,
+			}).Error("funding tranche voided without its reservation; investor account needs reconciliation")
+		}
+		funding.State = int32(constants.StateInactive)
+		currency = funding.Currency
+		released += funding.Amount
 	}
 	return released, currency, nil
 }

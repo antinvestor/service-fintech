@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 
+	"github.com/antinvestor/service-fintech/apps/savings/service/models"
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 )
@@ -38,6 +40,9 @@ const (
 	// accrualRetryAfter is how long an account whose accrual failed waits
 	// before a run tries it again, so it never blocks the rest.
 	accrualRetryAfter = 10 * time.Minute
+	// maxAccrualDaysPerRun bounds how many missed days one run settles for
+	// one account; an account further behind catches up over later runs.
+	maxAccrualDaysPerRun = 31
 )
 
 var (
@@ -85,34 +90,80 @@ func (j *SavingsJobs) Run(ctx context.Context, job savingsv1.SavingsJob, batch i
 	return 0, false, ErrUnknownJob
 }
 
-// accrueInterest settles the most recently closed day's interest on active
-// accounts not yet settled through it. An account is settled whether it
-// accrued or had nothing to accrue; one that failed is tried again after a
-// pause. Accrue is idempotent per account and day, so overlapping runs
-// credit interest once.
+// accrueInterest settles interest on active accounts not yet settled through
+// the most recently closed day: each day from where the account was last
+// settled (or the day it was opened) up to that one, one period per day, at
+// most maxAccrualDaysPerRun days per account per run. A day is settled
+// whether it accrued or had nothing to accrue; a day that failed stops the
+// account there and is tried again after a pause. Accrue is idempotent per
+// account and day, so overlapping runs credit each day once.
 func (j *SavingsJobs) accrueInterest(ctx context.Context, batch int, now time.Time) (int, bool, error) {
 	periodEnd := now.Truncate(accrualPeriod)
-	periodStart := periodEnd.Add(-accrualPeriod)
 	listCtx := security.SkipTenancyChecksOnClaims(ctx)
 
 	accounts, err := j.accounts.ListDueForInterest(listCtx, periodEnd, now.Add(-accrualRetryAfter), batch)
 	if err != nil {
 		return 0, false, fmt.Errorf("accounts due for interest: %w", err)
 	}
+	more := len(accounts) == batch
 	for _, sa := range accounts {
 		actCtx := j.actIn(ctx, &sa.BaseModel)
-		_, accrueErr := j.interest.Accrue(actCtx, sa.GetID(), periodStart, periodEnd)
-		settled := accrueErr == nil || isAccrualSkip(accrueErr)
-		if !settled {
-			util.Log(ctx).WithError(accrueErr).WithField(fieldSavingsAccountID, sa.GetID()).
-				Warn("interest accrual failed; a later run retries")
+		through, caughtUp := j.accrueMissedDays(actCtx, sa, periodEnd)
+		if !caughtUp {
+			more = true
 		}
-		if markErr := j.accounts.MarkInterestChecked(actCtx, sa.GetID(), periodEnd, settled); markErr != nil {
+		// An account opened since the last closed day has no day to settle
+		// yet: it is settled through that day.
+		settled := through != nil || caughtUp
+		mark := periodEnd
+		if through != nil {
+			mark = *through
+		}
+		if markErr := j.accounts.MarkInterestChecked(actCtx, sa.GetID(), mark, settled); markErr != nil {
 			util.Log(ctx).WithError(markErr).WithField(fieldSavingsAccountID, sa.GetID()).
 				Warn("could not record the interest run on the account")
 		}
 	}
-	return len(accounts), len(accounts) == batch, nil
+	return len(accounts), more, nil
+}
+
+// accrueMissedDays accrues the account's unsettled days up to periodEnd and
+// returns the end of the last day it settled (nil when none) and whether it
+// reached periodEnd.
+func (j *SavingsJobs) accrueMissedDays(
+	ctx context.Context,
+	sa *models.SavingsAccount,
+	periodEnd time.Time,
+) (*time.Time, bool) {
+	dayStart := sa.CreatedAt.UTC().Truncate(accrualPeriod)
+	if sa.InterestAccruedThrough != nil {
+		dayStart = sa.InterestAccruedThrough.UTC().Truncate(accrualPeriod)
+	}
+	var through *time.Time
+	for range maxAccrualDaysPerRun {
+		dayEnd := dayStart.Add(accrualPeriod)
+		if dayEnd.After(periodEnd) {
+			return through, true
+		}
+		_, accrueErr := j.interest.Accrue(ctx, sa.GetID(), dayStart, dayEnd)
+		if errors.Is(accrueErr, ErrBalanceHistoryUnreliable) {
+			// Not settled: the account stops here, its cursor unmoved, for
+			// an operator to reconcile; later runs try the day again.
+			util.Log(ctx).WithError(accrueErr).WithField(fieldSavingsAccountID, sa.GetID()).
+				WithField("period_end", dayEnd).
+				Error("interest for the day not accrued: its closing balance cannot be reconstructed")
+			return through, false
+		}
+		if accrueErr != nil && !isAccrualSkip(accrueErr) {
+			util.Log(ctx).WithError(accrueErr).WithField(fieldSavingsAccountID, sa.GetID()).
+				WithField("period_end", dayEnd).Warn("interest accrual failed; a later run retries")
+			return through, false
+		}
+		settledDay := dayEnd
+		through = &settledDay
+		dayStart = dayEnd
+	}
+	return through, !dayStart.Before(periodEnd)
 }
 
 // actIn is ctx as this service acting inside the item's partition.

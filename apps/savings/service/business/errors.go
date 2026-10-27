@@ -41,7 +41,11 @@ var (
 	ErrProductRateZero         = apperrors.NewError(apperrors.Unprocessable, "product interest rate is zero")
 	ErrBalanceZero             = apperrors.NewError(apperrors.Unprocessable, "savings account balance is zero")
 	ErrAccrualAmountZero       = apperrors.NewError(apperrors.Unprocessable, "computed accrual amount is zero")
-	ErrBalanceNotProvisioned   = apperrors.NewError(
+	// ErrBalanceHistoryUnreliable is returned for a period whose closing
+	// balance cannot be reconstructed from the account's movements.
+	ErrBalanceHistoryUnreliable = apperrors.NewError(apperrors.Unprocessable,
+		"the balance at the period end cannot be reconstructed")
+	ErrBalanceNotProvisioned = apperrors.NewError(
 		apperrors.Unprocessable, "savings account has no balance record")
 
 	ErrIdempotencyKeyRequired = apperrors.NewError(apperrors.BadRequest, "idempotency_key is required")

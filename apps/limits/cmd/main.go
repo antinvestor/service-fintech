@@ -227,7 +227,7 @@ func main() {
 	approvalReaper := business.NewApprovalReaper(
 		approvalRepo, reservationRepo, auditing, reaperBatchSize, evtsMan, business.WithReaperPool(dbPool),
 	)
-	limitsJobs := business.NewLimitsJobs(resvReaper, approvalReaper, dbPool)
+	limitsJobs := business.NewLimitsJobs(resvReaper, approvalReaper)
 
 	adminH := handlers.NewAdminService(policyBiz, approvalBiz, ledgerSearchBiz, auditSearchBiz).
 		WithJobs(limitsJobs)

@@ -64,8 +64,12 @@ func (b *paymentRoutingBusiness) identifyBorrowerLoan(
 		return nil, errBorrowerLoanAmbiguous
 	}
 	if paymentRef != "" {
-		if loan, err := b.repayableLoan(ctx, paymentRef); err == nil && loan.GetProductId() == productID {
+		loan, err := b.repayableLoan(ctx, paymentRef)
+		if err == nil && loan.GetProductId() == productID {
 			return b.borrowerLoanResult(ctx, loan)
+		}
+		if isTransientLookupError(err) {
+			return nil, err
 		}
 	}
 	if payerRef == "" {
@@ -130,8 +134,12 @@ func (b *paymentRoutingBusiness) clientForContact(ctx context.Context, payerRef 
 	if b.clients.LenderIdentity == nil {
 		return "", errBorrowerLoanAmbiguous
 	}
-	if clientID, err := b.clientForProfile(ctx, payerRef); err == nil {
+	clientID, err := b.clientForProfile(ctx, payerRef)
+	if err == nil {
 		return clientID, nil
+	}
+	if isTransientLookupError(err) {
+		return "", err
 	}
 	if b.clients.ProfileClient == nil {
 		return "", errBorrowerLoanAmbiguous

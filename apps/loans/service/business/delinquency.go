@@ -54,6 +54,13 @@ type DelinquencyScanner struct {
 	loanBalanceRepo repository.LoanBalanceRepository
 	notifier        *LoanNotifier
 	agentProfiles   AgentProfileResolver
+	// subject is this service's own identity, under which each loan is
+	// assessed inside its partition.
+	subject string
+	// timeBudget bounds how long one run assesses before it stops and
+	// reports more work; loans it claimed but did not reach are due again
+	// once their short claim lapses.
+	timeBudget time.Duration
 
 	delinquencyDays int // days past due to mark delinquent (default 7)
 	defaultDays     int // days past due to mark default (default 90)
@@ -73,6 +80,14 @@ func WithScannerNotifications(
 		s.notifier = notifier
 		s.agentProfiles = agentProfiles
 		s.loanBalanceRepo = loanBalanceRepo
+	}
+}
+
+// WithScannerSubject names this service's identity, under which each loan
+// is assessed inside its own partition.
+func WithScannerSubject(subject string) ScannerOption {
+	return func(s *DelinquencyScanner) {
+		s.subject = subject
 	}
 }
 
@@ -99,6 +114,7 @@ func NewDelinquencyScanner(
 		loanProductRepo: loanProductRepo,
 		delinquencyDays: delinquencyDays,
 		defaultDays:     defaultDays,
+		timeBudget:      jobTimeBudget,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -119,11 +135,30 @@ func (s *DelinquencyScanner) RunBatch(ctx context.Context, batch int) (int, bool
 	}
 	logger := util.Log(ctx).WithField("job", "delinquency_scan")
 	now := time.Now().UTC()
-	for _, la := range loans {
+	deadline := now.Add(s.timeBudget)
+	for i, la := range loans {
 		if ctx.Err() != nil {
-			return 0, true, ctx.Err()
+			return i, true, ctx.Err()
 		}
-		s.assess(ctx, logger, la, now)
+		if time.Now().After(deadline) {
+			// The rest stay claimed briefly and are due again after that.
+			logger.WithField("assessed", i).WithField("claimed", len(loans)).
+				Info("delinquency scan out of time; the rest go to the next run")
+			return i, true, nil
+		}
+		// Assessed as this service inside the loan's partition: the penalties
+		// and transitions it records belong to the loan's tenancy.
+		s.assess(actInLoan(ctx, s.subject, la), logger, la, now)
+		if la.NextAssessmentAt != nil {
+			if schedErr := s.loanAccountRepo.ScheduleNextAssessment(
+				ctx,
+				la.GetID(),
+				*la.NextAssessmentAt,
+			); schedErr != nil {
+				logger.WithError(schedErr).WithField("loan_id", la.GetID()).
+					Warn("could not schedule the next assessment; the loan is assessed again soon")
+			}
+		}
 	}
 	return len(loans), len(loans) == batch, nil
 }

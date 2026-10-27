@@ -395,3 +395,37 @@ func TestSettleJobHoldsAnObligationOrderUntilItsSuspenseIsFunded(t *testing.T) {
 		}
 	}
 }
+
+// A suspense application that paid an obligation and stopped before
+// recording the payment's new remainder leaves the old remainder behind. The
+// next application spends only what was not paid, never the old remainder
+// again.
+func TestSuspenseRerunAfterALostOutcomeSpendsNothingTwice(t *testing.T) {
+	t.Parallel()
+	f := newGroupFixture()
+	ctx := internalContext()
+
+	early := f.memberPayment("txn-lost", "m1", 1500)
+	_, err := f.routing.AllocatePayment(ctx, early.GetID())
+	require.NoError(t, err)
+	_, err = f.business.RaiseGroupObligations(ctx, groupRaise(member("m1", 1000)))
+	require.NoError(t, err)
+
+	// The run that paid the 1000 lost its outcome: the payment still shows
+	// all 1500 in suspense.
+	stored, _ := f.payments.GetByID(ctx, early.GetID())
+	require.EqualValues(t, 500, paymentRemainder(stored))
+	stored.Properties[fieldRemainingAmount] = float64(1500)
+	stored.State = int32(constants.StateCheckCreated)
+	f.payments.store(stored)
+
+	next := groupRaise(member("m1", 1000))
+	next.PeriodID = "period-2"
+	standing, err := f.business.RaiseGroupObligations(ctx, next)
+	require.NoError(t, err)
+	assert.EqualValues(t, 500, standing.Members[0].Paid, "only the 500 the first obligation left is applied")
+	assert.EqualValues(t, 500, standing.Members[0].Outstanding)
+
+	stored, _ = f.payments.GetByID(ctx, early.GetID())
+	assert.EqualValues(t, 0, paymentRemainder(stored))
+}

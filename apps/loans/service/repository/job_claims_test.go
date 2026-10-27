@@ -15,6 +15,7 @@
 package repository_test
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -67,7 +68,7 @@ func (s *migrateSuite) TestAssessmentClaimsAreDisjointAndDaily() {
 
 	again, err := loans.ClaimForAssessment(e.ctx, 10)
 	s.Require().NoError(err)
-	s.Empty(again, "nothing is due again within the day")
+	s.Empty(again, "nothing is due again while it is claimed")
 
 	var one string
 	for id := range seen {
@@ -87,16 +88,58 @@ func (s *migrateSuite) TestRepaymentLockIsExclusive() {
 	loans := repository.NewLoanAccountRepository(e.ctx, e.dbPool, nil)
 	la := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_ACTIVE)
 
-	first, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
+	lease, first, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
 	s.Require().NoError(err)
 	s.True(first)
-	second, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
+	_, second, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
 	s.Require().NoError(err)
 	s.False(second)
-	s.Require().NoError(loans.ReleaseRepaymentLock(e.ctx, la.GetID()))
-	third, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
+	s.Require().NoError(loans.ReleaseRepaymentLock(e.ctx, la.GetID(), lease))
+	_, third, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
 	s.Require().NoError(err)
 	s.True(third)
+}
+
+// A holder that outlived its lease cannot release the lease of the
+// repayment that took the loan over.
+func (s *migrateSuite) TestRepaymentLockReleaseIsOwnerChecked() {
+	e := s.newEnv()
+	loans := repository.NewLoanAccountRepository(e.ctx, e.dbPool, nil)
+	la := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_ACTIVE)
+
+	stale, claimed, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
+	s.Require().NoError(err)
+	s.Require().True(claimed)
+
+	// The first holder's lease lapses and another repayment takes the loan.
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE loan_accounts SET repayment_locked_at = now() - interval '1 hour' WHERE id = ?`, la.GetID()).Error)
+	_, takenOver, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
+	s.Require().NoError(err)
+	s.Require().True(takenOver)
+
+	s.Require().NoError(loans.ReleaseRepaymentLock(e.ctx, la.GetID(), stale))
+	_, again, err := loans.ClaimRepaymentLock(e.ctx, la.GetID())
+	s.Require().NoError(err)
+	s.False(again, "the stale holder's release must leave the new holder's lease in place")
+}
+
+// Repayments recorded but not applied are listed for the loan, oldest first.
+func (s *migrateSuite) TestListUnappliedRepayments() {
+	e := s.newEnv()
+	la := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_ACTIVE)
+	repayments := repository.NewRepaymentRepository(e.ctx, e.dbPool, nil)
+	now := time.Now().UTC()
+	for i, applied := range []*time.Time{&now, nil} {
+		r := &models.Repayment{LoanAccountID: la.GetID(), Amount: 100, CurrencyCode: "KES",
+			IdempotencyKey: fmt.Sprintf("u-%d", i), AppliedAt: applied, Properties: data.JSONMap{}}
+		r.GenID(e.ctx)
+		s.Require().NoError(repayments.Create(e.ctx, r))
+	}
+	pending, err := repayments.ListUnapplied(e.ctx, la.GetID(), 10)
+	s.Require().NoError(err)
+	s.Require().Len(pending, 1)
+	s.Equal("u-1", pending[0].IdempotencyKey)
 }
 
 // Applying a repayment moves its installments and the balance by deltas,
@@ -310,4 +353,37 @@ func (s *migrateSuite) TestPaidOffNoticesAreClaimedUntilNoticed() {
 	s.Require().NoError(err)
 	s.Require().Len(retried, 1, "only the unnoticed loan is retried once its lease lapses")
 	s.Equal(old2.GetID(), retried[0].GetID())
+}
+
+// A loan is claimed for assessment briefly; only the run that assessed it
+// schedules it a day ahead, and only while its claim is still the loan's.
+func (s *migrateSuite) TestAssessmentClaimIsShortUntilAssessed() {
+	e := s.newEnv()
+	loans := repository.NewLoanAccountRepository(e.ctx, e.dbPool, nil)
+	la := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_ACTIVE)
+
+	claimed, err := loans.ClaimForAssessment(e.ctx, 10)
+	s.Require().NoError(err)
+	s.Require().Len(claimed, 1)
+	lease := claimed[0].NextAssessmentAt
+	s.Require().NotNil(lease)
+	s.WithinDuration(time.Now().Add(15*time.Minute), *lease, time.Minute, "a short claim, not a day")
+
+	// Not reached by its run: due again once the claim lapses.
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE loan_accounts SET next_assessment_at = now() - interval '1 second' WHERE id = ?`, la.GetID()).Error)
+	again, err := loans.ClaimForAssessment(e.ctx, 10)
+	s.Require().NoError(err)
+	s.Require().Len(again, 1)
+
+	// A stale claim does not reschedule; the live one does.
+	s.Require().NoError(loans.ScheduleNextAssessment(e.ctx, la.GetID(), *lease))
+	stored, err := loans.GetByID(e.ctx, la.GetID())
+	s.Require().NoError(err)
+	s.WithinDuration(*again[0].NextAssessmentAt, *stored.NextAssessmentAt, time.Second)
+
+	s.Require().NoError(loans.ScheduleNextAssessment(e.ctx, la.GetID(), *again[0].NextAssessmentAt))
+	stored, err = loans.GetByID(e.ctx, la.GetID())
+	s.Require().NoError(err)
+	s.WithinDuration(time.Now().Add(24*time.Hour), *stored.NextAssessmentAt, time.Minute)
 }

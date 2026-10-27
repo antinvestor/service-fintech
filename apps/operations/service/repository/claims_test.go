@@ -64,6 +64,7 @@ type claimsEnv struct {
 	orders   repository.TransferOrderRepository
 	payments repository.IncomingPaymentRepository
 	obs      repository.ObligationRepository
+	dbPool   pool.Pool
 }
 
 func (s *claimsSuite) newEnv() *claimsEnv {
@@ -105,6 +106,7 @@ func (s *claimsSuite) newEnv() *claimsEnv {
 		orders:   repository.NewTransferOrderRepository(ctx, dbPool, workMan),
 		payments: repository.NewIncomingPaymentRepository(ctx, dbPool, workMan),
 		obs:      repository.NewObligationRepository(ctx, dbPool, workMan),
+		dbPool:   dbPool,
 	}
 }
 

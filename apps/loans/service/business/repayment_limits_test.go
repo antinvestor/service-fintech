@@ -37,6 +37,7 @@ import (
 	moneyx "github.com/pitabwire/util/moneyx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	loansmodels "github.com/antinvestor/service-fintech/apps/loans/service/models"
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
@@ -122,6 +123,14 @@ func (r *stubRepaymentRepo) ListByLoanAccountID(
 	return nil, nil
 }
 
+func (r *stubRepaymentRepo) ListUnapplied(
+	_ context.Context,
+	_ string,
+	_ int,
+) ([]*loansmodels.Repayment, error) {
+	return nil, nil
+}
+
 var _ repository.RepaymentRepository = (*stubRepaymentRepo)(nil)
 var _ datastore.BaseRepository[*loansmodels.Repayment] = (*stubRepaymentRepo)(nil)
 
@@ -182,7 +191,7 @@ func (r *stubRepaymentScheduleRepo) GetActivByLoanAccountID(
 	_ context.Context,
 	_ string,
 ) (*loansmodels.RepaymentSchedule, error) {
-	return nil, errors.New("stub: not found")
+	return nil, gorm.ErrRecordNotFound
 }
 func (r *stubRepaymentScheduleRepo) Search(
 	_ context.Context,

@@ -41,6 +41,29 @@ var ErrInvestorAccountNotFound = errors.New("investor account not found")
 // available balance (available - reserved) is below the requested amount.
 var ErrInvestorInsufficientFunds = errors.New("investor account insufficient available balance")
 
+// ErrInvestorExposureExceeded is returned by a reservation that would take
+// the investor's outstanding (reserved) capital past their max_exposure.
+var ErrInvestorExposureExceeded = errors.New("investor account exposure limit reached")
+
+// maxEligibleInvestors bounds how many investor accounts one allocation
+// considers: the best-rotated ones come first, and a loan rarely needs more
+// than a handful of them.
+const maxEligibleInvestors = 200
+
+// reserveWithinLimits is the condition a reservation of ? must meet: the
+// account has the free capital, and its outstanding capital stays within its
+// exposure limit (0 = unlimited). Arguments: amount, amount.
+const reserveWithinLimits = "(available_balance - reserved_balance) >= ? " +
+	"AND (max_exposure = 0 OR reserved_balance + ? <= max_exposure)"
+
+// reserveRefusal tells why a reservation of amount on account was refused.
+func reserveRefusal(account *models.InvestorAccount, amount int64) error {
+	if account.MaxExposure > 0 && account.ReservedBalance+amount > account.MaxExposure {
+		return ErrInvestorExposureExceeded
+	}
+	return ErrInvestorInsufficientFunds
+}
+
 // sanitizeJSONKey removes any characters that could break JSON structure,
 // allowing only alphanumeric characters, hyphens, and underscores.
 func sanitizeJSONKey(s string) string {
@@ -181,7 +204,8 @@ func (r *investorAccountRepository) GetEligibleForLoan(
 		Where("currency = ?", currency).
 		Where("state = ?", stateActive).
 		Where("min_interest_rate = 0 OR min_interest_rate <= ?", interestRate).
-		Where("max_exposure = 0 OR (reserved_balance + ?) <= max_exposure", amount)
+		Where("max_exposure = 0 OR (reserved_balance + ?) <= max_exposure", amount).
+		Where("available_balance > reserved_balance")
 
 	if productType != "" {
 		db = db.Where(
@@ -201,6 +225,7 @@ func (r *investorAccountRepository) GetEligibleForLoan(
 	// Utilization = total_deployed / (available_balance + total_deployed).
 	// NULLIF prevents division by zero; COALESCE defaults to 0 for fresh accounts.
 	err := db.Order("COALESCE(total_deployed * 1.0 / NULLIF(available_balance + total_deployed, 0), 0) ASC, last_deployed_at ASC NULLS FIRST, available_balance DESC").
+		Limit(maxEligibleInvestors).
 		Find(&accounts).
 		Error
 	return accounts, err
@@ -220,7 +245,10 @@ func (r *investorAccountRepository) GetAffiliatedForGroup(
 		Where("currency = ?", currency).
 		Where("state = ?", stateActive).
 		Where("min_interest_rate = 0 OR min_interest_rate <= ?", interestRate).
+		Where("available_balance > reserved_balance").
+		Where("max_exposure = 0 OR reserved_balance < max_exposure").
 		Order("COALESCE(total_deployed * 1.0 / NULLIF(available_balance + total_deployed, 0), 0) ASC, last_deployed_at ASC NULLS FIRST, available_balance DESC").
+		Limit(maxEligibleInvestors).
 		Find(&accounts).Error
 	return accounts, err
 }
@@ -325,7 +353,7 @@ func (r *investorAccountRepository) AtomicReserve(
 	now := time.Now().UTC()
 	result := r.Pool().DB(ctx, false).
 		Table("investor_accounts").
-		Where("deleted_at IS NULL AND id = ? AND (available_balance - reserved_balance) >= ?", accountID, amount).
+		Where("deleted_at IS NULL AND id = ? AND "+reserveWithinLimits, accountID, amount, amount).
 		Updates(map[string]any{
 			colReservedBalance: gorm.Expr("reserved_balance + ?", amount),
 			"total_deployed":   gorm.Expr("total_deployed + ?", amount),
@@ -345,7 +373,7 @@ func (r *investorAccountRepository) AtomicReserve(
 			}
 			return nil, lookupErr
 		}
-		return nil, ErrInvestorInsufficientFunds
+		return nil, reserveRefusal(existing, amount)
 	}
 	return r.GetByID(ctx, accountID)
 }

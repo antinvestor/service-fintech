@@ -59,6 +59,9 @@ func (b *paymentRoutingBusiness) identifyInvestorDeposit(
 		return nil, errInvestorNotMatched
 	}
 	acct, err := b.clients.LenderFunding.InvestorAccountGet(ctx, &fundingv1.InvestorAccountGetRequest{Id: paymentRef})
+	if isTransientLookupError(err) {
+		return nil, err
+	}
 	if err != nil || acct.GetData().GetInvestorId() == "" {
 		return nil, errInvestorNotMatched
 	}
@@ -68,11 +71,18 @@ func (b *paymentRoutingBusiness) identifyInvestorDeposit(
 	}
 	investor, err := b.clients.LenderRegistry.InvestorGet(ctx,
 		&identityv1.InvestorGetRequest{Id: acct.GetData().GetInvestorId()})
+	if isTransientLookupError(err) {
+		return nil, err
+	}
 	if err != nil || investor.GetData().GetProfileId() == "" {
 		return nil, errInvestorNotMatched
 	}
 	profileID := investor.GetData().GetProfileId()
-	if !b.payerIsProfile(ctx, payerRef, profileID) {
+	isPayer, err := b.payerIsProfile(ctx, payerRef, profileID)
+	if err != nil {
+		return nil, err
+	}
+	if !isPayer {
 		return nil, errInvestorNotMatched
 	}
 	return &identificationResult{
@@ -85,16 +95,20 @@ func (b *paymentRoutingBusiness) identifyInvestorDeposit(
 
 // payerIsProfile reports whether the payer reference names profileID: the
 // rail names payers by profile id; a notifier may name them by contact,
-// which the profile service resolves.
-func (b *paymentRoutingBusiness) payerIsProfile(ctx context.Context, payerRef, profileID string) bool {
+// which the profile service resolves. A lookup that failed in transport is
+// returned as an error rather than as "not the payer".
+func (b *paymentRoutingBusiness) payerIsProfile(ctx context.Context, payerRef, profileID string) (bool, error) {
 	if payerRef == profileID {
-		return true
+		return true, nil
 	}
 	if b.clients.ProfileClient == nil {
-		return false
+		return false, nil
 	}
 	found, err := b.clients.ProfileClient.GetByContact(ctx, &profilev1.GetByContactRequest{Contact: payerRef})
-	return err == nil && found.GetData().GetId() == profileID
+	if isTransientLookupError(err) {
+		return false, err
+	}
+	return err == nil && found.GetData().GetId() == profileID, nil
 }
 
 // isInvestorDepositPayment reports whether a payment was matched to an

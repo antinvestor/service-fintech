@@ -156,12 +156,32 @@ const (
 // an allocation for a request; every concurrent or retried call reads back
 // the allocation that the winner persisted rather than reserving investor
 // capital a second time.
+//
+// Status is LoanFundingClaimAllocating while an allocation is being built,
+// LoanFundingClaimAbandoning while a failed one is being given back, and
+// LoanFundingClaimComplete once it is built. ClaimedAt leases an allocating
+// claim to the call building it: a call that finds the lease lapsed voids the
+// partial allocation the holder left and builds it afresh.
 type LoanFundingClaim struct {
 	data.BaseModel
 	LoanRequestID string `gorm:"type:varchar(50);index:idx_lfclaim_request;not null"`
 	Status        int32
+	ClaimedAt     *time.Time
 	Properties    data.JSONMap
 }
+
+// Allocation claim statuses.
+const (
+	// LoanFundingClaimAllocating is a claim whose allocation is being built.
+	LoanFundingClaimAllocating int32 = 1
+	// LoanFundingClaimAbandoning is a claim whose holder is giving its
+	// allocation back. It is never completed; it is dropped once the
+	// allocation is voided, or taken over like an allocating claim once its
+	// lease lapses.
+	LoanFundingClaimAbandoning int32 = 2
+	// LoanFundingClaimComplete is a claim whose allocation is finished.
+	LoanFundingClaimComplete int32 = 3
+)
 
 func (m *LoanFundingClaim) TableName() string { return "loan_funding_claims" }
 
