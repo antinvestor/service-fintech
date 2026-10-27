@@ -46,6 +46,7 @@ import (
 	stawiv1 "github.com/antinvestor/service-fintech/gen/go/stawi/protocolbuffers/go/stawi/v1"
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/dbrole"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
 
 	// Stawi domain (Tenure, Period, Motion, Infraction, LoanWindow, LoanOffer).
@@ -134,6 +135,7 @@ func main() {
 		}
 		return
 	}
+	dbrole.MustVerify(ctx, svc.DatastoreManager())
 
 	sm := svc.SecurityManager()
 
@@ -403,6 +405,7 @@ func registerSetupSteps(svc *frame.Service, cfg *aconfig.StawiConfig) {
 			return stawirepo.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
 	})
+	svc.Setup().RegisterFunc(dbrole.StepName, dbrole.Step(svc.DatastoreManager()))
 	// Groups are set up, periods closed and members reminded only when
 	// trustage fires stawi's schedules, so a deploy that cannot register
 	// them fails rather than ship groups that never move.

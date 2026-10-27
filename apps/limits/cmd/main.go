@@ -50,6 +50,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/dbrole"
 	"github.com/antinvestor/service-fintech/pkg/trustage"
 )
 
@@ -103,6 +104,7 @@ func main() {
 			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
 	})
+	svc.Setup().RegisterFunc(dbrole.StepName, dbrole.Step(svc.DatastoreManager()))
 	// Expired reservations and approvals are reaped only when trustage fires
 	// their schedules, so a deploy that cannot register them fails rather
 	// than ship holds that never lapse.
@@ -124,6 +126,7 @@ func main() {
 		}
 		return
 	}
+	dbrole.MustVerify(ctx, svc.DatastoreManager())
 
 	sm := svc.SecurityManager()
 
