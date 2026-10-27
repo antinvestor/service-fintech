@@ -255,7 +255,11 @@ func transferOrderFromAPI(ctx context.Context, obj *operationsv1.TransferOrderOb
 		OrderType:        transferorder.TypeOf(obj),
 		Reference:        obj.GetReference(),
 		Description:      obj.GetDescription(),
-		State:            int32(obj.GetState()),
+		// The caller's state is not taken: a new order always starts just
+		// created and only Execute moves it. The proto STATE and the stored
+		// state are different enumerations, so copying the number made
+		// STATE_ACTIVE an order already executing and STATE_DELETED one
+		// already completed.
 	}
 	if obj.GetExtraData() != nil {
 		m.ExtraData = (&data.JSONMap{}).FromProtoStruct(obj.GetExtraData())
@@ -280,8 +284,18 @@ func transferOrderToAPI(m *models.TransferOrder) *operationsv1.TransferOrderObje
 		Reference:        m.Reference,
 		Description:      m.Description,
 		ExtraData:        m.ExtraData.ToProtoStruct(),
-		State:            commonv1.STATE(m.State),
+		State:            transferOrderStateToAPI(m.State),
 	}, int(m.OrderType))
+}
+
+// transferOrderStateToAPI maps a stored order state onto the proto STATE:
+// executed (inactive) is STATE_INACTIVE, which callers read as settled; an
+// order closed without settling (shutdown) is STATE_DELETED.
+func transferOrderStateToAPI(state int32) commonv1.STATE {
+	if state == constants.StateShutdown {
+		return commonv1.STATE_DELETED
+	}
+	return paymentStateToAPI(state)
 }
 
 // --- Payment Routing RPCs ---
