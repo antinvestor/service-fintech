@@ -36,9 +36,13 @@ import (
 const StepName = "workflows"
 
 // DefaultURL is where trustage runs in the platform cluster. A secure setup
-// with no TRUSTAGE_URL or TRUSTAGE_SERVICE_URI uses it, so registering the
-// schedules needs no per-service configuration.
+// with no TRUSTAGE_URL or TRUSTAGE_SERVICE_URI uses it, or trustage's path on
+// the platform gateway (OAUTH2_AUDIENCE_BASE_URL) when there is one, so
+// registering the schedules needs no per-service configuration.
 const DefaultURL = "http://service-trustage.trustage.svc:80"
+
+// gatewayPath is trustage's path on the platform gateway.
+const gatewayPath = "/trustage"
 
 // EndpointPlaceholder stands, in a shipped workflow, for the base URL of the
 // service the workflow belongs to. Setup replaces it before registering, so a
@@ -52,12 +56,18 @@ const serviceAccountNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccou
 // unknown.
 const defaultNamespace = "fintech"
 
-// SelfEndpoint is the in-cluster base URL trustage calls this service on:
-// TRUSTAGE_CALLBACK_ENDPOINT when set, else http://<service>.<namespace>.svc:80
-// with the namespace read from the pod.
+// SelfEndpoint is the base URL trustage calls this service on:
+// TRUSTAGE_CALLBACK_ENDPOINT when set; else the service's own OAuth2 resource
+// audience (OAUTH2_RESOURCE_AUDIENCE), which on the platform gateway is the
+// URL the service is served at, e.g. https://api.stawi.org/loans; else, in a
+// cluster, http://<service>.<namespace>.svc:80 with the pod's namespace.
 func SelfEndpoint(service string) string {
 	if override := strings.TrimSpace(os.Getenv("TRUSTAGE_CALLBACK_ENDPOINT")); override != "" {
 		return strings.TrimRight(override, "/")
+	}
+	if audience := strings.TrimSpace(os.Getenv("OAUTH2_RESOURCE_AUDIENCE")); strings.HasPrefix(audience, "https://") ||
+		strings.HasPrefix(audience, "http://") {
+		return strings.TrimRight(audience, "/")
 	}
 	namespace := defaultNamespace
 	if raw, err := os.ReadFile(serviceAccountNamespaceFile); err == nil && strings.TrimSpace(string(raw)) != "" {
@@ -84,6 +94,9 @@ func SyncWorkflows(ctx context.Context, cfg any, service string, required bool) 
 			return nil
 		}
 		trustageURL = DefaultURL
+		if base := strings.TrimRight(strings.TrimSpace(os.Getenv("OAUTH2_AUDIENCE_BASE_URL")), "/"); base != "" {
+			trustageURL = base + gatewayPath
+		}
 	}
 	dir := os.Getenv("TRUSTAGE_WORKFLOWS_DIR")
 	if dir == "" {

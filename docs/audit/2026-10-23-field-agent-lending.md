@@ -1716,3 +1716,21 @@ migrations and notification templates. Trustage's operator route config
 **Deploy.** Release service-trustage #122 before relying on these workflows.
 Limits isn't in the cluster manifests yet; where it runs, its default name is
 `service-limits`.
+
+**Correction 2026-10-27 — production is Cloud Run behind the gateway.** The
+fintech services and trustage run on Cloud Run (`stawi.org/cloud.deployment`)
+and reach each other at `https://api.stawi.org/<path>`, not in-cluster hosts,
+so the defaults above would have pointed every workflow at nothing.
+
+- *service-trustage* (PR #123): `endpoint` may carry a plain path prefix
+  (`https://api.stawi.org/loans`); only unreserved segments are accepted, so
+  nothing decoded from it becomes a query or fragment. Production sets
+  `TRUSTAGE_URL_TRUSTED_HOST_SUFFIXES=.svc,.svc.cluster.local,api.stawi.org`.
+- *`SelfEndpoint`* falls back to the service's `OAUTH2_RESOURCE_AUDIENCE`, which
+  the Cloud Run module sets to the gateway URL the service is served at; the
+  pod namespace is used only when that isn't a URL.
+- *Trustage's address* defaults to `OAUTH2_AUDIENCE_BASE_URL` + `/trustage`
+  when the gateway base is set, else the cluster default.
+- *Audiences*: trustage requests `/operations`, `/savings`, `/limits` and
+  `/stawi`; operations, savings and limits request `/trustage` for their setup
+  Jobs (Hydra already allows them, tenancy migrations `_03`, `_05`, `_08`, `_11`).

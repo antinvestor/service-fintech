@@ -46,12 +46,28 @@ func TestWithEndpointFillsTheServicesOwnAddress(t *testing.T) {
 
 func TestSelfEndpointDefaultsInClusterAndCanBeOverridden(t *testing.T) {
 	t.Setenv("TRUSTAGE_CALLBACK_ENDPOINT", "")
+	t.Setenv("OAUTH2_RESOURCE_AUDIENCE", "")
 	got := SelfEndpoint("service-loans")
 	require.True(t, strings.HasPrefix(got, "http://service-loans."), got)
 	require.True(t, strings.HasSuffix(got, ".svc:80"), got)
 
 	t.Setenv("TRUSTAGE_CALLBACK_ENDPOINT", "http://service-fintech-loans.stawi.svc:80/")
 	require.Equal(t, "http://service-fintech-loans.stawi.svc:80", SelfEndpoint("service-loans"))
+}
+
+// Behind the platform gateway a service is served at its own resource
+// audience, so trustage calls it there.
+func TestSelfEndpointIsTheGatewayAudienceWhenThereIsOne(t *testing.T) {
+	t.Setenv("TRUSTAGE_CALLBACK_ENDPOINT", "")
+	t.Setenv("OAUTH2_RESOURCE_AUDIENCE", "https://api.stawi.org/loans/")
+	require.Equal(t, "https://api.stawi.org/loans", SelfEndpoint("service-loans"))
+
+	t.Setenv("OAUTH2_RESOURCE_AUDIENCE", "service_loans")
+	require.True(t, strings.HasSuffix(SelfEndpoint("service-loans"), ".svc:80"), "a non-URL audience is not an address")
+
+	t.Setenv("TRUSTAGE_CALLBACK_ENDPOINT", "https://api.stawi.org/stawi-loans")
+	t.Setenv("OAUTH2_RESOURCE_AUDIENCE", "https://api.stawi.org/loans")
+	require.Equal(t, "https://api.stawi.org/stawi-loans", SelfEndpoint("service-loans"))
 }
 
 // Every connect.call a service ships names its own endpoint; without it
