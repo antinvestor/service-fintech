@@ -28,7 +28,7 @@ import (
 
 // callerIsStaff reports whether the caller may act across the whole
 // partition: an internal principal, or a holder of a platform role above
-// member (admin, operator, viewer). A field agent holds the member role and
+// member (owner, admin, operator, viewer). A field agent holds the member role and
 // is scoped to the clients they are responsible for.
 func callerIsStaff(ctx context.Context) bool {
 	claims := security.ClaimsFromContext(ctx)
@@ -37,7 +37,7 @@ func callerIsStaff(ctx context.Context) bool {
 	}
 	for _, role := range claims.GetRoles() {
 		switch strings.ToLower(role) {
-		case platformRoleAdmin, platformRoleOperator, platformRoleViewer:
+		case platformRoleOwner, platformRoleAdmin, platformRoleOperator, platformRoleViewer:
 			return true
 		}
 	}

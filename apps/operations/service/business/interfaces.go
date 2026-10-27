@@ -28,12 +28,19 @@ type PaymentRoutingBusiness interface {
 	AllocatePaymentByTransactionID(ctx context.Context, transactionID string) (map[string]interface{}, error)
 	SuspenseBalance(ctx context.Context, membershipID string) (map[string]interface{}, error)
 	ApplySuspense(ctx context.Context, membershipID string, maxAmount int64) (map[string]interface{}, error)
+	SettleMember(ctx context.Context, membershipID string) (int64, error)
 	RecordSuspenseDeposit(ctx context.Context, deposit SuspenseDeposit) (map[string]interface{}, error)
 	ConfirmPayment(ctx context.Context, transactionID string) (map[string]interface{}, error)
 	AssignPayment(
 		ctx context.Context,
-		paymentID, loanID, note string,
+		paymentID, loanID, savingsAccountID, note string,
 	) (*models.IncomingPayment, map[string]interface{}, error)
+}
+
+// OrderExecutor executes a transfer order by id. TransferOrderBusiness is
+// one; payment routing uses it to post the orders an allocation raises.
+type OrderExecutor interface {
+	Execute(ctx context.Context, orderID string) error
 }
 
 // TransferOrderBusiness handles transfer order creation and execution.
@@ -45,10 +52,9 @@ type TransferOrderBusiness interface {
 
 // ObligationBusiness handles financial obligation management.
 type ObligationBusiness interface {
-	CalculateForGroup(ctx context.Context, groupID string) (map[string]interface{}, error)
-	CalculatePenaltiesForPeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
-	ReconcilePeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
-	OutstandingForPeriod(ctx context.Context, periodID string) (map[string]interface{}, error)
+	RaiseGroupObligations(ctx context.Context, req GroupObligationsRaise) (*GroupPeriodStanding, error)
+	CloseGroupPeriod(ctx context.Context, req GroupPeriodClose) (*GroupPeriodStanding, error)
+	GroupMemberSavings(ctx context.Context, req GroupMemberSavingsQuery) ([]MemberSavings, error)
 	CheckForMember(ctx context.Context, membershipID string) (map[string]interface{}, error)
 	CreateLoanObligations(ctx context.Context, loanAccountID string, entries []ScheduleEntryInfo) error
 	GetStatus(ctx context.Context, obligationID string) (map[string]interface{}, error)

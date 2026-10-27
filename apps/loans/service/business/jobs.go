@@ -49,6 +49,7 @@ type LoanJobs struct {
 	settlement  *FundingSettlement
 	requestRepo repository.LoanRequestRepository
 	notifier    *LoanNotifier
+	paidOff     *PaidOffNotices
 }
 
 // NewLoanJobs wires the jobs.
@@ -58,6 +59,7 @@ func NewLoanJobs(
 	settlement *FundingSettlement,
 	requestRepo repository.LoanRequestRepository,
 	notifier *LoanNotifier,
+	paidOff *PaidOffNotices,
 ) *LoanJobs {
 	return &LoanJobs{
 		delinquency: delinquency,
@@ -65,6 +67,7 @@ func NewLoanJobs(
 		settlement:  settlement,
 		requestRepo: requestRepo,
 		notifier:    notifier,
+		paidOff:     paidOff,
 	}
 }
 
@@ -90,6 +93,8 @@ func (j *LoanJobs) Run(ctx context.Context, job loansv1.LoanJob, batch int) (int
 		return j.settlement.RunBatch(ctx, batch)
 	case loansv1.LoanJob_LOAN_JOB_REQUEST_EXPIRY:
 		return j.expireRequests(ctx, batch)
+	case loansv1.LoanJob_LOAN_JOB_PAID_OFF_NOTICES:
+		return j.paidOff.RunBatch(ctx, batch)
 	case loansv1.LoanJob_LOAN_JOB_UNSPECIFIED:
 	}
 	return 0, false, ErrUnknownJob

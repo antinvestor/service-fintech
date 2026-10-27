@@ -64,6 +64,11 @@ type LoanAccount struct {
 	NextAssessmentAt *time.Time `gorm:"default:now()"`
 	// RepaymentLockedAt leases the loan to one repayment at a time.
 	RepaymentLockedAt *time.Time
+	// PaidOffNoticedAt is when downstream products (seed) acknowledged the
+	// loan's pay-off. A paid-off loan without it is noticed again by the
+	// paid-off notices job, leased by PaidOffNoticeClaimedAt.
+	PaidOffNoticedAt       *time.Time
+	PaidOffNoticeClaimedAt *time.Time
 }
 
 func (m *LoanAccount) TableName() string { return "loan_accounts" }
@@ -352,41 +357,45 @@ type LoanProduct struct {
 	ProcessingFeePercent int64 // basis points
 	InsuranceFeePercent  int64 // basis points
 	LatePenaltyRate      int64 // basis points
-	GracePeriodDays      int32
-	FeeStructure         data.JSONMap
-	EligibilityCriteria  data.JSONMap
-	RequiredForms        data.JSONMap // JSON array of ProductFormRequirement
-	State                int32
-	Properties           data.JSONMap
+	// AgentCommissionPercent is the share of repaid interest the serving
+	// agent's team earns, in basis points.
+	AgentCommissionPercent int64
+	GracePeriodDays        int32
+	FeeStructure           data.JSONMap
+	EligibilityCriteria    data.JSONMap
+	RequiredForms          data.JSONMap // JSON array of ProductFormRequirement
+	State                  int32
+	Properties             data.JSONMap
 }
 
 func (m *LoanProduct) TableName() string { return "loan_products" }
 
 func (m *LoanProduct) ToAPI() *loansv1.LoanProductObject {
 	return &loansv1.LoanProductObject{
-		Id:                   m.GetID(),
-		OrganizationId:       m.OrganizationID,
-		Name:                 m.Name,
-		Code:                 m.Code,
-		Description:          m.Description,
-		ProductType:          loansv1.LoanProductType(m.ProductType),
-		CurrencyCode:         m.CurrencyCode,
-		InterestMethod:       loansv1.InterestMethod(m.InterestMethod),
-		RepaymentFrequency:   loansv1.RepaymentFrequency(m.RepaymentFrequency),
-		MinAmount:            MinorUnitsToMoney(m.MinAmount, m.CurrencyCode),
-		MaxAmount:            MinorUnitsToMoney(m.MaxAmount, m.CurrencyCode),
-		MinTermDays:          m.MinTermDays,
-		MaxTermDays:          m.MaxTermDays,
-		AnnualInterestRate:   BasisPointsToString(m.AnnualInterestRate),
-		ProcessingFeePercent: BasisPointsToString(m.ProcessingFeePercent),
-		InsuranceFeePercent:  BasisPointsToString(m.InsuranceFeePercent),
-		LatePenaltyRate:      BasisPointsToString(m.LatePenaltyRate),
-		GracePeriodDays:      m.GracePeriodDays,
-		FeeStructure:         m.FeeStructure.ToProtoStruct(),
-		EligibilityCriteria:  m.EligibilityCriteria.ToProtoStruct(),
-		State:                commonv1.STATE(m.State),
-		Properties:           m.Properties.ToProtoStruct(),
-		RequiredForms:        RequiredFormsToAPI(m.RequiredForms),
+		Id:                     m.GetID(),
+		OrganizationId:         m.OrganizationID,
+		Name:                   m.Name,
+		Code:                   m.Code,
+		Description:            m.Description,
+		ProductType:            loansv1.LoanProductType(m.ProductType),
+		CurrencyCode:           m.CurrencyCode,
+		InterestMethod:         loansv1.InterestMethod(m.InterestMethod),
+		RepaymentFrequency:     loansv1.RepaymentFrequency(m.RepaymentFrequency),
+		MinAmount:              MinorUnitsToMoney(m.MinAmount, m.CurrencyCode),
+		MaxAmount:              MinorUnitsToMoney(m.MaxAmount, m.CurrencyCode),
+		MinTermDays:            m.MinTermDays,
+		MaxTermDays:            m.MaxTermDays,
+		AnnualInterestRate:     BasisPointsToString(m.AnnualInterestRate),
+		ProcessingFeePercent:   BasisPointsToString(m.ProcessingFeePercent),
+		InsuranceFeePercent:    BasisPointsToString(m.InsuranceFeePercent),
+		LatePenaltyRate:        BasisPointsToString(m.LatePenaltyRate),
+		AgentCommissionPercent: BasisPointsToString(m.AgentCommissionPercent),
+		GracePeriodDays:        m.GracePeriodDays,
+		FeeStructure:           m.FeeStructure.ToProtoStruct(),
+		EligibilityCriteria:    m.EligibilityCriteria.ToProtoStruct(),
+		State:                  commonv1.STATE(m.State),
+		Properties:             m.Properties.ToProtoStruct(),
+		RequiredForms:          RequiredFormsToAPI(m.RequiredForms),
 	}
 }
 
@@ -399,25 +408,26 @@ func LoanProductFromAPI(ctx context.Context, obj *loansv1.LoanProductObject) *Lo
 	lpMax, _ := MoneyToMinorUnits(obj.GetMaxAmount())
 
 	model := &LoanProduct{
-		OrganizationID:       obj.GetOrganizationId(),
-		Name:                 obj.GetName(),
-		Code:                 obj.GetCode(),
-		Description:          obj.GetDescription(),
-		ProductType:          int32(obj.GetProductType()),
-		CurrencyCode:         obj.GetCurrencyCode(),
-		InterestMethod:       int32(obj.GetInterestMethod()),
-		RepaymentFrequency:   int32(obj.GetRepaymentFrequency()),
-		MinAmount:            lpMin,
-		MaxAmount:            lpMax,
-		MinTermDays:          obj.GetMinTermDays(),
-		MaxTermDays:          obj.GetMaxTermDays(),
-		AnnualInterestRate:   StringToBasisPoints(obj.GetAnnualInterestRate()),
-		ProcessingFeePercent: StringToBasisPoints(obj.GetProcessingFeePercent()),
-		InsuranceFeePercent:  StringToBasisPoints(obj.GetInsuranceFeePercent()),
-		LatePenaltyRate:      StringToBasisPoints(obj.GetLatePenaltyRate()),
-		GracePeriodDays:      obj.GetGracePeriodDays(),
-		RequiredForms:        RequiredFormsFromAPI(obj.GetRequiredForms()),
-		State:                int32(obj.GetState()),
+		OrganizationID:         obj.GetOrganizationId(),
+		Name:                   obj.GetName(),
+		Code:                   obj.GetCode(),
+		Description:            obj.GetDescription(),
+		ProductType:            int32(obj.GetProductType()),
+		CurrencyCode:           obj.GetCurrencyCode(),
+		InterestMethod:         int32(obj.GetInterestMethod()),
+		RepaymentFrequency:     int32(obj.GetRepaymentFrequency()),
+		MinAmount:              lpMin,
+		MaxAmount:              lpMax,
+		MinTermDays:            obj.GetMinTermDays(),
+		MaxTermDays:            obj.GetMaxTermDays(),
+		AnnualInterestRate:     StringToBasisPoints(obj.GetAnnualInterestRate()),
+		ProcessingFeePercent:   StringToBasisPoints(obj.GetProcessingFeePercent()),
+		InsuranceFeePercent:    StringToBasisPoints(obj.GetInsuranceFeePercent()),
+		LatePenaltyRate:        StringToBasisPoints(obj.GetLatePenaltyRate()),
+		AgentCommissionPercent: StringToBasisPoints(obj.GetAgentCommissionPercent()),
+		GracePeriodDays:        obj.GetGracePeriodDays(),
+		RequiredForms:          RequiredFormsFromAPI(obj.GetRequiredForms()),
+		State:                  int32(obj.GetState()),
 	}
 
 	if obj.GetFeeStructure() != nil {
@@ -847,4 +857,71 @@ func ReconciliationFromAPI(ctx context.Context, obj *loansv1.ReconciliationObjec
 	}
 
 	return model
+}
+
+// ---------------------------------------------------------------------------
+// Team commission
+// ---------------------------------------------------------------------------
+
+// TeamCommission is a team's commission in one currency: what it has earned
+// on interest its borrowers repaid and what has been paid out of it.
+type TeamCommission struct {
+	data.BaseModel
+	TeamID       string `gorm:"type:varchar(50);not null"`
+	CurrencyCode string `gorm:"type:varchar(3);not null"`
+	Accrued      int64
+	PaidOut      int64
+}
+
+func (m *TeamCommission) TableName() string { return "team_commissions" }
+
+func (m *TeamCommission) ToAPI() *loansv1.TeamCommissionObject {
+	return &loansv1.TeamCommissionObject{
+		TeamId:    m.TeamID,
+		Accrued:   MinorUnitsToMoney(m.Accrued, m.CurrencyCode),
+		PaidOut:   MinorUnitsToMoney(m.PaidOut, m.CurrencyCode),
+		Available: MinorUnitsToMoney(m.Accrued-m.PaidOut, m.CurrencyCode),
+	}
+}
+
+// TeamCommissionMovementKind tells an accrual from a payout.
+type TeamCommissionMovementKind int32
+
+const (
+	TeamCommissionAccrual TeamCommissionMovementKind = 1
+	TeamCommissionPayout  TeamCommissionMovementKind = 2
+)
+
+// TeamCommissionMovement is one accrual to, or payout from, a team's
+// commission. Its reference is the idempotency record: an accrual is keyed
+// on the repayment that earned it, a payout on its caller's key.
+type TeamCommissionMovement struct {
+	data.BaseModel
+	TeamID        string `gorm:"type:varchar(50);not null"`
+	CurrencyCode  string `gorm:"type:varchar(3);not null"`
+	Kind          int32
+	Amount        int64
+	Reference     string `gorm:"type:varchar(150);not null"`
+	Status        int32  // loansv1.TeamCommissionPayoutStatus; accruals are COMPLETED
+	MemberID      string `gorm:"type:varchar(50)"`
+	Reason        string `gorm:"type:text"`
+	FailureReason string `gorm:"type:text"`
+	CreatedBy     string `gorm:"type:varchar(50)"`
+	Properties    data.JSONMap
+}
+
+func (m *TeamCommissionMovement) TableName() string { return "team_commission_movements" }
+
+func (m *TeamCommissionMovement) ToPayoutAPI() *loansv1.TeamCommissionPayoutObject {
+	return &loansv1.TeamCommissionPayoutObject{
+		Id:            m.GetID(),
+		TeamId:        m.TeamID,
+		MemberId:      m.MemberID,
+		Amount:        MinorUnitsToMoney(m.Amount, m.CurrencyCode),
+		Status:        loansv1.TeamCommissionPayoutStatus(m.Status),
+		FailureReason: m.FailureReason,
+		Reason:        m.Reason,
+		CreatedBy:     m.CreatedBy,
+		CreatedAt:     TimeToString(&m.CreatedAt),
+	}
 }

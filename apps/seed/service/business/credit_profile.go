@@ -33,6 +33,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
@@ -101,6 +102,17 @@ type CreditProfileBusiness interface {
 		clientID, currencyCode string,
 		status models.CreditProfileStatus,
 		reason string,
+	) (*models.CreditProfile, error)
+
+	// SetTempCap lowers what the client may borrow until expiresAt; with
+	// amount 0 it lifts the cap. See credit_profile_cap.go.
+	SetTempCap(
+		ctx context.Context,
+		clientID, currencyCode string,
+		amount int64,
+		expiresAt time.Time,
+		actor, reason string,
+		byStaff bool,
 	) (*models.CreditProfile, error)
 }
 

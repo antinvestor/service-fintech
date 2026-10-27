@@ -24,6 +24,7 @@ import (
 	fundingv1 "buf.build/gen/go/antinvestor/funding/protocolbuffers/go/funding/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
+	"connectrpc.com/connect/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3"
 	"github.com/pitabwire/frame/v3/datastore"
@@ -44,6 +45,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/funding/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/constants"
+	"github.com/antinvestor/service-fintech/pkg/transferorder"
 )
 
 // countingOperationsClient records every transfer order posted so tests can
@@ -98,6 +100,34 @@ func (c *countingOperationsClient) IncomingPaymentAssign(
 	_ *operationsv1.IncomingPaymentAssignRequest,
 ) (*operationsv1.IncomingPaymentAssignResponse, error) {
 	panic("stub: IncomingPaymentAssign not expected")
+}
+
+func (c *countingOperationsClient) OperationsJobRun(
+	_ context.Context,
+	_ *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	panic("stub: OperationsJobRun not expected")
+}
+
+func (c *countingOperationsClient) GroupObligationsRaise(
+	_ context.Context,
+	_ *operationsv1.GroupObligationsRaiseRequest,
+) (*operationsv1.GroupObligationsRaiseResponse, error) {
+	panic("stub: GroupObligationsRaise not expected")
+}
+
+func (c *countingOperationsClient) GroupPeriodClose(
+	_ context.Context,
+	_ *operationsv1.GroupPeriodCloseRequest,
+) (*operationsv1.GroupPeriodCloseResponse, error) {
+	panic("stub: GroupPeriodClose not expected")
+}
+
+func (c *countingOperationsClient) GroupMemberStanding(
+	_ context.Context,
+	_ *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	panic("stub: GroupMemberStanding not expected")
 }
 
 func (c *countingOperationsClient) snapshot() []*operationsv1.TransferOrderObject {
@@ -206,8 +236,10 @@ func (s *fundingSuite) newEnv() *fundingEnv {
 	s.Require().NoError(dbPool.DB(ctx, false).AutoMigrate(
 		&models.LoanFunding{}, &models.InvestorAccount{}, &models.FundingTranche{},
 		&models.InvestorCapitalMovement{}, &models.LoanFundingClaim{}, &models.LossAbsorption{},
-		&models.RepaymentDistribution{},
+		&models.RepaymentDistribution{}, &models.LossRecovery{},
 	))
+	s.Require().NoError(dbPool.DB(ctx, false).Exec(
+		`CREATE UNIQUE INDEX uq_recovery_reference ON loss_recoveries (reference) WHERE deleted_at IS NULL`).Error)
 	s.Require().NoError(dbPool.DB(ctx, false).Exec(
 		`CREATE UNIQUE INDEX uq_rd_reference ON repayment_distributions (reference) WHERE deleted_at IS NULL`).Error)
 	s.Require().NoError(dbPool.DB(ctx, false).Exec(
@@ -239,7 +271,8 @@ func (s *fundingSuite) newEnv() *fundingEnv {
 		workMan: workMan,
 		iaBiz: business.NewInvestorAccountBusiness(
 			ctx, evtsMan, iaRepo, icmRepo, ops,
-			audit.NewWriter(evtsMan), nil, false, "off", false, "off"),
+			audit.NewWriter(evtsMan), nil, false, "off",
+			business.WithInvestorPayouts(fixedPayout{})),
 	}
 }
 
@@ -343,6 +376,39 @@ func (s *fundingSuite) TestWithdrawIsIdempotentAndGuardsTheBalance() {
 
 	err = e.iaBiz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 5000), "wdr-over")
 	s.Require().Error(err)
+
+	// The withdrawal is a payout to the investor's own verified contact.
+	order := e.ops.snapshot()[0]
+	s.Equal(int32(constants.TransferTypeInvestorWithdrawal), transferorder.TypeOf(order))
+	extra := order.GetExtraData().AsMap()
+	s.Equal("profile-investor", extra["recipient_profile_id"])
+	s.Equal("contact-investor", extra["payment_account_ref"])
+}
+
+// fixedPayout pays every investor to one known profile and contact.
+type fixedPayout struct{ err error }
+
+func (f fixedPayout) InvestorPayout(context.Context, string) (business.InvestorPayout, error) {
+	if f.err != nil {
+		return business.InvestorPayout{}, f.err
+	}
+	return business.InvestorPayout{ProfileID: "profile-investor", ContactID: "contact-investor"}, nil
+}
+
+// A withdrawal with nowhere checked to pay is refused before anything moves.
+func (s *fundingSuite) TestWithdrawWithoutAPayoutContactMovesNothing() {
+	e := s.newEnv()
+	account := e.seedInvestor(s, "KES", 100000)
+	biz := business.NewInvestorAccountBusiness(e.ctx, nil, e.iaRepo, e.icmRepo, e.ops,
+		audit.NewWriter(nil), nil, false, "off",
+		business.WithInvestorPayouts(fixedPayout{err: business.ErrInvestorNoPayoutContact}))
+
+	err := biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-nowhere")
+	s.Require().ErrorIs(err, business.ErrInvestorNoPayoutContact)
+	fresh, getErr := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(getErr)
+	s.Equal(account.AvailableBalance, fresh.AvailableBalance)
+	s.Empty(e.ops.snapshot())
 }
 
 // TestSaveCannotMintCapital is the regression for the balance-write endpoint:
@@ -574,4 +640,79 @@ func (s *fundingSuite) TestEligibleForLoanComparesRatesInBasisPoints() {
 	s.True(ids[exactlyTwelveAndAHalf.GetID()], "a minimum equal to the loan rate is eligible")
 	s.False(ids[fifteenPercent.GetID()], "a 15%% minimum must exclude a 12.50%% loan")
 	s.Len(eligible, 3)
+}
+
+// failingOperations fails each transfer with the next queued error, then
+// succeeds.
+type failingOperations struct {
+	countingOperationsClient
+	errs []error
+}
+
+func (f *failingOperations) TransferOrderExecute(
+	ctx context.Context,
+	req *operationsv1.TransferOrderExecuteRequest,
+) (*operationsv1.TransferOrderExecuteResponse, error) {
+	if len(f.errs) > 0 {
+		err := f.errs[0]
+		f.errs = f.errs[1:]
+		return nil, err
+	}
+	return f.countingOperationsClient.TransferOrderExecute(ctx, req)
+}
+
+// A payout whose outcome is unknown may have paid the investor: the funds
+// stay debited, so they can never be withdrawn twice, and a retry under the
+// same key completes it once. A payout refused outright gives them back.
+func (s *fundingSuite) TestWithdrawKeepsFundsDebitedUntilThePayoutIsKnown() {
+	e := s.newEnv()
+	account := e.seedInvestor(s, "KES", 100000)
+	ops := &failingOperations{errs: []error{connect.NewError(connect.CodeUnavailable, "rail timeout")}}
+	biz := business.NewInvestorAccountBusiness(e.ctx, nil, e.iaRepo, e.icmRepo, ops,
+		audit.NewWriter(nil), nil, false, "off", business.WithInvestorPayouts(fixedPayout{}))
+
+	s.Require().Error(biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-unknown"))
+	held, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(60000), held.AvailableBalance, "an unknown outcome keeps the funds out of reach")
+
+	s.Require().NoError(biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-unknown"))
+	done, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(60000), done.AvailableBalance, "the retry completes the same withdrawal, debiting once")
+
+	refused := &failingOperations{errs: []error{connect.NewError(connect.CodeFailedPrecondition, "rail rejected")}}
+	biz = business.NewInvestorAccountBusiness(e.ctx, nil, e.iaRepo, e.icmRepo, refused,
+		audit.NewWriter(nil), nil, false, "off", business.WithInvestorPayouts(fixedPayout{}))
+	s.Require().Error(biz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-refused"))
+	back, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(60000), back.AvailableBalance, "a refused payout gives the funds back")
+}
+
+// A withdrawal the rail fails after it completed gives the investor their
+// money back, once.
+func (s *fundingSuite) TestWithdrawalFailedAtTheRailIsReturnedOnce() {
+	e := s.newEnv()
+	account := e.seedInvestor(s, "KES", 100000)
+	s.Require().NoError(e.iaBiz.Withdraw(e.ctx, account.GetID(), fundingMoney("KES", 400), "wdr-late"))
+	reference := e.ops.snapshot()[0].GetReference()
+
+	reverted, err := e.iaBiz.WithdrawalFailed(e.ctx, reference)
+	s.Require().NoError(err)
+	s.True(reverted)
+	fresh, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(100000), fresh.AvailableBalance, "the withdrawn funds are back")
+
+	again, err := e.iaBiz.WithdrawalFailed(e.ctx, reference)
+	s.Require().NoError(err)
+	s.False(again)
+	same, err := e.iaRepo.GetByID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(fresh.AvailableBalance, same.AvailableBalance, "never returned twice")
+
+	notOurs, err := e.iaBiz.WithdrawalFailed(e.ctx, "disbursement:other")
+	s.Require().NoError(err)
+	s.False(notOurs)
 }

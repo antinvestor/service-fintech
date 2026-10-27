@@ -55,4 +55,43 @@ abstract final class OperationsService {
     operationsv1operations.IncomingPaymentAssignRequest.new,
     operationsv1operations.IncomingPaymentAssignResponse.new,
   );
+
+  /// OperationsJobRun runs one batch of a periodic job. Called by the
+  /// platform scheduler (trustage); only service accounts hold the permission.
+  static const operationsJobRun = connect.Spec(
+    '/$name/OperationsJobRun',
+    connect.StreamType.unary,
+    operationsv1operations.OperationsJobRunRequest.new,
+    operationsv1operations.OperationsJobRunResponse.new,
+  );
+
+  /// GroupObligationsRaise raises a group period's savings obligations and
+  /// applies money the members already paid. Called by the group service; only
+  /// service accounts hold the permission. Retrying raises nothing new.
+  static const groupObligationsRaise = connect.Spec(
+    '/$name/GroupObligationsRaise',
+    connect.StreamType.unary,
+    operationsv1operations.GroupObligationsRaiseRequest.new,
+    operationsv1operations.GroupObligationsRaiseResponse.new,
+  );
+
+  /// GroupPeriodClose applies money members paid, charges the penalty to
+  /// each member still owing, and reports the period's statement. Called by
+  /// the group service; retrying charges no second penalty.
+  static const groupPeriodClose = connect.Spec(
+    '/$name/GroupPeriodClose',
+    connect.StreamType.unary,
+    operationsv1operations.GroupPeriodCloseRequest.new,
+    operationsv1operations.GroupPeriodCloseResponse.new,
+  );
+
+  /// GroupMemberStanding reports what each member has saved in a group and
+  /// what they are behind on, so the group service can size what it lends
+  /// them. Read only; only service accounts hold the permission.
+  static const groupMemberStanding = connect.Spec(
+    '/$name/GroupMemberStanding',
+    connect.StreamType.unary,
+    operationsv1operations.GroupMemberStandingRequest.new,
+    operationsv1operations.GroupMemberStandingResponse.new,
+  );
 }

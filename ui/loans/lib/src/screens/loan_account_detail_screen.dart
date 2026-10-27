@@ -239,8 +239,19 @@ class _LoanAccountDetailScreenState
                     icon: const Icon(Icons.send, size: 18),
                     label: const Text('Disburse'),
                   ),
+                if (loan.status ==
+                        LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT &&
+                    widget.canManage)
+                  OutlinedButton.icon(
+                    key: const Key('loan-cancel'),
+                    onPressed: () => _cancelLoan(context, loan),
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: const Text('Cancel loan'),
+                  ),
                 if (loan.status == LoanStatus.LOAN_STATUS_ACTIVE ||
-                    loan.status == LoanStatus.LOAN_STATUS_DELINQUENT) ...[
+                    loan.status == LoanStatus.LOAN_STATUS_DELINQUENT ||
+                    loan.status == LoanStatus.LOAN_STATUS_DEFAULT ||
+                    loan.status == LoanStatus.LOAN_STATUS_WRITTEN_OFF) ...[
                   if (widget.canCollectPayment)
                     FilledButton.tonalIcon(
                       onPressed: () => _showCollectPaymentDialog(context, loan),
@@ -293,19 +304,73 @@ class _LoanAccountDetailScreenState
     );
   }
 
+  /// Cancels a loan that was never disbursed, giving its funders back the
+  /// capital reserved for it. The service refuses once money is moving.
+  Future<void> _cancelLoan(BuildContext context, LoanAccountObject loan) async {
+    final reasonCtrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel loan'),
+        content: TextField(
+          key: const Key('loan-cancel-reason'),
+          controller: reasonCtrl,
+          maxLength: 500,
+          decoration: const InputDecoration(
+            labelText: 'Why the loan is cancelled (kept on record)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Keep loan'),
+          ),
+          FilledButton(
+            key: const Key('loan-cancel-confirm'),
+            onPressed: () {
+              final text = reasonCtrl.text.trim();
+              if (text.length >= 3) Navigator.pop(dialogContext, text);
+            },
+            child: const Text('Cancel loan'),
+          ),
+        ],
+      ),
+    );
+    reasonCtrl.dispose();
+    if (reason == null || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(loanManagementServiceClientProvider)
+          .loanAccountCancel(
+            LoanAccountCancelRequest(id: loan.id, reason: reason),
+          );
+      ref.invalidate(loanAccountDetailProvider(widget.loanId));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Loan cancelled; its funding is released'),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not cancel the loan: $e')),
+      );
+    }
+  }
+
   void _showDisbursementDialog(BuildContext context, LoanAccountObject loan) {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => _DisbursementFormDialog(
-        loanAccountId: loan.id,
-        onSave: (channel, recipientReference, idempotencyKey) async {
+        loan: loan,
+        onSave: (idempotencyKey) async {
           try {
             await ref
                 .read(disbursementNotifierProvider.notifier)
                 .create(
                   loanAccountId: loan.id,
-                  channel: channel,
-                  recipientReference: recipientReference,
+                  channel: 'mobile_money',
+                  recipientReference: '',
                   idempotencyKey: idempotencyKey,
                 );
             ref.invalidate(loanAccountDetailProvider(widget.loanId));
@@ -1276,10 +1341,7 @@ class _RestructuringTab extends ConsumerWidget {
                     initialValue: type,
                     decoration: const InputDecoration(hintText: 'Select type'),
                     items: RestructureType.values
-                        .where(
-                          (t) =>
-                              t != RestructureType.RESTRUCTURE_TYPE_UNSPECIFIED,
-                        )
+                        .where(restructureTypeOffered)
                         .map(
                           (t) => DropdownMenuItem(
                             value: t,
@@ -1746,55 +1808,33 @@ class _HistoryTab extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _DisbursementFormDialog extends StatefulWidget {
-  const _DisbursementFormDialog({
-    required this.loanAccountId,
-    required this.onSave,
-  });
+  const _DisbursementFormDialog({required this.loan, required this.onSave});
 
-  final String loanAccountId;
-  final Future<void> Function(
-    String channel,
-    String recipientReference,
-    String idempotencyKey,
-  )
-  onSave;
+  final LoanAccountObject loan;
+  final Future<void> Function(String idempotencyKey) onSave;
 
   @override
   State<_DisbursementFormDialog> createState() =>
       _DisbursementFormDialogState();
 }
 
+/// Confirms a disbursement. Staff choose nothing about where the money goes:
+/// the principal is paid to the borrower's own verified mobile-money contact
+/// on the loan, by the payment rail.
 class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _channelCtrl;
-  late final TextEditingController _recipientRefCtrl;
   late final String _idempotencyKey;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _channelCtrl = TextEditingController();
-    _recipientRefCtrl = TextEditingController();
     _idempotencyKey = generateIdempotencyKey();
   }
 
-  @override
-  void dispose() {
-    _channelCtrl.dispose();
-    _recipientRefCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      await widget.onSave(
-        _channelCtrl.text.trim(),
-        _recipientRefCtrl.text.trim(),
-        _idempotencyKey,
-      );
+      await widget.onSave(_idempotencyKey);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _saving = false);
@@ -1803,46 +1843,28 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final loan = widget.loan;
+    final hasDestination = loan.paymentAccountRef.isNotEmpty;
     return AlertDialog(
-      title: const Text('Initiate Disbursement'),
+      title: const Text('Disburse loan'),
       content: SizedBox(
         width: 420,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FormFieldCard(
-                label: 'Channel',
-                description:
-                    'The disbursement channel (e.g. mobile money, bank transfer).',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _channelCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. mobile_money',
-                  ),
-                  textInputAction: TextInputAction.next,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${formatLoanMoney(loan.principalAmount)} is paid to the '
+              'borrower\'s own mobile-money number on this loan.',
+            ),
+            const SizedBox(height: 8),
+            if (!hasDestination)
+              Text(
+                'This loan has no payout contact, so it cannot be disbursed.',
+                key: const Key('disburse-no-destination'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-              FormFieldCard(
-                label: 'Recipient Reference',
-                description: 'External payment reference or transaction ID.',
-                isRequired: true,
-                child: TextFormField(
-                  controller: _recipientRefCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. the rail transaction code',
-                  ),
-                  textInputAction: TextInputAction.done,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
       actions: [
@@ -1851,7 +1873,8 @@ class _DisbursementFormDialogState extends State<_DisbursementFormDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _saving ? null : _submit,
+          key: const Key('disburse-confirm'),
+          onPressed: _saving || !hasDestination ? null : _submit,
           child: _saving
               ? const SizedBox(
                   width: 20,
@@ -1970,3 +1993,10 @@ class _CollectPaymentFormDialogState extends State<_CollectPaymentFormDialog> {
     );
   }
 }
+
+/// Whether staff are offered this restructure type. A partial waiver needs
+/// ledger postings the loans service does not make yet, so it refuses one;
+/// offering it would only lead to a refusal.
+bool restructureTypeOffered(RestructureType t) =>
+    t != RestructureType.RESTRUCTURE_TYPE_UNSPECIFIED &&
+    t != RestructureType.RESTRUCTURE_TYPE_PARTIAL_WAIVER;

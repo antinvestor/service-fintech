@@ -158,6 +158,7 @@ class LoanProductObject extends $pb.GeneratedMessage {
     $2.STATE? state,
     $1.Struct? properties,
     $core.Iterable<ProductFormRequirement>? requiredForms,
+    $core.String? agentCommissionPercent,
   }) {
     final result = LoanProductObject._();
     if (id != null) result.id = id;
@@ -188,6 +189,8 @@ class LoanProductObject extends $pb.GeneratedMessage {
     if (state != null) result.state = state;
     if (properties != null) result.properties = properties;
     if (requiredForms != null) result.requiredForms.addAll(requiredForms);
+    if (agentCommissionPercent != null)
+      result.agentCommissionPercent = agentCommissionPercent;
     return result;
   }
 
@@ -237,6 +240,7 @@ class LoanProductObject extends $pb.GeneratedMessage {
         subBuilder: $1.Struct.$_createMessage)
     ..pPM<ProductFormRequirement>(23, _omitFieldNames ? '' : 'requiredForms',
         subBuilder: ProductFormRequirement.$_createMessage)
+    ..aOS(24, _omitFieldNames ? '' : 'agentCommissionPercent')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -471,6 +475,17 @@ class LoanProductObject extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(23)
   $pb.PbList<ProductFormRequirement> get requiredForms => $_getList(22);
+
+  /// Share of interest repaid that the serving agent's team earns, as a
+  /// decimal percentage e.g. "10". Empty or zero pays no commission.
+  @$pb.TagNumber(24)
+  $core.String get agentCommissionPercent => $_getSZ(23);
+  @$pb.TagNumber(24)
+  set agentCommissionPercent($core.String value) => $_setString(23, value);
+  @$pb.TagNumber(24)
+  $core.bool hasAgentCommissionPercent() => $_has(23);
+  @$pb.TagNumber(24)
+  void clearAgentCommissionPercent() => $_clearField(24);
 }
 
 /// LoanRequestObject represents a loan request created by a product service.
@@ -3363,6 +3378,144 @@ class LoanAccountCreateResponse extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<LoanAccountCreateResponse>(
           LoanAccountCreateResponse.$_createMessage);
   static LoanAccountCreateResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  LoanAccountObject get data => $_getN(0);
+  @$pb.TagNumber(1)
+  set data(LoanAccountObject value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasData() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearData() => $_clearField(1);
+  @$pb.TagNumber(1)
+  LoanAccountObject ensureData() => $_ensure(0);
+}
+
+/// LoanAccountCancelRequest cancels a loan that was opened but never
+/// disbursed.
+class LoanAccountCancelRequest extends $pb.GeneratedMessage {
+  factory LoanAccountCancelRequest({
+    $core.String? id,
+    $core.String? reason,
+  }) {
+    final result = LoanAccountCancelRequest._();
+    if (id != null) result.id = id;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  LoanAccountCancelRequest._();
+
+  factory LoanAccountCancelRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelRequest()..mergeFromBuffer(data, registry);
+  factory LoanAccountCancelRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanAccountCancelRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: LoanAccountCancelRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelRequest copyWith(
+          void Function(LoanAccountCancelRequest) updates) =>
+      super.copyWith((message) => updates(message as LoanAccountCancelRequest))
+          as LoanAccountCancelRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanAccountCancelRequest() / LoanAccountCancelRequest.new instead')
+  static LoanAccountCancelRequest create() => LoanAccountCancelRequest._();
+  static $pb.GeneratedMessage $_createMessage() => LoanAccountCancelRequest._();
+  @$core.override
+  LoanAccountCancelRequest createEmptyInstance() =>
+      LoanAccountCancelRequest._();
+  @$core.pragma('dart2js:noInline')
+  static LoanAccountCancelRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanAccountCancelRequest>(
+          LoanAccountCancelRequest.$_createMessage);
+  static LoanAccountCancelRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get reason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set reason($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => $_clearField(2);
+}
+
+class LoanAccountCancelResponse extends $pb.GeneratedMessage {
+  factory LoanAccountCancelResponse({
+    LoanAccountObject? data,
+  }) {
+    final result = LoanAccountCancelResponse._();
+    if (data != null) result.data = data;
+    return result;
+  }
+
+  LoanAccountCancelResponse._();
+
+  factory LoanAccountCancelResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelResponse()..mergeFromBuffer(data, registry);
+  factory LoanAccountCancelResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      LoanAccountCancelResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'LoanAccountCancelResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: LoanAccountCancelResponse.$_createMessage)
+    ..aOM<LoanAccountObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: LoanAccountObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  LoanAccountCancelResponse copyWith(
+          void Function(LoanAccountCancelResponse) updates) =>
+      super.copyWith((message) => updates(message as LoanAccountCancelResponse))
+          as LoanAccountCancelResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoanAccountCancelResponse() / LoanAccountCancelResponse.new instead')
+  static LoanAccountCancelResponse create() => LoanAccountCancelResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      LoanAccountCancelResponse._();
+  @$core.override
+  LoanAccountCancelResponse createEmptyInstance() =>
+      LoanAccountCancelResponse._();
+  @$core.pragma('dart2js:noInline')
+  static LoanAccountCancelResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<LoanAccountCancelResponse>(
+          LoanAccountCancelResponse.$_createMessage);
+  static LoanAccountCancelResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
   LoanAccountObject get data => $_getN(0);
@@ -6598,6 +6751,146 @@ class LoanJobRunResponse extends $pb.GeneratedMessage {
   void clearMore() => $_clearField(2);
 }
 
+/// PayoutFailedApplyRequest tells the service that originated a payout that
+/// the payment rail failed it after accepting it. Operations has already
+/// reversed the ledger leg; the originator undoes its own record. Applying
+/// it again changes nothing.
+class PayoutFailedApplyRequest extends $pb.GeneratedMessage {
+  factory PayoutFailedApplyRequest({
+    $core.String? reference,
+    $core.String? reason,
+  }) {
+    final result = PayoutFailedApplyRequest._();
+    if (reference != null) result.reference = reference;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  PayoutFailedApplyRequest._();
+
+  factory PayoutFailedApplyRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyRequest()..mergeFromBuffer(data, registry);
+  factory PayoutFailedApplyRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PayoutFailedApplyRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: PayoutFailedApplyRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'reference')
+    ..aOS(2, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyRequest copyWith(
+          void Function(PayoutFailedApplyRequest) updates) =>
+      super.copyWith((message) => updates(message as PayoutFailedApplyRequest))
+          as PayoutFailedApplyRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PayoutFailedApplyRequest() / PayoutFailedApplyRequest.new instead')
+  static PayoutFailedApplyRequest create() => PayoutFailedApplyRequest._();
+  static $pb.GeneratedMessage $_createMessage() => PayoutFailedApplyRequest._();
+  @$core.override
+  PayoutFailedApplyRequest createEmptyInstance() =>
+      PayoutFailedApplyRequest._();
+  @$core.pragma('dart2js:noInline')
+  static PayoutFailedApplyRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PayoutFailedApplyRequest>(
+          PayoutFailedApplyRequest.$_createMessage);
+  static PayoutFailedApplyRequest? _defaultInstance;
+
+  /// The transfer order reference the originator gave the payout.
+  @$pb.TagNumber(1)
+  $core.String get reference => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set reference($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReference() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReference() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get reason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set reason($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => $_clearField(2);
+}
+
+class PayoutFailedApplyResponse extends $pb.GeneratedMessage {
+  factory PayoutFailedApplyResponse({
+    $core.bool? applied,
+  }) {
+    final result = PayoutFailedApplyResponse._();
+    if (applied != null) result.applied = applied;
+    return result;
+  }
+
+  PayoutFailedApplyResponse._();
+
+  factory PayoutFailedApplyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyResponse()..mergeFromBuffer(data, registry);
+  factory PayoutFailedApplyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PayoutFailedApplyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: PayoutFailedApplyResponse.$_createMessage)
+    ..aOB(1, _omitFieldNames ? '' : 'applied')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyResponse copyWith(
+          void Function(PayoutFailedApplyResponse) updates) =>
+      super.copyWith((message) => updates(message as PayoutFailedApplyResponse))
+          as PayoutFailedApplyResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PayoutFailedApplyResponse() / PayoutFailedApplyResponse.new instead')
+  static PayoutFailedApplyResponse create() => PayoutFailedApplyResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      PayoutFailedApplyResponse._();
+  @$core.override
+  PayoutFailedApplyResponse createEmptyInstance() =>
+      PayoutFailedApplyResponse._();
+  @$core.pragma('dart2js:noInline')
+  static PayoutFailedApplyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PayoutFailedApplyResponse>(
+          PayoutFailedApplyResponse.$_createMessage);
+  static PayoutFailedApplyResponse? _defaultInstance;
+
+  /// True when this call undid the record; false when it was already undone
+  /// or the reference is not this service's.
+  @$pb.TagNumber(1)
+  $core.bool get applied => $_getBF(0);
+  @$pb.TagNumber(1)
+  set applied($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasApplied() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearApplied() => $_clearField(1);
+}
+
 class LoanStatusChangeSearchRequest extends $pb.GeneratedMessage {
   factory LoanStatusChangeSearchRequest({
     $core.String? loanAccountId,
@@ -6732,6 +7025,736 @@ class LoanStatusChangeSearchResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   $pb.PbList<LoanStatusChangeObject> get data => $_getList(0);
+}
+
+/// TeamCommissionObject is a team's commission in one currency: what it has
+/// earned on interest its borrowers repaid, what has been paid out, and what
+/// is left to pay.
+class TeamCommissionObject extends $pb.GeneratedMessage {
+  factory TeamCommissionObject({
+    $core.String? teamId,
+    $0.Money? accrued,
+    $0.Money? paidOut,
+    $0.Money? available,
+  }) {
+    final result = TeamCommissionObject._();
+    if (teamId != null) result.teamId = teamId;
+    if (accrued != null) result.accrued = accrued;
+    if (paidOut != null) result.paidOut = paidOut;
+    if (available != null) result.available = available;
+    return result;
+  }
+
+  TeamCommissionObject._();
+
+  factory TeamCommissionObject.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionObject()..mergeFromBuffer(data, registry);
+  factory TeamCommissionObject.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionObject()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionObject',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionObject.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'teamId')
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'accrued',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'paidOut',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(4, _omitFieldNames ? '' : 'available',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionObject clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionObject copyWith(void Function(TeamCommissionObject) updates) =>
+      super.copyWith((message) => updates(message as TeamCommissionObject))
+          as TeamCommissionObject;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionObject() / TeamCommissionObject.new instead')
+  static TeamCommissionObject create() => TeamCommissionObject._();
+  static $pb.GeneratedMessage $_createMessage() => TeamCommissionObject._();
+  @$core.override
+  TeamCommissionObject createEmptyInstance() => TeamCommissionObject._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionObject getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionObject>(
+          TeamCommissionObject.$_createMessage);
+  static TeamCommissionObject? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get teamId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set teamId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTeamId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTeamId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $0.Money get accrued => $_getN(1);
+  @$pb.TagNumber(2)
+  set accrued($0.Money value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAccrued() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAccrued() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $0.Money ensureAccrued() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  $0.Money get paidOut => $_getN(2);
+  @$pb.TagNumber(3)
+  set paidOut($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasPaidOut() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearPaidOut() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensurePaidOut() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  $0.Money get available => $_getN(3);
+  @$pb.TagNumber(4)
+  set available($0.Money value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasAvailable() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearAvailable() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $0.Money ensureAvailable() => $_ensure(3);
+}
+
+class TeamCommissionSearchRequest extends $pb.GeneratedMessage {
+  factory TeamCommissionSearchRequest({
+    $core.String? teamId,
+    $2.PageCursor? cursor,
+  }) {
+    final result = TeamCommissionSearchRequest._();
+    if (teamId != null) result.teamId = teamId;
+    if (cursor != null) result.cursor = cursor;
+    return result;
+  }
+
+  TeamCommissionSearchRequest._();
+
+  factory TeamCommissionSearchRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionSearchRequest()..mergeFromBuffer(data, registry);
+  factory TeamCommissionSearchRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionSearchRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionSearchRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionSearchRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'teamId')
+    ..aOM<$2.PageCursor>(2, _omitFieldNames ? '' : 'cursor',
+        subBuilder: $2.PageCursor.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionSearchRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionSearchRequest copyWith(
+          void Function(TeamCommissionSearchRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as TeamCommissionSearchRequest))
+          as TeamCommissionSearchRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionSearchRequest() / TeamCommissionSearchRequest.new instead')
+  static TeamCommissionSearchRequest create() =>
+      TeamCommissionSearchRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TeamCommissionSearchRequest._();
+  @$core.override
+  TeamCommissionSearchRequest createEmptyInstance() =>
+      TeamCommissionSearchRequest._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionSearchRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionSearchRequest>(
+          TeamCommissionSearchRequest.$_createMessage);
+  static TeamCommissionSearchRequest? _defaultInstance;
+
+  /// Empty lists every team with commission in the caller's partition.
+  @$pb.TagNumber(1)
+  $core.String get teamId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set teamId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTeamId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTeamId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $2.PageCursor get cursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set cursor($2.PageCursor value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCursor() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $2.PageCursor ensureCursor() => $_ensure(1);
+}
+
+class TeamCommissionSearchResponse extends $pb.GeneratedMessage {
+  factory TeamCommissionSearchResponse({
+    $core.Iterable<TeamCommissionObject>? data,
+  }) {
+    final result = TeamCommissionSearchResponse._();
+    if (data != null) result.data.addAll(data);
+    return result;
+  }
+
+  TeamCommissionSearchResponse._();
+
+  factory TeamCommissionSearchResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionSearchResponse()..mergeFromBuffer(data, registry);
+  factory TeamCommissionSearchResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionSearchResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionSearchResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionSearchResponse.$_createMessage)
+    ..pPM<TeamCommissionObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: TeamCommissionObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionSearchResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionSearchResponse copyWith(
+          void Function(TeamCommissionSearchResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as TeamCommissionSearchResponse))
+          as TeamCommissionSearchResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionSearchResponse() / TeamCommissionSearchResponse.new instead')
+  static TeamCommissionSearchResponse create() =>
+      TeamCommissionSearchResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TeamCommissionSearchResponse._();
+  @$core.override
+  TeamCommissionSearchResponse createEmptyInstance() =>
+      TeamCommissionSearchResponse._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionSearchResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionSearchResponse>(
+          TeamCommissionSearchResponse.$_createMessage);
+  static TeamCommissionSearchResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<TeamCommissionObject> get data => $_getList(0);
+}
+
+/// TeamCommissionPayoutObject is one payout of a team's commission to one of
+/// its members.
+class TeamCommissionPayoutObject extends $pb.GeneratedMessage {
+  factory TeamCommissionPayoutObject({
+    $core.String? id,
+    $core.String? teamId,
+    $core.String? memberId,
+    $0.Money? amount,
+    TeamCommissionPayoutStatus? status,
+    $core.String? failureReason,
+    $core.String? reason,
+    $core.String? createdBy,
+    $core.String? createdAt,
+  }) {
+    final result = TeamCommissionPayoutObject._();
+    if (id != null) result.id = id;
+    if (teamId != null) result.teamId = teamId;
+    if (memberId != null) result.memberId = memberId;
+    if (amount != null) result.amount = amount;
+    if (status != null) result.status = status;
+    if (failureReason != null) result.failureReason = failureReason;
+    if (reason != null) result.reason = reason;
+    if (createdBy != null) result.createdBy = createdBy;
+    if (createdAt != null) result.createdAt = createdAt;
+    return result;
+  }
+
+  TeamCommissionPayoutObject._();
+
+  factory TeamCommissionPayoutObject.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutObject()..mergeFromBuffer(data, registry);
+  factory TeamCommissionPayoutObject.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutObject()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionPayoutObject',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionPayoutObject.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'teamId')
+    ..aOS(3, _omitFieldNames ? '' : 'memberId')
+    ..aOM<$0.Money>(4, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
+    ..aE<TeamCommissionPayoutStatus>(5, _omitFieldNames ? '' : 'status',
+        enumValues: TeamCommissionPayoutStatus.values)
+    ..aOS(6, _omitFieldNames ? '' : 'failureReason')
+    ..aOS(7, _omitFieldNames ? '' : 'reason')
+    ..aOS(8, _omitFieldNames ? '' : 'createdBy')
+    ..aOS(9, _omitFieldNames ? '' : 'createdAt')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutObject clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutObject copyWith(
+          void Function(TeamCommissionPayoutObject) updates) =>
+      super.copyWith(
+              (message) => updates(message as TeamCommissionPayoutObject))
+          as TeamCommissionPayoutObject;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionPayoutObject() / TeamCommissionPayoutObject.new instead')
+  static TeamCommissionPayoutObject create() => TeamCommissionPayoutObject._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TeamCommissionPayoutObject._();
+  @$core.override
+  TeamCommissionPayoutObject createEmptyInstance() =>
+      TeamCommissionPayoutObject._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionPayoutObject getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionPayoutObject>(
+          TeamCommissionPayoutObject.$_createMessage);
+  static TeamCommissionPayoutObject? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get teamId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set teamId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTeamId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTeamId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get memberId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set memberId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasMemberId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMemberId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $0.Money get amount => $_getN(3);
+  @$pb.TagNumber(4)
+  set amount($0.Money value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasAmount() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearAmount() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $0.Money ensureAmount() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  TeamCommissionPayoutStatus get status => $_getN(4);
+  @$pb.TagNumber(5)
+  set status(TeamCommissionPayoutStatus value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasStatus() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearStatus() => $_clearField(5);
+
+  /// Why the last attempt was refused, if it was. A refused payout went back
+  /// to the balance and returns to PENDING.
+  @$pb.TagNumber(6)
+  $core.String get failureReason => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set failureReason($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasFailureReason() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearFailureReason() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get reason => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set reason($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasReason() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearReason() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get createdBy => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set createdBy($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasCreatedBy() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearCreatedBy() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get createdAt => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set createdAt($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasCreatedAt() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearCreatedAt() => $_clearField(9);
+}
+
+class TeamCommissionPayoutRequest extends $pb.GeneratedMessage {
+  factory TeamCommissionPayoutRequest({
+    $core.String? teamId,
+    $core.String? memberId,
+    $0.Money? amount,
+    $core.String? idempotencyKey,
+    $core.String? reason,
+  }) {
+    final result = TeamCommissionPayoutRequest._();
+    if (teamId != null) result.teamId = teamId;
+    if (memberId != null) result.memberId = memberId;
+    if (amount != null) result.amount = amount;
+    if (idempotencyKey != null) result.idempotencyKey = idempotencyKey;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  TeamCommissionPayoutRequest._();
+
+  factory TeamCommissionPayoutRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutRequest()..mergeFromBuffer(data, registry);
+  factory TeamCommissionPayoutRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionPayoutRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionPayoutRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'teamId')
+    ..aOS(2, _omitFieldNames ? '' : 'memberId')
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOS(4, _omitFieldNames ? '' : 'idempotencyKey')
+    ..aOS(5, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutRequest copyWith(
+          void Function(TeamCommissionPayoutRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as TeamCommissionPayoutRequest))
+          as TeamCommissionPayoutRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionPayoutRequest() / TeamCommissionPayoutRequest.new instead')
+  static TeamCommissionPayoutRequest create() =>
+      TeamCommissionPayoutRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TeamCommissionPayoutRequest._();
+  @$core.override
+  TeamCommissionPayoutRequest createEmptyInstance() =>
+      TeamCommissionPayoutRequest._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionPayoutRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionPayoutRequest>(
+          TeamCommissionPayoutRequest.$_createMessage);
+  static TeamCommissionPayoutRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get teamId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set teamId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTeamId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTeamId() => $_clearField(1);
+
+  /// An active member of the team. The money goes to that member's own
+  /// verified mobile money; nobody names where it goes.
+  @$pb.TagNumber(2)
+  $core.String get memberId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set memberId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMemberId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMemberId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $0.Money get amount => $_getN(2);
+  @$pb.TagNumber(3)
+  set amount($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAmount() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAmount() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensureAmount() => $_ensure(2);
+
+  /// Retrying with the same key resumes the same payout and never pays twice.
+  @$pb.TagNumber(4)
+  $core.String get idempotencyKey => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set idempotencyKey($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasIdempotencyKey() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearIdempotencyKey() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get reason => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set reason($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasReason() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearReason() => $_clearField(5);
+}
+
+class TeamCommissionPayoutResponse extends $pb.GeneratedMessage {
+  factory TeamCommissionPayoutResponse({
+    TeamCommissionPayoutObject? data,
+  }) {
+    final result = TeamCommissionPayoutResponse._();
+    if (data != null) result.data = data;
+    return result;
+  }
+
+  TeamCommissionPayoutResponse._();
+
+  factory TeamCommissionPayoutResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutResponse()..mergeFromBuffer(data, registry);
+  factory TeamCommissionPayoutResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionPayoutResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionPayoutResponse.$_createMessage)
+    ..aOM<TeamCommissionPayoutObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: TeamCommissionPayoutObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutResponse copyWith(
+          void Function(TeamCommissionPayoutResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as TeamCommissionPayoutResponse))
+          as TeamCommissionPayoutResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionPayoutResponse() / TeamCommissionPayoutResponse.new instead')
+  static TeamCommissionPayoutResponse create() =>
+      TeamCommissionPayoutResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TeamCommissionPayoutResponse._();
+  @$core.override
+  TeamCommissionPayoutResponse createEmptyInstance() =>
+      TeamCommissionPayoutResponse._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionPayoutResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionPayoutResponse>(
+          TeamCommissionPayoutResponse.$_createMessage);
+  static TeamCommissionPayoutResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  TeamCommissionPayoutObject get data => $_getN(0);
+  @$pb.TagNumber(1)
+  set data(TeamCommissionPayoutObject value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasData() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearData() => $_clearField(1);
+  @$pb.TagNumber(1)
+  TeamCommissionPayoutObject ensureData() => $_ensure(0);
+}
+
+class TeamCommissionPayoutSearchRequest extends $pb.GeneratedMessage {
+  factory TeamCommissionPayoutSearchRequest({
+    $core.String? teamId,
+    $2.PageCursor? cursor,
+  }) {
+    final result = TeamCommissionPayoutSearchRequest._();
+    if (teamId != null) result.teamId = teamId;
+    if (cursor != null) result.cursor = cursor;
+    return result;
+  }
+
+  TeamCommissionPayoutSearchRequest._();
+
+  factory TeamCommissionPayoutSearchRequest.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutSearchRequest()..mergeFromBuffer(data, registry);
+  factory TeamCommissionPayoutSearchRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutSearchRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionPayoutSearchRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionPayoutSearchRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'teamId')
+    ..aOM<$2.PageCursor>(2, _omitFieldNames ? '' : 'cursor',
+        subBuilder: $2.PageCursor.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutSearchRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutSearchRequest copyWith(
+          void Function(TeamCommissionPayoutSearchRequest) updates) =>
+      super.copyWith((message) =>
+              updates(message as TeamCommissionPayoutSearchRequest))
+          as TeamCommissionPayoutSearchRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionPayoutSearchRequest() / TeamCommissionPayoutSearchRequest.new instead')
+  static TeamCommissionPayoutSearchRequest create() =>
+      TeamCommissionPayoutSearchRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TeamCommissionPayoutSearchRequest._();
+  @$core.override
+  TeamCommissionPayoutSearchRequest createEmptyInstance() =>
+      TeamCommissionPayoutSearchRequest._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionPayoutSearchRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionPayoutSearchRequest>(
+          TeamCommissionPayoutSearchRequest.$_createMessage);
+  static TeamCommissionPayoutSearchRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get teamId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set teamId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTeamId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTeamId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $2.PageCursor get cursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set cursor($2.PageCursor value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCursor() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $2.PageCursor ensureCursor() => $_ensure(1);
+}
+
+class TeamCommissionPayoutSearchResponse extends $pb.GeneratedMessage {
+  factory TeamCommissionPayoutSearchResponse({
+    $core.Iterable<TeamCommissionPayoutObject>? data,
+  }) {
+    final result = TeamCommissionPayoutSearchResponse._();
+    if (data != null) result.data.addAll(data);
+    return result;
+  }
+
+  TeamCommissionPayoutSearchResponse._();
+
+  factory TeamCommissionPayoutSearchResponse.fromBuffer(
+          $core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutSearchResponse()..mergeFromBuffer(data, registry);
+  factory TeamCommissionPayoutSearchResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      TeamCommissionPayoutSearchResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TeamCommissionPayoutSearchResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'loans.v1'),
+      createEmptyInstance: TeamCommissionPayoutSearchResponse.$_createMessage)
+    ..pPM<TeamCommissionPayoutObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: TeamCommissionPayoutObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutSearchResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TeamCommissionPayoutSearchResponse copyWith(
+          void Function(TeamCommissionPayoutSearchResponse) updates) =>
+      super.copyWith((message) =>
+              updates(message as TeamCommissionPayoutSearchResponse))
+          as TeamCommissionPayoutSearchResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TeamCommissionPayoutSearchResponse() / TeamCommissionPayoutSearchResponse.new instead')
+  static TeamCommissionPayoutSearchResponse create() =>
+      TeamCommissionPayoutSearchResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TeamCommissionPayoutSearchResponse._();
+  @$core.override
+  TeamCommissionPayoutSearchResponse createEmptyInstance() =>
+      TeamCommissionPayoutSearchResponse._();
+  @$core.pragma('dart2js:noInline')
+  static TeamCommissionPayoutSearchResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TeamCommissionPayoutSearchResponse>(
+          TeamCommissionPayoutSearchResponse.$_createMessage);
+  static TeamCommissionPayoutSearchResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<TeamCommissionPayoutObject> get data => $_getList(0);
 }
 
 class LoanProductSaveRequest extends $pb.GeneratedMessage {
@@ -9170,6 +10193,13 @@ class LoanManagementServiceApi {
       _client.invoke<LoanAccountCreateResponse>(ctx, 'LoanManagementService',
           'LoanAccountCreate', request, LoanAccountCreateResponse());
 
+  /// LoanAccountCancel closes a loan that was opened but never disbursed and
+  /// gives its funders back the capital reserved for it.
+  $async.Future<LoanAccountCancelResponse> loanAccountCancel(
+          $pb.ClientContext? ctx, LoanAccountCancelRequest request) =>
+      _client.invoke<LoanAccountCancelResponse>(ctx, 'LoanManagementService',
+          'LoanAccountCancel', request, LoanAccountCancelResponse());
+
   /// LoanAccountGet retrieves a loan account by its ID.
   $async.Future<LoanAccountGetResponse> loanAccountGet(
           $pb.ClientContext? ctx, LoanAccountGetRequest request) =>
@@ -9314,12 +10344,42 @@ class LoanManagementServiceApi {
       _client.invoke<InitiateCollectionResponse>(ctx, 'LoanManagementService',
           'InitiateCollection', request, InitiateCollectionResponse());
 
+  /// TeamCommissionSearch lists teams' commission balances.
+  $async.Future<TeamCommissionSearchResponse> teamCommissionSearch(
+          $pb.ClientContext? ctx, TeamCommissionSearchRequest request) =>
+      _client.invoke<TeamCommissionSearchResponse>(ctx, 'LoanManagementService',
+          'TeamCommissionSearch', request, TeamCommissionSearchResponse());
+
+  /// TeamCommissionPayout pays a team's accrued commission to one of its
+  /// members' own verified mobile money.
+  $async.Future<TeamCommissionPayoutResponse> teamCommissionPayout(
+          $pb.ClientContext? ctx, TeamCommissionPayoutRequest request) =>
+      _client.invoke<TeamCommissionPayoutResponse>(ctx, 'LoanManagementService',
+          'TeamCommissionPayout', request, TeamCommissionPayoutResponse());
+
+  /// TeamCommissionPayoutSearch lists a team's commission payouts.
+  $async.Future<TeamCommissionPayoutSearchResponse> teamCommissionPayoutSearch(
+          $pb.ClientContext? ctx, TeamCommissionPayoutSearchRequest request) =>
+      _client.invoke<TeamCommissionPayoutSearchResponse>(
+          ctx,
+          'LoanManagementService',
+          'TeamCommissionPayoutSearch',
+          request,
+          TeamCommissionPayoutSearchResponse());
+
   /// LoanJobRun runs one batch of a periodic job. Called by the platform
   /// scheduler (trustage); only service accounts hold the permission.
   $async.Future<LoanJobRunResponse> loanJobRun(
           $pb.ClientContext? ctx, LoanJobRunRequest request) =>
       _client.invoke<LoanJobRunResponse>(ctx, 'LoanManagementService',
           'LoanJobRun', request, LoanJobRunResponse());
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  $async.Future<PayoutFailedApplyResponse> payoutFailedApply(
+          $pb.ClientContext? ctx, PayoutFailedApplyRequest request) =>
+      _client.invoke<PayoutFailedApplyResponse>(ctx, 'LoanManagementService',
+          'PayoutFailedApply', request, PayoutFailedApplyResponse());
 
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.
   $async.Future<LoanStatusChangeSearchResponse> loanStatusChangeSearch(

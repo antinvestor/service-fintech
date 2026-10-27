@@ -19,6 +19,9 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
+
+	"connectrpc.com/connect/v2"
 
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
@@ -78,10 +81,19 @@ type investorAccountBusiness struct {
 	operationsCli         operationsv1connect.OperationsServiceClient
 	auditWriter           *audit.Writer
 	limitsCli             limitsv1connect.LimitsServiceClient
-	limitsDepositEnabled  bool
-	limitsDepositMode     string
 	limitsWithdrawEnabled bool
 	limitsWithdrawMode    string
+	payouts               InvestorPayoutResolver
+}
+
+// InvestorAccountOption configures optional collaborators.
+type InvestorAccountOption func(*investorAccountBusiness)
+
+// WithInvestorPayouts sets how a withdrawal finds the investor's own payout
+// contact. Without it withdrawals are refused: capital never leaves to a
+// destination nobody checked.
+func WithInvestorPayouts(r InvestorPayoutResolver) InvestorAccountOption {
+	return func(b *investorAccountBusiness) { b.payouts = r }
 }
 
 func NewInvestorAccountBusiness(
@@ -92,23 +104,24 @@ func NewInvestorAccountBusiness(
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
 	limitsCli limitsv1connect.LimitsServiceClient,
-	limitsDepositEnabled bool,
-	limitsDepositMode string,
 	limitsWithdrawEnabled bool,
 	limitsWithdrawMode string,
+	opts ...InvestorAccountOption,
 ) InvestorAccountBusiness {
-	return &investorAccountBusiness{
+	b := &investorAccountBusiness{
 		eventsMan:             eventsMan,
 		iaRepo:                iaRepo,
 		icmRepo:               icmRepo,
 		operationsCli:         operationsCli,
 		auditWriter:           auditWriter,
 		limitsCli:             limitsCli,
-		limitsDepositEnabled:  limitsDepositEnabled,
-		limitsDepositMode:     limitsDepositMode,
 		limitsWithdrawEnabled: limitsWithdrawEnabled,
 		limitsWithdrawMode:    limitsWithdrawMode,
 	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 // Save creates or updates an investor account's profile: its name, mandate
@@ -232,8 +245,6 @@ func pageWindow(cursor *commonv1.PageCursor) (int, int) {
 // the original movement without posting again. The ledger reference is
 // derived from that row's id rather than from the account version, so two
 // callers can never collide on one reference or drift onto two.
-//
-//nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Deposit(
 	ctx context.Context,
 	accountID string,
@@ -245,31 +256,10 @@ func (b *investorAccountBusiness) Deposit(
 		return err
 	}
 
-	if !b.limitsDepositEnabled || b.limitsCli == nil || b.limitsDepositMode == "off" {
-		return b.depositInner(ctx, account, minor, idempotencyKey)
-	}
-
-	intent := &limitsv1.LimitIntent{
-		Action:   limitsv1.LimitAction_LIMIT_ACTION_FUNDING_INFLOW,
-		TenantId: account.TenantID,
-		Amount:   moneyx.FromMinorUnitsByCurrency(account.Currency, minor),
-		// The limits service requires the organization for funding actions;
-		// an investor account belongs to the lender that is its tenant.
-		Subjects: []*limitsv1.SubjectRef{
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: accountID},
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: account.TenantID},
-		},
-	}
-	idemKey := "funding_deposit:" + accountID + ":" + idempotencyKey
-
-	return limits.Gate(ctx, b.limitsCli, intent, idemKey, limits.ParseMode(b.limitsDepositMode),
-		func(innerCtx context.Context, reservationID string) error {
-			util.Log(innerCtx).With("limits_reservation_id", reservationID).
-				Info("investor deposit gated by limits")
-			return b.depositInner(innerCtx, account, minor, idempotencyKey)
-		},
-		limits.InPartition(account.TenantID, account.PartitionID),
-	)
+	// No transaction limit applies here: the money has already arrived on
+	// the rail, so refusing to apply it would only strand the investor's
+	// payment. Limits gate money leaving, not money received.
+	return b.depositInner(ctx, account, minor, idempotencyKey)
 }
 
 // prepareMovement resolves and validates the account and amount that a
@@ -358,6 +348,7 @@ func (b *investorAccountBusiness) depositInner(
 		constants.TransferTypeInvestorDeployment,
 		capitalTransferReference(movement),
 		"Investor capital deposit",
+		nil,
 	); toErr != nil {
 		return toErr
 	}
@@ -407,7 +398,29 @@ func (b *investorAccountBusiness) depositInner(
 // capital movement from the movement row itself, so the reference is stable
 // across retries and unique across concurrent callers.
 func capitalTransferReference(movement *models.InvestorCapitalMovement) string {
-	return "investor_capital_movement:" + movement.GetID()
+	return capitalMovementReferencePrefix + movement.GetID()
+}
+
+const capitalMovementReferencePrefix = "investor_capital_movement:"
+
+// WithdrawalFailed returns the funds of a withdrawal the payment rail failed
+// after it completed. Operations has already reversed the ledger leg; the
+// investor's available balance is restored once, and the movement is marked
+// reverted. A reference that is not a completed withdrawal changes nothing.
+func (b *investorAccountBusiness) WithdrawalFailed(ctx context.Context, reference string) (bool, error) {
+	if !strings.HasPrefix(reference, capitalMovementReferencePrefix) {
+		return false, nil
+	}
+	movementID := strings.TrimPrefix(reference, capitalMovementReferencePrefix)
+	reverted, err := b.icmRepo.RevertCompletedWithdrawal(ctx, movementID)
+	if err != nil {
+		return false, fmt.Errorf("revert failed withdrawal: %w", err)
+	}
+	if reverted {
+		util.Log(ctx).WithField("movement_id", movementID).
+			Warn("investor withdrawal failed at the rail after it completed; funds returned")
+	}
+	return reverted, nil
 }
 
 // Withdraw settles an investor capital withdrawal. As with Deposit the
@@ -415,8 +428,6 @@ func capitalTransferReference(movement *models.InvestorCapitalMovement) string {
 // DebitWithdrawal is the authoritative sufficiency check: two concurrent
 // withdrawals against overlapping funds serialize and one receives
 // ErrInvestorInsufficientFunds.
-//
-//nolint:dupl // deposit and withdrawal gates mirror each other but must stay independently auditable
 func (b *investorAccountBusiness) Withdraw(
 	ctx context.Context,
 	accountID string,
@@ -464,6 +475,16 @@ func (b *investorAccountBusiness) withdrawInner(
 ) error {
 	logger := util.Log(ctx).WithField("method", "InvestorAccountBusiness.Withdraw")
 
+	// The money goes to the investor's own verified mobile number, found
+	// before anything is debited; nobody names where it goes.
+	if b.payouts == nil {
+		return ErrInvestorPayoutUnavailable
+	}
+	dest, payoutErr := b.payouts.InvestorPayout(ctx, account.InvestorID)
+	if payoutErr != nil {
+		return payoutErr
+	}
+
 	movement, created, claimErr := b.claimMovement(
 		ctx, account, amount, models.CapitalMovementWithdraw, idempotencyKey)
 	if claimErr != nil {
@@ -491,15 +512,28 @@ func (b *investorAccountBusiness) withdrawInner(
 		amount,
 		constants.InvestorCapitalAccount(account.GetID()),
 		constants.PlatformExternalCashAccount(),
-		constants.TransferTypeInvestorPrincipalReturn,
+		constants.TransferTypeInvestorWithdrawal,
 		capitalTransferReference(movement),
 		"Investor capital withdrawal",
+		data.JSONMap{
+			"recipient_profile_id": dest.ProfileID,
+			"payment_account_ref":  dest.ContactID,
+			"payment_channel":      "mobile_money",
+		},
 	); toErr != nil {
-		// Hand the funds back and return the movement to pending so a retry
-		// runs the whole flow again from a balance that never moved.
+		// Only a refusal means nothing moved: the payout was checked and
+		// turned down, or the rail rejected it and operations reversed the
+		// ledger. Then the funds go back and a retry starts afresh. Any
+		// other failure (a timeout, a payout awaiting confirmation) may
+		// have paid the investor, so the movement stays debited; retrying
+		// the same key resumes it on the same order and never pays twice.
+		if !payoutRefused(toErr) {
+			logger.WithError(toErr).Warn("investor withdrawal outcome unknown; kept debited for a retry")
+			return toErr
+		}
 		if revertErr := b.icmRepo.RevertWithdrawalDebit(ctx, movement); revertErr != nil {
 			logger.WithError(revertErr).
-				Error("could not roll back investor withdrawal after transfer-order failure")
+				Error("could not roll back investor withdrawal after a refused payout")
 		}
 		return toErr
 	}
@@ -624,6 +658,7 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 	debitAccount, creditAccount string,
 	orderType int,
 	reference, description string,
+	payout data.JSONMap,
 ) error {
 	if b.operationsCli == nil {
 		return errors.New("operations client is not configured; cannot post investor capital transfer")
@@ -632,6 +667,9 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 	extraData := data.JSONMap{
 		fieldInvestorAccountID: account.GetID(),
 		fieldInvestorID:        account.InvestorID,
+	}
+	for k, v := range payout {
+		extraData[k] = v
 	}
 
 	req := &operationsv1.TransferOrderExecuteRequest{
@@ -652,4 +690,16 @@ func (b *investorAccountBusiness) postInvestorCapitalTransfer(
 		return fmt.Errorf("investor transfer order %s failed: %w", reference, execErr)
 	}
 	return nil
+}
+
+// payoutRefused reports whether operations refused a payout outright, so no
+// money left: the refusal codes of the payout error contract.
+func payoutRefused(err error) bool {
+	switch connect.CodeOf(err) { //nolint:exhaustive // only refusal codes matter
+	case connect.CodeInvalidArgument, connect.CodeFailedPrecondition,
+		connect.CodeNotFound, connect.CodePermissionDenied:
+		return true
+	default:
+		return false
+	}
 }

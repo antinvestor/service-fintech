@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	operationspb "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
+	"github.com/antinvestor/common/v3/permissions"
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/security/authorizer"
 
@@ -30,7 +31,7 @@ import (
 	stawiv1 "github.com/antinvestor/service-fintech/gen/go/stawi/protocolbuffers/go/stawi/v1"
 )
 
-const evaluateWindowRoute = "/api/v1/groups/g-1/evaluate-loan-window"
+const respondRoute = "/api/v1/groups/g-1/loan-offers/o-1/respond"
 
 // grantChecker allows exactly the permissions it was built with, and reports
 // no principal when built with nil.
@@ -57,7 +58,7 @@ func (c *grantChecker) Check(_ context.Context, permission string) error {
 
 func manifestRoutes(t *testing.T) handlers.RoutePermissions {
 	t.Helper()
-	sd := stawiv1.File_stawi_v1_stawi_proto.Services().ByName("StawiWorkflowService")
+	sd := stawiv1.File_stawi_v1_stawi_proto.Services().ByName("StawiService")
 	routes, err := handlers.BuildRoutePermissions(sd)
 	if err != nil {
 		t.Fatalf("build route permissions: %v", err)
@@ -72,7 +73,7 @@ func TestManifestRoutesResolveAgainstMux(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	handlers.RegisterWorkflowCallbacks(mux, handlers.Businesses{})
+	handlers.RegisterRoutes(mux, &fakeResponder{})
 
 	for key, perms := range manifestRoutes(t) {
 		t.Run(key, func(t *testing.T) {
@@ -95,34 +96,32 @@ func TestManifestRoutesResolveAgainstMux(t *testing.T) {
 	}
 }
 
-// TestWorkflowRoutesAreInManifest asserts the other direction: every route a
-// workflow definition calls is in the manifest, so no callback runs without a
-// permission check.
-func TestWorkflowRoutesAreInManifest(t *testing.T) {
+// Only the routes the manifest binds are served over HTTP; the job RPC is
+// Connect only, and its permission is still in the manifest.
+func TestManifestServesOnlyBoundRoutes(t *testing.T) {
 	t.Parallel()
 
-	mux := http.NewServeMux()
-	handlers.RegisterWorkflowCallbacks(mux, handlers.Businesses{})
 	routes := manifestRoutes(t)
+	if len(routes) != 1 {
+		t.Fatalf("routes = %v, want only the loan offer answer", routes)
+	}
+	if perms := routes[handlers.RouteKey(http.MethodPost, "/api/v1/groups/{}/loan-offers/{}/respond")]; strings.Join(
+		perms, ",") != "stawi_loan_offer_respond" {
+		t.Fatalf("respond route permissions = %v", perms)
+	}
 
-	for _, req := range collectWorkflowRequests(t) {
-		_, pattern := mux.Handler(httptest.NewRequest(req.method, req.path, nil))
-		if pattern == "" {
-			continue // TestWorkflowURLsResolveAgainstMux reports these.
-		}
-		method, path, _ := strings.Cut(pattern, " ")
-		if _, ok := routes[handlers.RouteKey(method, path)]; !ok {
-			t.Errorf("workflow %s calls %s, which is served but missing from the manifest", req.workflow, pattern)
-		}
+	sd := stawiv1.File_stawi_v1_stawi_proto.Services().ByName("StawiService")
+	procedures := permissions.BuildProcedureMap(sd)
+	if got := procedures["/stawi.v1.StawiService/StawiJobRun"]; strings.Join(got, ",") != "stawi_job_run" {
+		t.Fatalf("StawiJobRun permissions = %v, want stawi_job_run", got)
 	}
 }
 
 func TestFunctionAccessMiddleware(t *testing.T) {
 	t.Parallel()
 
-	windowBiz := &fakeLoanWindowBusiness{result: map[string]any{"eligible": true}}
 	mux := http.NewServeMux()
-	handlers.RegisterWorkflowCallbacks(mux, handlers.Businesses{LoanWindow: windowBiz})
+	handlers.RegisterRoutes(mux, &fakeResponder{})
 	// A route the service registers but the manifest does not know about.
 	mux.HandleFunc("POST /api/v1/groups/{groupId}/unmapped", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -139,33 +138,33 @@ func TestFunctionAccessMiddleware(t *testing.T) {
 	}{
 		{
 			name:       "principal without the permission is refused",
-			checker:    &grantChecker{granted: map[string]bool{"stawi_group_view": true}},
+			checker:    &grantChecker{granted: map[string]bool{"stawi_job_run": true}},
 			method:     http.MethodPost,
-			path:       evaluateWindowRoute,
+			path:       respondRoute,
 			wantStatus: http.StatusForbidden,
 			wantCode:   "forbidden",
-			wantChecks: []string{"stawi_loan_window_manage"},
+			wantChecks: []string{"stawi_loan_offer_respond"},
 		},
 		{
 			name:       "principal with the permission gets through",
-			checker:    &grantChecker{granted: map[string]bool{"stawi_loan_window_manage": true}},
+			checker:    &grantChecker{granted: map[string]bool{"stawi_loan_offer_respond": true}},
 			method:     http.MethodPost,
-			path:       evaluateWindowRoute,
+			path:       respondRoute,
 			wantStatus: http.StatusOK,
-			wantChecks: []string{"stawi_loan_window_manage"},
+			wantChecks: []string{"stawi_loan_offer_respond"},
 		},
 		{
 			name:       "no principal is unauthenticated",
 			checker:    &grantChecker{},
 			method:     http.MethodPost,
-			path:       evaluateWindowRoute,
+			path:       respondRoute,
 			wantStatus: http.StatusUnauthorized,
 			wantCode:   "unauthenticated",
-			wantChecks: []string{"stawi_loan_window_manage"},
+			wantChecks: []string{"stawi_loan_offer_respond"},
 		},
 		{
 			name:       "registered route missing from the manifest fails closed",
-			checker:    &grantChecker{granted: map[string]bool{"stawi_group_manage": true}},
+			checker:    &grantChecker{granted: map[string]bool{"stawi_loan_offer_respond": true}},
 			method:     http.MethodPost,
 			path:       "/api/v1/groups/g-1/unmapped",
 			wantStatus: http.StatusForbidden,
@@ -173,16 +172,16 @@ func TestFunctionAccessMiddleware(t *testing.T) {
 		},
 		{
 			name:       "unknown path is a plain 404 without a permission check",
-			checker:    &grantChecker{granted: map[string]bool{"stawi_group_manage": true}},
+			checker:    &grantChecker{granted: map[string]bool{"stawi_loan_offer_respond": true}},
 			method:     http.MethodPost,
 			path:       "/api/v1/nowhere",
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "wrong method is a plain 405 without a permission check",
-			checker:    &grantChecker{granted: map[string]bool{"stawi_loan_window_manage": true}},
+			checker:    &grantChecker{granted: map[string]bool{"stawi_loan_offer_respond": true}},
 			method:     http.MethodGet,
-			path:       evaluateWindowRoute,
+			path:       respondRoute,
 			wantStatus: http.StatusMethodNotAllowed,
 		},
 	}
@@ -193,7 +192,7 @@ func TestFunctionAccessMiddleware(t *testing.T) {
 
 			handler := handlers.FunctionAccessMiddleware(mux, tt.checker, manifestRoutes(t))
 			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, nil))
+			handler.ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, strings.NewReader(`{"response":2}`)))
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body.String())
@@ -218,8 +217,8 @@ func TestFunctionAccessMiddleware(t *testing.T) {
 }
 
 // TestBuildRoutePermissions_RejectsServiceWithoutHTTPBindings guards the
-// fail-closed contract at build time: a descriptor whose methods carry
-// permissions but no google.api.http route cannot become an HTTP manifest.
+// build-time contract: a descriptor that binds no google.api.http route at
+// all is not a route manifest.
 func TestBuildRoutePermissions_RejectsServiceWithoutHTTPBindings(t *testing.T) {
 	t.Parallel()
 

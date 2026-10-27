@@ -43,6 +43,9 @@ type DisbursementRepository interface {
 	// ListByLoanAccountID returns up to limit disbursements of a loan in
 	// the order they were made.
 	ListByLoanAccountID(ctx context.Context, loanAccountID string, limit int) ([]*models.Disbursement, error)
+	// HasUnfailed reports, from the primary, whether the loan has any
+	// disbursement that did not fail: one processing or one that paid out.
+	HasUnfailed(ctx context.Context, loanAccountID string) (bool, error)
 	// GetLiveByLoanAccountID returns the disbursement that is processing or
 	// completed for the loan, if any. The partial unique index
 	// uq_disb_partition_loan_live guarantees there is at most one.
@@ -152,4 +155,14 @@ func (repo *disbursementRepository) ListByLoanAccountID(
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (repo *disbursementRepository) HasUnfailed(ctx context.Context, loanAccountID string) (bool, error) {
+	var found bool
+	err := repo.Pool().DB(ctx, false).Raw(
+		`SELECT EXISTS (SELECT 1 FROM disbursements
+		 WHERE loan_account_id = ? AND status <> ? AND deleted_at IS NULL)`,
+		loanAccountID, int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED),
+	).Scan(&found).Error
+	return found, err
 }

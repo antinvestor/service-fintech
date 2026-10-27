@@ -82,7 +82,7 @@ func (repo *depositRepository) Settle(ctx context.Context, dep *models.Deposit, 
 			Where("id = ? AND deleted_at IS NULL AND status = ?", dep.GetID(),
 				int32(savingsv1.DepositStatus_DEPOSIT_STATUS_PENDING)).
 			Updates(map[string]any{
-				"status":       int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED),
+				colStatus:      int32(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED),
 				colLedgerTxnID: dep.LedgerTransactionID,
 				colModifiedAt:  gorm.Expr("now()"),
 				colVersion:     gorm.Expr("version + 1"),

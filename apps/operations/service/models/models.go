@@ -57,6 +57,12 @@ type TransferOrder struct {
 	// PayoutStatus is PayoutStatusFailed once the payment rail reported the
 	// payout as failed. Such an order never completes; it needs a reversal.
 	PayoutStatus string `gorm:"type:varchar(20)"`
+	// PayoutCheckedAt is when the reconcile job last asked the payment
+	// service how this payout ended, so each run looks at the oldest first.
+	PayoutCheckedAt *time.Time `gorm:"index:idx_to_payout_checked"`
+	// OriginatorNotifiedAt is when the service that raised a payout the rail
+	// failed after accepting it was told, so it could undo its own record.
+	OriginatorNotifiedAt *time.Time
 	// FailureReason records why the last execution attempt released the order.
 	FailureReason string `gorm:"type:text"`
 	// ObligationConsumed is set once the obligation this allocation order
@@ -72,8 +78,14 @@ func (m *TransferOrder) TableName() string { return "transfer_orders" }
 // LedgerPosted reports whether the ledger leg of this order has landed.
 func (m *TransferOrder) LedgerPosted() bool { return m.LedgerTransactionID != "" }
 
-// PayoutStatusFailed marks an order whose payout the rail rejected.
-const PayoutStatusFailed = "failed"
+// Payout outcomes. An order paid out to the rail is pending until the rail
+// reports how it ended: confirmed when the money arrived, failed when it
+// did not.
+const (
+	PayoutStatusPending   = "pending"
+	PayoutStatusConfirmed = "confirmed"
+	PayoutStatusFailed    = "failed"
+)
 
 // PayoutFailed reports whether the payment rail rejected this order's payout.
 func (m *TransferOrder) PayoutFailed() bool { return m.PayoutStatus == PayoutStatusFailed }

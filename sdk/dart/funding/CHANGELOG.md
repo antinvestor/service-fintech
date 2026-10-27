@@ -1,3 +1,29 @@
+## 0.5.4
+
+- `PayoutFailedApply` (`payout_outcome_apply`, operations only): undoes this
+  service's record of a payout the payment rail failed after accepting it.
+
+## 0.5.3
+
+- `FundingService.InvestorStatement` (`investor_account_view`): what moved an
+  investor account's capital over a period (deposits, withdrawals,
+  deployments, releases, principal and net interest returned, losses and
+  recoveries), with totals. Staff read any account; an investor reads only
+  their own.
+- **Behaviour:** an investor (a non-staff caller) reads only their own
+  investor accounts, and lists them only by naming their own investor.
+
+## 0.5.2
+
+- `FundingService.LoanRecoveryApply`: principal recovered from a written-off
+  loan returned to its funders, most senior tranche first. Internal callers
+  only.
+
+## 0.5.1
+
+- `FundingService.FundingRelease`: returns the capital reserved for a loan
+  cancelled before disbursement. Internal callers only.
+
 ## 0.5.0
 
 - `FundingService.LoanRepaymentApply`: shares a loan repayment out to its funders (`RepaymentShareObject`).

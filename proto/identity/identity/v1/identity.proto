@@ -976,6 +976,11 @@ message ClientGroupSearchRequest {
   ]; // Optional filter by product
   int32 group_type = 7; // Optional filter by group type; zero means any
   common.v1.STATE state = 8; // Optional filter by state; unspecified means any
+  // Optional: only groups in any of these states. CREATED is the zero
+  // value of state, so a caller that wants created groups lists it here.
+  repeated common.v1.STATE states = 9 [(buf.validate.field).repeated.max_items = 8];
+  // Optional: only groups of any of these types.
+  repeated int32 group_types = 10 [(buf.validate.field).repeated.max_items = 32];
 }
 
 message ClientGroupSearchResponse {
@@ -1295,6 +1300,64 @@ message ClientDataEntryHistoryObject {
   ]; // Profile ID of who performed this
   string comment = 7; // Reason/note
   string created_at = 8; // RFC3339 timestamp
+}
+
+// ClientDocumentUploadRequest stores a KYC photo, document or signature for
+// a client. The service keeps the file privately; nobody else holds a copy
+// they could swap in.
+message ClientDocumentUploadRequest {
+  string client_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  string field_key = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 100
+  ];
+  // "photo", "file" or "signature".
+  string value_type = 3 [(buf.validate.field).string = {
+    in: [
+      "photo",
+      "file",
+      "signature"
+    ]
+  }];
+  // image/jpeg, image/png, image/webp or application/pdf.
+  string content_type = 4 [(buf.validate.field).string = {
+    in: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf"
+    ]
+  }];
+  string filename = 5 [(buf.validate.field).string.max_len = 255];
+  // At most 5 MiB.
+  bytes content = 6 [
+    (buf.validate.field).bytes.min_len = 1,
+    (buf.validate.field).bytes.max_len = 5242880
+  ];
+  string source_entity_id = 7 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 40
+  ];
+}
+message ClientDocumentUploadResponse {
+  ClientDataEntryObject data = 1;
+}
+
+// ClientDocumentLinkRequest asks for a short-lived link to view a KYC
+// document entry.
+message ClientDocumentLinkRequest {
+  string entry_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+}
+message ClientDocumentLinkResponse {
+  // A signed link that stops working at expires_at.
+  string url = 1;
+  string expires_at = 2; // RFC 3339
 }
 
 // Save/update client data (agent submitting)
@@ -2239,6 +2302,36 @@ service IdentityService {
       operation_id: "clientDataSave"
       summary: "Save client KYC data"
       description: "Creates or updates a single client data entry. If an entry already exists for the same client_id + field_key, the revision is incremented and the value is updated."
+      tags: "ClientData"
+    };
+  }
+
+  // ClientDocumentUpload stores a KYC photo, document or signature and
+  // records it as the client's entry for the field, as ClientDataSave does
+  // for typed values.
+  rpc ClientDocumentUpload(ClientDocumentUploadRequest) returns (ClientDocumentUploadResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["client_data_manage"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "clientDocumentUpload"
+      summary: "Upload a client KYC document"
+      description: "Stores a KYC photo, document or signature privately and records it as the client's entry for the field."
+      tags: "ClientData"
+    };
+  }
+
+  // ClientDocumentLink gives a short-lived link to view a KYC document to a
+  // caller who may see the client.
+  rpc ClientDocumentLink(ClientDocumentLinkRequest) returns (ClientDocumentLinkResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (common.v1.method_permissions) = {
+      permissions: ["client_data_view"]
+    };
+    option (gnostic.openapi.v3.operation) = {
+      operation_id: "clientDocumentLink"
+      summary: "Link to a client KYC document"
+      description: "Returns a signed link, valid for a few minutes, to view a KYC document entry."
       tags: "ClientData"
     };
   }

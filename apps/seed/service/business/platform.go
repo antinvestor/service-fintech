@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -248,4 +249,14 @@ func basisPointsToPercent(bp int64) string {
 		return ""
 	}
 	return fmt.Sprintf("%d.%02d", bp/100, bp%100) //nolint:mnd // basis points per percent
+}
+
+// ServesClient answers agent scope from the field service's access scope for
+// the caller's profile, so the client resolver is also the AgentScope.
+func (r *identityClientResolver) ServesClient(ctx context.Context, profileID, clientID string) (bool, error) {
+	resp, err := r.fieldCli.ClientAccessScope(ctx, &fieldv1.ClientAccessScopeRequest{ProfileId: profileID})
+	if err != nil {
+		return false, fmt.Errorf("client access scope: %w", err)
+	}
+	return slices.Contains(resp.GetServedClientIds(), clientID), nil
 }

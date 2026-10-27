@@ -78,6 +78,10 @@ type PayoutDestinationChecker interface {
 	// ContactOfClient returns nil when contactID is one of the client's
 	// payable (verified mobile) contacts on their profile.
 	ContactOfClient(ctx context.Context, clientID, contactID string) error
+	// CollectionContact returns the client's profile and the contact a
+	// payment prompt goes to: contactID when it is one of their payable
+	// contacts, or their first payable contact when contactID is empty.
+	CollectionContact(ctx context.Context, clientID, contactID string) (string, string, error)
 }
 
 func NewDisbursementBusiness(
@@ -230,6 +234,20 @@ func (b *disbursementBusiness) createInner(
 		disb = stored
 	}
 
+	// A loan cancelled while this row was being claimed must not be paid:
+	// cancellation closes the loan first, so a fresh read settles it.
+	if created {
+		if current, getErr := b.loanAccountRepo.GetByID(ctx, la.GetID()); getErr != nil ||
+			loansv1.LoanStatus(current.Status) != loansv1.LoanStatus_LOAN_STATUS_PENDING_DISBURSEMENT {
+			if _, upErr := b.disbRepo.UpdateColumns(ctx, disb.GetID(), map[string]any{
+				fieldStatus: int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED),
+			}); upErr != nil {
+				logger.WithError(upErr).Error("could not abandon disbursement of a cancelled loan")
+			}
+			return nil, ErrLoanNotPendingDisbursement
+		}
+	}
+
 	toResp, toErr := b.executeDisbursementTransfer(ctx, req, la, disb)
 	if toErr != nil {
 		return nil, b.handleTransferFailure(ctx, logger, disb, toErr)
@@ -270,9 +288,9 @@ func (b *disbursementBusiness) completeDisbursement(
 	disb.LedgerTransactionID = orderID
 	disb.Status = int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_COMPLETED)
 	if _, updErr := b.disbRepo.UpdateColumns(ctx, disb.GetID(), map[string]any{
-		fieldStatus:      disb.Status,
-		fieldLedgerTxnID: disb.LedgerTransactionID,
-		"failure_reason": "",
+		fieldStatus:        disb.Status,
+		fieldLedgerTxnID:   disb.LedgerTransactionID,
+		fieldFailureReason: "",
 	}); updErr != nil {
 		logger.WithError(updErr).Error("could not mark disbursement completed")
 		return updErr
@@ -283,7 +301,7 @@ func (b *disbursementBusiness) completeDisbursement(
 
 	actor := callerSubject(ctx)
 	if actor == "" {
-		actor = "system"
+		actor = actorSystem
 	}
 	if _, transErr := b.laBusiness.TransitionStatus(
 		ctx, la.GetID(),
@@ -377,7 +395,7 @@ func (b *disbursementBusiness) handleTransferFailure(
 	cause error,
 ) error {
 	logger = logger.WithError(cause).WithField("disbursement_id", disb.GetID())
-	values := map[string]any{"failure_reason": cause.Error()}
+	values := map[string]any{fieldFailureReason: cause.Error()}
 
 	if transferPermanentlyRejected(cause) {
 		logger.Error("disbursement rejected by the payment path")
@@ -485,15 +503,15 @@ func (b *disbursementBusiness) executeDisbursementTransfer(
 			Description:      "Loan disbursement for " + la.GetID(),
 			State:            commonv1.STATE_ACTIVE,
 			ExtraData: (&data.JSONMap{
-				"loan_id":          la.GetID(),
+				fieldLoanID:        la.GetID(),
 				fieldLoanRequestID: loanRequestID,
 				// Operations resolves the client to its profile and checks
 				// payment_account_ref is one of that profile's contacts
 				// before any money moves.
 				"recipient_client_id": la.ClientID,
 				fieldClientID:         la.ClientID,
-				"payment_channel":     req.GetChannel(),
-				"payment_account_ref": la.PaymentAccountRef,
+				fieldPaymentChannel:   req.GetChannel(),
+				fieldPaymentAccount:   la.PaymentAccountRef,
 			}).ToProtoStruct(),
 		}, constants.TransferTypeDisbursement),
 	})

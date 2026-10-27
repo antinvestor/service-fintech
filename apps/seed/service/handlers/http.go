@@ -60,6 +60,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/security"
@@ -81,6 +82,15 @@ type Server struct {
 	staffRole string
 	// ussd answers the USSD engine; nil when USSD is off.
 	ussd business.UssdBusiness
+	// agents answers which clients a field agent serves; nil refuses
+	// agents everything scoped to their clients.
+	agents business.AgentScope
+}
+
+// WithAgentScope lets field agents act on the clients they serve.
+func (s *Server) WithAgentScope(agents business.AgentScope) *Server {
+	s.agents = agents
+	return s
 }
 
 // WithUssd serves the USSD engine's session-start call.
@@ -203,6 +213,94 @@ func (s *Server) Register(mux *http.ServeMux) {
 		s.handleSetStatus(models.CreditProfileStatusBlocked))
 	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/reinstate",
 		s.handleSetStatus(models.CreditProfileStatusActive))
+	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/cap", s.handleSetCap)
+	mux.HandleFunc("POST /api/v1/seed/credit-profiles/{clientId}/{currency}/cap/clear", s.handleClearCap)
+}
+
+// CapPayload is the wire format of the temporary cap endpoint. Amount is in
+// minor units; ExpiresAt is RFC3339.
+type CapPayload struct {
+	Amount    int64  `json:"amount"`
+	ExpiresAt string `json:"expires_at"`
+	Reason    string `json:"reason"`
+}
+
+// handleSetCap sets a temporary lower cap. Staff may cap any client; a field
+// agent only the clients they serve.
+func (s *Server) handleSetCap(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	caller, clientID, currency, err := s.capTarget(r)
+	if err != nil {
+		writeError(ctx, w, err)
+		return
+	}
+	var payload CapPayload
+	if decodeErr := json.NewDecoder(r.Body).Decode(&payload); decodeErr != nil {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON"))
+		return
+	}
+	expires, parseErr := time.Parse(time.RFC3339, payload.ExpiresAt)
+	if parseErr != nil || payload.Amount <= 0 {
+		writeError(ctx, w, business.ErrTempCapInvalid)
+		return
+	}
+	profile, err := s.creditProfile.SetTempCap(ctx, clientID, currency, payload.Amount, expires,
+		caller.actorID, payload.Reason, caller.isStaff || caller.isService)
+	if err != nil {
+		writeError(ctx, w, err)
+		return
+	}
+	writeJSON(ctx, w, http.StatusOK, creditProfileResponse(profile))
+}
+
+// handleClearCap lifts a temporary cap before it lapses.
+func (s *Server) handleClearCap(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	caller, clientID, currency, err := s.capTarget(r)
+	if err != nil {
+		writeError(ctx, w, err)
+		return
+	}
+	var payload StatusChangePayload
+	if decodeErr := json.NewDecoder(r.Body).Decode(&payload); decodeErr != nil {
+		writeError(ctx, w, apperrors.NewError(apperrors.BadRequest, "request body is not valid JSON"))
+		return
+	}
+	profile, err := s.creditProfile.SetTempCap(ctx, clientID, currency, 0, time.Time{},
+		caller.actorID, payload.Reason, caller.isStaff || caller.isService)
+	if err != nil {
+		writeError(ctx, w, err)
+		return
+	}
+	writeJSON(ctx, w, http.StatusOK, creditProfileResponse(profile))
+}
+
+// capTarget resolves the caller and the client a cap change acts on: staff
+// and services act on any client, a field agent only on one they serve.
+func (s *Server) capTarget(r *http.Request) (*principal, string, string, error) {
+	caller, err := s.callerPrincipal(r)
+	if err != nil {
+		return nil, "", "", err
+	}
+	clientID, currency := r.PathValue("clientId"), r.PathValue("currency")
+	if clientID == "" || currency == "" {
+		return nil, "", "", apperrors.NewError(apperrors.BadRequest, "path must be /{client_id}/{currency}/cap")
+	}
+	if caller.isStaff || caller.isService {
+		return caller, clientID, currency, nil
+	}
+	if s.agents == nil {
+		return nil, "", "", apperrors.NewError(apperrors.Forbidden, "only the client's field agent or staff may cap it")
+	}
+	serves, scopeErr := s.agents.ServesClient(r.Context(), caller.profileID, clientID)
+	if scopeErr != nil {
+		util.Log(r.Context()).WithError(scopeErr).Error("could not resolve the agent's clients")
+		return nil, "", "", apperrors.NewError(apperrors.ServiceUnavailable, "the client directory is unavailable")
+	}
+	if !serves {
+		return nil, "", "", apperrors.NewError(apperrors.Forbidden, "only the client's field agent or staff may cap it")
+	}
+	return caller, clientID, currency, nil
 }
 
 // RequestLoanPayload is the wire format of a customer-initiated loan
@@ -355,6 +453,10 @@ func creditProfileResponse(profile *models.CreditProfile) map[string]any {
 		"product_id":             profile.ProductID,
 		"tier":                   profile.Tier,
 		"max_loan_amount":        profile.MaxLoanAmount,
+		"effective_limit":        profile.EffectiveLimit(time.Now()),
+		"temp_cap_amount":        profile.TempCapAmount,
+		"temp_cap_expires_at":    profile.TempCapExpiresAt,
+		"temp_cap_reason":        profile.TempCapReason,
 		fieldStatus:              profile.Status,
 		"successful_repayments":  profile.SuccessfulRepayments,
 		"outstanding_loan_count": profile.OutstandingLoanCount,

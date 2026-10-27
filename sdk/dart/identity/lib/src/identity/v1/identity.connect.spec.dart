@@ -365,6 +365,26 @@ abstract final class IdentityService {
     identityv1identity.ClientDataSaveResponse.new,
   );
 
+  /// ClientDocumentUpload stores a KYC photo, document or signature and
+  /// records it as the client's entry for the field, as ClientDataSave does
+  /// for typed values.
+  static const clientDocumentUpload = connect.Spec(
+    '/$name/ClientDocumentUpload',
+    connect.StreamType.unary,
+    identityv1identity.ClientDocumentUploadRequest.new,
+    identityv1identity.ClientDocumentUploadResponse.new,
+  );
+
+  /// ClientDocumentLink gives a short-lived link to view a KYC document to a
+  /// caller who may see the client.
+  static const clientDocumentLink = connect.Spec(
+    '/$name/ClientDocumentLink',
+    connect.StreamType.unary,
+    identityv1identity.ClientDocumentLinkRequest.new,
+    identityv1identity.ClientDocumentLinkResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
   /// ClientDataGet retrieves a single data entry by client_id and field_key.
   static const clientDataGet = connect.Spec(
     '/$name/ClientDataGet',

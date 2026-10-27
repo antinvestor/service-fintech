@@ -42,6 +42,8 @@ class service_savings implements Namespace {
     granted_withdrawal_manage: (profile_user | service_savings)[]
     granted_interest_view: (profile_user | service_savings)[]
     granted_savings_balance_view: (profile_user | service_savings)[]
+    granted_payout_outcome_apply: (profile_user | service_savings)[]
+    granted_savings_job_run: (profile_user | service_savings)[]
   }
 
   permits = {
@@ -124,5 +126,13 @@ class service_savings implements Namespace {
       this.related.service.includes(ctx.subject) ||
       this.related.viewer.includes(ctx.subject) ||
       this.related.granted_savings_balance_view.includes(ctx.subject),
+
+    payout_outcome_apply: (ctx: Context): boolean =>
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_payout_outcome_apply.includes(ctx.subject),
+
+    savings_job_run: (ctx: Context): boolean =>
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_savings_job_run.includes(ctx.subject),
   }
 }

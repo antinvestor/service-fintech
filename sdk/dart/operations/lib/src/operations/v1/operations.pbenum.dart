@@ -143,12 +143,28 @@ class TransferOrderType extends $pb.ProtobufEnum {
           _omitEnumNames
               ? ''
               : 'TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION');
+
+  /// Investor capital paid out to the investor's own mobile money.
+  static const TransferOrderType TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL =
+      TransferOrderType._(
+          49, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL');
+
+  /// The serving agent's team's commission on interest a borrower repaid.
+  static const TransferOrderType TRANSFER_ORDER_TYPE_AGENT_COMMISSION =
+      TransferOrderType._(
+          50, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_AGENT_COMMISSION');
   static const TransferOrderType TRANSFER_ORDER_TYPE_LOAN_INSURANCE =
       TransferOrderType._(
           51, _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_LOAN_INSURANCE');
   static const TransferOrderType TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT =
       TransferOrderType._(52,
           _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT');
+
+  /// A team's accrued commission paid out to one of its members' own
+  /// verified mobile money.
+  static const TransferOrderType TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT =
+      TransferOrderType._(53,
+          _omitEnumNames ? '' : 'TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT');
   static const TransferOrderType
       TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT = TransferOrderType._(
           71,
@@ -188,8 +204,11 @@ class TransferOrderType extends $pb.ProtobufEnum {
     TRANSFER_ORDER_TYPE_LOAN_INTEREST,
     TRANSFER_ORDER_TYPE_LOAN_INTEREST_REPAYMENT,
     TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION,
+    TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL,
+    TRANSFER_ORDER_TYPE_AGENT_COMMISSION,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE,
     TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT,
+    TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT,
     TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT,
   ];
 
@@ -198,6 +217,37 @@ class TransferOrderType extends $pb.ProtobufEnum {
   static TransferOrderType? valueOf($core.int value) => _byValue[value];
 
   const TransferOrderType._(super.value, super.name);
+}
+
+/// OperationsJob names the periodic work the scheduler asks operations to do.
+class OperationsJob extends $pb.ProtobufEnum {
+  static const OperationsJob OPERATIONS_JOB_UNSPECIFIED =
+      OperationsJob._(0, _omitEnumNames ? '' : 'OPERATIONS_JOB_UNSPECIFIED');
+
+  /// Allocates matched payments (an individual's loan, savings or investor
+  /// account, or a group member's obligations) whose allocation did not
+  /// finish, and posts the allocation orders raised but never executed.
+  static const OperationsJob OPERATIONS_JOB_SETTLE_PAYMENTS = OperationsJob._(
+      1, _omitEnumNames ? '' : 'OPERATIONS_JOB_SETTLE_PAYMENTS');
+
+  /// Asks the payment service how payouts it accepted ended. A payout the
+  /// rail failed afterwards is reversed on the ledger and its originator is
+  /// told; one still undecided past a day is reported to operators.
+  static const OperationsJob OPERATIONS_JOB_RECONCILE_PAYOUTS = OperationsJob._(
+      2, _omitEnumNames ? '' : 'OPERATIONS_JOB_RECONCILE_PAYOUTS');
+
+  static const $core.List<OperationsJob> values = <OperationsJob>[
+    OPERATIONS_JOB_UNSPECIFIED,
+    OPERATIONS_JOB_SETTLE_PAYMENTS,
+    OPERATIONS_JOB_RECONCILE_PAYOUTS,
+  ];
+
+  static final $core.List<OperationsJob?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 2);
+  static OperationsJob? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const OperationsJob._(super.value, super.name);
 }
 
 const $core.bool _omitEnumNames =

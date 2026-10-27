@@ -18,6 +18,8 @@ package repository
 // label values used across this package (extracted to satisfy goconst).
 const (
 	colAvailableBalance = "available_balance"
+	colTotalLost        = "total_lost"
+	colSettledAt        = "settled_at"
 	colModifiedAt       = "modified_at"
 	colReservedBalance  = "reserved_balance"
 	colVersion          = "version"

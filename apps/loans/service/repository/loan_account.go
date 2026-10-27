@@ -56,6 +56,14 @@ type LoanAccountRepository interface {
 	ClaimRepaymentLock(ctx context.Context, loanAccountID string) (bool, error)
 	// ReleaseRepaymentLock gives the lease back.
 	ReleaseRepaymentLock(ctx context.Context, loanAccountID string) error
+	// ClaimPaidOffUnnoticed leases up to limit paid-off loans whose pay-off
+	// downstream products never acknowledged, leaving alone loans paid off
+	// in the last few minutes (their own notice may still be in flight).
+	// Concurrent callers never receive the same loan.
+	ClaimPaidOffUnnoticed(ctx context.Context, limit int) ([]*models.LoanAccount, error)
+	// MarkPaidOffNoticed records that downstream products acknowledged the
+	// loan's pay-off.
+	MarkPaidOffNoticed(ctx context.Context, loanAccountID string) error
 }
 
 type loanAccountRepository struct {
@@ -171,4 +179,43 @@ WHERE id = ? AND deleted_at IS NULL
 func (repo *loanAccountRepository) ReleaseRepaymentLock(ctx context.Context, loanAccountID string) error {
 	return repo.Pool().DB(ctx, false).Exec(
 		`UPDATE loan_accounts SET repayment_locked_at = NULL WHERE id = ?`, loanAccountID).Error
+}
+
+// paidOffNoticeLeaseSeconds bounds how long one run holds a loan's notice;
+// paidOffNoticeGraceSeconds leaves a fresh pay-off to the repayment that made
+// it.
+const (
+	paidOffNoticeLeaseSeconds = 600
+	paidOffNoticeGraceSeconds = 120
+	// loanStatusPaidOff is LOAN_STATUS_PAID_OFF.
+	loanStatusPaidOff = 5
+)
+
+func (repo *loanAccountRepository) ClaimPaidOffUnnoticed(
+	ctx context.Context,
+	limit int,
+) ([]*models.LoanAccount, error) {
+	var rows []*models.LoanAccount
+	err := repo.Pool().DB(ctx, false).Raw(`
+UPDATE loan_accounts SET paid_off_notice_claimed_at = now()
+WHERE id IN (
+    SELECT id FROM loan_accounts
+    WHERE status = ? AND deleted_at IS NULL AND paid_off_noticed_at IS NULL
+      AND modified_at < now() - make_interval(secs => ?)
+      AND (paid_off_notice_claimed_at IS NULL
+           OR paid_off_notice_claimed_at < now() - make_interval(secs => ?))
+    ORDER BY modified_at
+    LIMIT ?
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING *`, loanStatusPaidOff, paidOffNoticeGraceSeconds,
+		paidOffNoticeLeaseSeconds, limit).Scan(&rows).Error
+	return rows, err
+}
+
+func (repo *loanAccountRepository) MarkPaidOffNoticed(ctx context.Context, loanAccountID string) error {
+	return repo.Pool().DB(ctx, false).
+		Table("loan_accounts").
+		Where("id = ? AND deleted_at IS NULL", loanAccountID).
+		Update("paid_off_noticed_at", gorm.Expr("now()")).Error
 }

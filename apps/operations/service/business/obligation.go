@@ -16,15 +16,9 @@ package business
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"strings"
 	"time"
 
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
-	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
-	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
@@ -56,242 +50,31 @@ const (
 )
 
 type obligationBusiness struct {
-	eventsMan   fevents.Manager
-	obRepo      repository.ObligationRepository
-	identityCli identityv1connect.IdentityServiceClient
-	perRepo     PeriodReader
+	eventsMan fevents.Manager
+	obRepo    repository.ObligationRepository
+	// settler applies a member's received money to newly raised obligations.
+	settler MemberSettler
 }
 
+// MemberSettler applies what a group member has paid to what they owe and
+// reports how much it applied. PaymentRoutingBusiness is one.
+type MemberSettler interface {
+	SettleMember(ctx context.Context, membershipID string) (int64, error)
+}
+
+// NewObligationBusiness builds the obligation business. Operations owns
+// group obligations; the group service sends the period facts it owns.
 func NewObligationBusiness(
 	_ context.Context,
 	eventsMan fevents.Manager,
 	obRepo repository.ObligationRepository,
-	identityCli identityv1connect.IdentityServiceClient,
-	perRepo PeriodReader,
+	settler MemberSettler,
 ) ObligationBusiness {
 	return &obligationBusiness{
-		eventsMan:   eventsMan,
-		obRepo:      obRepo,
-		identityCli: identityCli,
-		perRepo:     perRepo,
+		eventsMan: eventsMan,
+		obRepo:    obRepo,
+		settler:   settler,
 	}
-}
-
-// CalculateForGroup computes financial obligations for all active members of
-// the given group in the current period.
-func (b *obligationBusiness) CalculateForGroup(
-	ctx context.Context,
-	groupID string,
-) (map[string]interface{}, error) {
-	logger := util.Log(ctx).WithField("method", "ObligationBusiness.CalculateForGroup").
-		WithField("group_id", groupID)
-
-	// Load the group to get saving amount and currency
-	grpResp, err := b.identityCli.ClientGroupGet(ctx, &identityv1.ClientGroupGetRequest{Id: groupID})
-	if err != nil {
-		return nil, fmt.Errorf("group not found: %w", err)
-	}
-	group := grpResp.GetData()
-
-	if group.GetState() != commonv1.STATE_ACTIVE {
-		logger.Warn("group is not active, skipping obligation calculation")
-		return emptyObligationSummary(groupID, ""), nil
-	}
-
-	savingAmount := group.GetSavingAmount()
-	currencyCode := group.GetCurrencyCode()
-
-	// Get the current period for the group
-	period, err := b.perRepo.GetCurrentByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, fmt.Errorf("current period not found for group %s: %w", groupID, err)
-	}
-
-	logger = logger.WithField("period_id", period.GetID())
-	logger.Info("calculating obligations for group")
-
-	// Get all active memberships via identity SDK
-	memberships, err := b.getMembersByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, fmt.Errorf("could not load memberships for group %s: %w", groupID, err)
-	}
-
-	if len(memberships) == 0 {
-		logger.Warn("no active memberships found, skipping")
-		return emptyObligationSummary(groupID, period.GetID()), nil
-	}
-
-	// Check for existing obligations in this period to avoid duplicates
-	existingObs, err := b.obRepo.GetByPeriodID(ctx, period.GetID())
-	if err != nil {
-		return nil, fmt.Errorf("could not check existing obligations: %w", err)
-	}
-
-	existingByMember := make(map[string]map[string]bool) // memberID -> causeType -> exists
-	for _, ob := range existingObs {
-		if _, ok := existingByMember[ob.MembershipID]; !ok {
-			existingByMember[ob.MembershipID] = make(map[string]bool)
-		}
-		existingByMember[ob.MembershipID][ob.CauseType] = true
-	}
-
-	created := b.raiseSavingsObligations(ctx, logger, savingsRun{
-		groupID:          groupID,
-		currencyCode:     currencyCode,
-		savingAmount:     savingAmount,
-		period:           period,
-		memberships:      memberships,
-		existingByMember: existingByMember,
-	})
-
-	logger.WithField("obligations_created", created).
-		WithField("members_processed", len(memberships)).
-		Info("obligation calculation completed")
-
-	periodObs, err := b.obRepo.GetByPeriodID(ctx, period.GetID())
-	if err != nil {
-		return nil, fmt.Errorf("could not read the period's obligations: %w", err)
-	}
-
-	summary := emptyObligationSummary(groupID, period.GetID())
-	summary["obligations_created"] = created
-	summary["members_processed"] = len(memberships)
-	summary["member_obligations"] = summariseMemberObligations(periodObs)
-	return summary, nil
-}
-
-// savingsRun carries the inputs of one periodic-savings obligation run.
-type savingsRun struct {
-	groupID          string
-	currencyCode     string
-	savingAmount     int64
-	period           *PeriodInfo
-	memberships      []*identityv1.MembershipObject
-	existingByMember map[string]map[string]bool
-}
-
-// raiseSavingsObligations creates the period's periodic savings obligation for
-// every regular member that does not already have one, and reports how many
-// were raised. Loan repayment obligations are raised separately by
-// CreateLoanObligations as schedule entries become due.
-func (b *obligationBusiness) raiseSavingsObligations(
-	ctx context.Context,
-	logger *util.LogEntry,
-	run savingsRun,
-) int {
-	if run.savingAmount <= 0 {
-		return 0
-	}
-
-	created := 0
-	for _, mem := range run.memberships {
-		memberID := mem.GetId()
-		if mem.GetMembershipType() != MembershipTypeMember {
-			continue
-		}
-		if run.existingByMember[memberID][obligationPeriodicSaving] {
-			continue
-		}
-
-		ob := &models.Obligation{
-			MembershipID:   memberID,
-			CauseType:      obligationPeriodicSaving,
-			CauseID:        run.groupID,
-			ObligationType: int32(models.ObligationTypePeriodic),
-			PeriodID:       run.period.GetID(),
-			Amount:         run.savingAmount,
-			Currency:       run.currencyCode,
-			Deadline:       run.period.EndDate,
-			Description:    fmt.Sprintf("Periodic savings for period %d", run.period.Position),
-			State:          int32(constants.StateActive),
-			Properties: data.JSONMap{
-				fieldGroupID:           run.groupID,
-				propertyOriginalAmount: run.savingAmount,
-			},
-		}
-		ob.GenID(ctx)
-
-		if emitErr := b.eventsMan.Emit(ctx, events.ObligationSaveEvent, ob); emitErr != nil {
-			logger.WithError(emitErr).
-				WithField(fieldMemberID, memberID).
-				Error("could not create savings obligation")
-			continue
-		}
-		created++
-	}
-	return created
-}
-
-// emptyObligationSummary is the shape every CalculateForGroup return follows,
-// so a workflow reading member_obligations never sees a missing key.
-func emptyObligationSummary(groupID, periodID string) map[string]interface{} {
-	return map[string]interface{}{
-		fieldGroupID:          groupID,
-		fieldPeriodID:         periodID,
-		"obligations_created": 0,
-		"members_processed":   0,
-		"member_obligations":  []map[string]interface{}{},
-	}
-}
-
-// summariseMemberObligations folds a period's obligations into one row per
-// member, splitting savings from loan repayment so a reminder can name both.
-func summariseMemberObligations(obligations []*models.Obligation) []map[string]interface{} {
-	type memberDue struct {
-		savings int64
-		loan    int64
-		other   int64
-		due     *time.Time
-	}
-
-	order := make([]string, 0, len(obligations))
-	byMember := map[string]*memberDue{}
-	for _, obl := range obligations {
-		if obl.State != int32(constants.StateActive) || obl.Amount <= 0 {
-			continue
-		}
-		entry, seen := byMember[obl.MembershipID]
-		if !seen {
-			entry = &memberDue{}
-			byMember[obl.MembershipID] = entry
-			order = append(order, obl.MembershipID)
-		}
-		switch {
-		case obl.CauseType == obligationPeriodicSaving || obl.CauseType == obligationSaving:
-			entry.savings += obl.Amount
-		case strings.HasPrefix(obl.CauseType, "loan_"):
-			entry.loan += obl.Amount
-		default:
-			entry.other += obl.Amount
-		}
-		if obl.Deadline != nil && (entry.due == nil || obl.Deadline.Before(*entry.due)) {
-			entry.due = obl.Deadline
-		}
-	}
-
-	result := make([]map[string]interface{}, 0, len(order))
-	for _, memberID := range order {
-		entry := byMember[memberID]
-		row := map[string]interface{}{
-			fieldMemberID:        memberID,
-			fieldMembershipID:    memberID,
-			"savings_due":        entry.savings,
-			"loan_repayment_due": entry.loan,
-			"other_due":          entry.other,
-			"total_due":          entry.savings + entry.loan + entry.other,
-			fieldDueDate:         formatDeadline(entry.due),
-		}
-		result = append(result, row)
-	}
-	return result
-}
-
-// formatDeadline renders an obligation deadline for a workflow template.
-func formatDeadline(deadline *time.Time) string {
-	if deadline == nil {
-		return ""
-	}
-	return deadline.UTC().Format(time.RFC3339)
 }
 
 // CreateLoanObligations creates obligations for due schedule entries.
@@ -451,34 +234,4 @@ func (b *obligationBusiness) GetStatus(ctx context.Context, obligationID string)
 	}
 
 	return status, nil
-}
-
-// getMembersByGroupID fetches group memberships via the identity SDK.
-func (b *obligationBusiness) getMembersByGroupID(
-	ctx context.Context,
-	groupID string,
-) ([]*identityv1.MembershipObject, error) {
-	if b.identityCli == nil {
-		return nil, errors.New("identity client not available")
-	}
-
-	stream, err := b.identityCli.MembershipSearch(ctx, &identityv1.MembershipSearchRequest{GroupId: groupID})
-	if err != nil {
-		return nil, err
-	}
-
-	var members []*identityv1.MembershipObject
-	for {
-		msg2, streamErr := stream.Receive()
-		if streamErr != nil {
-			if errors.Is(streamErr, io.EOF) {
-				break
-			}
-			return nil, streamErr
-		}
-		msg := msg2
-		members = append(members, msg.GetData()...)
-	}
-
-	return members, nil
 }

@@ -50,6 +50,11 @@ type WithdrawalRepository interface {
 	// had already left PENDING, so the caller reports a failed transition
 	// rather than a release that never happened.
 	ReleaseHold(ctx context.Context, wdr *models.Withdrawal, reason string) (released bool, err error)
+
+	// ReverseSettled marks a completed withdrawal reversed and credits its
+	// amount back, for a payout the rail failed after it completed. It
+	// reports whether this call reversed it.
+	ReverseSettled(ctx context.Context, withdrawalID, reason string) (bool, error)
 }
 
 type withdrawalRepository struct {
@@ -160,6 +165,37 @@ func (repo *withdrawalRepository) ReleaseHold(
 	return released, nil
 }
 
+func (repo *withdrawalRepository) ReverseSettled(ctx context.Context, withdrawalID, reason string) (bool, error) {
+	var reversed bool
+	err := repo.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		wdr := &models.Withdrawal{}
+		if err := tx.Where("id = ? AND deleted_at IS NULL", withdrawalID).First(wdr).Error; err != nil {
+			if data.ErrorIsNoRows(err) {
+				return nil
+			}
+			return err
+		}
+		res := tx.Table("withdrawals").
+			Where("id = ? AND deleted_at IS NULL AND status = ?", withdrawalID,
+				int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_COMPLETED)).
+			Updates(map[string]any{
+				colStatus:     int32(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_REVERSED),
+				"reason":      reason,
+				colModifiedAt: gorm.Expr("now()"),
+				colVersion:    gorm.Expr("version + 1"),
+			})
+		if res.Error != nil || res.RowsAffected == 0 {
+			return res.Error
+		}
+		reversed = true
+		return balanceUpdate(tx, wdr.SavingsAccountID, "", nil, map[string]any{
+			colBalance:          gorm.Expr("balance + ?", wdr.Amount),
+			"total_withdrawals": gorm.Expr("total_withdrawals - ?", wdr.Amount),
+		})
+	})
+	return reversed, err
+}
+
 // claimStatus moves a withdrawal out of PENDING into next, and reports
 // whether this call was the one that made the transition. A false return
 // means another caller already settled or released the hold.
@@ -170,7 +206,7 @@ func claimStatus(
 	extra map[string]any,
 ) (bool, error) {
 	values := map[string]any{
-		"status":      int32(next),
+		colStatus:     int32(next),
 		colModifiedAt: gorm.Expr("now()"),
 		colVersion:    gorm.Expr("version + 1"),
 	}

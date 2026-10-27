@@ -7,9 +7,11 @@ import 'package:antinvestor_ui_identity/antinvestor_ui_identity.dart';
 import 'package:antinvestor_ui_funding/antinvestor_ui_funding.dart'
     show FundingRouteModule;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
-    show LoansRouteModule;
+    show LoansRouteModule, TeamCommissionSection;
 import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
     show OperationsRouteModule;
+import 'package:antinvestor_ui_savings/antinvestor_ui_savings.dart'
+    show SavingsRouteModule;
 
 import 'package:antinvestor_ui_core/auth/tenancy_context.dart';
 import 'package:antinvestor_ui_core/logging/app_logger.dart';
@@ -220,8 +222,27 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':teamId',
-                builder: (context, state) =>
-                    TeamDetailScreen(teamId: state.pathParameters['teamId']!),
+                builder: (context, state) => Consumer(
+                  builder: (context, ref, _) {
+                    final canViewCommission = ref.watch(
+                      hasPermissionProvider('commission_view'),
+                    );
+                    final canPayout = ref.watch(
+                      hasPermissionProvider('commission_payout'),
+                    );
+                    return TeamDetailScreen(
+                      teamId: state.pathParameters['teamId']!,
+                      sections: [
+                        if (canViewCommission)
+                          (context, team, memberIds) => TeamCommissionSection(
+                            teamId: team.id,
+                            memberIds: memberIds,
+                            canPayout: canPayout,
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ],
           ),
@@ -276,6 +297,9 @@ final routerProvider = Provider<GoRouter>((ref) {
                     canAssignStaff: ref.watch(
                       hasPermissionProvider('client_relationship_manage'),
                     ),
+                    canVerifyData: ref.watch(
+                      hasPermissionProvider('client_data_verify'),
+                    ),
                     extraTabs: [
                       if (ref.watch(
                         hasPermissionProvider('seed_credit_profile_view'),
@@ -289,6 +313,9 @@ final routerProvider = Provider<GoRouter>((ref) {
                                 'seed_credit_profile_admin',
                               ),
                             ),
+                            canCap: ref.watch(
+                              hasPermissionProvider('seed_credit_profile_cap'),
+                            ),
                           ),
                         ),
                     ],
@@ -300,6 +327,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ...LimitsFeature.routes(),
           ...LoansRouteModule().buildRoutes(),
           ...FundingRouteModule().buildRoutes(),
+          ...SavingsRouteModule().buildRoutes(),
           ...OperationsRouteModule(pickLoan: pickLoanAccount).buildRoutes(),
         ],
       ),

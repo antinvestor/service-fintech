@@ -29,6 +29,40 @@ class ClientDataNotifier extends Notifier<AsyncValue<void>> {
 
   IdentityServiceClient get _client => ref.read(identityServiceClientProvider);
 
+  /// Uploads a KYC photo, document or signature; the service stores it
+  /// privately and records it as the client's entry for [fieldKey].
+  Future<ClientDataEntryObject> uploadDocument({
+    required String clientId,
+    required String fieldKey,
+    required String valueType,
+    required String contentType,
+    required String filename,
+    required List<int> content,
+  }) async {
+    final resp = await _client.clientDocumentUpload(
+      ClientDocumentUploadRequest(
+        clientId: clientId,
+        fieldKey: fieldKey,
+        valueType: valueType,
+        contentType: contentType,
+        filename: filename,
+        content: content,
+      ),
+    );
+    ref.invalidate(clientDataListProvider);
+    ref.invalidate(clientDataPagedListProvider);
+    ref.invalidate(clientKycRequirementsProvider);
+    return resp.data;
+  }
+
+  /// A short-lived link to view a document entry.
+  Future<String> documentLink(String entryId) async {
+    final resp = await _client.clientDocumentLink(
+      ClientDocumentLinkRequest(entryId: entryId),
+    );
+    return resp.url;
+  }
+
   Future<ClientDataEntryObject> save(ClientDataEntryObject entry) async {
     state = const AsyncValue.loading();
     try {

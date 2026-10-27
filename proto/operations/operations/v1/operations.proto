@@ -61,8 +61,15 @@ enum TransferOrderType {
   TRANSFER_ORDER_TYPE_LOAN_INTEREST = 46;
   TRANSFER_ORDER_TYPE_LOAN_INTEREST_REPAYMENT = 47;
   TRANSFER_ORDER_TYPE_LOAN_INTEREST_INCOME_DISTRIBUTION = 48;
+  // Investor capital paid out to the investor's own mobile money.
+  TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL = 49;
+  // The serving agent's team's commission on interest a borrower repaid.
+  TRANSFER_ORDER_TYPE_AGENT_COMMISSION = 50;
   TRANSFER_ORDER_TYPE_LOAN_INSURANCE = 51;
   TRANSFER_ORDER_TYPE_LOAN_INSURANCE_REPAYMENT = 52;
+  // A team's accrued commission paid out to one of its members' own
+  // verified mobile money.
+  TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT = 53;
   TRANSFER_ORDER_TYPE_INTER_SUBSCRIPTION_PAYMENT = 71;
 }
 
@@ -158,6 +165,9 @@ message IncomingPaymentObject {
   // person did.
   string assigned_by = 14;
   string assignment_note = 15;
+  // savings_account_id is set when the payment was a deposit to the payer's
+  // own savings account.
+  string savings_account_id = 16;
 }
 
 // IncomingPaymentSearchRequest lists received payments, newest first.
@@ -175,20 +185,152 @@ message IncomingPaymentSearchResponse {
   repeated IncomingPaymentObject data = 1;
 }
 
-// IncomingPaymentAssignRequest ties an unmatched payment to the loan it was
-// meant for and allocates it. The amount is the rail's; nobody types one.
-// The loan must take repayments and belong to the product the rail credited.
+// IncomingPaymentAssignRequest ties an unmatched payment to the loan or the
+// savings account it was meant for, and allocates it. The amount is the
+// rail's; nobody types one. Name exactly one target: the loan must take
+// repayments, the savings account must be open and individually owned, and
+// either must belong to the product the rail credited.
 message IncomingPaymentAssignRequest {
   string payment_id = 1;
   string loan_account_id = 2;
   // note says why the payment belongs to this loan; it is kept on the
   // payment for audit.
   string note = 3;
+  string savings_account_id = 4;
 }
 
 message IncomingPaymentAssignResponse {
   IncomingPaymentObject data = 1;
   google.protobuf.Struct allocation = 2;
+}
+
+// OperationsJob names the periodic work the scheduler asks operations to do.
+enum OperationsJob {
+  OPERATIONS_JOB_UNSPECIFIED = 0;
+  // Allocates matched payments (an individual's loan, savings or investor
+  // account, or a group member's obligations) whose allocation did not
+  // finish, and posts the allocation orders raised but never executed.
+  OPERATIONS_JOB_SETTLE_PAYMENTS = 1;
+  // Asks the payment service how payouts it accepted ended. A payout the
+  // rail failed afterwards is reversed on the ledger and its originator is
+  // told; one still undecided past a day is reported to operators.
+  OPERATIONS_JOB_RECONCILE_PAYOUTS = 2;
+}
+
+message OperationsJobRunRequest {
+  OperationsJob job = 1;
+  // Most items to process in this run, at most 5000. 0 uses the service
+  // default.
+  int32 batch_size = 2;
+}
+
+message OperationsJobRunResponse {
+  // Items this run worked through.
+  int32 processed = 1;
+  // True when the batch was full and more work may be waiting.
+  bool more = 2;
+}
+
+// GroupMemberObligation is one member's contribution due for a group's
+// period. Members are named by membership and profile, never by contact.
+message GroupMemberObligation {
+  string membership_id = 1;
+  string profile_id = 2;
+  common.v1.Money amount = 3;
+}
+
+// GroupObligationsRaiseRequest raises the period's savings obligation for
+// each member. The group service owns periods and memberships and sends the
+// facts; operations owns the obligations and the money that settles them.
+message GroupObligationsRaiseRequest {
+  string group_id = 1;
+  string period_id = 2;
+  string currency_code = 3;
+  // due_at is when the period's contribution falls due, RFC3339.
+  string due_at = 4;
+  repeated GroupMemberObligation members = 5;
+}
+
+// GroupMemberObligationResult is where one member stands for the period
+// once money they already paid has been applied.
+message GroupMemberObligationResult {
+  string membership_id = 1;
+  string profile_id = 2;
+  // raised is false when an earlier call already raised the obligation.
+  bool raised = 3;
+  // due is what the member owes for the period.
+  common.v1.Money due = 4;
+  // paid is what has been applied against the period's obligations.
+  common.v1.Money paid = 5;
+  // outstanding is what is still owed for the period.
+  common.v1.Money outstanding = 6;
+}
+
+message GroupObligationsRaiseResponse {
+  repeated GroupMemberObligationResult members = 1;
+  // total_outstanding is what the members still owe for the period.
+  common.v1.Money total_outstanding = 2;
+}
+
+// GroupPeriodCloseRequest settles a group's period: money members already
+// paid is applied, and every member still owing is charged the penalty once.
+message GroupPeriodCloseRequest {
+  string group_id = 1;
+  string period_id = 2;
+  // penalty is charged to each member with an unpaid balance; zero charges
+  // nothing.
+  common.v1.Money penalty = 3;
+}
+
+// GroupMemberOutstanding is one member's statement for a closed period.
+message GroupMemberOutstanding {
+  string membership_id = 1;
+  string profile_id = 2;
+  // outstanding is what is still owed on the period's obligations, not
+  // counting the penalty.
+  common.v1.Money outstanding = 3;
+  // penalty_raised is the penalty the member was charged for the period;
+  // a retried close reports the one charged first.
+  common.v1.Money penalty_raised = 4;
+  // paid is what has been applied against the period's obligations, not
+  // counting the penalty.
+  common.v1.Money paid = 5;
+}
+
+message GroupPeriodCloseResponse {
+  repeated GroupMemberOutstanding members = 1;
+  // collected is everything applied against the period's obligations,
+  // penalties included.
+  common.v1.Money collected = 2;
+  // outstanding is the sum of the members' outstanding balances.
+  common.v1.Money outstanding = 3;
+}
+
+// GroupMemberStandingRequest asks where members stand across a group's
+// savings: what they have saved and what they are behind on.
+message GroupMemberStandingRequest {
+  string group_id = 1;
+  // membership_ids are the members asked about, at most 1000.
+  repeated string membership_ids = 2;
+  // currency_code is the group's currency; only obligations in it count.
+  string currency_code = 3;
+}
+
+// MemberStanding is one member's savings record in a group.
+message MemberStanding {
+  string membership_id = 1;
+  // saved is everything paid against the member's periodic savings
+  // obligations, partial payments included.
+  common.v1.Money saved = 2;
+  // arrears is what the member still owes on savings obligations past their
+  // due date, plus unpaid penalties.
+  common.v1.Money arrears = 3;
+}
+
+message GroupMemberStandingResponse {
+  // members has one row per requested membership, in the order asked; a
+  // member with no obligations has zero saved and zero arrears.
+  repeated MemberStanding members = 1;
 }
 
 service OperationsService {
@@ -199,7 +341,9 @@ service OperationsService {
       "transfer_view",
       "payment_notify",
       "payment_allocate",
-      "payment_view"
+      "payment_view",
+      "operations_job_run",
+      "group_obligation_manage"
     ]
     role_bindings: [
       {
@@ -250,7 +394,9 @@ service OperationsService {
           "transfer_view",
           "payment_notify",
           "payment_allocate",
-          "payment_view"
+          "payment_view",
+          "operations_job_run",
+          "group_obligation_manage"
         ]
       }
     ]
@@ -288,6 +434,41 @@ service OperationsService {
   rpc IncomingPaymentAssign(IncomingPaymentAssignRequest) returns (IncomingPaymentAssignResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["payment_allocate"]
+    };
+  }
+
+  // OperationsJobRun runs one batch of a periodic job. Called by the
+  // platform scheduler (trustage); only service accounts hold the permission.
+  rpc OperationsJobRun(OperationsJobRunRequest) returns (OperationsJobRunResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["operations_job_run"]
+    };
+  }
+
+  // GroupObligationsRaise raises a group period's savings obligations and
+  // applies money the members already paid. Called by the group service; only
+  // service accounts hold the permission. Retrying raises nothing new.
+  rpc GroupObligationsRaise(GroupObligationsRaiseRequest) returns (GroupObligationsRaiseResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["group_obligation_manage"]
+    };
+  }
+
+  // GroupPeriodClose applies money members paid, charges the penalty to
+  // each member still owing, and reports the period's statement. Called by
+  // the group service; retrying charges no second penalty.
+  rpc GroupPeriodClose(GroupPeriodCloseRequest) returns (GroupPeriodCloseResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["group_obligation_manage"]
+    };
+  }
+
+  // GroupMemberStanding reports what each member has saved in a group and
+  // what they are behind on, so the group service can size what it lends
+  // them. Read only; only service accounts hold the permission.
+  rpc GroupMemberStanding(GroupMemberStandingRequest) returns (GroupMemberStandingResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["group_obligation_manage"]
     };
   }
 }

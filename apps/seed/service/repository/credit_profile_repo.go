@@ -31,6 +31,10 @@ import (
 // ErrCreditProfileNotFound is returned when no profile matches the filter.
 var ErrCreditProfileNotFound = errors.New("seed credit profile not found")
 
+// ErrCreditProfileChanged is returned when a conditional write finds the
+// profile changed since it was read.
+var ErrCreditProfileChanged = errors.New("seed credit profile changed since it was read")
+
 // CreditProfileRepository owns the seed_credit_profiles table. Mutations
 // that change counters or tier go through dedicated atomic methods so
 // two concurrent credit-affecting events (a new loan request and a
@@ -108,6 +112,17 @@ type CreditProfileRepository interface {
 		ctx context.Context,
 		profileID string,
 		status models.CreditProfileStatus,
+	) (*models.CreditProfile, error)
+
+	// SetTempCap records (or, with amount 0, lifts) a temporary cap on the
+	// profile as it stood at version, or returns ErrCreditProfileChanged.
+	SetTempCap(
+		ctx context.Context,
+		profileID string,
+		version uint,
+		amount int64,
+		expiresAt *time.Time,
+		setBy, reason string,
 	) (*models.CreditProfile, error)
 }
 
@@ -346,6 +361,34 @@ func (r *creditProfileRepository) AtomicSetStatus(
 	}
 	if result.RowsAffected == 0 {
 		return nil, ErrCreditProfileNotFound
+	}
+	return r.GetByID(ctx, profileID)
+}
+
+func (r *creditProfileRepository) SetTempCap(
+	ctx context.Context,
+	profileID string,
+	version uint,
+	amount int64,
+	expiresAt *time.Time,
+	setBy, reason string,
+) (*models.CreditProfile, error) {
+	result := r.dbPool.DB(ctx, false).
+		Table(creditProfileTable).
+		Where("deleted_at IS NULL AND id = ? AND version = ?", profileID, version).
+		Updates(map[string]any{
+			"temp_cap_amount":     amount,
+			"temp_cap_expires_at": expiresAt,
+			"temp_cap_set_by":     setBy,
+			"temp_cap_reason":     reason,
+			colModifiedAt:         time.Now().UTC(),
+			colVersion:            gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrCreditProfileChanged
 	}
 	return r.GetByID(ctx, profileID)
 }

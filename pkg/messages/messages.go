@@ -58,12 +58,25 @@ const (
 	UssdPinSet        = "template.fintech.ussd.pin_set"
 )
 
+// Group (chama) savings and lending, sent to the member unless the name
+// says otherwise.
+const (
+	GroupLoanOffered     = "template.fintech.group.loan_offered"
+	GroupLoanFailed      = "template.fintech.group.loan_failed"
+	GroupWelcome         = "template.fintech.group.welcome"
+	GroupPeriodSummary   = "template.fintech.group.period_summary"
+	GroupSavingsReminder = "template.fintech.group.savings_reminder"
+	// GroupLeaderArrears goes to the group's leaders.
+	GroupLeaderArrears = "template.fintech.group.leader_arrears"
+)
+
 // Client onboarding and KYC messages.
 const (
 	ClientOnboarded          = "template.fintech.client.onboarded"
 	ClientKYCVerified        = "template.fintech.client.kyc_verified"
 	ClientKYCRejected        = "template.fintech.client.kyc_rejected"
 	ClientKYCInfoRequested   = "template.fintech.client.kyc_info_requested"
+	ClientTermsOffered       = "template.fintech.client.terms_offered"
 	WorkforceMemberOnboarded = "template.fintech.workforce.member_onboarded"
 )
 
@@ -93,6 +106,7 @@ const (
 	VarChannel      = "channel"
 	VarReference    = "reference"
 	VarFieldLabel   = "field_label"
+	VarTermsURL     = "terms_url"
 	VarCaseID       = "case_id"
 	VarCaseType     = "case_type_label"
 	VarCaseStatus   = "case_status_label"
@@ -104,6 +118,9 @@ const (
 	VarComment      = "comment"
 	VarMemberName   = "member_name"
 	VarOrganization = "organization_name"
+	VarGroupName    = "group_name"
+	VarExpiresOn    = "expires_on"
+	VarMemberCount  = "member_count"
 )
 
 //nolint:gochecknoglobals // template registry is declared once at package init
@@ -118,6 +135,77 @@ func init() {
 	registry.MustAdd(clientTemplates()...)
 	registry.MustAdd(caseTemplates()...)
 	registry.MustAdd(ussdTemplates()...)
+	registry.MustAdd(groupTemplates()...)
+}
+
+func groupTemplates() []notification.Template {
+	return []notification.Template{
+		notification.New(
+			GroupLoanOffered,
+			"A loan offer from {{.group_name}}",
+			"{{.group_name}}: you can borrow {{.currency}} {{.amount}}. Accept by {{.expires_on}} and it is sent to your phone.",
+			"You can borrow {{.currency}} {{.amount}} through {{.group_name}}.\n\nAccept the offer by {{.expires_on}} "+
+				"and the money is sent to your registered mobile number.\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarExpiresOn,
+		),
+		notification.New(
+			GroupLoanFailed,
+			"Your {{.group_name}} loan could not be paid",
+			"{{.group_name}}: your loan of {{.currency}} {{.amount}} could not be paid out. {{.reason}}",
+			"Your loan of {{.currency}} {{.amount}} through {{.group_name}} could not be paid out.\n\nReason: {{.reason}}\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarReason,
+		),
+		notification.New(
+			GroupWelcome,
+			"{{.group_name}} is now active",
+			"{{.group_name}} is now active. Save {{.currency}} {{.amount}} each period; the first is due {{.due_date}}.",
+			"Welcome to {{.group_name}}.\n\nThe group is now active. Each member saves {{.currency}} {{.amount}} "+
+				"every period; the first period's savings are due {{.due_date}}.\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarDueDate,
+		),
+		notification.New(
+			GroupPeriodSummary,
+			"Your {{.group_name}} period statement",
+			"{{.group_name}}: this period you saved {{.currency}} {{.amount}}. Still owing: {{.currency}} {{.balance}}.",
+			"The period at {{.group_name}} has closed.\n\nYou saved {{.currency}} {{.amount}}.\n"+
+				"Still owing, including any late fine: {{.currency}} {{.balance}}.\n",
+			VarGroupName,
+			VarAmount,
+			VarBalance,
+			VarCurrency,
+		),
+		notification.New(
+			GroupSavingsReminder,
+			"Your {{.group_name}} savings are due {{.due_date}}",
+			"{{.group_name}}: you still owe {{.currency}} {{.amount}} of this period's savings, due {{.due_date}}.",
+			"You still owe {{.currency}} {{.amount}} of this period's savings at {{.group_name}}.\n\n"+
+				"Please pay by {{.due_date}} to avoid a late fine.\n",
+			VarGroupName,
+			VarAmount,
+			VarCurrency,
+			VarDueDate,
+		),
+		notification.New(
+			GroupLeaderArrears,
+			"{{.member_count}} {{.group_name}} members still owe savings",
+			"{{.group_name}}: {{.member_count}} members still owe savings due {{.due_date}}: {{.summary}}",
+			"{{.member_count}} members of {{.group_name}} still owe this period's savings, due {{.due_date}}:\n\n"+
+				"{{.summary}}\n",
+			VarGroupName,
+			VarMemberCount,
+			VarDueDate,
+			VarSummary,
+		),
+	}
 }
 
 func ussdTemplates() []notification.Template {
@@ -391,6 +479,18 @@ func clientTemplates() []notification.Template {
 			VarLenderName,
 			VarClientName,
 			VarAgentName,
+		),
+		notification.New(
+			ClientTermsOffered,
+			"Your {{.lender_name}} account terms",
+			"{{.lender_name}}: {{.client_name}}, a code follows to open your account. Giving it to your field officer "+
+				"means you accept our lending terms: {{.terms_url}}. Loans after that are instant.",
+			"Dear {{.client_name}},\n\nA code follows to open your {{.lender_name}} account. Giving it to your field "+
+				"officer means you accept our lending terms ({{.terms_url}}). These terms cover every loan you take; "+
+				"after this, borrowing is instant.\n",
+			VarLenderName,
+			VarClientName,
+			VarTermsURL,
 		),
 		notification.New(ClientKYCVerified,
 			"Your {{.field_label}} has been verified",

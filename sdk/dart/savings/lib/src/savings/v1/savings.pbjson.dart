@@ -135,6 +135,85 @@ final $typed_data.Uint8List withdrawalStatusDescriptor = $convert.base64Decode(
     'VkVEEAISHwobV0lUSERSQVdBTF9TVEFUVVNfQ09NUExFVEVEEAMSHgoaV0lUSERSQVdBTF9TVE'
     'FUVVNfUkVKRUNURUQQBBIeChpXSVRIRFJBV0FMX1NUQVRVU19SRVZFUlNFRBAF');
 
+@$core.Deprecated('Use savingsJobDescriptor instead')
+const SavingsJob$json = {
+  '1': 'SavingsJob',
+  '2': [
+    {'1': 'SAVINGS_JOB_UNSPECIFIED', '2': 0},
+    {'1': 'SAVINGS_JOB_ACCRUE_INTEREST', '2': 1},
+  ],
+};
+
+/// Descriptor for `SavingsJob`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List savingsJobDescriptor = $convert.base64Decode(
+    'CgpTYXZpbmdzSm9iEhsKF1NBVklOR1NfSk9CX1VOU1BFQ0lGSUVEEAASHwobU0FWSU5HU19KT0'
+    'JfQUNDUlVFX0lOVEVSRVNUEAE=');
+
+@$core.Deprecated('Use savingsJobRunRequestDescriptor instead')
+const SavingsJobRunRequest$json = {
+  '1': 'SavingsJobRunRequest',
+  '2': [
+    {
+      '1': 'job',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.savings.v1.SavingsJob',
+      '8': {},
+      '10': 'job'
+    },
+    {'1': 'batch_size', '3': 2, '4': 1, '5': 5, '8': {}, '10': 'batchSize'},
+  ],
+};
+
+/// Descriptor for `SavingsJobRunRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List savingsJobRunRequestDescriptor = $convert.base64Decode(
+    'ChRTYXZpbmdzSm9iUnVuUmVxdWVzdBI0CgNqb2IYASABKA4yFi5zYXZpbmdzLnYxLlNhdmluZ3'
+    'NKb2JCCrpIB4IBBBABIABSA2pvYhIpCgpiYXRjaF9zaXplGAIgASgFQgq6SAcaBRiIJygAUgli'
+    'YXRjaFNpemU=');
+
+@$core.Deprecated('Use savingsJobRunResponseDescriptor instead')
+const SavingsJobRunResponse$json = {
+  '1': 'SavingsJobRunResponse',
+  '2': [
+    {'1': 'processed', '3': 1, '4': 1, '5': 5, '10': 'processed'},
+    {'1': 'more', '3': 2, '4': 1, '5': 8, '10': 'more'},
+  ],
+};
+
+/// Descriptor for `SavingsJobRunResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List savingsJobRunResponseDescriptor = $convert.base64Decode(
+    'ChVTYXZpbmdzSm9iUnVuUmVzcG9uc2USHAoJcHJvY2Vzc2VkGAEgASgFUglwcm9jZXNzZWQSEg'
+    'oEbW9yZRgCIAEoCFIEbW9yZQ==');
+
+@$core.Deprecated('Use payoutFailedApplyRequestDescriptor instead')
+const PayoutFailedApplyRequest$json = {
+  '1': 'PayoutFailedApplyRequest',
+  '2': [
+    {'1': 'reference', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'reference'},
+    {'1': 'reason', '3': 2, '4': 1, '5': 9, '8': {}, '10': 'reason'},
+  ],
+};
+
+/// Descriptor for `PayoutFailedApplyRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List payoutFailedApplyRequestDescriptor =
+    $convert.base64Decode(
+        'ChhQYXlvdXRGYWlsZWRBcHBseVJlcXVlc3QSKAoJcmVmZXJlbmNlGAEgASgJQgq6SAdyBRADGP'
+        '8BUglyZWZlcmVuY2USIAoGcmVhc29uGAIgASgJQgi6SAVyAxj0A1IGcmVhc29u');
+
+@$core.Deprecated('Use payoutFailedApplyResponseDescriptor instead')
+const PayoutFailedApplyResponse$json = {
+  '1': 'PayoutFailedApplyResponse',
+  '2': [
+    {'1': 'applied', '3': 1, '4': 1, '5': 8, '10': 'applied'},
+  ],
+};
+
+/// Descriptor for `PayoutFailedApplyResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List payoutFailedApplyResponseDescriptor =
+    $convert.base64Decode(
+        'ChlQYXlvdXRGYWlsZWRBcHBseVJlc3BvbnNlEhgKB2FwcGxpZWQYASABKAhSB2FwcGxpZWQ=');
+
 @$core.Deprecated('Use savingsProductObjectDescriptor instead')
 const SavingsProductObject$json = {
   '1': 'SavingsProductObject',
@@ -1689,6 +1768,18 @@ const $core.Map<$core.String, $core.dynamic> SavingsServiceBase$json = {
       '3': '.savings.v1.SavingsStatementResponse',
       '4': {'34': 1},
     },
+    {
+      '1': 'PayoutFailedApply',
+      '2': '.savings.v1.PayoutFailedApplyRequest',
+      '3': '.savings.v1.PayoutFailedApplyResponse',
+      '4': {}
+    },
+    {
+      '1': 'SavingsJobRun',
+      '2': '.savings.v1.SavingsJobRunRequest',
+      '3': '.savings.v1.SavingsJobRunResponse',
+      '4': {}
+    },
   ],
   '3': {},
 };
@@ -1750,6 +1841,10 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.savings.v1.SavingsStatementRequest': SavingsStatementRequest$json,
   '.savings.v1.SavingsStatementResponse': SavingsStatementResponse$json,
   '.savings.v1.SavingsStatementEntry': SavingsStatementEntry$json,
+  '.savings.v1.PayoutFailedApplyRequest': PayoutFailedApplyRequest$json,
+  '.savings.v1.PayoutFailedApplyResponse': PayoutFailedApplyResponse$json,
+  '.savings.v1.SavingsJobRunRequest': SavingsJobRunRequest$json,
+  '.savings.v1.SavingsJobRunResponse': SavingsJobRunResponse$json,
 };
 
 /// Descriptor for `SavingsService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -1845,26 +1940,32 @@ final $typed_data.Uint8List savingsServiceDescriptor = $convert.base64Decode(
     'cy52MS5TYXZpbmdzU3RhdGVtZW50UmVzcG9uc2UirgGQAgG6R40BCg9TYXZpbmdzQWNjb3VudH'
     'MSFUdldCBzYXZpbmdzIHN0YXRlbWVudBpRR2VuZXJhdGVzIGEgc2F2aW5ncyBzdGF0ZW1lbnQg'
     'd2l0aCBhbGwgdHJhbnNhY3Rpb25zIGZvciB0aGUgc3BlY2lmaWVkIGRhdGUgcmFuZ2UuKhBzYX'
-    'ZpbmdzU3RhdGVtZW50grUYFgoUc2F2aW5nc19iYWxhbmNlX3ZpZXcasQmCtRisCQoPc2Vydmlj'
-    'ZV9zYXZpbmdzEhRzYXZpbmdzX3Byb2R1Y3RfdmlldxIWc2F2aW5nc19wcm9kdWN0X21hbmFnZR'
-    'IUc2F2aW5nc19hY2NvdW50X3ZpZXcSFnNhdmluZ3NfYWNjb3VudF9tYW5hZ2USDGRlcG9zaXRf'
-    'dmlldxIOZGVwb3NpdF9tYW5hZ2USD3dpdGhkcmF3YWxfdmlldxIRd2l0aGRyYXdhbF9tYW5hZ2'
-    'USDWludGVyZXN0X3ZpZXcSFHNhdmluZ3NfYmFsYW5jZV92aWV3GsUBCAESFHNhdmluZ3NfcHJv'
-    'ZHVjdF92aWV3EhZzYXZpbmdzX3Byb2R1Y3RfbWFuYWdlEhRzYXZpbmdzX2FjY291bnRfdmlldx'
-    'IWc2F2aW5nc19hY2NvdW50X21hbmFnZRIMZGVwb3NpdF92aWV3Eg5kZXBvc2l0X21hbmFnZRIP'
-    'd2l0aGRyYXdhbF92aWV3EhF3aXRoZHJhd2FsX21hbmFnZRINaW50ZXJlc3RfdmlldxIUc2F2aW'
-    '5nc19iYWxhbmNlX3ZpZXcaxQEIAhIUc2F2aW5nc19wcm9kdWN0X3ZpZXcSFnNhdmluZ3NfcHJv'
-    'ZHVjdF9tYW5hZ2USFHNhdmluZ3NfYWNjb3VudF92aWV3EhZzYXZpbmdzX2FjY291bnRfbWFuYW'
-    'dlEgxkZXBvc2l0X3ZpZXcSDmRlcG9zaXRfbWFuYWdlEg93aXRoZHJhd2FsX3ZpZXcSEXdpdGhk'
-    'cmF3YWxfbWFuYWdlEg1pbnRlcmVzdF92aWV3EhRzYXZpbmdzX2JhbGFuY2VfdmlldxqVAQgDEh'
-    'RzYXZpbmdzX3Byb2R1Y3RfdmlldxIUc2F2aW5nc19hY2NvdW50X3ZpZXcSDGRlcG9zaXRfdmll'
-    'dxIOZGVwb3NpdF9tYW5hZ2USD3dpdGhkcmF3YWxfdmlldxIRd2l0aGRyYXdhbF9tYW5hZ2USDW'
-    'ludGVyZXN0X3ZpZXcSFHNhdmluZ3NfYmFsYW5jZV92aWV3GnIIBBIUc2F2aW5nc19wcm9kdWN0'
-    'X3ZpZXcSFHNhdmluZ3NfYWNjb3VudF92aWV3EgxkZXBvc2l0X3ZpZXcSD3dpdGhkcmF3YWxfdm'
-    'lldxINaW50ZXJlc3RfdmlldxIUc2F2aW5nc19iYWxhbmNlX3ZpZXcacggFEhRzYXZpbmdzX3By'
-    'b2R1Y3RfdmlldxIUc2F2aW5nc19hY2NvdW50X3ZpZXcSDGRlcG9zaXRfdmlldxIPd2l0aGRyYX'
-    'dhbF92aWV3Eg1pbnRlcmVzdF92aWV3EhRzYXZpbmdzX2JhbGFuY2VfdmlldxrFAQgGEhRzYXZp'
-    'bmdzX3Byb2R1Y3RfdmlldxIWc2F2aW5nc19wcm9kdWN0X21hbmFnZRIUc2F2aW5nc19hY2NvdW'
-    '50X3ZpZXcSFnNhdmluZ3NfYWNjb3VudF9tYW5hZ2USDGRlcG9zaXRfdmlldxIOZGVwb3NpdF9t'
-    'YW5hZ2USD3dpdGhkcmF3YWxfdmlldxIRd2l0aGRyYXdhbF9tYW5hZ2USDWludGVyZXN0X3ZpZX'
-    'cSFHNhdmluZ3NfYmFsYW5jZV92aWV3');
+    'ZpbmdzU3RhdGVtZW50grUYFgoUc2F2aW5nc19iYWxhbmNlX3ZpZXcSfAoRUGF5b3V0RmFpbGVk'
+    'QXBwbHkSJC5zYXZpbmdzLnYxLlBheW91dEZhaWxlZEFwcGx5UmVxdWVzdBolLnNhdmluZ3Mudj'
+    'EuUGF5b3V0RmFpbGVkQXBwbHlSZXNwb25zZSIagrUYFgoUcGF5b3V0X291dGNvbWVfYXBwbHkS'
+    'awoNU2F2aW5nc0pvYlJ1bhIgLnNhdmluZ3MudjEuU2F2aW5nc0pvYlJ1blJlcXVlc3QaIS5zYX'
+    'ZpbmdzLnYxLlNhdmluZ3NKb2JSdW5SZXNwb25zZSIVgrUYEQoPc2F2aW5nc19qb2JfcnVuGv8J'
+    'grUY+gkKD3NlcnZpY2Vfc2F2aW5ncxIUc2F2aW5nc19wcm9kdWN0X3ZpZXcSFnNhdmluZ3NfcH'
+    'JvZHVjdF9tYW5hZ2USFHNhdmluZ3NfYWNjb3VudF92aWV3EhZzYXZpbmdzX2FjY291bnRfbWFu'
+    'YWdlEgxkZXBvc2l0X3ZpZXcSDmRlcG9zaXRfbWFuYWdlEg93aXRoZHJhd2FsX3ZpZXcSEXdpdG'
+    'hkcmF3YWxfbWFuYWdlEg1pbnRlcmVzdF92aWV3EhRzYXZpbmdzX2JhbGFuY2VfdmlldxIUcGF5'
+    'b3V0X291dGNvbWVfYXBwbHkSD3NhdmluZ3Nfam9iX3J1bhrFAQgBEhRzYXZpbmdzX3Byb2R1Y3'
+    'RfdmlldxIWc2F2aW5nc19wcm9kdWN0X21hbmFnZRIUc2F2aW5nc19hY2NvdW50X3ZpZXcSFnNh'
+    'dmluZ3NfYWNjb3VudF9tYW5hZ2USDGRlcG9zaXRfdmlldxIOZGVwb3NpdF9tYW5hZ2USD3dpdG'
+    'hkcmF3YWxfdmlldxIRd2l0aGRyYXdhbF9tYW5hZ2USDWludGVyZXN0X3ZpZXcSFHNhdmluZ3Nf'
+    'YmFsYW5jZV92aWV3GsUBCAISFHNhdmluZ3NfcHJvZHVjdF92aWV3EhZzYXZpbmdzX3Byb2R1Y3'
+    'RfbWFuYWdlEhRzYXZpbmdzX2FjY291bnRfdmlldxIWc2F2aW5nc19hY2NvdW50X21hbmFnZRIM'
+    'ZGVwb3NpdF92aWV3Eg5kZXBvc2l0X21hbmFnZRIPd2l0aGRyYXdhbF92aWV3EhF3aXRoZHJhd2'
+    'FsX21hbmFnZRINaW50ZXJlc3RfdmlldxIUc2F2aW5nc19iYWxhbmNlX3ZpZXcalQEIAxIUc2F2'
+    'aW5nc19wcm9kdWN0X3ZpZXcSFHNhdmluZ3NfYWNjb3VudF92aWV3EgxkZXBvc2l0X3ZpZXcSDm'
+    'RlcG9zaXRfbWFuYWdlEg93aXRoZHJhd2FsX3ZpZXcSEXdpdGhkcmF3YWxfbWFuYWdlEg1pbnRl'
+    'cmVzdF92aWV3EhRzYXZpbmdzX2JhbGFuY2VfdmlldxpyCAQSFHNhdmluZ3NfcHJvZHVjdF92aW'
+    'V3EhRzYXZpbmdzX2FjY291bnRfdmlldxIMZGVwb3NpdF92aWV3Eg93aXRoZHJhd2FsX3ZpZXcS'
+    'DWludGVyZXN0X3ZpZXcSFHNhdmluZ3NfYmFsYW5jZV92aWV3GnIIBRIUc2F2aW5nc19wcm9kdW'
+    'N0X3ZpZXcSFHNhdmluZ3NfYWNjb3VudF92aWV3EgxkZXBvc2l0X3ZpZXcSD3dpdGhkcmF3YWxf'
+    'dmlldxINaW50ZXJlc3RfdmlldxIUc2F2aW5nc19iYWxhbmNlX3ZpZXca7AEIBhIUc2F2aW5nc1'
+    '9wcm9kdWN0X3ZpZXcSFnNhdmluZ3NfcHJvZHVjdF9tYW5hZ2USFHNhdmluZ3NfYWNjb3VudF92'
+    'aWV3EhZzYXZpbmdzX2FjY291bnRfbWFuYWdlEgxkZXBvc2l0X3ZpZXcSDmRlcG9zaXRfbWFuYW'
+    'dlEg93aXRoZHJhd2FsX3ZpZXcSEXdpdGhkcmF3YWxfbWFuYWdlEg1pbnRlcmVzdF92aWV3EhRz'
+    'YXZpbmdzX2JhbGFuY2VfdmlldxIUcGF5b3V0X291dGNvbWVfYXBwbHkSD3NhdmluZ3Nfam9iX3'
+    'J1bg==');

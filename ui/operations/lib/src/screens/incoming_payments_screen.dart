@@ -271,6 +271,8 @@ class _PaymentCard extends StatelessWidget {
                 _Field('Transaction', payment.transactionId),
                 if (payment.loanAccountId.isNotEmpty)
                   _Field('Loan', payment.loanAccountId),
+                if (payment.savingsAccountId.isNotEmpty)
+                  _Field('Savings account', payment.savingsAccountId),
                 if (payment.assignmentNote.isNotEmpty)
                   _Field('Note', payment.assignmentNote),
               ],
@@ -289,7 +291,7 @@ class _PaymentCard extends StatelessWidget {
                         key: Key('incoming-payment-assign-${payment.id}'),
                         onPressed: onAssign,
                         icon: const Icon(Icons.link, size: 18),
-                        label: const Text('Assign to loan'),
+                        label: const Text('Assign'),
                       ),
               ),
           ],
@@ -319,8 +321,9 @@ class _Field extends StatelessWidget {
   }
 }
 
-/// Asks which loan an unmatched payment belongs to and why, then applies it.
-/// There is no amount field: the payment is applied in full, as received.
+/// Asks which loan or savings account an unmatched payment belongs to and
+/// why, then applies it. There is no amount field: the payment is applied in
+/// full, as received.
 class AssignPaymentDialog extends ConsumerStatefulWidget {
   const AssignPaymentDialog({super.key, required this.payment, this.pickLoan});
 
@@ -336,6 +339,7 @@ class _AssignPaymentDialogState extends ConsumerState<AssignPaymentDialog> {
   final _formKey = GlobalKey<FormState>();
   final _loanCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  bool _toSavings = false;
   bool _submitting = false;
   String? _error;
 
@@ -361,7 +365,8 @@ class _AssignPaymentDialogState extends ConsumerState<AssignPaymentDialog> {
       await assignIncomingPayment(
         ref.read(operationsServiceClientProvider),
         paymentId: widget.payment.id,
-        loanAccountId: _loanCtrl.text.trim(),
+        loanAccountId: _toSavings ? '' : _loanCtrl.text.trim(),
+        savingsAccountId: _toSavings ? _loanCtrl.text.trim() : '',
         note: _noteCtrl.text.trim(),
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -378,7 +383,7 @@ class _AssignPaymentDialogState extends ConsumerState<AssignPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Assign payment to a loan'),
+      title: const Text('Assign payment'),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -390,15 +395,32 @@ class _AssignPaymentDialogState extends ConsumerState<AssignPaymentDialog> {
               Text(
                 '${formatMoney(widget.payment.amount)} from '
                 '${widget.payment.payerName.isEmpty ? 'an unknown payer' : widget.payment.payerName} '
-                'is applied in full to the loan you choose.',
+                'is applied in full to the loan or savings account you choose.',
               ),
               const SizedBox(height: 16),
+              SegmentedButton<bool>(
+                key: const Key('assign-payment-target'),
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Loan')),
+                  ButtonSegment(value: true, label: Text('Savings')),
+                ],
+                selected: {_toSavings},
+                onSelectionChanged: _submitting
+                    ? null
+                    : (v) => setState(() {
+                        _toSavings = v.first;
+                        _loanCtrl.clear();
+                      }),
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 key: const Key('assign-payment-loan'),
                 controller: _loanCtrl,
                 decoration: InputDecoration(
-                  labelText: 'Loan account ID',
-                  suffixIcon: widget.pickLoan == null
+                  labelText: _toSavings
+                      ? 'Savings account ID'
+                      : 'Loan account ID',
+                  suffixIcon: widget.pickLoan == null || _toSavings
                       ? null
                       : IconButton(
                           tooltip: 'Find loan',
@@ -406,8 +428,9 @@ class _AssignPaymentDialogState extends ConsumerState<AssignPaymentDialog> {
                           onPressed: _submitting ? null : _pick,
                         ),
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Choose the loan' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? (_toSavings ? 'Choose the account' : 'Choose the loan')
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -416,7 +439,7 @@ class _AssignPaymentDialogState extends ConsumerState<AssignPaymentDialog> {
                 maxLength: 500,
                 maxLines: 2,
                 decoration: const InputDecoration(
-                  labelText: 'Why this payment belongs to this loan',
+                  labelText: 'Why this payment belongs here',
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty)
                     ? 'A note is required'

@@ -22,6 +22,7 @@ import (
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldpb "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
+	"buf.build/gen/go/antinvestor/files/connectrpc/go/v2/files/v1/filesv1connect"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
 	identitypb "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/v2/notification/v1/notificationv1connect"
@@ -195,7 +196,7 @@ func setupNotifiers(ctx context.Context, cfg aconfig.IdentityConfig) serviceNoti
 	notifier := notify.New(notificationCli, messages.Registry())
 	return serviceNotifiers{
 		notificationCli: notificationCli,
-		client:          business.NewClientNotifier(notifier, cfg.LenderDisplayName),
+		client:          business.NewClientNotifier(notifier, cfg.LenderDisplayName).WithTerms(cfg.LenderTermsURL),
 		workforce:       business.NewWorkforceNotifier(notifier),
 	}
 }
@@ -297,6 +298,7 @@ func setupServiceOptions( //nolint:funlen // sequential service wiring
 	membershipBusiness := business.NewMembershipBusiness(ctx, evtsMan, groupRepo, membershipRepo)
 	investorBusiness := business.NewInvestorBusiness(ctx, evtsMan, investorRepo)
 	clientDataBusiness := business.NewClientDataBusiness(ctx, evtsMan, clientDataEntryRepo, clientDataHistoryRepo,
+		business.WithDocumentStore(setupDocumentStore(ctx, cfg)),
 		business.WithClientNotifier(notifiers.client), business.WithClientLookup(clientRepo),
 		business.WithKYCPolicy(kycPolicy),
 		business.WithClientGuard(clientRepo, workforceMemberRepo, teamMembershipRepo, clientRelationshipRepo))
@@ -367,6 +369,25 @@ func setupProfileClient(
 		WorkloadAPITargetPath: cfg.ProfileServiceWorkloadAPITargetPath,
 		ServiceID:             servicecatalog.ServiceProfile,
 	}, profilev1connect.NewProfileServiceClient)
+}
+
+// setupDocumentStore keeps KYC documents in the files service. Without
+// FILES_SERVICE_URI documents are refused and typed KYC data still works.
+func setupDocumentStore(ctx context.Context, cfg aconfig.IdentityConfig) business.DocumentStore {
+	if strings.TrimSpace(cfg.FilesServiceURI) == "" {
+		util.Log(ctx).Warn("main -- FILES_SERVICE_URI is not set; KYC documents will be refused")
+		return nil
+	}
+	filesCli, err := connection.NewServiceClient(ctx, &cfg, common.ServiceTarget{
+		Endpoint:              cfg.FilesServiceURI,
+		WorkloadAPITargetPath: cfg.FilesServiceWorkloadAPITargetPath,
+		ServiceID:             servicecatalog.ServiceFiles,
+	}, filesv1connect.NewFilesServiceClient)
+	if err != nil {
+		util.Log(ctx).WithError(err).Warn("main -- Could not setup files client; KYC documents will be refused")
+		return nil
+	}
+	return business.NewFilesDocumentStore(filesCli)
 }
 
 func setupNotificationClient(

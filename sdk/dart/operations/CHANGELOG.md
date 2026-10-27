@@ -1,3 +1,49 @@
+## 0.4.9
+
+- `GroupMemberStanding` (`group_obligation_manage`): what each member has
+  saved in a group and what they are behind on (overdue savings plus unpaid
+  penalties). Service accounts only.
+
+## 0.4.8
+
+- `GroupObligationsRaise` and `GroupPeriodClose`: the group service raises a
+  period's member savings obligations in operations and closes the period,
+  charging each member still owing a penalty once. Service accounts only.
+
+## 0.4.7
+
+- `OperationsJob.OPERATIONS_JOB_RECONCILE_PAYOUTS`: asks the payment service
+  how accepted payouts ended, reverses those the rail failed afterwards and
+  tells their originators.
+
+## 0.4.6
+
+- `TransferOrderType.TRANSFER_ORDER_TYPE_TEAM_COMMISSION_PAYOUT` (53): a
+  team's commission paid out to a member.
+
+## 0.4.5
+
+- `TransferOrderType.TRANSFER_ORDER_TYPE_AGENT_COMMISSION` (50): a
+  product's commission accrued to the serving team's payable.
+
+## 0.4.4
+
+- `TransferOrderType.TRANSFER_ORDER_TYPE_INVESTOR_WITHDRAWAL` (49): investor
+  capital paid out to the investor's own mobile money.
+
+## 0.4.3
+
+- `OperationsService.OperationsJobRun` (`OperationsJob`, permission
+  `operations_job_run`): the scheduler's settle run for individuals'
+  payments. Service accounts only.
+
+## 0.4.2
+
+- `IncomingPaymentObject.savings_account_id`: the saver's account a payment
+  was deposited to.
+- `IncomingPaymentAssignRequest.savings_account_id`: staff may tie an
+  unmatched payment to a savings account instead of a loan (exactly one).
+
 ## 0.4.1
 
 - `OperationsService.IncomingPaymentSearch` lists received payments

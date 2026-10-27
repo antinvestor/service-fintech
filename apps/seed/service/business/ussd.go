@@ -579,11 +579,11 @@ func (b *ussdBusiness) borrowerRows(
 	}
 	profile, err := b.d.Credit.GetProfile(ctx, client.GetId(), b.d.Currency)
 	if err != nil || profile == nil ||
-		profile.Status != int32(models.CreditProfileStatusActive) || profile.MaxLoanAmount <= 0 {
+		profile.Status != int32(models.CreditProfileStatusActive) || profile.EffectiveLimit(time.Now()) <= 0 {
 		return nil //nolint:nilerr // no usable credit profile simply means no borrow option
 	}
 	rows[ussd.RowBorrow] = []map[string]any{{
-		"limit": formatMoney(moneyx.FromMinorUnitsByCurrency(b.d.Currency, profile.MaxLoanAmount)),
+		"limit": formatMoney(moneyx.FromMinorUnitsByCurrency(b.d.Currency, profile.EffectiveLimit(time.Now()))),
 	}}
 	return nil
 }

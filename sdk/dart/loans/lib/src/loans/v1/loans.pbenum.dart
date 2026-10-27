@@ -426,20 +426,61 @@ class LoanJob extends $pb.ProtobufEnum {
   static const LoanJob LOAN_JOB_REQUEST_EXPIRY =
       LoanJob._(4, _omitEnumNames ? '' : 'LOAN_JOB_REQUEST_EXPIRY');
 
+  /// Tells downstream products (seed) about paid-off loans whose pay-off
+  /// notice did not get through, so a repaid borrower is never left blocked.
+  static const LoanJob LOAN_JOB_PAID_OFF_NOTICES =
+      LoanJob._(5, _omitEnumNames ? '' : 'LOAN_JOB_PAID_OFF_NOTICES');
+
   static const $core.List<LoanJob> values = <LoanJob>[
     LOAN_JOB_UNSPECIFIED,
     LOAN_JOB_DELINQUENCY_SCAN,
     LOAN_JOB_DUE_REMINDERS,
     LOAN_JOB_FUNDING_SETTLEMENT,
     LOAN_JOB_REQUEST_EXPIRY,
+    LOAN_JOB_PAID_OFF_NOTICES,
   ];
 
   static final $core.List<LoanJob?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 4);
+      $pb.ProtobufEnum.$_initByValueList(values, 5);
   static LoanJob? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const LoanJob._(super.value, super.name);
+}
+
+/// TeamCommissionPayoutStatus is where a payout of team commission stands.
+class TeamCommissionPayoutStatus extends $pb.ProtobufEnum {
+  static const TeamCommissionPayoutStatus
+      TEAM_COMMISSION_PAYOUT_STATUS_UNSPECIFIED = TeamCommissionPayoutStatus._(
+          0, _omitEnumNames ? '' : 'TEAM_COMMISSION_PAYOUT_STATUS_UNSPECIFIED');
+
+  /// Claimed; nothing has left the team's balance.
+  static const TeamCommissionPayoutStatus
+      TEAM_COMMISSION_PAYOUT_STATUS_PENDING = TeamCommissionPayoutStatus._(
+          1, _omitEnumNames ? '' : 'TEAM_COMMISSION_PAYOUT_STATUS_PENDING');
+
+  /// Taken from the balance; the payout's outcome is not yet known.
+  static const TeamCommissionPayoutStatus
+      TEAM_COMMISSION_PAYOUT_STATUS_PROCESSING = TeamCommissionPayoutStatus._(
+          2, _omitEnumNames ? '' : 'TEAM_COMMISSION_PAYOUT_STATUS_PROCESSING');
+  static const TeamCommissionPayoutStatus
+      TEAM_COMMISSION_PAYOUT_STATUS_COMPLETED = TeamCommissionPayoutStatus._(
+          3, _omitEnumNames ? '' : 'TEAM_COMMISSION_PAYOUT_STATUS_COMPLETED');
+
+  static const $core.List<TeamCommissionPayoutStatus> values =
+      <TeamCommissionPayoutStatus>[
+    TEAM_COMMISSION_PAYOUT_STATUS_UNSPECIFIED,
+    TEAM_COMMISSION_PAYOUT_STATUS_PENDING,
+    TEAM_COMMISSION_PAYOUT_STATUS_PROCESSING,
+    TEAM_COMMISSION_PAYOUT_STATUS_COMPLETED,
+  ];
+
+  static final $core.List<TeamCommissionPayoutStatus?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 3);
+  static TeamCommissionPayoutStatus? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const TeamCommissionPayoutStatus._(super.value, super.name);
 }
 
 const $core.bool _omitEnumNames =

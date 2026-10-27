@@ -128,6 +128,51 @@ enum WithdrawalStatus {
   WITHDRAWAL_STATUS_REVERSED = 5;
 }
 
+// SavingsJob is a periodic job the platform scheduler runs.
+enum SavingsJob {
+  SAVINGS_JOB_UNSPECIFIED = 0;
+  // Accrues the most recently closed day's interest on active accounts not
+  // yet accrued for it.
+  SAVINGS_JOB_ACCRUE_INTEREST = 1;
+}
+
+message SavingsJobRunRequest {
+  SavingsJob job = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // Most items to process in this run. 0 uses the service default.
+  int32 batch_size = 2 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 5000
+  ];
+}
+
+message SavingsJobRunResponse {
+  int32 processed = 1;
+  // True when the batch was full and more work may be waiting.
+  bool more = 2;
+}
+
+// PayoutFailedApplyRequest tells the service that originated a payout that
+// the payment rail failed it after accepting it. Operations has already
+// reversed the ledger leg; the originator undoes its own record. Applying
+// it again changes nothing.
+message PayoutFailedApplyRequest {
+  // The transfer order reference the originator gave the payout.
+  string reference = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 255
+  ];
+  string reason = 2 [(buf.validate.field).string.max_len = 500];
+}
+
+message PayoutFailedApplyResponse {
+  // True when this call undid the record; false when it was already undone
+  // or the reference is not this service's.
+  bool applied = 1;
+}
+
 // -----------------------------------------------------
 // Entity Messages
 // -----------------------------------------------------
@@ -593,7 +638,9 @@ service SavingsService {
       "withdrawal_view",
       "withdrawal_manage",
       "interest_view",
-      "savings_balance_view"
+      "savings_balance_view",
+      "payout_outcome_apply",
+      "savings_job_run"
     ]
     role_bindings: [
       {
@@ -673,7 +720,9 @@ service SavingsService {
           "withdrawal_view",
           "withdrawal_manage",
           "interest_view",
-          "savings_balance_view"
+          "savings_balance_view",
+          "payout_outcome_apply",
+          "savings_job_run"
         ]
       }
     ]
@@ -948,6 +997,21 @@ service SavingsService {
       summary: "Get savings statement"
       description: "Generates a savings statement with all transactions for the specified date range."
       tags: "SavingsAccounts"
+    };
+  }
+  // PayoutFailedApply undoes this service's record of a payout the payment
+  // rail failed after accepting it. Only operations calls it.
+  rpc PayoutFailedApply(PayoutFailedApplyRequest) returns (PayoutFailedApplyResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["payout_outcome_apply"]
+    };
+  }
+
+  // SavingsJobRun runs one batch of a periodic job. Called by the platform
+  // scheduler (trustage); nothing in the service runs on a timer.
+  rpc SavingsJobRun(SavingsJobRunRequest) returns (SavingsJobRunResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["savings_job_run"]
     };
   }
 }

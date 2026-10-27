@@ -17,7 +17,6 @@ package business
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,12 +26,9 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
-	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
-	"connectrpc.com/connect/v2"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/frame/v3/security"
@@ -44,7 +40,6 @@ import (
 	"github.com/antinvestor/service-fintech/apps/loans/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/constants"
-	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
 type RepaymentBusiness interface {
@@ -83,9 +78,6 @@ type repaymentBusiness struct {
 	operationsCli     operationsv1connect.OperationsServiceClient
 	auditWriter       *audit.Writer
 	paidOffHook       PaidOffHook
-	limitsCli         limitsv1connect.LimitsServiceClient
-	limitsGateEnabled bool
-	limitsGateMode    string
 }
 
 func NewRepaymentBusiness(
@@ -100,9 +92,6 @@ func NewRepaymentBusiness(
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
 	paidOffHook PaidOffHook,
-	limitsCli limitsv1connect.LimitsServiceClient,
-	limitsGateEnabled bool,
-	limitsGateMode string,
 	opts ...Option,
 ) RepaymentBusiness {
 	return &repaymentBusiness{
@@ -119,9 +108,6 @@ func NewRepaymentBusiness(
 		operationsCli:     operationsCli,
 		auditWriter:       auditWriter,
 		paidOffHook:       paidOffHook,
-		limitsCli:         limitsCli,
-		limitsGateEnabled: limitsGateEnabled,
-		limitsGateMode:    limitsGateMode,
 	}
 }
 
@@ -152,9 +138,8 @@ func (b *repaymentBusiness) Record(
 		return nil, ErrLoanAccountNotFound
 	}
 
-	// Idempotency short-circuit before the gate, so retries do not consume a
-	// fresh reservation. A key already used on another loan is a conflict,
-	// never a way to read someone else's repayment.
+	// A key already used on another loan is a conflict, never a way to read
+	// someone else's repayment; a finished one is returned as it was.
 	if existing, existErr := b.repaymentRepo.GetByIdempotencyKey(ctx, req.GetIdempotencyKey()); existErr == nil &&
 		existing != nil {
 		if existing.LoanAccountID != la.GetID() {
@@ -163,50 +148,16 @@ func (b *repaymentBusiness) Record(
 		if existing.AppliedAt != nil {
 			return existing.ToAPI(), nil
 		}
-		// Recorded but not finished: the retry below resumes it.
+		// Recorded but not finished: recordInner resumes it.
 	}
 
-	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == gateModeOff {
-		return b.recordInner(ctx, req)
-	}
-
-	intent := &limitsv1.LimitIntent{
-		Action: limitsv1.LimitAction_LIMIT_ACTION_LOAN_REPAYMENT,
-		Subjects: []*limitsv1.SubjectRef{
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: la.ClientID},
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ORGANIZATION, Id: la.OrganizationID},
-		},
-		TenantId: la.OrganizationID,
-		Amount:   req.GetAmount(),
-		MakerId:  callerSubject(ctx),
-	}
-	idemKey := "loan_repayment:" + req.GetLoanAccountId() + ":" + req.GetIdempotencyKey()
-
-	var result *loansv1.RepaymentObject
-	gateErr := limits.Gate(ctx, b.limitsCli, intent, idemKey, limits.ParseMode(b.limitsGateMode),
-		func(innerCtx context.Context, reservationID string) error {
-			util.Log(innerCtx).With("limits_reservation_id", reservationID).Info("repayment gated by limits")
-			inner, innerErr := b.recordInner(innerCtx, req)
-			if innerErr != nil {
-				return innerErr
-			}
-			result = inner
-			return nil
-		},
-		limits.InPartition(la.TenantID, la.PartitionID),
-	)
-
-	var pendingErr *limits.PendingApprovalError
-	if errors.As(gateErr, &pendingErr) {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, gateErr.Error()).WithCause(gateErr)
-	}
-	if gateErr != nil {
-		return nil, gateErr
-	}
-	return result, nil
+	// No transaction limit applies here: the money has already arrived on
+	// the rail, so refusing to apply it would only strand the borrower's
+	// payment. Limits gate money leaving, not money received.
+	return b.recordInner(ctx, req)
 }
 
-// recordInner is the pre-Gate body factored out so Gate's handler can wrap it.
+// recordInner applies a repayment.
 //
 // Repayments on one loan are taken one at a time under the loan's repayment
 // lease, so two payments never allocate against the same installments. The
@@ -286,6 +237,12 @@ func (b *repaymentBusiness) recordInner(
 		ExcessAmount:     alloc.excessAmount,
 		IdempotencyKey:   req.GetIdempotencyKey(),
 		Properties:       data.JSONMap{repaymentAllocationKey: encodeEntryAllocations(alloc.entryAllocations)},
+	}
+	if isWrittenOff(la) {
+		// Recorded with the row: a recovery that clears the loan closes it
+		// before its funders are settled, so the loan's status by then no
+		// longer says it was one.
+		r.Properties[repaymentRecoveryKey] = true
 	}
 	r.GenID(ctx)
 
@@ -376,6 +333,17 @@ func (b *repaymentBusiness) finishRepayment(
 // was allocated when it was recorded.
 const repaymentAllocationKey = "allocation"
 
+// repaymentRecoveryKey marks, on the repayment row, a payment on a
+// written-off loan: its principal goes back to the funders who absorbed the
+// loss, not out as an ordinary repayment share.
+const repaymentRecoveryKey = "recovery"
+
+// IsRecovery reports whether a repayment was recorded on a written-off loan.
+func IsRecovery(r *models.Repayment) bool {
+	recovery, _ := r.Properties[repaymentRecoveryKey].(bool)
+	return recovery
+}
+
 // allocationOf rebuilds the allocation stored on a repayment row.
 func allocationOf(r *models.Repayment) waterfallResult {
 	return waterfallResult{
@@ -454,11 +422,23 @@ func (b *repaymentBusiness) auditRepayment(
 	})
 }
 
-// isRepayableStatus reports whether a loan in this status can take money.
+// isRepayableStatus reports whether a loan in this status can take money. A
+// defaulted loan still can: a borrower paying it back is the recovery the
+// status exists for, and paying it in full moves it to PAID_OFF. So can a
+// written-off one: what the borrower pays is a recovery, returned to the
+// funders who absorbed the loss.
 func isRepayableStatus(status int32) bool {
 	return status == int32(loansv1.LoanStatus_LOAN_STATUS_ACTIVE) ||
 		status == int32(loansv1.LoanStatus_LOAN_STATUS_DELINQUENT) ||
-		status == int32(loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED)
+		status == int32(loansv1.LoanStatus_LOAN_STATUS_DEFAULT) ||
+		status == int32(loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED) ||
+		status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF)
+}
+
+// isWrittenOff reports whether a repayment on this loan is a recovery: the
+// loan's principal and penalties were already moved to bad debt.
+func isWrittenOff(la *models.LoanAccount) bool {
+	return la.Status == int32(loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF)
 }
 
 // afterRepaymentApplied tells the borrower and, when the repayment cleared
@@ -474,6 +454,18 @@ func (b *repaymentBusiness) afterRepaymentApplied(
 	paid := r.PrincipalApplied + r.InterestApplied + r.FeesApplied + r.PenaltiesApplied
 	b.notifier.NotifyRepaymentReceived(ctx, la, paid, fresh.TotalOutstanding, r.Channel, r.PaymentReference)
 
+	if fresh.TotalOutstanding <= 0 && isWrittenOff(la) {
+		// Fully recovered after a write-off: the loan closes. It is not a
+		// pay-off, so no paid-off notice restores the borrower's standing.
+		if closed, claimErr := b.loanAccountRepo.ClaimStatus(ctx, la.GetID(), la.Status,
+			int32(loansv1.LoanStatus_LOAN_STATUS_CLOSED)); claimErr != nil {
+			logger.WithError(claimErr).Error("could not close a fully recovered written-off loan")
+		} else if closed {
+			la.Status = int32(loansv1.LoanStatus_LOAN_STATUS_CLOSED)
+			logger.WithField("loan_id", la.GetID()).Info("written-off loan fully recovered and closed")
+		}
+		return
+	}
 	if fresh.TotalOutstanding <= 0 {
 		// The automatic pay-off goes through the same state machine as an
 		// operator-driven transition, so a status the machine does not allow
@@ -518,8 +510,10 @@ func (b *repaymentBusiness) firePaidOffHook(
 	if b.paidOffHook == nil {
 		return
 	}
-	if hookErr := b.paidOffHook.HandlePaidOff(ctx, la.GetID(), totalPaid); hookErr != nil {
-		logger.WithError(hookErr).WithField("loan_id", la.GetID()).Warn("paid-off hook failed")
+	notices := NewPaidOffNotices(b.loanAccountRepo, b.loanBalanceRepo, b.paidOffHook, "")
+	if err := notices.Notify(ctx, la, totalPaid); err != nil {
+		logger.WithError(err).WithField("loan_id", la.GetID()).
+			Warn("paid-off notice failed; the paid-off notices job retries")
 	}
 }
 
@@ -535,7 +529,7 @@ func (b *repaymentBusiness) recordPaidOffStatusChange(
 		LoanAccountID: la.GetID(),
 		FromStatus:    int32(fromStatus),
 		ToStatus:      int32(loansv1.LoanStatus_LOAN_STATUS_PAID_OFF),
-		ChangedBy:     "system",
+		ChangedBy:     actorSystem,
 		Reason:        "loan fully repaid",
 	}
 	statusChange.GenID(ctx)
@@ -589,15 +583,25 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 	memberAccount := constants.MemberLoansAccount(la.ClientID)
 	loanRequestID := loanRequestIDFromProperties(la.Properties, la.LoanRequestID)
 	baseExtraData := data.JSONMap{
-		"loan_id":          la.GetID(),
+		fieldLoanID:        la.GetID(),
 		fieldLoanRequestID: loanRequestID,
 		fieldClientID:      la.ClientID,
 		"repayment_id":     repayment.GetID(),
 	}
 
+	// On a written-off loan the principal and penalties were moved to the
+	// product's bad-debt expense; recovering them reverses that, rather than
+	// crediting a loan asset and a receivable that were already cleared.
+	principalAccount := la.LedgerAssetAccountID
+	penaltyAccount := constants.MemberPenaltyReceivableAccount(la.ClientID)
+	if isWrittenOff(la) {
+		principalAccount = constants.ProductBadDebtExpenseAccount(la.ProductID)
+		penaltyAccount = principalAccount
+	}
+
 	if alloc.principalApplied > 0 {
 		if err := b.emitTransferOrder(ctx, logger,
-			memberAccount, la.LedgerAssetAccountID,
+			memberAccount, principalAccount,
 			alloc.principalApplied, la.CurrencyCode,
 			constants.TransferTypeLoanRepayment,
 			fmt.Sprintf("repayment:%s:principal", repRef),
@@ -640,7 +644,7 @@ func (b *repaymentBusiness) emitRepaymentTransferOrders(
 		// clears that receivable; crediting income again would count the
 		// same penalty twice and leave the receivable open for ever.
 		if err := b.emitTransferOrder(ctx, logger,
-			memberAccount, constants.MemberPenaltyReceivableAccount(la.ClientID),
+			memberAccount, penaltyAccount,
 			alloc.penaltiesApplied, la.CurrencyCode,
 			constants.TransferTypePenaltyRepayment,
 			fmt.Sprintf("repayment:%s:penalties", repRef),

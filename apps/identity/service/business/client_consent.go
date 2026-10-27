@@ -42,6 +42,12 @@ const (
 	consentStatusPending     = "pending"
 	consentCodeTTL           = 15 * time.Minute
 	consentMaxAttempts       = 5
+
+	// termsAcceptedAtKey and termsKey record, on the client, when the person
+	// accepted the lending terms by giving their activation code, and which
+	// terms. They are written only by activation, never taken from a caller.
+	termsAcceptedAtKey = "terms_accepted_at"
+	termsKey           = "terms_accepted"
 )
 
 type consentProperties struct {
@@ -81,7 +87,7 @@ func (b *clientBusiness) confirmActivation(
 	}
 
 	challenge, err := b.consentRepo.GetByID(ctx, consent.verificationID)
-	if err != nil || challenge.ProfileID != client.ProfileID || challenge.MemberID != scope.member.GetID() ||
+	if err != nil || challenge.ProfileID != client.ProfileID || challenge.MemberID != consentAsker(ctx, scope) ||
 		consent.code == "" {
 		return nil, ErrClientConsentFailed
 	}
@@ -117,13 +123,16 @@ func (b *clientBusiness) startConsent(
 	challenge := &models.ClientConsentChallenge{
 		ProfileID: client.ProfileID,
 		ContactID: client.ConsentContactID,
-		MemberID:  scope.member.GetID(),
+		MemberID:  consentAsker(ctx, scope),
 		ExpiresAt: now.Add(consentCodeTTL),
 	}
 	challenge.GenID(ctx)
 	if err := b.consentRepo.Create(ctx, challenge); err != nil {
 		return nil, err
 	}
+	// The terms go first: the code that follows is how the person accepts
+	// them, once, for every loan after.
+	b.notifier.NotifyTermsOffered(ctx, client)
 	if _, err := b.profiles.CreateContactVerification(ctx, &profilev1.CreateContactVerificationRequest{
 		Id:               challenge.GetID(),
 		ContactId:        client.ConsentContactID,
@@ -163,4 +172,13 @@ func registeredContactID(profile *profilev1.ProfileObject) string {
 		}
 	}
 	return ""
+}
+
+// consentAsker is who asked for a person's code: the field agent's workforce
+// member, or for staff their own identity. Only the asker can redeem it.
+func consentAsker(ctx context.Context, scope *callerScope) string {
+	if scope != nil {
+		return scope.member.GetID()
+	}
+	return actorFromClaims(ctx)
 }

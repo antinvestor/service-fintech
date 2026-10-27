@@ -1,3 +1,15 @@
+## 0.3.0
+
+- **Breaking:** removes "Record Deposit" (`DepositNotifier`,
+  `depositNotifierProvider`). A deposit is the saver's own mobile-money
+  payment, matched to their account by the payment rail; the savings service
+  refuses a deposit recorded by a person.
+- Actions are offered only with the permission the service checks:
+  `SavingsAccountDetailScreen.canManageAccount` (freeze, close),
+  `canWithdraw` (request a withdrawal, paid to the saver's own profile),
+  `SavingsAccountsScreen.canManage` and `SavingsProductsScreen.canManage`
+  (create). All default to false; `SavingsRouteModule` wires them.
+
 ## 0.2.0
 
 - **Breaking:** moves to connect-dart 2 and the protobuf 6 runtime:

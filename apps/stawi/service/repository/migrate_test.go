@@ -62,6 +62,8 @@ type migrateEnv struct {
 	ctx     context.Context
 	periods repository.PeriodRepository
 	tenures repository.TenureRepository
+	offers  repository.LoanOfferRepository
+	notices repository.NoticeRepository
 }
 
 func (s *migrateSuite) newEnv() *migrateEnv {
@@ -102,6 +104,8 @@ func (s *migrateSuite) newEnv() *migrateEnv {
 		ctx:     ctx,
 		periods: repository.NewPeriodRepository(ctx, dbPool, workMan),
 		tenures: repository.NewTenureRepository(ctx, dbPool, workMan),
+		offers:  repository.NewLoanOfferRepository(ctx, dbPool, workMan),
+		notices: repository.NewNoticeRepository(ctx, dbPool, workMan),
 	}
 }
 

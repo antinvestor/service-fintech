@@ -77,6 +77,9 @@ class LoansRouteModule extends RouteModule {
                   canManage: ref.watch(
                     hasPermissionProvider('loan_request_manage'),
                   ),
+                  canOpenAccount: ref.watch(
+                    hasPermissionProvider('loan_manage'),
+                  ),
                 ),
               ),
             ),
@@ -211,6 +214,16 @@ class LoansRouteModule extends RouteModule {
         key: 'portfolio_view',
         label: 'View Portfolio Reports',
         scope: PermissionScope.feature,
+      ),
+      PermissionEntry(
+        key: 'commission_view',
+        label: 'View Team Commission',
+        scope: PermissionScope.feature,
+      ),
+      PermissionEntry(
+        key: 'commission_payout',
+        label: 'Pay Out Team Commission',
+        scope: PermissionScope.action,
       ),
       PermissionEntry(
         key: 'portfolio_export',

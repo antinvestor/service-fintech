@@ -76,6 +76,31 @@ type TransferOrderRepository interface {
 	// and executeInner refuses to complete it until it is reversed.
 	MarkPayoutFailed(ctx context.Context, orderID, paymentID, reason string) error
 
+	// SetPayoutOutcome moves a payout that is not failed to status:
+	// pending or confirmed. A failed payout keeps its failure.
+	SetPayoutOutcome(ctx context.Context, orderID, status string) error
+
+	// ListPayoutsToReconcile returns up to limit payout orders of the given
+	// types that reached the rail before before and whose outcome is not
+	// known, those checked longest ago first.
+	ListPayoutsToReconcile(
+		ctx context.Context,
+		orderTypes []int,
+		before time.Time,
+		limit int,
+	) ([]*models.TransferOrder, error)
+
+	// TouchPayoutChecked records that the outcome was asked for now.
+	TouchPayoutChecked(ctx context.Context, orderID string) error
+
+	// ListLateFailedPayouts returns up to limit orders that completed and
+	// whose payout the rail failed afterwards, whose originator has not been
+	// told.
+	ListLateFailedPayouts(ctx context.Context, limit int) ([]*models.TransferOrder, error)
+
+	// MarkOriginatorNotified records that the originator was told.
+	MarkOriginatorNotified(ctx context.Context, orderID string) error
+
 	// RetakePaymentInitiation swaps a stale payout claim for a fresh one in a
 	// single compare-and-swap on the observed claim time, so of several
 	// resumers that all saw the same stale claim exactly one may send. It
@@ -94,6 +119,13 @@ type TransferOrderRepository interface {
 	// its ledger leg nor its payout has progressed. An order that has posted
 	// or reached the rail cannot be declared failed; it must be reversed.
 	MarkFailedIfUnposted(ctx context.Context, orderID string) (bool, error)
+
+	// ListUnexecutedAllocations returns up to limit orders a payment
+	// allocation raised that have not been posted and that nobody has
+	// touched since before: an individual borrower's repayment, a group
+	// member's payment moved into their suspense, and what that suspense
+	// paid towards the member's obligations.
+	ListUnexecutedAllocations(ctx context.Context, before time.Time, limit int) ([]*models.TransferOrder, error)
 }
 
 // NewTransferOrderRepository creates a new TransferOrderRepository.
@@ -310,6 +342,64 @@ func (r *transferOrderRepository) MarkPayoutFailed(ctx context.Context, orderID,
 		}).Error
 }
 
+func (r *transferOrderRepository) SetPayoutOutcome(ctx context.Context, orderID, status string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ? AND (payout_status IS NULL OR payout_status <> ?)",
+			orderID, models.PayoutStatusFailed).
+		Updates(map[string]any{
+			colPayoutStatus:     status,
+			"payout_checked_at": time.Now().UTC(),
+			colModifiedAt:       time.Now().UTC(),
+			colVersion:          gorm.Expr("version + 1"),
+		}).Error
+}
+
+func (r *transferOrderRepository) ListPayoutsToReconcile(
+	ctx context.Context,
+	orderTypes []int,
+	before time.Time,
+	limit int,
+) ([]*models.TransferOrder, error) {
+	var orders []*models.TransferOrder
+	err := r.dbPool.DB(ctx, true).
+		Where("deleted_at IS NULL AND order_type IN ? AND payment_initiated_at IS NOT NULL "+
+			"AND payment_initiated_at < ? AND (payout_status IS NULL OR payout_status IN ?)",
+			orderTypes, before.UTC(), []string{"", models.PayoutStatusPending}).
+		Order("payout_checked_at NULLS FIRST, payment_initiated_at").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
+}
+
+func (r *transferOrderRepository) TouchPayoutChecked(ctx context.Context, orderID string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ?", orderID).
+		Update("payout_checked_at", time.Now().UTC()).Error
+}
+
+func (r *transferOrderRepository) ListLateFailedPayouts(
+	ctx context.Context,
+	limit int,
+) ([]*models.TransferOrder, error) {
+	var orders []*models.TransferOrder
+	err := r.dbPool.DB(ctx, true).
+		Where("deleted_at IS NULL AND payout_status = ? AND state = ? AND originator_notified_at IS NULL",
+			models.PayoutStatusFailed, int32(constants.StateInactive)).
+		Order("modified_at").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
+}
+
+func (r *transferOrderRepository) MarkOriginatorNotified(ctx context.Context, orderID string) error {
+	return r.dbPool.DB(ctx, false).
+		Table("transfer_orders").
+		Where("deleted_at IS NULL AND id = ?", orderID).
+		Update("originator_notified_at", time.Now().UTC()).Error
+}
+
 func (r *transferOrderRepository) ConsumeObligationForOrder(
 	ctx context.Context,
 	orderID, obligationID string,
@@ -364,3 +454,36 @@ func (r *transferOrderRepository) ConsumeObligationForOrder(
 // errOrderAlreadyConsumed aborts the consume transaction when the order was
 // already marked: the obligation debit above is rolled back with it.
 var errOrderAlreadyConsumed = errors.New("transfer order already marked consumed")
+
+// Allocation order references ("payment:<id>:loan:<id>" for a borrower's
+// repayment, "payment:<id>:member:<id>" for a member's payment moved into
+// their suspense, "payment:<id>:obligation:<id>" for what the suspense paid).
+// Obligation orders count only when marked suspense-funded: older ones were
+// left to the group workflows and their suspense was never funded here.
+const (
+	borrowerRepaymentReference = "payment:%:loan:%"
+	memberSuspenseReference    = "payment:%:member:%"
+	memberObligationReference  = "payment:%:obligation:%"
+)
+
+func (r *transferOrderRepository) ListUnexecutedAllocations(
+	ctx context.Context,
+	before time.Time,
+	limit int,
+) ([]*models.TransferOrder, error) {
+	var orders []*models.TransferOrder
+	err := r.dbPool.DB(ctx, true).
+		Where("deleted_at IS NULL AND state IN ? AND extra_data ->> 'source' = ? AND modified_at < ?",
+			[]int32{int32(constants.StateJustCreated), int32(constants.StateCheckCreated)},
+			"payment_allocation", before.UTC()).
+		Where("(reference LIKE ? OR reference LIKE ? OR "+
+			"(reference LIKE ? AND extra_data ->> 'suspense_funded' = 'true'))",
+			borrowerRepaymentReference, memberSuspenseReference, memberObligationReference).
+		Order("modified_at").
+		Limit(limit).
+		Find(&orders).Error
+	if err != nil {
+		return nil, err
+	}
+	return orders, nil
+}

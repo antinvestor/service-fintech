@@ -181,6 +181,25 @@ func (r *memOrderRepo) MarkPayoutFailed(_ context.Context, id string, paymentID,
 	return nil
 }
 
+func (r *memOrderRepo) SetPayoutOutcome(_ context.Context, id, status string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if o := r.get(id); o != nil && o.PayoutStatus != models.PayoutStatusFailed {
+		o.PayoutStatus = status
+	}
+	return nil
+}
+
+func (r *memOrderRepo) MarkOriginatorNotified(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if o := r.get(id); o != nil {
+		now := time.Now()
+		o.OriginatorNotifiedAt = &now
+	}
+	return nil
+}
+
 func (r *memOrderRepo) RetakePaymentInitiation(_ context.Context, id string, observed time.Time) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -596,4 +615,12 @@ func TestExecute_MismatchedPayoutIsNotConfirmation(t *testing.T) {
 	err := f.biz.Execute(context.Background(), f.repo.order.GetID())
 	require.ErrorIs(t, err, ErrPayoutPendingConfirmation)
 	assert.Equal(t, 0, f.payment.sends)
+}
+
+func (r *memOrderRepo) ListUnexecutedAllocations(
+	_ context.Context,
+	_ time.Time,
+	_ int,
+) ([]*models.TransferOrder, error) {
+	return nil, nil
 }

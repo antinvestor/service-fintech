@@ -50,6 +50,7 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/bootcheck"
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
+	"github.com/antinvestor/service-fintech/pkg/trustage"
 )
 
 const namespaceTenancyAccess = "tenancy_access"
@@ -67,8 +68,6 @@ const (
 const (
 	// reaperBatchSize bounds how many rows each reaper pass processes.
 	reaperBatchSize = 1000
-	// reaperInterval is how often the reservation/approval reapers run.
-	reaperInterval = 30 * time.Second
 )
 
 //nolint:funlen // linear service wiring; splitting hurts readability
@@ -103,6 +102,12 @@ func main() {
 		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
 			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
+	})
+	// Expired reservations and approvals are reaped only when trustage fires
+	// their schedules, so a deploy that cannot register them fails rather
+	// than ship holds that never lapse.
+	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
+		return trustage.SyncWorkflows(ctx, &cfg, "service-limits", cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -210,7 +215,19 @@ func main() {
 
 	// ─── Handlers ─────────────────────────────────────────────────────
 	runtimeH := handlers.NewRuntimeService(reservationBiz)
-	adminH := handlers.NewAdminService(policyBiz, approvalBiz, ledgerSearchBiz, auditSearchBiz)
+	// ─── Reapers ──────────────────────────────────────────────────────
+	// Run only when trustage fires their schedules (LimitsJobRun); each pass
+	// holds a Postgres advisory lock so overlapping runs reap once.
+	resvReaper := business.NewReservationReaper(
+		reservationRepo, auditing, reaperBatchSize, business.WithReaperPool(dbPool),
+	)
+	approvalReaper := business.NewApprovalReaper(
+		approvalRepo, reservationRepo, auditing, reaperBatchSize, evtsMan, business.WithReaperPool(dbPool),
+	)
+	limitsJobs := business.NewLimitsJobs(resvReaper, approvalReaper, dbPool)
+
+	adminH := handlers.NewAdminService(policyBiz, approvalBiz, ledgerSearchBiz, auditSearchBiz).
+		WithJobs(limitsJobs)
 
 	// ─── Archival job ─────────────────────────────────────────────────
 	archivalBiz := business.NewArchival(
@@ -222,22 +239,6 @@ func main() {
 
 	// ─── Connect RPC server ────────────────────────────────────────────
 	connectHandler := setupConnectServer(ctx, sm, dbPool, runtimeH, adminH, archivalH, auditCli)
-
-	// ─── Reapers ──────────────────────────────────────────────────────
-	// Each pass runs under a Postgres advisory lock so only one replica reaps;
-	// otherwise every replica emits a duplicate audit row and event.
-	resvReaper := business.NewReservationReaper(
-		reservationRepo, auditing, reaperBatchSize, business.WithReaperPool(dbPool),
-	)
-	approvalReaper := business.NewApprovalReaper(
-		approvalRepo, reservationRepo, auditing, reaperBatchSize, evtsMan, business.WithReaperPool(dbPool),
-	)
-	go runPeriodically(ctx, reaperInterval, func(c context.Context) error {
-		return business.WithLeaderLock(c, dbPool, business.LockKeyReservationReaper, resvReaper.Run)
-	})
-	go runPeriodically(ctx, reaperInterval, func(c context.Context) error {
-		return business.WithLeaderLock(c, dbPool, business.LockKeyApprovalReaper, approvalReaper.Run)
-	})
 
 	// Runtime: HTTP + queue handlers only. Migrate/permissions run solely via
 	// the setup Job path above (ShouldRunSetup).
@@ -390,20 +391,4 @@ func setupTenancyClient(
 		WorkloadAPITargetPath: cfg.TenancyServiceWorkloadAPITargetPath,
 		ServiceID:             servicecatalog.ServiceTenancy,
 	}, tenancyv1connect.NewTenancyServiceClient)
-}
-
-// runPeriodically calls fn on the given interval until ctx is cancelled.
-func runPeriodically(ctx context.Context, interval time.Duration, fn func(context.Context) error) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := fn(ctx); err != nil {
-				util.Log(ctx).WithError(err).Error("reaper run failed")
-			}
-		}
-	}
 }

@@ -8,14 +8,21 @@ import 'package:flutter_test/flutter_test.dart';
 Money _kes(int units) =>
     Money(currencyCode: 'KES', units: Int64(units), nanos: 0);
 
-Widget _host({required bool canCollectPayment}) {
+Widget _host({
+  required bool canCollectPayment,
+  bool canDisburse = false,
+  bool canManage = false,
+  LoanStatus status = LoanStatus.LOAN_STATUS_ACTIVE,
+  String paymentAccountRef = '',
+}) {
   return ProviderScope(
     overrides: [
       loanAccountDetailProvider.overrideWith(
         (ref, id) async => LoanAccountObject(
           id: id,
           clientId: 'client-1',
-          status: LoanStatus.LOAN_STATUS_ACTIVE,
+          status: status,
+          paymentAccountRef: paymentAccountRef,
           principalAmount: _kes(5000),
           termDays: 30,
         ),
@@ -41,6 +48,8 @@ Widget _host({required bool canCollectPayment}) {
         body: LoanAccountDetailScreen(
           loanId: 'loan-1',
           canCollectPayment: canCollectPayment,
+          canDisburse: canDisburse,
+          canManage: canManage,
         ),
       ),
     ),
@@ -81,5 +90,106 @@ void main() {
   test('channel labels cover only payments the borrower makes', () {
     expect(repaymentChannelLabel(kRepaymentChannelMobileMoney), 'Mobile money');
     expect(repaymentChannelLabel('cash'), 'cash');
+  });
+
+  // Staff confirm a disbursement; where the money goes is the borrower's own
+  // payout contact on the loan, never something typed.
+  testWidgets('disbursing asks nothing about where the money goes', (
+    tester,
+  ) async {
+    wide(tester);
+    await tester.pumpWidget(
+      _host(
+        canCollectPayment: false,
+        canDisburse: true,
+        status: LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT,
+        paymentAccountRef: 'contact-1',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disburse'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextFormField), findsNothing);
+    expect(find.textContaining('Recipient'), findsNothing);
+    final confirm = tester.widget<FilledButton>(
+      find.byKey(const Key('disburse-confirm')),
+    );
+    expect(confirm.onPressed, isNotNull);
+  });
+
+  testWidgets('a loan without a payout contact cannot be disbursed', (
+    tester,
+  ) async {
+    wide(tester);
+    await tester.pumpWidget(
+      _host(
+        canCollectPayment: false,
+        canDisburse: true,
+        status: LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Disburse'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('disburse-no-destination')), findsOneWidget);
+    final confirm = tester.widget<FilledButton>(
+      find.byKey(const Key('disburse-confirm')),
+    );
+    expect(confirm.onPressed, isNull);
+  });
+
+  test('a partial waiver is not offered: the service refuses it', () {
+    expect(
+      restructureTypeOffered(RestructureType.RESTRUCTURE_TYPE_PARTIAL_WAIVER),
+      isFalse,
+    );
+    expect(
+      restructureTypeOffered(RestructureType.RESTRUCTURE_TYPE_WRITE_OFF),
+      isTrue,
+    );
+  });
+
+  testWidgets('an undisbursed loan can be cancelled with loan_manage', (
+    tester,
+  ) async {
+    wide(tester);
+    await tester.pumpWidget(
+      _host(
+        canCollectPayment: false,
+        status: LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('loan-cancel')), findsNothing);
+
+    await tester.pumpWidget(
+      _host(
+        canCollectPayment: false,
+        canManage: true,
+        status: LoanStatus.LOAN_STATUS_PENDING_DISBURSEMENT,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('loan-cancel')), findsOneWidget);
+  });
+
+  testWidgets('a disbursed loan is never offered for cancelling', (
+    tester,
+  ) async {
+    wide(tester);
+    await tester.pumpWidget(_host(canCollectPayment: false, canManage: true));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('loan-cancel')), findsNothing);
+  });
+
+  testWidgets('a defaulted loan can still be collected', (tester) async {
+    wide(tester);
+    await tester.pumpWidget(
+      _host(canCollectPayment: true, status: LoanStatus.LOAN_STATUS_DEFAULT),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Collect Payment'), findsOneWidget);
   });
 }

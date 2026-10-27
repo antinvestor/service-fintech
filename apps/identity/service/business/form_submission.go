@@ -243,7 +243,7 @@ func classifyFileFieldValue(val any) (string, fileValueKind) {
 	case map[string]any:
 		typeField, _ := v["_type"].(string)
 		switch typeField {
-		case "file":
+		case valueTypeFile:
 			// Explicit file objects carry inline bytes.
 			return "", fileValueInline
 		case "file_ref":

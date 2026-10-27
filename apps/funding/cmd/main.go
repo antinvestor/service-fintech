@@ -146,7 +146,6 @@ func main() {
 	// returns nil and the gate is disabled at runtime regardless of the config flag.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
 	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
-		"funding_deposit":  cfg.LimitsGateEnabledFundingDeposit,
 		"funding_withdraw": cfg.LimitsGateEnabledFundingWithdraw,
 	}); gateErr != nil {
 		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
@@ -211,6 +210,10 @@ func setupServiceOptions(
 		lfRepo, ftRepo, poster, cfg.PlatformFeeBP, cfg.WithholdingTaxBP,
 	)
 
+	recoveryBiz := business.NewLossRecoveryBusiness(
+		lossRepo, repository.NewLossRecoveryRepository(ctx, dbPool, workMan), ftRepo, poster,
+	)
+
 	// Business logic
 	faBiz := business.NewFundingAllocationBusiness(
 		ctx,
@@ -232,14 +235,18 @@ func setupServiceOptions(
 		operationsCli,
 		auditWriter,
 		limitsCli,
-		cfg.LimitsGateEnabledFundingDeposit,
-		cfg.LimitsGateModeFundingDeposit,
 		cfg.LimitsGateEnabledFundingWithdraw,
 		cfg.LimitsGateModeFundingWithdraw,
+		business.WithInvestorPayouts(investorPayouts(platformClients)),
 	)
 
 	// ConnectRPC handler
-	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, rdBiz, auditCli)
+	var investorOwners business.InvestorOwnerResolver
+	if platformClients != nil {
+		investorOwners = business.NewIdentityInvestorOwners(platformClients.LenderRegistry)
+	}
+	reads := business.NewInvestorReads(iaRepo, repository.NewStatementRepository(dbPool), investorOwners)
+	connectHandler := setupConnectServer(ctx, sm, dbPool, iaBiz, faBiz, rdBiz, recoveryBiz, reads, auditCli)
 
 	// Runtime options only — permissions/migrate are setup-only.
 	return []frame.Option{
@@ -354,9 +361,11 @@ func setupConnectServer(
 	iaBiz business.InvestorAccountBusiness,
 	faBiz business.FundingAllocationBusiness,
 	rdBiz business.RepaymentDistributionBusiness,
+	recoveryBiz *business.LossRecoveryBusiness,
+	reads *business.InvestorReads,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
-	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz, rdBiz)
+	fundingHandler := fundinghandlers.NewFundingServer(iaBiz, faBiz, rdBiz, recoveryBiz, reads)
 
 	auth := sm.GetAuthorizer(ctx)
 
@@ -398,4 +407,13 @@ func setupLimitsClient(
 		WorkloadAPITargetPath: cfg.LimitsServiceWorkloadAPITargetPath,
 		ServiceID:             servicecatalog.ServiceLimits,
 	})
+}
+
+// investorPayouts resolves where an investor's withdrawal is paid; without
+// the identity and profile clients withdrawals are refused.
+func investorPayouts(pc *clients.PlatformClients) business.InvestorPayoutResolver {
+	if pc == nil || pc.LenderRegistry == nil || pc.ProfileClient == nil {
+		return nil
+	}
+	return business.NewInvestorPayoutResolver(pc.LenderRegistry, pc.ProfileClient)
 }

@@ -18,6 +18,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/identity/connectrpc/go/v2/identity/v1/identityv1connect"
@@ -540,7 +541,7 @@ func (s *IdentityServer) ClientGroupSearch(
 	stream identityv1connect.IdentityServiceClientGroupSearchServerStream,
 ) error {
 	err := s.clientGroupBusiness.Search(ctx,
-		req.GetQuery(), req.GetAgentId(), req.GetBranchId(), req.GetCursor(),
+		business.ClientGroupFilterFromAPI(req), req.GetCursor(),
 		func(_ context.Context, batch []*models.ClientGroup) error {
 			var apiResults []*identityv1.ClientGroupObject
 			for _, g := range batch {
@@ -624,6 +625,32 @@ func (s *IdentityServer) ClientDataSave(
 	audit.WithDetail(ctx, "field_key", result.FieldKey)
 	audit.WithDetail(ctx, "client_id", result.ClientID)
 	return &identityv1.ClientDataSaveResponse{Data: result.ToAPI()}, nil
+}
+
+func (s *IdentityServer) ClientDocumentUpload(
+	ctx context.Context,
+	req *identityv1.ClientDocumentUploadRequest,
+) (*identityv1.ClientDocumentUploadResponse, error) {
+	result, err := s.clientDataBusiness.UploadDocument(ctx, req)
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, auditResourceClientDataEntry, result.GetID())
+	audit.WithAction(ctx, audit.ActionSave)
+	audit.WithDetail(ctx, "field_key", result.FieldKey)
+	audit.WithDetail(ctx, "client_id", result.ClientID)
+	return &identityv1.ClientDocumentUploadResponse{Data: result.ToAPI()}, nil
+}
+
+func (s *IdentityServer) ClientDocumentLink(
+	ctx context.Context,
+	req *identityv1.ClientDocumentLinkRequest,
+) (*identityv1.ClientDocumentLinkResponse, error) {
+	url, expires, err := s.clientDataBusiness.DocumentLink(ctx, req.GetEntryId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &identityv1.ClientDocumentLinkResponse{Url: url, ExpiresAt: expires.Format(time.RFC3339)}, nil
 }
 
 func (s *IdentityServer) ClientDataGet(

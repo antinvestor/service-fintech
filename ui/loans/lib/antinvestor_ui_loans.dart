@@ -17,6 +17,7 @@ export 'src/screens/dashboard_screen.dart';
 export 'src/widgets/loan_status_badge.dart';
 export 'src/widgets/loan_request_status_badge.dart';
 export 'src/widgets/loan_state_badge.dart';
+export 'src/widgets/team_commission_section.dart';
 
 // Utils
 export 'src/utils/money_compat.dart';
@@ -35,3 +36,4 @@ export 'src/providers/schedule_providers.dart';
 export 'src/providers/restructure_providers.dart';
 export 'src/providers/portfolio_providers.dart';
 export 'src/providers/dashboard_providers.dart';
+export 'src/providers/team_commission_providers.dart';

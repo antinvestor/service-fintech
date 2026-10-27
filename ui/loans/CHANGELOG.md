@@ -1,3 +1,34 @@
+## 0.4.0
+
+- Staff origination completes in the console:
+  - On a submitted request, staff with `loan_request_manage` confirm the
+    client's data (`data_verification_confirmed`) before approving.
+  - On an approved request, staff with `loan_manage` open the loan account
+    (`LoanRequestDetailScreen.canOpenAccount`).
+- **Breaking:** the disburse dialog no longer asks for a channel or
+  recipient reference. It confirms that the principal is paid to the
+  borrower's own payout contact on the loan, and refuses a loan without one.
+  `_DisbursementFormDialog` takes the loan.
+- "Cancel loan" (`loan_manage`) on a loan never disbursed: closes it and
+  releases its funding. Collect Payment is offered on defaulted and
+  written-off loans too (a written-off loan's payments are recoveries).
+- The restructure dialog no longer offers a partial waiver, which the
+  service refuses (`restructureTypeOffered`).
+- Loan products take an "Agent commission (% of interest)", shown on the
+  product detail.
+- `TeamCommissionSection` (`commission_view`): a team's commission earned,
+  paid out and available, with its payouts. With `commission_payout` it
+  offers "Pay out" to an active member's own verified mobile number
+  (`CommissionPayoutDialog`, one idempotency key per dialog).
+- The loan request page shows who submitted and who decided a request. With
+  `currentProfileIdProvider` set by the host, the person who submitted a
+  request is told another staff member must decide it, instead of being
+  offered Approve and Reject the service would refuse (maker/checker).
+- On a phone, Loan Accounts and Loan Requests are lists of tiles
+  (`CompactEntityList`) with the same search, filters and actions; the
+  table stays for wider screens. "Load more" no longer overflows a narrow
+  screen.
+
 ## 0.3.0
 
 - **Breaking:** field agents and staff no longer record repayments. The

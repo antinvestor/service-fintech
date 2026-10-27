@@ -22,6 +22,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pitabwire/frame/v3"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/frametests"
@@ -572,4 +573,153 @@ func (s *claimsSuite) TestConsumeObligationForOrderIsAtomic() {
 	storedOther, err := e.orders.GetByID(e.ctx, other.GetID())
 	s.Require().NoError(err)
 	s.Require().False(storedOther.ObligationConsumed)
+}
+
+// The settle job finds matched payments that were never allocated, and
+// allocation orders that were raised but never posted; it leaves group
+// obligation orders whose suspense it did not fund, and finished work, alone.
+func (s *claimsSuite) TestSettleListingsFindOnlyUnfinishedAllocations() {
+	e := s.newEnv()
+
+	payment := func(txn, ownerType, ownerID string) *models.IncomingPayment {
+		p := &models.IncomingPayment{
+			Amount: 5000, Currency: "KES", TransactionID: txn,
+			OwnerType: ownerType, OwnerID: ownerID, State: int32(constants.StateJustCreated),
+		}
+		p.GenID(e.ctx)
+		_, err := e.payments.CreateIfAbsent(e.ctx, p)
+		s.Require().NoError(err)
+		return p
+	}
+	waiting := payment("txn-settle-loan", "client_loan", "client-1")
+	saver := payment("txn-settle-savings", "client_savings", "client-2")
+	payment("txn-settle-unmatched", "", "")
+	member := payment("txn-settle-group", "membership", "member-1")
+	leased := payment("txn-settle-leased", "client_loan", "client-3")
+	_, claimed, err := e.payments.ClaimAllocation(e.ctx, leased.GetID(), time.Now().Add(-time.Hour))
+	s.Require().NoError(err)
+	s.Require().True(claimed)
+
+	order := func(reference string, state int32) *models.TransferOrder {
+		o := s.newOrder(e.ctx, reference)
+		o.State = state
+		o.ExtraData = data.JSONMap{"source": "payment_allocation"}
+		s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, o))
+		return o
+	}
+	raised := order("payment:p1:loan:loan-1", constants.StateJustCreated)
+	order("payment:p2:obligation:ob-1", constants.StateJustCreated)
+	order("payment:p3:loan:loan-1", constants.StateInactive)
+	funding := order("payment:p4:member:member-1", constants.StateJustCreated)
+	funded := s.newOrder(e.ctx, "payment:p4:obligation:ob-2")
+	funded.ExtraData = data.JSONMap{"source": "payment_allocation", "suspense_funded": true}
+	s.Require().NoError(e.orders.CreateIfAbsent(e.ctx, funded))
+
+	later := time.Now().Add(time.Minute)
+	payments, err := e.payments.ListAwaitingAllocation(e.ctx, later, time.Now().Add(-time.Minute), 10)
+	s.Require().NoError(err)
+	var paymentIDs []string
+	for _, p := range payments {
+		paymentIDs = append(paymentIDs, p.GetID())
+	}
+	s.ElementsMatch([]string{waiting.GetID(), saver.GetID(), member.GetID()}, paymentIDs,
+		"a live allocation lease is left alone")
+
+	orders, err := e.orders.ListUnexecutedAllocations(e.ctx, later, 10)
+	s.Require().NoError(err)
+	var orderIDs []string
+	for _, o := range orders {
+		orderIDs = append(orderIDs, o.GetID())
+	}
+	s.ElementsMatch([]string{raised.GetID(), funding.GetID(), funded.GetID()}, orderIDs,
+		"an obligation order whose suspense was never funded here is left alone")
+
+	earlier := time.Now().Add(-time.Hour)
+	payments, err = e.payments.ListAwaitingAllocation(e.ctx, earlier, earlier, 10)
+	s.Require().NoError(err)
+	s.Empty(payments, "work touched since the cut-off is left to the run that raised it")
+	orders, err = e.orders.ListUnexecutedAllocations(e.ctx, earlier, 10)
+	s.Require().NoError(err)
+	s.Empty(orders)
+}
+
+// A group member owes one savings and at most one penalty per period: a
+// retried raise finds the row already there and writes nothing.
+func (s *claimsSuite) TestObligationCreateIfAbsentHoldsOnePerMemberPeriodAndCause() {
+	e := s.newEnv()
+
+	obligation := func(member, cause string) *models.Obligation {
+		o := &models.Obligation{
+			MembershipID: member, CauseType: cause, CauseID: "group-1", PeriodID: "period-1",
+			Amount: 1000, Currency: "KES", State: int32(constants.StateActive),
+		}
+		o.GenID(e.ctx)
+		return o
+	}
+
+	created, err := e.obs.CreateIfAbsent(e.ctx, obligation("member-1", "periodic_saving"))
+	s.Require().NoError(err)
+	s.True(created)
+	created, err = e.obs.CreateIfAbsent(e.ctx, obligation("member-1", "periodic_saving"))
+	s.Require().NoError(err)
+	s.False(created, "a retry raises nothing new")
+
+	created, err = e.obs.CreateIfAbsent(e.ctx, obligation("member-1", "penalty"))
+	s.Require().NoError(err)
+	s.True(created, "the penalty is its own obligation")
+	created, err = e.obs.CreateIfAbsent(e.ctx, obligation("member-1", "penalty"))
+	s.Require().NoError(err)
+	s.False(created, "one penalty per member per period")
+
+	created, err = e.obs.CreateIfAbsent(e.ctx, obligation("member-2", "periodic_saving"))
+	s.Require().NoError(err)
+	s.True(created)
+
+	// Loan obligations are keyed by their schedule entry, not this index.
+	for range 2 {
+		created, err = e.obs.CreateIfAbsent(e.ctx, obligation("member-1", "loan_principal"))
+		s.Require().NoError(err)
+		s.True(created)
+	}
+
+	period, err := e.obs.GetByPeriodID(e.ctx, "period-1")
+	s.Require().NoError(err)
+	s.Len(period, 5)
+}
+
+// A group's member obligations are read paid or not, and only for the group,
+// members and causes asked.
+func (s *claimsSuite) TestGetGroupMemberObligationsReadsOnlyWhatWasAsked() {
+	e := s.newEnv()
+
+	create := func(member, cause, group, period string, state int32) {
+		o := &models.Obligation{
+			MembershipID: member, CauseType: cause, CauseID: group, PeriodID: period,
+			Amount: 1000, Currency: "KES", State: state,
+		}
+		o.GenID(e.ctx)
+		created, err := e.obs.CreateIfAbsent(e.ctx, o)
+		s.Require().NoError(err)
+		s.Require().True(created)
+	}
+	create("member-1", "periodic_saving", "group-1", "period-1", constants.StateInactive)
+	create("member-1", "penalty", "group-1", "period-1", constants.StateActive)
+	create("member-2", "periodic_saving", "group-1", "period-1", constants.StateActive)
+	create("member-3", "periodic_saving", "group-1", "period-1", constants.StateActive)
+	create("member-1", "periodic_saving", "group-2", "period-9", constants.StateActive)
+	create("member-1", "loan_principal", "group-1", "period-1", constants.StateActive)
+
+	found, err := e.obs.GetGroupMemberObligations(e.ctx, "group-1",
+		[]string{"member-1", "member-2"}, []string{"periodic_saving", "penalty"})
+	s.Require().NoError(err)
+	s.Len(found, 3)
+	for _, o := range found {
+		s.Equal("group-1", o.CauseID)
+		s.NotEqual("member-3", o.MembershipID)
+		s.NotEqual("loan_principal", o.CauseType)
+	}
+
+	none, err := e.obs.GetGroupMemberObligations(e.ctx, "group-1", nil, []string{"penalty"})
+	s.Require().NoError(err)
+	s.Empty(none)
 }

@@ -290,7 +290,10 @@ func buildHandler(
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	mux := http.NewServeMux()
-	seedhandlers.NewServer(lrBusiness, cpBusiness, clientResolver, staffRole).WithUssd(ussdBusiness).Register(mux)
+	// The field-backed resolver also answers which clients an agent serves.
+	agentScope, _ := clientResolver.(business.AgentScope)
+	seedhandlers.NewServer(lrBusiness, cpBusiness, clientResolver, staffRole).WithUssd(ussdBusiness).
+		WithAgentScope(agentScope).Register(mux)
 	// Peer services (loans' paid-off hook) call seed over Connect, behind
 	// the same authentication and function-access chain as the HTTP routes.
 	rpc := connect.NewServer()

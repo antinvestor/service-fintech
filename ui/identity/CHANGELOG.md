@@ -1,3 +1,27 @@
+## 0.6.0
+
+- `ClientFormDialog(teams:)`: onboarding offers the owning team. Left as
+  "My team", a field agent's client goes to their own team; staff choose one
+  (the service requires it for staff). The choice is kept by the
+  registration outbox (`PendingRegistration.owningTeamId`), so it survives
+  offline capture. `ClientsScreen` loads the teams.
+- **Breaking:** KYC entries are verified, rejected or taken for review only
+  with `ClientDetailScreen(canVerifyData:)` (`client_data_verify`).
+  `canManage` (`client_manage`) still edits the client and adds KYC data.
+- `TeamDetailScreen(sections:)`: other products add sections to a team's
+  page (`TeamSectionBuilder`), given the team and its active member ids.
+- KYC documents on the client's KYC tab. With `client_data_manage`,
+  "Upload document" takes a photo or chooses an image (scaled to at most
+  1600 px), labels it (`photo`, `file` or `signature`) and uploads it
+  through identity (`ClientDocumentUpload`). A document entry shows "View
+  document", which opens it through a five-minute link
+  (`ClientDocumentLink`); its storage id is never shown.
+  `KycDocumentDialog`, `KycDocumentViewer`, `documentPickerProvider`.
+  Needs `antinvestor_api_identity` 0.8.2.
+- On a phone, Clients is a list of tiles (`CompactEntityList`) with search,
+  pending registrations and "Onboard client"; the table stays for wider
+  screens. "Load more" no longer overflows a narrow screen.
+
 ## 0.5.2
 
 - `FormTemplateDesignerScreen`: builds a form template (name, organization,

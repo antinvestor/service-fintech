@@ -50,6 +50,23 @@ void main() {
     expect(sorted.map((l) => l.id), ['y', 'x', 'z', 'w']);
   });
 
+  // On a phone the book is a list of tiles that open the loan, and its
+  // filters still apply.
+  testWidgets('a phone lists loans as tiles with the filters', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_host(seen: [], agentId: 'agent-1'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DataTable), findsNothing);
+    expect(find.byKey(const Key('loan-tile-a')), findsOneWidget);
+    expect(find.byKey(const Key('my-portfolio-filter')), findsOneWidget);
+    expect(find.byKey(const Key('delinquent-filter')), findsOneWidget);
+  });
+
   testWidgets('My portfolio is disabled when the agent id is unknown', (
     tester,
   ) async {

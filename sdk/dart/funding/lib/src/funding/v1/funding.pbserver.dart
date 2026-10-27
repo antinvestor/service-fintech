@@ -27,6 +27,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.InvestorAccountGetRequest request);
   $async.Future<$3.InvestorAccountSearchResponse> investorAccountSearch(
       $pb.ServerContext ctx, $3.InvestorAccountSearchRequest request);
+  $async.Future<$3.InvestorStatementResponse> investorStatement(
+      $pb.ServerContext ctx, $3.InvestorStatementRequest request);
   $async.Future<$3.InvestorDepositResponse> investorDeposit(
       $pb.ServerContext ctx, $3.InvestorDepositRequest request);
   $async.Future<$3.InvestorWithdrawResponse> investorWithdraw(
@@ -35,8 +37,14 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.FundLoanRequest request);
   $async.Future<$3.AbsorbLossResponse> absorbLoss(
       $pb.ServerContext ctx, $3.AbsorbLossRequest request);
+  $async.Future<$3.FundingReleaseResponse> fundingRelease(
+      $pb.ServerContext ctx, $3.FundingReleaseRequest request);
   $async.Future<$3.LoanRepaymentApplyResponse> loanRepaymentApply(
       $pb.ServerContext ctx, $3.LoanRepaymentApplyRequest request);
+  $async.Future<$3.LoanRecoveryApplyResponse> loanRecoveryApply(
+      $pb.ServerContext ctx, $3.LoanRecoveryApplyRequest request);
+  $async.Future<$3.PayoutFailedApplyResponse> payoutFailedApply(
+      $pb.ServerContext ctx, $3.PayoutFailedApplyRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -46,6 +54,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return $3.InvestorAccountGetRequest();
       case 'InvestorAccountSearch':
         return $3.InvestorAccountSearchRequest();
+      case 'InvestorStatement':
+        return $3.InvestorStatementRequest();
       case 'InvestorDeposit':
         return $3.InvestorDepositRequest();
       case 'InvestorWithdraw':
@@ -54,8 +64,14 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return $3.FundLoanRequest();
       case 'AbsorbLoss':
         return $3.AbsorbLossRequest();
+      case 'FundingRelease':
+        return $3.FundingReleaseRequest();
       case 'LoanRepaymentApply':
         return $3.LoanRepaymentApplyRequest();
+      case 'LoanRecoveryApply':
+        return $3.LoanRecoveryApplyRequest();
+      case 'PayoutFailedApply':
+        return $3.PayoutFailedApplyRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -72,6 +88,8 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
       case 'InvestorAccountSearch':
         return investorAccountSearch(
             ctx, request as $3.InvestorAccountSearchRequest);
+      case 'InvestorStatement':
+        return investorStatement(ctx, request as $3.InvestorStatementRequest);
       case 'InvestorDeposit':
         return investorDeposit(ctx, request as $3.InvestorDepositRequest);
       case 'InvestorWithdraw':
@@ -80,8 +98,14 @@ abstract class FundingServiceBase extends $pb.GeneratedService {
         return fundLoan(ctx, request as $3.FundLoanRequest);
       case 'AbsorbLoss':
         return absorbLoss(ctx, request as $3.AbsorbLossRequest);
+      case 'FundingRelease':
+        return fundingRelease(ctx, request as $3.FundingReleaseRequest);
       case 'LoanRepaymentApply':
         return loanRepaymentApply(ctx, request as $3.LoanRepaymentApplyRequest);
+      case 'LoanRecoveryApply':
+        return loanRecoveryApply(ctx, request as $3.LoanRecoveryApplyRequest);
+      case 'PayoutFailedApply':
+        return payoutFailedApply(ctx, request as $3.PayoutFailedApplyRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

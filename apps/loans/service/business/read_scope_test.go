@@ -240,7 +240,7 @@ func TestReadScope_RepaymentReadsAreScopedThroughTheLoan(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			b := NewRepaymentBusiness(t.Context(), &noopEventsManager{},
 				&stubLoanAccountRepo{account: loan}, &ownedRepaymentRepo{row: rep},
-				nil, nil, nil, nil, nil, nil, nil, nil, false, "",
+				nil, nil, nil, nil, nil, nil, nil,
 				WithReadScope(tc.scope))
 
 			got, err := b.Get(tc.ctx, "rep-1")
@@ -342,7 +342,7 @@ func TestRepaymentRecord_PaymentRailOnly(t *testing.T) {
 	build := func(existing *loansmodels.Repayment) RepaymentBusiness {
 		return NewRepaymentBusiness(t.Context(), &noopEventsManager{},
 			&stubLoanAccountRepo{account: loan}, &stubRepaymentRepo{findResp: existing},
-			nil, nil, nil, nil, nil, nil, nil, nil, false, "",
+			nil, nil, nil, nil, nil, nil, nil,
 			WithReadScope(scope))
 	}
 	req := func(channel string) *loansv1.RepaymentRecordRequest {
@@ -377,7 +377,7 @@ func TestRepaymentRecord_PaymentRailOnly(t *testing.T) {
 func TestRepaymentSearchScope_PartitionWideIsStaffOnly(t *testing.T) {
 	b, ok := NewRepaymentBusiness(t.Context(), &noopEventsManager{},
 		&stubLoanAccountRepo{}, &stubRepaymentRepo{},
-		nil, nil, nil, nil, nil, nil, nil, nil, false, "",
+		nil, nil, nil, nil, nil, nil, nil,
 		WithReadScope(agentScope())).(*repaymentBusiness)
 	require.True(t, ok)
 

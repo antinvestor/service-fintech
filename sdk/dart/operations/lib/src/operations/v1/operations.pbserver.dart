@@ -33,6 +33,14 @@ abstract class OperationsServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $4.IncomingPaymentSearchRequest request);
   $async.Future<$4.IncomingPaymentAssignResponse> incomingPaymentAssign(
       $pb.ServerContext ctx, $4.IncomingPaymentAssignRequest request);
+  $async.Future<$4.OperationsJobRunResponse> operationsJobRun(
+      $pb.ServerContext ctx, $4.OperationsJobRunRequest request);
+  $async.Future<$4.GroupObligationsRaiseResponse> groupObligationsRaise(
+      $pb.ServerContext ctx, $4.GroupObligationsRaiseRequest request);
+  $async.Future<$4.GroupPeriodCloseResponse> groupPeriodClose(
+      $pb.ServerContext ctx, $4.GroupPeriodCloseRequest request);
+  $async.Future<$4.GroupMemberStandingResponse> groupMemberStanding(
+      $pb.ServerContext ctx, $4.GroupMemberStandingRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -48,6 +56,14 @@ abstract class OperationsServiceBase extends $pb.GeneratedService {
         return $4.IncomingPaymentSearchRequest();
       case 'IncomingPaymentAssign':
         return $4.IncomingPaymentAssignRequest();
+      case 'OperationsJobRun':
+        return $4.OperationsJobRunRequest();
+      case 'GroupObligationsRaise':
+        return $4.GroupObligationsRaiseRequest();
+      case 'GroupPeriodClose':
+        return $4.GroupPeriodCloseRequest();
+      case 'GroupMemberStanding':
+        return $4.GroupMemberStandingRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -73,6 +89,16 @@ abstract class OperationsServiceBase extends $pb.GeneratedService {
       case 'IncomingPaymentAssign':
         return incomingPaymentAssign(
             ctx, request as $4.IncomingPaymentAssignRequest);
+      case 'OperationsJobRun':
+        return operationsJobRun(ctx, request as $4.OperationsJobRunRequest);
+      case 'GroupObligationsRaise':
+        return groupObligationsRaise(
+            ctx, request as $4.GroupObligationsRaiseRequest);
+      case 'GroupPeriodClose':
+        return groupPeriodClose(ctx, request as $4.GroupPeriodCloseRequest);
+      case 'GroupMemberStanding':
+        return groupMemberStanding(
+            ctx, request as $4.GroupMemberStandingRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

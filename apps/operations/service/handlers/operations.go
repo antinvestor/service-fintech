@@ -26,6 +26,7 @@ import (
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	audit "github.com/antinvestor/common/audit"
 	"github.com/pitabwire/frame/v3/data"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/workerpool"
 	moneyx "github.com/pitabwire/util/moneyx"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -54,6 +55,8 @@ type OperationsServer struct {
 	prBusiness business.PaymentRoutingBusiness
 	toRepo     repository.TransferOrderRepository
 	ipRepo     repository.IncomingPaymentRepository
+	jobs       *business.OperationsJobs
+	obBusiness business.ObligationBusiness
 
 	operationsv1connect.UnimplementedOperationsServiceHandler
 }
@@ -61,15 +64,42 @@ type OperationsServer struct {
 func NewOperationsServer(
 	toBusiness business.TransferOrderBusiness,
 	prBusiness business.PaymentRoutingBusiness,
+	obBusiness business.ObligationBusiness,
 	toRepo repository.TransferOrderRepository,
 	ipRepo repository.IncomingPaymentRepository,
+	jobs *business.OperationsJobs,
 ) operationsv1connect.OperationsServiceHandler {
 	return &OperationsServer{
 		toBusiness: toBusiness,
 		prBusiness: prBusiness,
+		obBusiness: obBusiness,
 		ipRepo:     ipRepo,
 		toRepo:     toRepo,
+		jobs:       jobs,
 	}
+}
+
+// maxJobBatch bounds one scheduled run.
+const maxJobBatch = 5000
+
+// OperationsJobRun runs one batch of a periodic job for the platform
+// scheduler.
+func (s *OperationsServer) OperationsJobRun(
+	ctx context.Context,
+	req *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	if req.GetBatchSize() < 0 || req.GetBatchSize() > maxJobBatch {
+		return nil, apperrors.CleanErr(apperrors.NewError(apperrors.BadRequest,
+			"batch_size must be between 0 and 5000"))
+	}
+	processed, more, err := s.jobs.Run(ctx, req.GetJob(), int(req.GetBatchSize()))
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &operationsv1.OperationsJobRunResponse{
+		Processed: int32(processed), //nolint:gosec // bounded by maxJobBatch per kind
+		More:      more,
+	}, nil
 }
 
 func (s *OperationsServer) TransferOrderExecute(
@@ -260,6 +290,11 @@ func (s *OperationsServer) IncomingPaymentNotify(
 	ctx context.Context,
 	req *operationsv1.IncomingPaymentNotifyRequest,
 ) (*operationsv1.IncomingPaymentNotifyResponse, error) {
+	// Money is announced only by the payment rail. A person announcing a
+	// payment would be typing money into a borrower's loan.
+	if claims := security.ClaimsFromContext(ctx); claims == nil || !claims.IsInternalSystem() {
+		return nil, apperrors.CleanErr(business.ErrPaymentNotifyInternalOnly)
+	}
 	currency := req.GetAmount().GetCurrencyCode()
 	amount := moneyx.ToSmallestUnit(req.GetAmount(), moneyx.Decimals(currency))
 
@@ -379,9 +414,10 @@ func (s *OperationsServer) IncomingPaymentAssign(
 	audit.WithResource(ctx, audit.ResourcePayment, req.GetPaymentId())
 	audit.WithAction(ctx, "assign")
 	audit.WithDetail(ctx, "loan_account_id", req.GetLoanAccountId())
+	audit.WithDetail(ctx, "savings_account_id", req.GetSavingsAccountId())
 
 	payment, allocation, err := s.prBusiness.AssignPayment(
-		ctx, req.GetPaymentId(), req.GetLoanAccountId(), req.GetNote(),
+		ctx, req.GetPaymentId(), req.GetLoanAccountId(), req.GetSavingsAccountId(), req.GetNote(),
 	)
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
@@ -422,6 +458,7 @@ func incomingPaymentToAPI(m *models.IncomingPayment) *operationsv1.IncomingPayme
 		ReceivedAt:             timestamppb.New(m.CreatedAt),
 		AssignedBy:             props.GetString("assigned_by"),
 		AssignmentNote:         props.GetString("assignment_note"),
+		SavingsAccountId:       props.GetString("savings_account_id"),
 	}
 }
 

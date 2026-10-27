@@ -1,3 +1,10 @@
+## 0.4.1
+
+- `PayoutFailedApply` (`payout_outcome_apply`, operations only): undoes this
+  service's record of a payout the payment rail failed after accepting it.
+- `SavingsJobRun` (`SavingsJob.SAVINGS_JOB_ACCRUE_INTEREST`, `savings_job_run`):
+  the scheduler's daily interest accrual. Service accounts only.
+
 ## 0.4.0
 
 - **Breaking:** regenerated with protoc_plugin 25.1 (`buf.build/protocolbuffers/dart:v25.1.0`)

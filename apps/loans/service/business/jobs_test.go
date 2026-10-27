@@ -28,7 +28,7 @@ import (
 // may run them: a staff user, a member or an anonymous call is refused before
 // any work is claimed.
 func TestLoanJobsRefuseCallersThatAreNotInternal(t *testing.T) {
-	jobs := NewLoanJobs(nil, nil, nil, &stubLoanRequestRepo{}, nil)
+	jobs := NewLoanJobs(nil, nil, nil, &stubLoanRequestRepo{}, nil, nil)
 	for name, ctx := range map[string]context.Context{
 		"no claims": context.Background(),
 		"staff user": (&security.AuthenticationClaims{

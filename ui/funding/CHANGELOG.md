@@ -1,3 +1,17 @@
+## 0.5.0
+
+- **Breaking:** capital is never recorded by hand. Removed the Deposit
+  action and `InvestorAccountNotifier.deposit`. The account screen shows
+  how capital arrives: the investor pays from their own account, quoting
+  the account id, and the payment rail credits it.
+- **Breaking:** removed Fund Loan (`InvestorAccountDetailScreen.canFund`,
+  `InvestorAccountNotifier.fundLoan`). A loan is funded from the whole pool
+  when its account opens; the dialog implied it drew on this account.
+- `InvestorStatementCard` on the account page: what moved the account's
+  capital over the last 30 days, this month, last month or the year to
+  date, with totals, and "Download CSV" (`statementCsv`,
+  `investorStatementProvider`). Needs `antinvestor_api_funding` 0.5.3.
+
 ## 0.4.0
 
 - `FundingRouteModule`: routes (`/funding/accounts`, `/funding/accounts/:accountId`),

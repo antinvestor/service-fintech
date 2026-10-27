@@ -14,7 +14,11 @@
 
 package stawi
 
-import "strings"
+import (
+	"slices"
+	"strings"
+	"time"
+)
 
 // ProductConfig defines SACCO/Grameen-model product configuration.
 // These are product-level defaults that can be overridden per group.
@@ -42,6 +46,13 @@ type ProductConfig struct {
 
 	// Savings
 	RegistrationFee int64 `envDefault:"0" env:"STAWI_REGISTRATION_FEE"` // minor units
+	// ReminderOffsetsHours are how long before a period ends members still
+	// owing its savings are reminded; each offset is sent once.
+	ReminderOffsetsHours []int `envDefault:"72,24" env:"STAWI_REMINDER_OFFSETS_HOURS" envSeparator:","`
+
+	// GroupTypes are the identity group types stawi runs (2 Grameen,
+	// 5 merry-go-round, 6 voluntary). Groups of other types are left alone.
+	GroupTypes []int32 `envDefault:"2,5,6" env:"STAWI_GROUP_TYPES" envSeparator:","`
 
 	// Fees
 	ServiceFeePercentage int64 `envDefault:"1000" env:"STAWI_SERVICE_FEE_PCT"` // basis points (10%)
@@ -79,4 +90,22 @@ func (c *ProductConfig) LoanTermDays() int32 {
 		days = daysPerMonthlyPeriod
 	}
 	return c.LoanTenurePeriods * days
+}
+
+// ReminderOffsets returns the positive reminder offsets, longest first.
+func (c *ProductConfig) ReminderOffsets() []time.Duration {
+	offsets := make([]time.Duration, 0, len(c.ReminderOffsetsHours))
+	for _, h := range c.ReminderOffsetsHours {
+		if h > 0 {
+			offsets = append(offsets, time.Duration(h)*time.Hour)
+		}
+	}
+	slices.Sort(offsets)
+	slices.Reverse(offsets)
+	return slices.Compact(offsets)
+}
+
+// RunsGroupType reports whether stawi runs groups of the identity type.
+func (c *ProductConfig) RunsGroupType(groupType int32) bool {
+	return slices.Contains(c.GroupTypes, groupType)
 }

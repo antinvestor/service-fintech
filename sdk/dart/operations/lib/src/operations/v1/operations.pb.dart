@@ -891,6 +891,7 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
     $3.Timestamp? receivedAt,
     $core.String? assignedBy,
     $core.String? assignmentNote,
+    $core.String? savingsAccountId,
   }) {
     final result = IncomingPaymentObject._();
     if (id != null) result.id = id;
@@ -909,6 +910,7 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
     if (receivedAt != null) result.receivedAt = receivedAt;
     if (assignedBy != null) result.assignedBy = assignedBy;
     if (assignmentNote != null) result.assignmentNote = assignmentNote;
+    if (savingsAccountId != null) result.savingsAccountId = savingsAccountId;
     return result;
   }
 
@@ -944,6 +946,7 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
         subBuilder: $3.Timestamp.$_createMessage)
     ..aOS(14, _omitFieldNames ? '' : 'assignedBy')
     ..aOS(15, _omitFieldNames ? '' : 'assignmentNote')
+    ..aOS(16, _omitFieldNames ? '' : 'savingsAccountId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1120,6 +1123,17 @@ class IncomingPaymentObject extends $pb.GeneratedMessage {
   $core.bool hasAssignmentNote() => $_has(14);
   @$pb.TagNumber(15)
   void clearAssignmentNote() => $_clearField(15);
+
+  /// savings_account_id is set when the payment was a deposit to the payer's
+  /// own savings account.
+  @$pb.TagNumber(16)
+  $core.String get savingsAccountId => $_getSZ(15);
+  @$pb.TagNumber(16)
+  set savingsAccountId($core.String value) => $_setString(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasSavingsAccountId() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearSavingsAccountId() => $_clearField(16);
 }
 
 /// IncomingPaymentSearchRequest lists received payments, newest first.
@@ -1286,19 +1300,23 @@ class IncomingPaymentSearchResponse extends $pb.GeneratedMessage {
   $pb.PbList<IncomingPaymentObject> get data => $_getList(0);
 }
 
-/// IncomingPaymentAssignRequest ties an unmatched payment to the loan it was
-/// meant for and allocates it. The amount is the rail's; nobody types one.
-/// The loan must take repayments and belong to the product the rail credited.
+/// IncomingPaymentAssignRequest ties an unmatched payment to the loan or the
+/// savings account it was meant for, and allocates it. The amount is the
+/// rail's; nobody types one. Name exactly one target: the loan must take
+/// repayments, the savings account must be open and individually owned, and
+/// either must belong to the product the rail credited.
 class IncomingPaymentAssignRequest extends $pb.GeneratedMessage {
   factory IncomingPaymentAssignRequest({
     $core.String? paymentId,
     $core.String? loanAccountId,
     $core.String? note,
+    $core.String? savingsAccountId,
   }) {
     final result = IncomingPaymentAssignRequest._();
     if (paymentId != null) result.paymentId = paymentId;
     if (loanAccountId != null) result.loanAccountId = loanAccountId;
     if (note != null) result.note = note;
+    if (savingsAccountId != null) result.savingsAccountId = savingsAccountId;
     return result;
   }
 
@@ -1318,6 +1336,7 @@ class IncomingPaymentAssignRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'paymentId')
     ..aOS(2, _omitFieldNames ? '' : 'loanAccountId')
     ..aOS(3, _omitFieldNames ? '' : 'note')
+    ..aOS(4, _omitFieldNames ? '' : 'savingsAccountId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1376,6 +1395,15 @@ class IncomingPaymentAssignRequest extends $pb.GeneratedMessage {
   $core.bool hasNote() => $_has(2);
   @$pb.TagNumber(3)
   void clearNote() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get savingsAccountId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set savingsAccountId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasSavingsAccountId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearSavingsAccountId() => $_clearField(4);
 }
 
 class IncomingPaymentAssignResponse extends $pb.GeneratedMessage {
@@ -1459,6 +1487,1101 @@ class IncomingPaymentAssignResponse extends $pb.GeneratedMessage {
   $1.Struct ensureAllocation() => $_ensure(1);
 }
 
+class OperationsJobRunRequest extends $pb.GeneratedMessage {
+  factory OperationsJobRunRequest({
+    OperationsJob? job,
+    $core.int? batchSize,
+  }) {
+    final result = OperationsJobRunRequest._();
+    if (job != null) result.job = job;
+    if (batchSize != null) result.batchSize = batchSize;
+    return result;
+  }
+
+  OperationsJobRunRequest._();
+
+  factory OperationsJobRunRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunRequest()..mergeFromBuffer(data, registry);
+  factory OperationsJobRunRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OperationsJobRunRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: OperationsJobRunRequest.$_createMessage)
+    ..aE<OperationsJob>(1, _omitFieldNames ? '' : 'job',
+        enumValues: OperationsJob.values)
+    ..aI(2, _omitFieldNames ? '' : 'batchSize')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunRequest copyWith(
+          void Function(OperationsJobRunRequest) updates) =>
+      super.copyWith((message) => updates(message as OperationsJobRunRequest))
+          as OperationsJobRunRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use OperationsJobRunRequest() / OperationsJobRunRequest.new instead')
+  static OperationsJobRunRequest create() => OperationsJobRunRequest._();
+  static $pb.GeneratedMessage $_createMessage() => OperationsJobRunRequest._();
+  @$core.override
+  OperationsJobRunRequest createEmptyInstance() => OperationsJobRunRequest._();
+  @$core.pragma('dart2js:noInline')
+  static OperationsJobRunRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OperationsJobRunRequest>(
+          OperationsJobRunRequest.$_createMessage);
+  static OperationsJobRunRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  OperationsJob get job => $_getN(0);
+  @$pb.TagNumber(1)
+  set job(OperationsJob value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasJob() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearJob() => $_clearField(1);
+
+  /// Most items to process in this run, at most 5000. 0 uses the service
+  /// default.
+  @$pb.TagNumber(2)
+  $core.int get batchSize => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set batchSize($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBatchSize() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBatchSize() => $_clearField(2);
+}
+
+class OperationsJobRunResponse extends $pb.GeneratedMessage {
+  factory OperationsJobRunResponse({
+    $core.int? processed,
+    $core.bool? more,
+  }) {
+    final result = OperationsJobRunResponse._();
+    if (processed != null) result.processed = processed;
+    if (more != null) result.more = more;
+    return result;
+  }
+
+  OperationsJobRunResponse._();
+
+  factory OperationsJobRunResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunResponse()..mergeFromBuffer(data, registry);
+  factory OperationsJobRunResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OperationsJobRunResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OperationsJobRunResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: OperationsJobRunResponse.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'processed')
+    ..aOB(2, _omitFieldNames ? '' : 'more')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OperationsJobRunResponse copyWith(
+          void Function(OperationsJobRunResponse) updates) =>
+      super.copyWith((message) => updates(message as OperationsJobRunResponse))
+          as OperationsJobRunResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use OperationsJobRunResponse() / OperationsJobRunResponse.new instead')
+  static OperationsJobRunResponse create() => OperationsJobRunResponse._();
+  static $pb.GeneratedMessage $_createMessage() => OperationsJobRunResponse._();
+  @$core.override
+  OperationsJobRunResponse createEmptyInstance() =>
+      OperationsJobRunResponse._();
+  @$core.pragma('dart2js:noInline')
+  static OperationsJobRunResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<OperationsJobRunResponse>(
+          OperationsJobRunResponse.$_createMessage);
+  static OperationsJobRunResponse? _defaultInstance;
+
+  /// Items this run worked through.
+  @$pb.TagNumber(1)
+  $core.int get processed => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set processed($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProcessed() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProcessed() => $_clearField(1);
+
+  /// True when the batch was full and more work may be waiting.
+  @$pb.TagNumber(2)
+  $core.bool get more => $_getBF(1);
+  @$pb.TagNumber(2)
+  set more($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMore() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMore() => $_clearField(2);
+}
+
+/// GroupMemberObligation is one member's contribution due for a group's
+/// period. Members are named by membership and profile, never by contact.
+class GroupMemberObligation extends $pb.GeneratedMessage {
+  factory GroupMemberObligation({
+    $core.String? membershipId,
+    $core.String? profileId,
+    $0.Money? amount,
+  }) {
+    final result = GroupMemberObligation._();
+    if (membershipId != null) result.membershipId = membershipId;
+    if (profileId != null) result.profileId = profileId;
+    if (amount != null) result.amount = amount;
+    return result;
+  }
+
+  GroupMemberObligation._();
+
+  factory GroupMemberObligation.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberObligation()..mergeFromBuffer(data, registry);
+  factory GroupMemberObligation.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberObligation()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupMemberObligation',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupMemberObligation.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'membershipId')
+    ..aOS(2, _omitFieldNames ? '' : 'profileId')
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'amount',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberObligation clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberObligation copyWith(
+          void Function(GroupMemberObligation) updates) =>
+      super.copyWith((message) => updates(message as GroupMemberObligation))
+          as GroupMemberObligation;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupMemberObligation() / GroupMemberObligation.new instead')
+  static GroupMemberObligation create() => GroupMemberObligation._();
+  static $pb.GeneratedMessage $_createMessage() => GroupMemberObligation._();
+  @$core.override
+  GroupMemberObligation createEmptyInstance() => GroupMemberObligation._();
+  @$core.pragma('dart2js:noInline')
+  static GroupMemberObligation getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupMemberObligation>(
+          GroupMemberObligation.$_createMessage);
+  static GroupMemberObligation? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get membershipId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set membershipId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMembershipId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMembershipId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get profileId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set profileId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProfileId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProfileId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $0.Money get amount => $_getN(2);
+  @$pb.TagNumber(3)
+  set amount($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAmount() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAmount() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensureAmount() => $_ensure(2);
+}
+
+/// GroupObligationsRaiseRequest raises the period's savings obligation for
+/// each member. The group service owns periods and memberships and sends the
+/// facts; operations owns the obligations and the money that settles them.
+class GroupObligationsRaiseRequest extends $pb.GeneratedMessage {
+  factory GroupObligationsRaiseRequest({
+    $core.String? groupId,
+    $core.String? periodId,
+    $core.String? currencyCode,
+    $core.String? dueAt,
+    $core.Iterable<GroupMemberObligation>? members,
+  }) {
+    final result = GroupObligationsRaiseRequest._();
+    if (groupId != null) result.groupId = groupId;
+    if (periodId != null) result.periodId = periodId;
+    if (currencyCode != null) result.currencyCode = currencyCode;
+    if (dueAt != null) result.dueAt = dueAt;
+    if (members != null) result.members.addAll(members);
+    return result;
+  }
+
+  GroupObligationsRaiseRequest._();
+
+  factory GroupObligationsRaiseRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupObligationsRaiseRequest()..mergeFromBuffer(data, registry);
+  factory GroupObligationsRaiseRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupObligationsRaiseRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupObligationsRaiseRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupObligationsRaiseRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'groupId')
+    ..aOS(2, _omitFieldNames ? '' : 'periodId')
+    ..aOS(3, _omitFieldNames ? '' : 'currencyCode')
+    ..aOS(4, _omitFieldNames ? '' : 'dueAt')
+    ..pPM<GroupMemberObligation>(5, _omitFieldNames ? '' : 'members',
+        subBuilder: GroupMemberObligation.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupObligationsRaiseRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupObligationsRaiseRequest copyWith(
+          void Function(GroupObligationsRaiseRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as GroupObligationsRaiseRequest))
+          as GroupObligationsRaiseRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupObligationsRaiseRequest() / GroupObligationsRaiseRequest.new instead')
+  static GroupObligationsRaiseRequest create() =>
+      GroupObligationsRaiseRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GroupObligationsRaiseRequest._();
+  @$core.override
+  GroupObligationsRaiseRequest createEmptyInstance() =>
+      GroupObligationsRaiseRequest._();
+  @$core.pragma('dart2js:noInline')
+  static GroupObligationsRaiseRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupObligationsRaiseRequest>(
+          GroupObligationsRaiseRequest.$_createMessage);
+  static GroupObligationsRaiseRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get groupId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set groupId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasGroupId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearGroupId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get periodId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set periodId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPeriodId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPeriodId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get currencyCode => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set currencyCode($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCurrencyCode() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCurrencyCode() => $_clearField(3);
+
+  /// due_at is when the period's contribution falls due, RFC3339.
+  @$pb.TagNumber(4)
+  $core.String get dueAt => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set dueAt($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasDueAt() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDueAt() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $pb.PbList<GroupMemberObligation> get members => $_getList(4);
+}
+
+/// GroupMemberObligationResult is where one member stands for the period
+/// once money they already paid has been applied.
+class GroupMemberObligationResult extends $pb.GeneratedMessage {
+  factory GroupMemberObligationResult({
+    $core.String? membershipId,
+    $core.String? profileId,
+    $core.bool? raised,
+    $0.Money? due,
+    $0.Money? paid,
+    $0.Money? outstanding,
+  }) {
+    final result = GroupMemberObligationResult._();
+    if (membershipId != null) result.membershipId = membershipId;
+    if (profileId != null) result.profileId = profileId;
+    if (raised != null) result.raised = raised;
+    if (due != null) result.due = due;
+    if (paid != null) result.paid = paid;
+    if (outstanding != null) result.outstanding = outstanding;
+    return result;
+  }
+
+  GroupMemberObligationResult._();
+
+  factory GroupMemberObligationResult.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberObligationResult()..mergeFromBuffer(data, registry);
+  factory GroupMemberObligationResult.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberObligationResult()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupMemberObligationResult',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupMemberObligationResult.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'membershipId')
+    ..aOS(2, _omitFieldNames ? '' : 'profileId')
+    ..aOB(3, _omitFieldNames ? '' : 'raised')
+    ..aOM<$0.Money>(4, _omitFieldNames ? '' : 'due',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(5, _omitFieldNames ? '' : 'paid',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(6, _omitFieldNames ? '' : 'outstanding',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberObligationResult clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberObligationResult copyWith(
+          void Function(GroupMemberObligationResult) updates) =>
+      super.copyWith(
+              (message) => updates(message as GroupMemberObligationResult))
+          as GroupMemberObligationResult;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupMemberObligationResult() / GroupMemberObligationResult.new instead')
+  static GroupMemberObligationResult create() =>
+      GroupMemberObligationResult._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GroupMemberObligationResult._();
+  @$core.override
+  GroupMemberObligationResult createEmptyInstance() =>
+      GroupMemberObligationResult._();
+  @$core.pragma('dart2js:noInline')
+  static GroupMemberObligationResult getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupMemberObligationResult>(
+          GroupMemberObligationResult.$_createMessage);
+  static GroupMemberObligationResult? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get membershipId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set membershipId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMembershipId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMembershipId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get profileId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set profileId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProfileId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProfileId() => $_clearField(2);
+
+  /// raised is false when an earlier call already raised the obligation.
+  @$pb.TagNumber(3)
+  $core.bool get raised => $_getBF(2);
+  @$pb.TagNumber(3)
+  set raised($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRaised() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRaised() => $_clearField(3);
+
+  /// due is what the member owes for the period.
+  @$pb.TagNumber(4)
+  $0.Money get due => $_getN(3);
+  @$pb.TagNumber(4)
+  set due($0.Money value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasDue() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDue() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $0.Money ensureDue() => $_ensure(3);
+
+  /// paid is what has been applied against the period's obligations.
+  @$pb.TagNumber(5)
+  $0.Money get paid => $_getN(4);
+  @$pb.TagNumber(5)
+  set paid($0.Money value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPaid() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPaid() => $_clearField(5);
+  @$pb.TagNumber(5)
+  $0.Money ensurePaid() => $_ensure(4);
+
+  /// outstanding is what is still owed for the period.
+  @$pb.TagNumber(6)
+  $0.Money get outstanding => $_getN(5);
+  @$pb.TagNumber(6)
+  set outstanding($0.Money value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasOutstanding() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearOutstanding() => $_clearField(6);
+  @$pb.TagNumber(6)
+  $0.Money ensureOutstanding() => $_ensure(5);
+}
+
+class GroupObligationsRaiseResponse extends $pb.GeneratedMessage {
+  factory GroupObligationsRaiseResponse({
+    $core.Iterable<GroupMemberObligationResult>? members,
+    $0.Money? totalOutstanding,
+  }) {
+    final result = GroupObligationsRaiseResponse._();
+    if (members != null) result.members.addAll(members);
+    if (totalOutstanding != null) result.totalOutstanding = totalOutstanding;
+    return result;
+  }
+
+  GroupObligationsRaiseResponse._();
+
+  factory GroupObligationsRaiseResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupObligationsRaiseResponse()..mergeFromBuffer(data, registry);
+  factory GroupObligationsRaiseResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupObligationsRaiseResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupObligationsRaiseResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupObligationsRaiseResponse.$_createMessage)
+    ..pPM<GroupMemberObligationResult>(1, _omitFieldNames ? '' : 'members',
+        subBuilder: GroupMemberObligationResult.$_createMessage)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'totalOutstanding',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupObligationsRaiseResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupObligationsRaiseResponse copyWith(
+          void Function(GroupObligationsRaiseResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as GroupObligationsRaiseResponse))
+          as GroupObligationsRaiseResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupObligationsRaiseResponse() / GroupObligationsRaiseResponse.new instead')
+  static GroupObligationsRaiseResponse create() =>
+      GroupObligationsRaiseResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GroupObligationsRaiseResponse._();
+  @$core.override
+  GroupObligationsRaiseResponse createEmptyInstance() =>
+      GroupObligationsRaiseResponse._();
+  @$core.pragma('dart2js:noInline')
+  static GroupObligationsRaiseResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupObligationsRaiseResponse>(
+          GroupObligationsRaiseResponse.$_createMessage);
+  static GroupObligationsRaiseResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<GroupMemberObligationResult> get members => $_getList(0);
+
+  /// total_outstanding is what the members still owe for the period.
+  @$pb.TagNumber(2)
+  $0.Money get totalOutstanding => $_getN(1);
+  @$pb.TagNumber(2)
+  set totalOutstanding($0.Money value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasTotalOutstanding() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearTotalOutstanding() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $0.Money ensureTotalOutstanding() => $_ensure(1);
+}
+
+/// GroupPeriodCloseRequest settles a group's period: money members already
+/// paid is applied, and every member still owing is charged the penalty once.
+class GroupPeriodCloseRequest extends $pb.GeneratedMessage {
+  factory GroupPeriodCloseRequest({
+    $core.String? groupId,
+    $core.String? periodId,
+    $0.Money? penalty,
+  }) {
+    final result = GroupPeriodCloseRequest._();
+    if (groupId != null) result.groupId = groupId;
+    if (periodId != null) result.periodId = periodId;
+    if (penalty != null) result.penalty = penalty;
+    return result;
+  }
+
+  GroupPeriodCloseRequest._();
+
+  factory GroupPeriodCloseRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupPeriodCloseRequest()..mergeFromBuffer(data, registry);
+  factory GroupPeriodCloseRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupPeriodCloseRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupPeriodCloseRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupPeriodCloseRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'groupId')
+    ..aOS(2, _omitFieldNames ? '' : 'periodId')
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'penalty',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupPeriodCloseRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupPeriodCloseRequest copyWith(
+          void Function(GroupPeriodCloseRequest) updates) =>
+      super.copyWith((message) => updates(message as GroupPeriodCloseRequest))
+          as GroupPeriodCloseRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupPeriodCloseRequest() / GroupPeriodCloseRequest.new instead')
+  static GroupPeriodCloseRequest create() => GroupPeriodCloseRequest._();
+  static $pb.GeneratedMessage $_createMessage() => GroupPeriodCloseRequest._();
+  @$core.override
+  GroupPeriodCloseRequest createEmptyInstance() => GroupPeriodCloseRequest._();
+  @$core.pragma('dart2js:noInline')
+  static GroupPeriodCloseRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupPeriodCloseRequest>(
+          GroupPeriodCloseRequest.$_createMessage);
+  static GroupPeriodCloseRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get groupId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set groupId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasGroupId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearGroupId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get periodId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set periodId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPeriodId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPeriodId() => $_clearField(2);
+
+  /// penalty is charged to each member with an unpaid balance; zero charges
+  /// nothing.
+  @$pb.TagNumber(3)
+  $0.Money get penalty => $_getN(2);
+  @$pb.TagNumber(3)
+  set penalty($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasPenalty() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearPenalty() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensurePenalty() => $_ensure(2);
+}
+
+/// GroupMemberOutstanding is one member's statement for a closed period.
+class GroupMemberOutstanding extends $pb.GeneratedMessage {
+  factory GroupMemberOutstanding({
+    $core.String? membershipId,
+    $core.String? profileId,
+    $0.Money? outstanding,
+    $0.Money? penaltyRaised,
+    $0.Money? paid,
+  }) {
+    final result = GroupMemberOutstanding._();
+    if (membershipId != null) result.membershipId = membershipId;
+    if (profileId != null) result.profileId = profileId;
+    if (outstanding != null) result.outstanding = outstanding;
+    if (penaltyRaised != null) result.penaltyRaised = penaltyRaised;
+    if (paid != null) result.paid = paid;
+    return result;
+  }
+
+  GroupMemberOutstanding._();
+
+  factory GroupMemberOutstanding.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberOutstanding()..mergeFromBuffer(data, registry);
+  factory GroupMemberOutstanding.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberOutstanding()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupMemberOutstanding',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupMemberOutstanding.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'membershipId')
+    ..aOS(2, _omitFieldNames ? '' : 'profileId')
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'outstanding',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(4, _omitFieldNames ? '' : 'penaltyRaised',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(5, _omitFieldNames ? '' : 'paid',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberOutstanding clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberOutstanding copyWith(
+          void Function(GroupMemberOutstanding) updates) =>
+      super.copyWith((message) => updates(message as GroupMemberOutstanding))
+          as GroupMemberOutstanding;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupMemberOutstanding() / GroupMemberOutstanding.new instead')
+  static GroupMemberOutstanding create() => GroupMemberOutstanding._();
+  static $pb.GeneratedMessage $_createMessage() => GroupMemberOutstanding._();
+  @$core.override
+  GroupMemberOutstanding createEmptyInstance() => GroupMemberOutstanding._();
+  @$core.pragma('dart2js:noInline')
+  static GroupMemberOutstanding getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupMemberOutstanding>(
+          GroupMemberOutstanding.$_createMessage);
+  static GroupMemberOutstanding? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get membershipId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set membershipId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMembershipId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMembershipId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get profileId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set profileId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProfileId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProfileId() => $_clearField(2);
+
+  /// outstanding is what is still owed on the period's obligations, not
+  /// counting the penalty.
+  @$pb.TagNumber(3)
+  $0.Money get outstanding => $_getN(2);
+  @$pb.TagNumber(3)
+  set outstanding($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOutstanding() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOutstanding() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensureOutstanding() => $_ensure(2);
+
+  /// penalty_raised is the penalty the member was charged for the period;
+  /// a retried close reports the one charged first.
+  @$pb.TagNumber(4)
+  $0.Money get penaltyRaised => $_getN(3);
+  @$pb.TagNumber(4)
+  set penaltyRaised($0.Money value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPenaltyRaised() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPenaltyRaised() => $_clearField(4);
+  @$pb.TagNumber(4)
+  $0.Money ensurePenaltyRaised() => $_ensure(3);
+
+  /// paid is what has been applied against the period's obligations, not
+  /// counting the penalty.
+  @$pb.TagNumber(5)
+  $0.Money get paid => $_getN(4);
+  @$pb.TagNumber(5)
+  set paid($0.Money value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPaid() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPaid() => $_clearField(5);
+  @$pb.TagNumber(5)
+  $0.Money ensurePaid() => $_ensure(4);
+}
+
+class GroupPeriodCloseResponse extends $pb.GeneratedMessage {
+  factory GroupPeriodCloseResponse({
+    $core.Iterable<GroupMemberOutstanding>? members,
+    $0.Money? collected,
+    $0.Money? outstanding,
+  }) {
+    final result = GroupPeriodCloseResponse._();
+    if (members != null) result.members.addAll(members);
+    if (collected != null) result.collected = collected;
+    if (outstanding != null) result.outstanding = outstanding;
+    return result;
+  }
+
+  GroupPeriodCloseResponse._();
+
+  factory GroupPeriodCloseResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupPeriodCloseResponse()..mergeFromBuffer(data, registry);
+  factory GroupPeriodCloseResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupPeriodCloseResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupPeriodCloseResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupPeriodCloseResponse.$_createMessage)
+    ..pPM<GroupMemberOutstanding>(1, _omitFieldNames ? '' : 'members',
+        subBuilder: GroupMemberOutstanding.$_createMessage)
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'collected',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'outstanding',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupPeriodCloseResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupPeriodCloseResponse copyWith(
+          void Function(GroupPeriodCloseResponse) updates) =>
+      super.copyWith((message) => updates(message as GroupPeriodCloseResponse))
+          as GroupPeriodCloseResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupPeriodCloseResponse() / GroupPeriodCloseResponse.new instead')
+  static GroupPeriodCloseResponse create() => GroupPeriodCloseResponse._();
+  static $pb.GeneratedMessage $_createMessage() => GroupPeriodCloseResponse._();
+  @$core.override
+  GroupPeriodCloseResponse createEmptyInstance() =>
+      GroupPeriodCloseResponse._();
+  @$core.pragma('dart2js:noInline')
+  static GroupPeriodCloseResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupPeriodCloseResponse>(
+          GroupPeriodCloseResponse.$_createMessage);
+  static GroupPeriodCloseResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<GroupMemberOutstanding> get members => $_getList(0);
+
+  /// collected is everything applied against the period's obligations,
+  /// penalties included.
+  @$pb.TagNumber(2)
+  $0.Money get collected => $_getN(1);
+  @$pb.TagNumber(2)
+  set collected($0.Money value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCollected() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCollected() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $0.Money ensureCollected() => $_ensure(1);
+
+  /// outstanding is the sum of the members' outstanding balances.
+  @$pb.TagNumber(3)
+  $0.Money get outstanding => $_getN(2);
+  @$pb.TagNumber(3)
+  set outstanding($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOutstanding() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOutstanding() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensureOutstanding() => $_ensure(2);
+}
+
+/// GroupMemberStandingRequest asks where members stand across a group's
+/// savings: what they have saved and what they are behind on.
+class GroupMemberStandingRequest extends $pb.GeneratedMessage {
+  factory GroupMemberStandingRequest({
+    $core.String? groupId,
+    $core.Iterable<$core.String>? membershipIds,
+    $core.String? currencyCode,
+  }) {
+    final result = GroupMemberStandingRequest._();
+    if (groupId != null) result.groupId = groupId;
+    if (membershipIds != null) result.membershipIds.addAll(membershipIds);
+    if (currencyCode != null) result.currencyCode = currencyCode;
+    return result;
+  }
+
+  GroupMemberStandingRequest._();
+
+  factory GroupMemberStandingRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberStandingRequest()..mergeFromBuffer(data, registry);
+  factory GroupMemberStandingRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberStandingRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupMemberStandingRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupMemberStandingRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'groupId')
+    ..pPS(2, _omitFieldNames ? '' : 'membershipIds')
+    ..aOS(3, _omitFieldNames ? '' : 'currencyCode')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberStandingRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberStandingRequest copyWith(
+          void Function(GroupMemberStandingRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as GroupMemberStandingRequest))
+          as GroupMemberStandingRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupMemberStandingRequest() / GroupMemberStandingRequest.new instead')
+  static GroupMemberStandingRequest create() => GroupMemberStandingRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GroupMemberStandingRequest._();
+  @$core.override
+  GroupMemberStandingRequest createEmptyInstance() =>
+      GroupMemberStandingRequest._();
+  @$core.pragma('dart2js:noInline')
+  static GroupMemberStandingRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupMemberStandingRequest>(
+          GroupMemberStandingRequest.$_createMessage);
+  static GroupMemberStandingRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get groupId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set groupId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasGroupId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearGroupId() => $_clearField(1);
+
+  /// membership_ids are the members asked about, at most 1000.
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.String> get membershipIds => $_getList(1);
+
+  /// currency_code is the group's currency; only obligations in it count.
+  @$pb.TagNumber(3)
+  $core.String get currencyCode => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set currencyCode($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCurrencyCode() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCurrencyCode() => $_clearField(3);
+}
+
+/// MemberStanding is one member's savings record in a group.
+class MemberStanding extends $pb.GeneratedMessage {
+  factory MemberStanding({
+    $core.String? membershipId,
+    $0.Money? saved,
+    $0.Money? arrears,
+  }) {
+    final result = MemberStanding._();
+    if (membershipId != null) result.membershipId = membershipId;
+    if (saved != null) result.saved = saved;
+    if (arrears != null) result.arrears = arrears;
+    return result;
+  }
+
+  MemberStanding._();
+
+  factory MemberStanding.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      MemberStanding()..mergeFromBuffer(data, registry);
+  factory MemberStanding.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      MemberStanding()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MemberStanding',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: MemberStanding.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'membershipId')
+    ..aOM<$0.Money>(2, _omitFieldNames ? '' : 'saved',
+        subBuilder: $0.Money.$_createMessage)
+    ..aOM<$0.Money>(3, _omitFieldNames ? '' : 'arrears',
+        subBuilder: $0.Money.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MemberStanding clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MemberStanding copyWith(void Function(MemberStanding) updates) =>
+      super.copyWith((message) => updates(message as MemberStanding))
+          as MemberStanding;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use MemberStanding() / MemberStanding.new instead')
+  static MemberStanding create() => MemberStanding._();
+  static $pb.GeneratedMessage $_createMessage() => MemberStanding._();
+  @$core.override
+  MemberStanding createEmptyInstance() => MemberStanding._();
+  @$core.pragma('dart2js:noInline')
+  static MemberStanding getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MemberStanding>(
+          MemberStanding.$_createMessage);
+  static MemberStanding? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get membershipId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set membershipId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMembershipId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMembershipId() => $_clearField(1);
+
+  /// saved is everything paid against the member's periodic savings
+  /// obligations, partial payments included.
+  @$pb.TagNumber(2)
+  $0.Money get saved => $_getN(1);
+  @$pb.TagNumber(2)
+  set saved($0.Money value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSaved() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSaved() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $0.Money ensureSaved() => $_ensure(1);
+
+  /// arrears is what the member still owes on savings obligations past their
+  /// due date, plus unpaid penalties.
+  @$pb.TagNumber(3)
+  $0.Money get arrears => $_getN(2);
+  @$pb.TagNumber(3)
+  set arrears($0.Money value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasArrears() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearArrears() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $0.Money ensureArrears() => $_ensure(2);
+}
+
+class GroupMemberStandingResponse extends $pb.GeneratedMessage {
+  factory GroupMemberStandingResponse({
+    $core.Iterable<MemberStanding>? members,
+  }) {
+    final result = GroupMemberStandingResponse._();
+    if (members != null) result.members.addAll(members);
+    return result;
+  }
+
+  GroupMemberStandingResponse._();
+
+  factory GroupMemberStandingResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberStandingResponse()..mergeFromBuffer(data, registry);
+  factory GroupMemberStandingResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GroupMemberStandingResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GroupMemberStandingResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'operations.v1'),
+      createEmptyInstance: GroupMemberStandingResponse.$_createMessage)
+    ..pPM<MemberStanding>(1, _omitFieldNames ? '' : 'members',
+        subBuilder: MemberStanding.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberStandingResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GroupMemberStandingResponse copyWith(
+          void Function(GroupMemberStandingResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as GroupMemberStandingResponse))
+          as GroupMemberStandingResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GroupMemberStandingResponse() / GroupMemberStandingResponse.new instead')
+  static GroupMemberStandingResponse create() =>
+      GroupMemberStandingResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GroupMemberStandingResponse._();
+  @$core.override
+  GroupMemberStandingResponse createEmptyInstance() =>
+      GroupMemberStandingResponse._();
+  @$core.pragma('dart2js:noInline')
+  static GroupMemberStandingResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GroupMemberStandingResponse>(
+          GroupMemberStandingResponse.$_createMessage);
+  static GroupMemberStandingResponse? _defaultInstance;
+
+  /// members has one row per requested membership, in the order asked; a
+  /// member with no obligations has zero saved and zero arrears.
+  @$pb.TagNumber(1)
+  $pb.PbList<MemberStanding> get members => $_getList(0);
+}
+
 class OperationsServiceApi {
   final $pb.RpcClient _client;
 
@@ -1494,6 +2617,37 @@ class OperationsServiceApi {
           $pb.ClientContext? ctx, IncomingPaymentAssignRequest request) =>
       _client.invoke<IncomingPaymentAssignResponse>(ctx, 'OperationsService',
           'IncomingPaymentAssign', request, IncomingPaymentAssignResponse());
+
+  /// OperationsJobRun runs one batch of a periodic job. Called by the
+  /// platform scheduler (trustage); only service accounts hold the permission.
+  $async.Future<OperationsJobRunResponse> operationsJobRun(
+          $pb.ClientContext? ctx, OperationsJobRunRequest request) =>
+      _client.invoke<OperationsJobRunResponse>(ctx, 'OperationsService',
+          'OperationsJobRun', request, OperationsJobRunResponse());
+
+  /// GroupObligationsRaise raises a group period's savings obligations and
+  /// applies money the members already paid. Called by the group service; only
+  /// service accounts hold the permission. Retrying raises nothing new.
+  $async.Future<GroupObligationsRaiseResponse> groupObligationsRaise(
+          $pb.ClientContext? ctx, GroupObligationsRaiseRequest request) =>
+      _client.invoke<GroupObligationsRaiseResponse>(ctx, 'OperationsService',
+          'GroupObligationsRaise', request, GroupObligationsRaiseResponse());
+
+  /// GroupPeriodClose applies money members paid, charges the penalty to
+  /// each member still owing, and reports the period's statement. Called by
+  /// the group service; retrying charges no second penalty.
+  $async.Future<GroupPeriodCloseResponse> groupPeriodClose(
+          $pb.ClientContext? ctx, GroupPeriodCloseRequest request) =>
+      _client.invoke<GroupPeriodCloseResponse>(ctx, 'OperationsService',
+          'GroupPeriodClose', request, GroupPeriodCloseResponse());
+
+  /// GroupMemberStanding reports what each member has saved in a group and
+  /// what they are behind on, so the group service can size what it lends
+  /// them. Read only; only service accounts hold the permission.
+  $async.Future<GroupMemberStandingResponse> groupMemberStanding(
+          $pb.ClientContext? ctx, GroupMemberStandingRequest request) =>
+      _client.invoke<GroupMemberStandingResponse>(ctx, 'OperationsService',
+          'GroupMemberStanding', request, GroupMemberStandingResponse());
 }
 
 const $core.bool _omitFieldNames =

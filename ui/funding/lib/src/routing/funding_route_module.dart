@@ -37,7 +37,6 @@ class FundingRouteModule extends RouteModule {
               canManage: ref.watch(
                 hasPermissionProvider('investor_account_manage'),
               ),
-              canFund: ref.watch(hasPermissionProvider('fund_manage')),
             ),
           ),
         ),

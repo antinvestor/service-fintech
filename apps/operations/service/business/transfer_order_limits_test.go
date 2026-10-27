@@ -155,6 +155,22 @@ func (r *stubTransferOrderRepo) ClaimPaymentInitiation(_ context.Context, _ stri
 }
 func (r *stubTransferOrderRepo) RecordPaymentID(_ context.Context, _, _ string) error     { return nil }
 func (r *stubTransferOrderRepo) MarkPayoutFailed(_ context.Context, _, _, _ string) error { return nil }
+
+func (r *stubTransferOrderRepo) SetPayoutOutcome(_ context.Context, _, _ string) error { return nil }
+
+func (r *stubTransferOrderRepo) ListPayoutsToReconcile(
+	_ context.Context, _ []int, _ time.Time, _ int,
+) ([]*models.TransferOrder, error) {
+	return nil, nil
+}
+
+func (r *stubTransferOrderRepo) TouchPayoutChecked(_ context.Context, _ string) error { return nil }
+
+func (r *stubTransferOrderRepo) ListLateFailedPayouts(_ context.Context, _ int) ([]*models.TransferOrder, error) {
+	return nil, nil
+}
+
+func (r *stubTransferOrderRepo) MarkOriginatorNotified(_ context.Context, _ string) error { return nil }
 func (r *stubTransferOrderRepo) RetakePaymentInitiation(_ context.Context, _ string, _ time.Time) (bool, error) {
 	return true, nil
 }
@@ -347,4 +363,29 @@ func TestTransferOrderExecute_GatePending(t *testing.T) {
 	assert.Equal(t, 1, limitsCli.reserveCalls)
 	assert.Equal(t, 0, limitsCli.commitCalls)
 	assert.Equal(t, 0, limitsCli.releaseCalls)
+}
+
+func (r *stubTransferOrderRepo) ListUnexecutedAllocations(
+	_ context.Context,
+	_ time.Time,
+	_ int,
+) ([]*models.TransferOrder, error) {
+	return nil, nil
+}
+
+// TestTransferOrderExecute_ReceivedMoneyIsNotGated verifies that an order
+// allocating a payment the rail received is posted without a limits
+// reservation, even when the limits service would refuse it.
+func TestTransferOrderExecute_ReceivedMoneyIsNotGated(t *testing.T) {
+	order := inactiveTransferOrder("UGX", 10_000)
+	order.ExtraData = data.JSONMap{extraKeySource: allocationSourceMarker}
+	toRepo := &stubTransferOrderRepo{order: order}
+	limitsCli := &stubTransferLimitsClient{
+		reserveErr: connect.NewError(connect.CodeFailedPrecondition, "transfer limit breached"),
+	}
+
+	b := buildTransferOrderBusiness(toRepo, limitsCli, true)
+
+	require.NoError(t, b.Execute(context.Background(), order.GetID()))
+	assert.Equal(t, 0, limitsCli.reserveCalls)
 }

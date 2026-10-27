@@ -18,6 +18,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/workerpool"
@@ -32,12 +33,25 @@ type ObligationRepository interface {
 	GetByMembershipID(ctx context.Context, membershipID string) ([]*models.Obligation, error)
 	GetByPeriodID(ctx context.Context, periodID string) ([]*models.Obligation, error)
 	GetByCauseID(ctx context.Context, causeID string) ([]*models.Obligation, error)
+	// GetGroupMemberObligations reads every obligation of the given causes
+	// the group raised for the members, paid ones included.
+	GetGroupMemberObligations(
+		ctx context.Context,
+		groupID string,
+		membershipIDs, causeTypes []string,
+	) ([]*models.Obligation, error)
 
 	// ConsumeAmount deducts amount from an active obligation in a single
 	// conditional UPDATE and deactivates it once nothing is left. It reports
 	// whether the deduction landed, so two concurrent allocations of the same
 	// obligation cannot both succeed against the same balance.
 	ConsumeAmount(ctx context.Context, obligationID string, amount int64) (bool, error)
+
+	// CreateIfAbsent inserts the obligation synchronously and reports whether
+	// it did. A row the unique index already holds (one savings and one
+	// penalty obligation per member per period) is left alone, so a retried
+	// raise creates nothing new.
+	CreateIfAbsent(ctx context.Context, obligation *models.Obligation) (bool, error)
 }
 
 // NewObligationRepository creates a new ObligationRepository.
@@ -96,6 +110,17 @@ func (r *obligationRepository) ConsumeAmount(
 	return result.RowsAffected > 0, nil
 }
 
+func (r *obligationRepository) CreateIfAbsent(ctx context.Context, obligation *models.Obligation) (bool, error) {
+	err := r.Pool().DB(ctx, false).Create(obligation).Error
+	if err == nil {
+		return true, nil
+	}
+	if data.ErrorIsDuplicateKey(err) {
+		return false, nil
+	}
+	return false, err
+}
+
 func (r *obligationRepository) GetByMembershipID(
 	ctx context.Context,
 	membershipID string,
@@ -117,5 +142,21 @@ func (r *obligationRepository) GetByPeriodID(ctx context.Context, periodID strin
 func (r *obligationRepository) GetByCauseID(ctx context.Context, causeID string) ([]*models.Obligation, error) {
 	var obligations []*models.Obligation
 	err := r.Pool().DB(ctx, true).Where("cause_id = ?", causeID).Find(&obligations).Error
+	return obligations, err
+}
+
+func (r *obligationRepository) GetGroupMemberObligations(
+	ctx context.Context,
+	groupID string,
+	membershipIDs, causeTypes []string,
+) ([]*models.Obligation, error) {
+	var obligations []*models.Obligation
+	if len(membershipIDs) == 0 || len(causeTypes) == 0 {
+		return obligations, nil
+	}
+	// membership_id leads: it is indexed, and a member's obligations are few.
+	err := r.Pool().DB(ctx, true).
+		Where("membership_id IN ? AND cause_id = ? AND cause_type IN ?", membershipIDs, groupID, causeTypes).
+		Find(&obligations).Error
 	return obligations, err
 }

@@ -73,6 +73,20 @@ type paymentRoutingBusiness struct {
 	arRepo      repository.AccountRefRepository
 	identityCli identityv1connect.IdentityServiceClient
 	clients     *clients.PlatformClients
+	// executor posts the orders an individual's allocation raises. Without
+	// one the orders wait for TransferOrderExecute or the pending sweep.
+	executor OrderExecutor
+}
+
+// PaymentRoutingOption configures optional collaborators of the routing
+// business.
+type PaymentRoutingOption func(*paymentRoutingBusiness)
+
+// WithOrderExecutor makes allocation post a borrower's repayment order as
+// soon as it is raised, so the loan shows the payment without waiting for
+// a sweep.
+func WithOrderExecutor(executor OrderExecutor) PaymentRoutingOption {
+	return func(b *paymentRoutingBusiness) { b.executor = executor }
 }
 
 func NewPaymentRoutingBusiness(_ context.Context, eventsMan fevents.Manager,
@@ -82,8 +96,9 @@ func NewPaymentRoutingBusiness(_ context.Context, eventsMan fevents.Manager,
 	arRepo repository.AccountRefRepository,
 	identityCli identityv1connect.IdentityServiceClient,
 	pc *clients.PlatformClients,
+	opts ...PaymentRoutingOption,
 ) PaymentRoutingBusiness {
-	return &paymentRoutingBusiness{
+	b := &paymentRoutingBusiness{
 		eventsMan:   eventsMan,
 		ipRepo:      ipRepo,
 		toRepo:      toRepo,
@@ -92,6 +107,10 @@ func NewPaymentRoutingBusiness(_ context.Context, eventsMan fevents.Manager,
 		identityCli: identityCli,
 		clients:     pc,
 	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 // identificationResult holds the outcome of a successful payment identification.
@@ -105,6 +124,13 @@ type identificationResult struct {
 	ClientID  string
 	LoanID    string
 	ProductID string
+	// SavingsAccountID is set when an individual's payment was matched to
+	// their own savings account.
+	SavingsAccountID string
+	// InvestorAccountID and InvestorOwnerID are set when an investor's own
+	// payment was matched to their investor account.
+	InvestorAccountID string
+	InvestorOwnerID   string
 }
 
 // identificationStrategy defines one step in the payment identification pipeline.
@@ -158,13 +184,13 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 
 	// An individual borrower's payment (no group) is matched to their loan
 	// first; group payments keep the membership strategies.
-	if groupID == "" && b.borrowerLoanMatching() {
-		if result, matchErr := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); matchErr == nil {
+	if groupID == "" {
+		if result := b.identifyIndividual(ctx, productID, paymentRef, payerRef, payment.Currency); result != nil {
 			if saveErr := b.applyIdentificationResult(ctx, payment, result); saveErr != nil {
 				return nil, saveErr
 			}
 			recordPaymentIdentified(ctx, payment)
-			return b.buildIdentificationResult(payment, result), nil
+			return b.allocateIndividual(ctx, logger, payment, b.buildIdentificationResult(payment, result)), nil
 		}
 	}
 
@@ -187,6 +213,57 @@ func (b *paymentRoutingBusiness) IdentifyPayment(
 		unidentified["unidentified_account"] = constants.ProductUnidentifiedAccount(productID)
 	}
 	return unidentified, nil
+}
+
+// allocateIndividual applies an individual's matched payment at once: their
+// own loan or savings account is the only place the money can go, so there
+// is nothing to wait for. A failure leaves the payment matched; the settle
+// job allocates it later.
+func (b *paymentRoutingBusiness) allocateIndividual(
+	ctx context.Context,
+	logger *util.LogEntry,
+	payment *models.IncomingPayment,
+	result map[string]interface{},
+) map[string]interface{} {
+	allocation, err := b.AllocatePayment(ctx, payment.GetID())
+	if err != nil {
+		logger.WithError(err).WithField(fieldPaymentID, payment.GetID()).
+			Warn("matched payment not allocated yet; the settle job retries")
+		result["allocation_pending"] = true
+		return result
+	}
+	// The outcome travels as a flat proto Struct: only its scalars are kept.
+	for _, key := range []string{fieldAllocatedAmount, fieldRemainingAmount, fieldPaymentState, fieldExecution, "deposit_id"} {
+		if v, ok := allocation[key]; ok {
+			result[key] = v
+		}
+	}
+	return result
+}
+
+// identifyIndividual matches a payment with no group to the payer's own loan
+// or, failing that, their own savings account, of the product the rail
+// credited. It returns nil when neither matches.
+func (b *paymentRoutingBusiness) identifyIndividual(
+	ctx context.Context,
+	productID, paymentRef, payerRef, currency string,
+) *identificationResult {
+	if b.borrowerLoanMatching() {
+		if result, err := b.identifyBorrowerLoan(ctx, productID, paymentRef, payerRef); err == nil {
+			return result
+		}
+	}
+	if b.borrowerSavingsMatching() {
+		if result, err := b.identifySaverAccount(ctx, productID, paymentRef, payerRef); err == nil {
+			return result
+		}
+	}
+	if b.investorDepositMatching() {
+		if result, err := b.identifyInvestorDeposit(ctx, paymentRef, payerRef, currency); err == nil {
+			return result
+		}
+	}
+	return nil
 }
 
 // runIdentificationStrategies walks the identification pipeline and returns the
@@ -646,7 +723,7 @@ func (b *paymentRoutingBusiness) buildStoredPaymentResult(payment *models.Incomi
 		fieldMembershipID: payment.OwnerID,
 	}
 	if payment.Properties != nil {
-		if strategy := payment.Properties.GetString("identification_strategy"); strategy != "" {
+		if strategy := payment.Properties.GetString(fieldIdentification); strategy != "" {
 			result[fieldStrategy] = strategy
 		}
 		if groupID := payment.Properties.GetString("group_id"); groupID != "" {
@@ -669,15 +746,15 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 	result *identificationResult,
 ) error {
 	payment.OwnerID = result.MembershipID
-	payment.OwnerType = "membership"
+	payment.OwnerType = ownerTypeMembership
 	if result.GroupID != "" {
 		payment.PayableID = result.GroupID
 		payment.PayableType = "group"
 	}
 	extra := data.JSONMap{
-		"identification_strategy": result.Strategy,
-		fieldGroupID:              result.GroupID,
-		fieldProfileID:            result.ProfileID,
+		fieldIdentification: result.Strategy,
+		fieldGroupID:        result.GroupID,
+		fieldProfileID:      result.ProfileID,
 	}
 	if result.LoanID != "" {
 		payment.OwnerID = result.ClientID
@@ -688,12 +765,36 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 		extra[fieldLoanID] = result.LoanID
 		extra[fieldProductID] = result.ProductID
 	}
+	if result.SavingsAccountID != "" {
+		payment.OwnerID = result.ClientID
+		payment.OwnerType = ownerTypeClientSavings
+		payment.PayableID = result.SavingsAccountID
+		payment.PayableType = payableTypeSavings
+		extra[fieldClientID] = result.ClientID
+		extra[fieldSavingsAccountID] = result.SavingsAccountID
+		extra[fieldProductID] = result.ProductID
+	}
+	if result.InvestorAccountID != "" {
+		payment.OwnerID = result.InvestorOwnerID
+		payment.OwnerType = ownerTypeInvestorAccount
+		payment.PayableID = result.InvestorAccountID
+		payment.PayableType = payableTypeInvestor
+		extra[fieldInvestorAccountID] = result.InvestorAccountID
+	}
 	payment.Properties = mergeJSONMaps(payment.Properties, extra)
 
-	if emitErr := b.eventsMan.Emit(ctx, events.IncomingPaymentSaveEvent, payment); emitErr != nil {
-		return fmt.Errorf("persist payment identification: %w", emitErr)
+	// Written before returning, and only onto a payment nobody matched yet:
+	// an allocation straight after must read the owner, and two runs
+	// identifying one payment converge on the first.
+	if _, err := b.ipRepo.AssignOwner(ctx, payment.GetID(), repository.PaymentAssignment{
+		OwnerID:     payment.OwnerID,
+		OwnerType:   payment.OwnerType,
+		PayableID:   payment.PayableID,
+		PayableType: payment.PayableType,
+		Properties:  extra,
+	}); err != nil {
+		return fmt.Errorf("persist payment identification: %w", err)
 	}
-
 	return nil
 }
 
@@ -757,11 +858,39 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	if isBorrowerLoanPayment(payment) {
 		return b.allocateToBorrowerLoan(ctx, logger, payment, lease)
 	}
+	if isBorrowerSavingsPayment(payment) {
+		return b.allocateToSavings(ctx, logger, payment, lease)
+	}
+	if isInvestorDepositPayment(payment) {
+		return b.allocateToInvestor(ctx, logger, payment, lease)
+	}
 
+	return b.allocateToMember(ctx, logger, payment, lease, startAmount)
+}
+
+// allocateToMember allocates a group member's payment to their obligations
+// in priority order. What the obligations do not take stays in the member's
+// suspense for the next obligation raised.
+func (b *paymentRoutingBusiness) allocateToMember(
+	ctx context.Context,
+	logger *util.LogEntry,
+	payment *models.IncomingPayment,
+	lease time.Time,
+	startAmount int64,
+) (map[string]interface{}, error) {
+	paymentID := payment.GetID()
 	membershipID := payment.OwnerID
 	if membershipID == "" {
 		b.releaseAllocationLease(ctx, logger, paymentID, lease)
 		return nil, fmt.Errorf("payment %s has no owner (membership) assigned -- run identification first", paymentID)
+	}
+
+	// The whole payment moves into the member's suspense before any of it
+	// pays an obligation: what the obligations do not take stays there.
+	funding, err := b.fundMemberSuspense(ctx, payment, membershipID)
+	if err != nil {
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
+		return nil, err
 	}
 
 	// Retrieve all obligations for this member.
@@ -806,20 +935,23 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	if allocatedAmount > 0 {
 		OpsPaymentsAllocated.Add(ctx, 1, attribute.String("currency", payment.Currency))
 	}
+	execution := b.executeMemberOrders(ctx, logger, funding.GetID(), allocations)
 
 	return map[string]interface{}{
 		fieldPaymentID:       paymentID,
 		fieldMembershipID:    membershipID,
 		fieldMemberID:        membershipID,
 		fieldCurrency:        payment.Currency,
-		"total_amount":       payment.Amount,
-		"allocated_amount":   allocatedAmount,
+		fieldTotalAmount:     payment.Amount,
+		fieldAllocatedAmount: allocatedAmount,
 		fieldRemainingAmount: remainingAmount,
 		// transfer_orders carries one entry per posting, each with the
 		// reference the operations service already used as its idempotency
 		// key, so a workflow replaying them converges on the same rows.
 		fieldTransferOrders: allocations,
-		"payment_state":     paymentState,
+		fieldPaymentState:   paymentState,
+		"suspense_order_id": funding.GetID(),
+		fieldExecution:      execution,
 	}, nil
 }
 
@@ -846,7 +978,7 @@ func buildAllocationBuckets() []allocationBucket {
 		{name: obligationPeriodicSaving, orderType: constants.TransferTypePeriodicSaving,
 			filter: func(o *models.Obligation) bool {
 				return o.State == active && o.ObligationType == int32(models.ObligationTypePeriodic) &&
-					o.CauseType == obligationSaving
+					(o.CauseType == obligationPeriodicSaving || o.CauseType == obligationSaving)
 			}},
 		{name: obligationRegistrationFee, orderType: constants.TransferTypeRegistrationFee,
 			filter: func(o *models.Obligation) bool {
@@ -999,11 +1131,12 @@ func (b *paymentRoutingBusiness) allocateObligation(
 	// in the transfer-order side effect trusts the server-set source marker,
 	// never a loan id a caller put on an order.
 	extra := data.JSONMap{
-		extraKeySource:     allocationSourceMarker,
-		"payment_id":       paymentID,
-		"obligation_id":    obl.GetID(),
-		"membership_id":    membershipID,
-		"obligation_cause": obl.CauseType,
+		extraKeySource:         allocationSourceMarker,
+		fieldPaymentID:         paymentID,
+		"obligation_id":        obl.GetID(),
+		"membership_id":        membershipID,
+		"obligation_cause":     obl.CauseType,
+		extraKeySuspenseFunded: true,
 	}
 	// A loan obligation's cause id is the schedule entry, not the loan; the
 	// loan account id was recorded on the obligation when it was raised.
@@ -1182,6 +1315,11 @@ func extractPaymentReference(paymentData map[string]interface{}, payment *models
 
 func incomingPaymentProperties(paymentData map[string]interface{}) data.JSONMap {
 	properties := jsonMapFromValue(paymentData["properties"])
+	// What identification, allocation and staff assignment decide is never
+	// taken from the notifier.
+	for _, key := range decidedPaymentProperties() {
+		delete(properties, key)
+	}
 	for _, key := range []string{fieldPayerReference, fieldPayerName, fieldProductID, fieldGroupID, fieldReference} {
 		if value := strings.TrimSpace(extractString(paymentData, key)); value != "" {
 			properties[key] = value
@@ -1346,4 +1484,14 @@ func obligationLoanAccountID(obl *models.Obligation) string {
 	}
 	loanID, _ := obl.Properties[fieldLoanAccountID].(string)
 	return strings.TrimSpace(loanID)
+}
+
+// decidedPaymentProperties are the payment properties this service writes
+// itself as it identifies, allocates and assigns a payment.
+func decidedPaymentProperties() []string {
+	return []string{
+		fieldRemainingAmount, fieldClientID, fieldProfileID, fieldLoanID, fieldSavingsAccountID,
+		fieldMembershipID, fieldMemberID, fieldIdentification,
+		fieldAssignedBy, fieldAssignmentNote, fieldAssignedAt,
+	}
 }

@@ -31,7 +31,13 @@ type OperationsConfig struct {
 	// Ledger service
 	// Loans service — allocated group repayments are recorded with the lender;
 	// without it those transfer orders cannot complete.
-	LoanMgmtServiceURI                   string `envDefault:"127.0.0.1:7011"                 env:"LOAN_MGMT_SERVICE_URI"`
+	LoanMgmtServiceURI string `envDefault:"127.0.0.1:7011" env:"LOAN_MGMT_SERVICE_URI"`
+	// Savings: a saver's mobile-money payment is recorded as a deposit to
+	// their own account. Empty leaves savings deposits unmatched.
+	SavingsServiceURI string `envDefault:"" env:"SAVINGS_SERVICE_URI"`
+	// Funding: an investor's payment quoting their investor account is
+	// recorded as capital. Empty leaves investor payments unmatched.
+	FundingServiceURI                    string `envDefault:""                               env:"FUNDING_SERVICE_URI"`
 	LoanMgmtServiceWorkloadAPITargetPath string `envDefault:"/ns/loans/sa/service-loan-mgmt" env:"LOAN_MGMT_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
 	LedgerServiceURI                   string `envDefault:"127.0.0.1:7020"               env:"LEDGER_SERVICE_URI"`
@@ -60,6 +66,11 @@ type OperationsConfig struct {
 	LimitsServiceWorkloadAPITargetPath  string `envDefault:""                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
 	LimitsGateEnabledOperationsTransfer bool   `envDefault:"true"                     env:"LIMITS_GATE_ENABLED_OPERATIONS_TRANSFER"`
 	LimitsGateModeOperationsTransfer    string `envDefault:"enforce"                  env:"LIMITS_GATE_MODE_OPERATIONS_TRANSFER"`
+
+	// Payments the rail received: the payment service publishes each
+	// inbound payment to the receive route's queue, and operations books it.
+	PaymentReceivedName string `envDefault:"operations-payment-received"       env:"OPERATIONS_PAYMENT_RECEIVED_NAME"`
+	PaymentReceivedURI  string `envDefault:"mem://operations-payment-received" env:"OPERATIONS_PAYMENT_RECEIVED_URI"`
 }
 
 // ServiceEndpoints returns a clients.ServiceEndpoints populated from the config.
@@ -67,6 +78,8 @@ func (c *OperationsConfig) ServiceEndpoints() clients.ServiceEndpoints {
 	return clients.ServiceEndpoints{
 		IdentityURI:     c.IdentityServiceURI,
 		LoanMgmtURI:     c.LoanMgmtServiceURI,
+		SavingsURI:      c.SavingsServiceURI,
+		FundingURI:      c.FundingServiceURI,
 		LedgerURI:       c.LedgerServiceURI,
 		PaymentURI:      c.PaymentServiceURI,
 		NotificationURI: c.NotificationServiceURI,

@@ -15,6 +15,7 @@ RUN go mod download
 COPY ./apps/operations ./apps/operations
 COPY ./apps/funding ./apps/funding
 COPY ./pkg ./pkg
+COPY ./products/operations/workflows ./products/operations/workflows
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -trimpath \
@@ -30,4 +31,5 @@ FROM cgr.dev/chainguard/static:latest@sha256:207a5673ab31ed83332e54ae33d0f1de4ad
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/binary /service
+COPY --from=builder /app/products/operations/workflows /workflows
 ENTRYPOINT ["/service"]

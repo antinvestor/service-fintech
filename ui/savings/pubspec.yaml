@@ -2,7 +2,7 @@ name: antinvestor_ui_savings
 description: >
   Savings management UI library for Antinvestor. Embeddable screens and widgets
   for savings accounts, products, deposits, and withdrawals.
-version: 0.2.0
+version: 0.3.0
 repository: https://github.com/antinvestor/service-fintech
 homepage: https://github.com/antinvestor/service-fintech/tree/main/ui/savings
 issue_tracker: https://github.com/antinvestor/service-fintech/issues

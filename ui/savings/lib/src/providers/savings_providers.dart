@@ -204,49 +204,6 @@ final depositListProvider = FutureProvider.family<List<DepositObject>, String>((
   );
 });
 
-/// Notifier for deposit mutations.
-class DepositNotifier extends Notifier<AsyncValue<void>> {
-  @override
-  AsyncValue<void> build() => const AsyncValue.data(null);
-
-  SavingsServiceClient get _client => ref.read(savingsServiceClientProvider);
-
-  /// Records a deposit. [idempotencyKey] must be generated once per user
-  /// intent so a retry lands on the same deposit rather than a second one.
-  Future<DepositObject> record({
-    required String savingsAccountId,
-    required String amount,
-    required String currencyCode,
-    required String idempotencyKey,
-    String paymentReference = '',
-    String channel = '',
-    String payerReference = '',
-  }) async {
-    state = const AsyncValue.loading();
-    try {
-      final req = DepositRecordRequest(
-        savingsAccountId: savingsAccountId,
-        paymentReference: paymentReference,
-        channel: channel,
-        payerReference: payerReference,
-        idempotencyKey: idempotencyKey,
-      );
-      setMoneyFields(req.ensureAmount(), amount, currencyCode);
-      final response = await _client.depositRecord(req);
-      state = const AsyncValue.data(null);
-      ref.invalidate(depositListProvider(savingsAccountId));
-      ref.invalidate(savingsBalanceProvider(savingsAccountId));
-      return response.data;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      rethrow;
-    }
-  }
-}
-
-final depositNotifierProvider =
-    NotifierProvider<DepositNotifier, AsyncValue<void>>(DepositNotifier.new);
-
 // ---------------------------------------------------------------------------
 // Withdrawals
 // ---------------------------------------------------------------------------

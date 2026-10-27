@@ -596,3 +596,1141 @@ in the engine.
     `notification_send` and `seed_ussd_state`.
   - Seed gains the `/ussd` and `/notification` audiences, `contact_manage`
     (to send the code) and `notification_send`, and loses `repayment_manage`.
+
+## 29. Addendum 2026-10-26 — savings deposits only from the payment rail
+
+**Finding.** `SavingsService.DepositRecord` accepted a deposit from any
+caller holding `deposit_manage`, with any amount and channel, including
+`cash`. The savings UI offered staff a "Record deposit" form. That is the
+same agent-handled-money path closed for loans in §25.
+
+**Change.**
+
+- savings `DepositRecord` refuses callers that are not internal service
+  accounts (`ErrDepositRecordInternalOnly`, PermissionDenied) and refuses the
+  `cash` channel (`ErrCashDepositRefused`).
+- operations matches an individual's incoming payment to their loan first,
+  then to their own savings account: by the account id the payer quoted, or
+  by the payer's profile to their one open individual account of the product
+  the rail credited (`borrower_savings_routing.go`). Allocation records the
+  whole payment as a deposit, keyed `payment:<id>:savings:<acct>`, so a retry
+  never deposits twice.
+- `IncomingPaymentAssign` takes exactly one of `loan_account_id` or
+  `savings_account_id` (proto field 4). Staff say where the money belongs;
+  the amount stays the rail's.
+- UI: ui_savings 0.3.0 drops Record deposit and gates account actions on
+  permissions. Seed mounts the savings routes. ui_operations 0.3.1 assign
+  dialog offers Loan or Savings.
+- Tenancy (service-authentication `20261026_02`): operations gets the
+  `/savings` audience plus `savings_account_view` and `deposit_manage` on
+  `service_savings`. Operations also needs `SAVINGS_SERVICE_URI`.
+
+**Verified.** `TestDepositsComeOnlyFromThePaymentRail`; operations
+`TestBorrowerSavings*` (deposit recorded once; other product not deposited;
+staff assign to savings); ui_operations and ui_savings widget tests.
+
+## 30. Addendum 2026-10-26 — repayments from the rail, end to end
+
+**Finding.** No repayment could reach a loan:
+
+- Nothing fed `IncomingPaymentNotify`.
+- `IdentifyPayment` matched a borrower's payment but never allocated it.
+- The LOAN_REPAYMENT order an allocation raised stayed JustCreated forever,
+  so `RepaymentRecord` was never called.
+- A defaulted loan refused payments.
+- The limits gate could refuse money that had already arrived.
+- Separately, loans `LoanRequestSave` wrote asynchronously, and every
+  decision re-emitted the full row after its conditional claim. An approval
+  could miss a just-saved request, and a late rewrite could revert
+  LOAN_CREATED.
+
+**Change.**
+
+- *Rail feed.* Operations subscribes to the payment service's receive route
+  (`OPERATIONS_PAYMENT_RECEIVED_URI`) and books each inbound payment:
+  - the transaction id is the rail payment id, so redelivery books once;
+  - the payer is named by profile id, and the contact id is kept in
+    properties;
+  - the product and the loan or savings account come from the prompt's
+    extras;
+  - booking runs as operations inside the payment's partition.
+- *Payment service* (`service-payment` `feat/prompt-success-receives`):
+  - a prompt that succeeds is received as an inbound payment with the
+    prompt's id and extras, so it is routed like any other receipt;
+  - `Receive` keeps the caller's id, transaction id and extras;
+  - a replayed inbound save resumes routing.
+- *Allocate and post at once.* An individual's matched payment is allocated
+  inside `IdentifyPayment`, and the borrower's repayment order is executed
+  inline (`WithOrderExecutor`). A failure leaves the allocation standing.
+- *Settle job.* `OperationsJobRun(SETTLE_PAYMENTS)`, permission
+  `operations_job_run`, is fired by trustage every 5 minutes
+  (`products/operations/workflows`, synced by the setup job).
+  - It allocates individuals' matched-but-unallocated payments and posts
+    borrower repayment orders that were raised but never executed.
+  - Each item runs in its own partition.
+  - Group obligation orders are left to their workflows.
+- *Repayable statuses.* DEFAULT now takes repayments in loans and in
+  operations matching. A full repayment moves the loan to PAID_OFF, which
+  the transition table already allowed.
+- *Limits.* Limits gate money leaving, never money received. The gate is
+  removed from loans repayments and savings deposits
+  (`LIMITS_GATE_*_LOAN_REPAYMENT` and `*_SAVINGS_DEPOSIT` are gone).
+  Operations skips it for payment-allocation orders.
+- *Loans.* `LoanRequestSave` upserts synchronously. Approve, reject and
+  cancel no longer re-emit the row after their claim.
+
+**Deploy needs.**
+
+- A receive route in the payment service publishing to the operations
+  topic.
+- Tenancy: trustage → `service_operations` `operations_job_run`, plus the
+  `/operations` audience; operations → `/trustage` with workflow_manage and
+  workflow_view.
+- `TRUSTAGE_SERVICE_URI` on operations.
+
+**Verified.** Operations tests cover:
+
+- `TestMatchedBorrowerPaymentIsPostedAtOnce`
+- `TestBorrowerPaymentStaysAllocatedWhenPostingFails`
+- `TestSettleJob*`
+- `TestDefaultedLoanTakesTheBorrowersPayment`
+- `TestTransferOrderExecute_ReceivedMoneyIsNotGated`
+- `TestReceivedPayment*`
+- repository `TestSettleListingsFindOnlyUnfinishedIndividualWork` (Postgres)
+
+Loans tests cover `TestSave_WritesTheRequestBeforeReturning`,
+`TestRepayableStatuses` and `TestRecord_AppliesReceivedMoneyWithoutALimitsCheck`.
+Payment covers `TestPaymentFromPrompt*`.
+
+## 31. Addendum 2026-10-26 — collection prompts and paid-off notices
+
+**Findings.**
+
+- `InitiateCollection` only sent an SMS. Nothing asked the borrower's mobile
+  money to pay, so a collections officer could not collect.
+- A paid-off notice to seed that failed was logged and dropped, which left a
+  repaid borrower blocked from borrowing again.
+
+**Change.**
+
+- *Collection prompts.* `InitiateCollection` raises
+  `PaymentService.InitiatePrompt` on the borrower's own verified mobile
+  number: the contact named by id, or their first payable contact.
+  - The prompt id is derived from the loan and idempotency key.
+  - Extras carry `product_id` and `loan_account_id`, so the money that
+    answers the prompt is matched to the loan by operations (§30).
+  - Without a payment client, prompts are refused (`ErrCollectionPromptUnavailable`).
+  - The SMS still goes out.
+- *Payment service.*
+  - Resolves the contact id to the number only when it publishes to the
+    provider.
+  - Refuses a contact that is not on the payer's profile.
+  - Does not push a second time for a prompt id it already holds.
+- *Paid-off notices.* The pay-off notice records `paid_off_noticed_at` when
+  seed acknowledges it. `LoanJobRun(PAID_OFF_NOTICES)`, fired by trustage
+  every 10 minutes, re-notices paid-off loans that lack it. It leases each
+  loan for 10 minutes and skips pay-offs from the last 2 minutes.
+  Migration `0008_paid_off_notices`.
+- *Tenancy.* service-authentication `20261026_04`: loans → `/payment`
+  `prompt_initiate`.
+
+**Verified.**
+
+- `TestCollectionInitiate_RaisesAPromptOnTheBorrowersOwnContact`
+- `TestCollectionInitiate_RefusedWithoutPaymentPrompts`
+- `TestPaidOffNoticeThatFailedIsRetriedUntilAcknowledged`
+- repository `TestPaidOffNoticesAreClaimedUntilNoticed` (Postgres)
+- payment `TestPayerNumber*`
+
+## 32. Addendum 2026-10-26 — staff origination and rail-only payment notices
+
+**Findings.**
+
+- Staff origination stopped at APPROVED. The console could not open the
+  loan account. It had no way to confirm KYC data. Its disburse dialog asked
+  for a free-text channel and "recipient reference / rail transaction code".
+- `IncomingPaymentNotify` was granted to OPERATOR, so staff could announce a
+  payment that the rail would then apply to a loan. The notified properties
+  could also pre-set allocation fields such as `remaining_amount` and
+  `client_id`.
+
+**Change.**
+
+- *Request detail.* A submitted request has a "Client data verified"
+  toggle, which saves `data_verification_confirmed`. An approved request has
+  "Open loan account" (`loan_manage`), which opens the account and goes to
+  it.
+- *Disbursement.* The disburse dialog is a confirmation. The principal goes
+  to the loan's payout contact, and a loan without one cannot be disbursed.
+- *Payout contact.* A loan opened from a request that named none takes the
+  borrower's first verified mobile number, by contact id.
+- *Notify.* `IncomingPaymentNotify` accepts internal service accounts only
+  (`ErrPaymentNotifyInternalOnly`). Notified and rail-received properties
+  never carry the fields identification, allocation and assignment decide.
+  The rail consumer keeps only `prompt_id` and `purpose` from the extras.
+
+**Verified.**
+
+- operations `TestIncomingPaymentNotifyIsTheRailsAlone`,
+  `TestNotifiedPropertiesCannotPreDecideThePayment`
+- loans `TestLoanAccountDefaultsItsPayoutContact`
+- ui_loans 0.4.0 widget tests (48 pass)
+
+## 33. Addendum 2026-10-26 — onboarding fixes
+
+- *Owning team.* Staff client creation failed with `ErrOwningTeamRequired`
+  because the onboarding form never offered a team. `ClientFormDialog` now
+  offers the teams, with "My team" leaving it to the service for field
+  agents. The offline outbox keeps the choice.
+- *Owner role.* The partition owner was treated as a field agent and
+  scoped. `owner` now counts as staff, in identity `callerIsStaff` and in
+  loans `defaultStaffRoles`.
+- *KYC review gating.* Verify, reject and take-for-review were offered on
+  `client_manage`. They now need `client_data_verify`, the permission the
+  service checks. The seed manifest registers it.
+- *Phone at registration (kept as designed).* The registration still
+  carries the number to identity, which only relays it to the profile
+  service: a field agent's client is bound to the profile the number
+  resolves to, and an agent-supplied profile id is ignored. Resolving the
+  profile on the device would let an agent bind a client to any profile.
+- *Open: KYC documents.* Photo, file, signature and location fields are not
+  captured. Media uploaded through the files service is private to the
+  uploader, and reviewers get access only through per-file grants. Capture
+  needs the files service to share KYC media with the partition's reviewers
+  first; otherwise a reviewer would verify a document they cannot open.
+
+## 34. Addendum 2026-10-26 — limits reapers on trustage
+
+**Finding.** The limits service expired reservations and approvals from two
+goroutines on a 30-second in-process ticker (`runPeriodically`). That broke
+the trustage-only scheduling rule and tied reaping to replica lifetimes.
+
+**Change.**
+
+- The tickers are gone. `LimitsAdminService.LimitsJobRun(job)` runs one pass
+  of `RESERVATION_EXPIRY` or `APPROVAL_EXPIRY` under the existing advisory
+  lock, for internal service accounts only.
+- The permission is `limits_job_run`, bound to no role.
+- Two trustage workflows fire every minute (`products/limits/workflows`).
+  The limits setup job syncs them, and the image ships them at `/workflows`.
+- Tenancy (service-authentication `20261026_05`): limits → trustage
+  (workflow_manage, workflow_view); trustage → `service_limits`
+  `limits_job_run`.
+
+**Verified.** `TestLimitsJobsRunTheNamedReaperForInternalCallersOnly`. The
+full limits suite passes, including integration tests. Workflows pass
+`TestShippedWorkflowsValidate`.
+
+## 35. Addendum 2026-10-26 — terms accepted once, at onboarding
+
+**Decision (product owner, 2026-10-26).** "Borrowers need to accept terms
+only during the onboarding phase. After that process it should be very
+instantaneous." There is no per-loan offer acceptance; audit gap #11 is
+closed by this decision.
+
+**Change.**
+
+- When a field agent activates a client, the borrower is first sent the
+  lender's terms (`template.fintech.client.terms_offered`, `LENDER_TERMS_URL`
+  on identity). The message tells them that giving the activation code
+  means accepting the terms for every loan after.
+- A successful activation records `terms_accepted_at` and `terms_accepted`
+  (the terms reference) on the client. Only activation writes them; values
+  sent by a caller are dropped.
+- Loans after activation need nothing more from the borrower: the USSD
+  borrow PIN authenticates the borrower but is not an acceptance step.
+- Acceptance holds for everyone (product owner, 2026-10-26). Staff now
+  activate with the person's code too. Only whoever asked for a code can
+  redeem it: a field agent's workforce member, or the staff member
+  themselves. The console's activation already prompted for the code, so it
+  needed no change.
+
+**Verified.** `TestActivationNeedsVerifiedKYCAndConsent` covers recorded
+acceptance, a forged timestamp being dropped, staff waiting for the code and
+recording acceptance, and an agent being unable to redeem a staff member's
+code.
+
+## 36. Addendum 2026-10-26 — cancelling an undisbursed loan releases its funding
+
+**Finding.** Funding is reserved when a loan account opens (`FundLoan`). A
+loan that was never disbursed could not be cancelled: PENDING_DISBURSEMENT
+led only to ACTIVE or RESTRUCTURED. Its investors' capital therefore stayed
+reserved forever, for example when the borrower's number was refused by the
+rail.
+
+**Change.**
+
+- `LoanManagementService.LoanAccountCancel(id, reason)` (`loan_manage`)
+  moves PENDING_DISBURSEMENT to CLOSED, then calls
+  `FundingService.FundingRelease`.
+  - It refuses while a disbursement is processing or completed. Failed
+    disbursements, refused by the rail, do not block it.
+  - Calling it again on a loan this closed retries the release.
+- *Race with a starting disbursement.*
+  - A disbursement re-reads the loan after claiming its row and abandons the
+    row if the loan was closed.
+  - A cancel re-checks after closing, and reopens the loan if a disbursement
+    slipped in.
+- *Funding.* `FundingRelease` is internal-only. Each active funding record is
+  voided by a conditional write before its investor reservation is returned,
+  so a reservation is released once however often it is called. The
+  allocation lock is then dropped.
+- *UI.* ui_loans offers "Cancel loan" on undisbursed loans and Collect
+  Payment on defaulted ones.
+
+**Verified.** funding `TestReleaseGivesBackReservedCapitalOnce` (Postgres);
+loans `TestCancel*`; ui_loans tests (52 pass).
+
+## 37. Addendum 2026-10-26 — investor capital arrives from the rail
+
+**Finding.**
+
+- Staff with `investor_account_manage` typed an investor deposit amount, and
+  it was credited to the fund without any money arriving.
+- The funding UI's Fund Loan dialog implied it drew on one investor's
+  account, but `FundLoanRequest` has no account: allocation draws on the
+  whole pool, and loans already calls it when an account opens.
+- Separately, operations persisted a payment's identification through an
+  async event, so the inline allocation could read the payment as still
+  unmatched.
+
+**Change.**
+
+- *Deposits.* `InvestorDeposit` is internal-only and honours the body's
+  `idempotency_key` when no header is sent. Deposits are no longer gated by
+  limits (money received).
+- *Matching.* Operations matches a payment quoting an investor account id,
+  but only when the payer is that investor's own profile. Payer by profile id
+  from the rail; by contact, resolved by the profile service, from a
+  notifier. Capital is never credited on a reference alone.
+  - The whole payment is deposited, keyed `payment:<id>:investor:<acct>`.
+  - Matching order: loan, then savings, then investor account.
+  - The settle job covers these payments too.
+- *Identification* is persisted synchronously with the conditional
+  `AssignOwner` (unowned, unleased payments only), so the allocation that
+  follows always reads the owner.
+- *ui_funding 0.5.0.* Deposit and Fund Loan are removed. The account screen
+  says how capital arrives: the investor pays, quoting the account id.
+- *Tenancy* (service-authentication `20261026_06`): operations → `/funding`
+  with `investor_account_view` and `investor_account_manage`. Operations
+  needs `FUNDING_SERVICE_URI`.
+- *Open.* Investor withdrawals post a ledger movement but nothing pays the
+  investor.
+
+**Verified.** operations `TestInvestorsOwnPaymentBecomesCapitalOnce`,
+`TestQuotingAnInvestorAccountFromAnotherProfileCreditsNothing`; funding
+suite; ui_funding tests.
+
+## 38. Addendum 2026-10-26 — investor withdrawals are paid out
+
+**Finding.** An investor withdrawal debited the account and posted
+`INVESTOR_PRINCIPAL_RETURN` (investor capital → platform external cash), an
+order type with no payout. Nothing ever paid the investor.
+
+**Change.**
+
+- New transfer type `INVESTOR_WITHDRAWAL` (49), a payout order type in
+  operations. Like a disbursement, the recipient and destination are checked
+  before the ledger posts, the payment goes to the rail, and a payout the
+  rail rejects is reversed.
+- Funding resolves the investor's own payout destination before debiting
+  anything: the profile from identity and its first verified mobile contact,
+  by id (`InvestorPayoutResolver`). It names them on the order. Without a
+  resolver or a contact, the withdrawal is refused and nothing moves.
+- A failed transfer returns the investor's funds only when operations
+  refused it outright (invalid argument, failed precondition, not found or
+  permission denied), meaning nothing moved. A timeout or a payout awaiting
+  confirmation keeps the movement debited, so those funds cannot be
+  withdrawn again. Retrying the same key resumes the same order.
+- The withdrawal limits gate stays, because this money is leaving.
+- ui_funding: Withdraw says where the money goes.
+- No new grants: funding already holds `investor_view` and `profile_view`.
+
+**Verified.** funding `TestWithdrawIsIdempotentAndGuardsTheBalance` (the
+order is a payout to the investor's contact) and
+`TestWithdrawWithoutAPayoutContactMovesNothing`,
+`TestWithdrawKeepsFundsDebitedUntilThePayoutIsKnown`; operations
+`TestPayout_InvestorWithdrawalGoesToTheInvestorsOwnContact`.
+
+## 39. Addendum 2026-10-26 — recoveries on written-off loans
+
+**Decision (product owner, 2026-10-26).** Money a borrower pays after a
+write-off goes back to the funders who absorbed the loss, most senior tranche
+first: the reverse of the order the loss was charged in. Anything beyond the
+loss they still carry is the lender's recovery income.
+
+**Finding.** A written-off loan refused payments. A borrower who paid had
+their money sit unmatched, and the funders' realised loss could never be
+reduced.
+
+**Change.**
+
+- *Loans.* WRITTEN_OFF is repayable, in loans and in operations matching.
+  Allocation is unchanged: the loan's balance still records what is owed.
+  - The recovered principal and penalties are credited to the product's
+    bad-debt expense, reversing the write-off. They are not credited to the
+    loan asset and penalty receivable, because the write-off already cleared
+    those.
+  - Recovered interest and fees are income.
+  - A fully recovered loan moves to CLOSED. It is not a pay-off, so no
+    paid-off notice restores the borrower's standing.
+- *Settlement.* Funding settlement calls `FundingService.LoanRecoveryApply`
+  with the principal for a written-off loan. It does not use the repayment
+  share. It runs through the same settlement job, so it is retried.
+- *Funding.*
+  - `LoanRecoveryApply` (internal only) walks the loss's absorbed shares from
+    the most senior tranche down.
+  - Each tranche gets back what it lost and has not yet recovered
+    (`funding_tranches.loss_recovered`).
+  - Investors' available capital rises and `total_lost` falls, in one
+    transaction with the `loss_recoveries` row, which is unique per
+    reference.
+  - The ledger posts bad-debt expense → investor capital, or → platform
+    first-loss reserve.
+  - Migration `20261026_loss_recovery`.
+- *UI.* ui_loans offers Collect Payment on written-off loans.
+
+**Verified.**
+
+- funding `TestRecoveryReturnsTheLossSeniorFirstOnce` (Postgres): senior
+  first, then first-loss, the excess not returned, a repeat moves nothing.
+- loans `TestRecoveryOnAWrittenOffLoanReversesTheBadDebt`,
+  `TestRecoveredPrincipalGoesBackToTheFunders`, `TestRepayableStatuses`.
+
+## 40. Addendum 2026-10-26 — temporary borrowing caps
+
+**Design (2026-10-25 redesign, step 3).** The product credit profile (the
+tier ladder) is the permanent limit. The serving agent may set a temporary
+lower cap with an expiry, and the effective limit is the lower of the two.
+
+**Change.**
+
+- *Seed credit profile.* New fields `temp_cap_amount`,
+  `temp_cap_expires_at`, `temp_cap_set_by` and `temp_cap_reason`.
+  `EffectiveLimit(now)` returns the tier limit, lowered by an unexpired cap.
+- *Enforcement.* Borrowing in the app and by USSD is checked against the
+  effective limit, and USSD shows the effective limit.
+- *Setting a cap.*
+  `POST /api/v1/seed/credit-profiles/{client}/{currency}/cap` and
+  `/cap/clear` (`seed_credit_profile_cap`, bound to member, operator, admin,
+  owner and service).
+  - A cap must be below the tier limit, expire within 90 days and give a
+    reason. It never raises a limit.
+  - Staff may cap any client. A field agent may cap only a client they serve,
+    checked through field `ClientAccessScope`.
+  - Each change is audited with the actor and reason.
+  - An active cap can be loosened only by staff: lifted, raised or ended
+    sooner. A field agent may tighten it, or lift a cap they set themselves.
+  - Tightening does not take a cap over. It keeps whoever set it, so an
+    agent cannot tighten a staff cap and then lift it as their own.
+  - The write applies only to the profile version that was checked. A
+    concurrent change returns Conflict (`ErrTempCapRaced`) and the caller
+    retries against the new state.
+- *UI.* Seed's Lending tab shows "Can borrow up to" as the effective limit,
+  plus the active cap with its expiry and reason. With the permit, it offers
+  "Set temporary cap" (amount, 7–90 days, reason) and "Lift cap".
+- No new grants: seed already holds `client_view` on field.
+
+**Verified.** seed `TestTemporaryCapOnlyLowersTheLimitUntilItLapses`,
+`TestTemporaryCapIsSetOnlyByStaffOrTheServingAgent`,
+`TestTemporaryCapRefusesAProfileChangedSinceTheCheck`, the manifest route
+tests, and the ui/seed Lending tab tests (64 pass).
+
+## 41. Addendum 2026-10-26 — product commission to the serving team
+
+**Design (2026-10-25 redesign, step 4).** Each loan product sets a
+commission as a percentage of interest. On each repayment, the field team
+serving the borrower earns that share of the interest repaid. It is the
+product's cost; the borrower pays nothing more, and no agent handles money.
+
+**Change.**
+
+- *Product.* `LoanProductObject.agent_commission_percent` (field 24) is held
+  in basis points (`agent_commission_percent`, 0–10 000).
+- *Ledger.* New accounts `product:<id>:commission_expense` (expense) and
+  `team:<id>:commission_payable` (payable), and order type
+  `AGENT_COMMISSION` (50). Operations records it as an accrual only.
+- *Posting.* `FundingSettlement.Settle` calls `AgentCommission.Post` before
+  sharing the repayment with funders:
+  - The amount is interest repaid × rate, credited to the client's owning
+    team, read from field `ClientGet`.
+  - The reference is `commission:<repayment id>`, so a retried settlement
+    posts it once.
+  - Nothing is owed on a recovery, a repayment without interest, a product
+    without a rate, or a client no team serves.
+  - A transient failure leaves the repayment unsettled for retry. A
+    permanent refusal (InvalidArgument, FailedPrecondition, NotFound) is
+    logged and dropped, so it never holds back the funders' share.
+- *UI.* ui/loans product form "Agent commission (% of interest)" and a
+  detail row.
+- *SDKs.* Dart loans 0.6.4, operations 0.4.5.
+- No new grants: loans already executes transfer orders on operations and
+  reads clients on field.
+
+**Open.** Paying the team's payable out (a team payout order type) is not
+built. The accrual is visible on the ledger until it is.
+
+**Verified.** loans `TestCommissionIsTheTeamsShareOfRepaidInterest`,
+`TestNoCommissionWithoutARateATeamInterestOrOnARecovery`,
+`TestCommissionRefusalDoesNotBlockSettlement`; ui/loans 52 tests.
+
+## 42. Addendum 2026-10-26 — team commission is paid out
+
+**Gap closed.** In §41, commission built up on the team's ledger payable but
+was never paid out.
+
+**Change.**
+
+- *Balances (loans).* New tables `team_commissions` (team, currency,
+  accrued, paid_out) and `team_commission_movements` (one row per accrual or
+  payout, unique on partition and reference; migration `0009`).
+  - An accrual is recorded after its ledger order posts, keyed
+    `commission:<repayment id>`. A retried settlement counts it once (insert
+    `ON CONFLICT DO NOTHING`, then an upsert of the balance in the same
+    transaction).
+- *Payout.* `TeamCommissionPayout` (`commission_payout`, owner and admin):
+  - The recipient must be an active member of the team (identity
+    `TeamMembershipSearch`). The money goes to that member's own default
+    payout contact (`WorkforceMemberGet` → profile → contact id). Nobody
+    names a number.
+  - The movement row, keyed `team-payout:<idempotency key>`, is the
+    idempotency record. A replay with different terms returns Conflict.
+  - The balance is taken in the transaction that moves the payout from
+    PENDING to PROCESSING, guarded by `accrued - paid_out >= amount`.
+    Concurrent payouts cannot overdraw.
+  - An operations `TEAM_COMMISSION_PAYOUT` (53) payout order moves the
+    money from the team's payable to external cash. Operations checks the
+    recipient and destination before posting, and reverses a rail
+    rejection.
+  - A refusal (InvalidArgument, FailedPrecondition, NotFound,
+    PermissionDenied) returns the amount to the balance and the payout to
+    PENDING, with its reason. Any other failure keeps it taken; retrying
+    the same key resumes the same order and never pays twice.
+- *Reads.* `TeamCommissionSearch` and `TeamCommissionPayoutSearch`
+  (`commission_view`: owner, admin, operator, viewer).
+- *UI.* Seed's team page shows `TeamCommissionSection` (ui/loans) through
+  `TeamDetailScreen(sections:)` (ui/identity): balances, payouts, and "Pay
+  out" to an active member. The dialog keeps one idempotency key while open
+  and shows a failure in place, so a retry is safe.
+- *SDKs.* Dart loans 0.6.5, operations 0.4.6.
+- No new grants: loans already holds identity (`team_membership_view`,
+  `workforce_member_view`), profile and operations; operations already pays
+  out through payment.
+
+**Verified.**
+- Postgres: loans `TestCommissionAccruesOncePerReference` and
+  `TestCommissionPayoutsNeverOverdraw` (five concurrent payouts of 400 against
+  1 000: exactly two succeed).
+- Business: `TestCommissionPayoutPaysTheMembersOwnContactOnce`,
+  `TestCommissionPayoutNeedsAPayableMember`,
+  `TestCommissionPayoutRefusedGoesBackUnknownStaysTaken`,
+  `TestCommissionAccruesToTheTeamsBalance`.
+- UI: ui/loans (58 tests), ui/identity (52) and ui/seed (64) pass.
+
+## 43. Addendum 2026-10-26 — investor statements, and investors read only their own accounts
+
+**Gaps closed.**
+
+1. *No statement.* Nothing reported what moved an investor's capital over a
+   period.
+2. *Unscoped reads.* Funding binds `investor_account_view` to `ROLE_MEMBER`,
+   and `InvestorAccountGet` and `InvestorAccountSearch` were not scoped. Any
+   member of the partition (a borrower or a field agent) could read every
+   investor's account and balances.
+
+**Change.**
+
+- *Statement.* `FundingService.InvestorStatement` (`investor_account_view`)
+  covers a period of at most 366 days (`from` inclusive, `to` exclusive). It
+  is built from the records that already move capital:
+  - Settled deposits and withdrawals. A withdrawal whose payout is still
+    unconfirmed is shown as pending.
+  - Tranches funded (deployment) and released (a loan cancelled before
+    disbursement).
+  - Each repayment distribution's share for the account: principal, and
+    interest net of the platform fee and withholding tax, which are shown
+    alongside.
+  - Shares of loss absorptions and recoveries.
+
+  Entries are ordered oldest first, with totals. Each kind of record is
+  capped at 2 000 rows per statement; beyond that the response is marked
+  `truncated` and the reader narrows the period. Shares are matched in
+  Postgres with `->'shares' @> [{"investor_account_id": …}]`.
+- *Scoping (`InvestorReads`).*
+  - Staff (owner, admin, operator, viewer) and service principals read any
+    account in the partition.
+  - Anyone else reads an account only when the account's investor (identity
+    `InvestorGet`) has the caller's profile.
+  - Other accounts are answered as not found.
+  - A non-staff search must name the caller's own investor.
+  - Applies to `InvestorAccountGet`, `InvestorAccountSearch` and
+    `InvestorStatement`.
+- *UI.* ui/funding `InvestorStatementCard` on the investor account page
+  offers the last 30 days, this month, last month and year to date. It
+  shows totals and entries, and downloads the statement as CSV.
+- *SDK.* Dart funding 0.5.3.
+
+**Verified.**
+- funding `TestStatementReportsEveryCapitalMovement` runs deposit → funding
+  → repayment → loss → recovery on Postgres and checks every total.
+- `TestInvestorReadsOnlyTheirOwnAccount`.
+- ui/funding: 26 tests pass, including the statement card and CSV. ui/seed:
+  64 tests pass.
+
+## 44. Addendum 2026-10-26 — KYC documents are captured and reviewed
+
+**Gaps closed.**
+
+1. *No capture.* The KYC model has photo, file and signature fields, but
+   nothing could capture one. The onboarding form deferred them to the KYC
+   tab, which only took typed text.
+2. *Arbitrary values.* `ClientDataSave` accepted any string as a "file"
+   value, so an entry could point at a file somebody else holds.
+3. *Earlier blocker.* Files-service media are private to the uploader, so
+   reviewers could not open documents a field agent uploaded.
+
+**Design.** Identity owns the documents. The app sends the image to
+identity, which uploads it privately to service-files as itself. No file is
+shared with anyone, so no sharing model is needed. A reviewer gets a
+five-minute signed link only after identity's own client guard admits them.
+
+**Change.**
+
+- *Identity.*
+  - `ClientDocumentUpload` (`client_data_manage`) takes JPEG, PNG, WebP or
+    PDF up to 5 MiB, validated in the proto.
+    - The client guard runs first: staff, or an agent serving the client.
+    - The file is stored through `filesDocumentStore`. Its upload
+      idempotency key is a hash of client, field and bytes, so a retry
+      stores one file.
+    - The upload is recorded as a new revision of the entry: COLLECTED, with
+      the review decision cleared.
+  - `ClientDocumentLink` (`client_data_view`) returns a signed link valid
+    for five minutes, after the same guard. Asking for a text entry
+    returns `ErrNotADocument`. A file identity does not hold returns
+    `ErrDocumentUnavailable`.
+  - `ClientDataSave` refuses `photo`, `file` and `signature`
+    (`ErrDocumentNeedsUpload`).
+  - Config: `FILES_SERVICE_URI` and `FILES_SERVICE_WORKLOAD_API_TARGET_PATH`.
+    Without them, documents are refused and typed KYC data still works.
+- *Grants.* service-authentication `af24877` (`20261026_07`): the identity
+  SA gets the `/files` audience and `content_upload` and `content_view` in
+  `service_file`.
+- *UI.* ui/identity KYC tab:
+  - "Upload document" takes a photo or chooses an image, scaled to at most
+    1 600 px at quality 80.
+  - Document entries show "View document", which opens the image through
+    the link. The storage id is never shown.
+- *SDK.* Dart identity 0.8.2.
+
+**Verified.**
+- identity `TestKYCDocumentIsStoredAndLinked`,
+  `TestKYCDocumentIsNeverSavedAsAPlainValue` and
+  `TestKYCDocumentRefusedWithoutAStore` (Postgres).
+- The concurrency test now uses a text field.
+- ui/identity: 54 tests pass, including upload and view. ui/seed: 64 pass.
+
+**Deploy.** Set `FILES_SERVICE_URI` on identity, and apply auth migration
+`20261026_07`.
+
+## 45. Addendum 2026-10-26 — fixes from an independent review of §41–§44
+
+An independent, read-only review of commission, payout, statements and KYC
+documents confirmed no double-payment, lost-money or cross-investor leak.
+It raised these lower-confidence points, all fixed:
+
+1. *A resumed payout could stick.*
+   - Cause: the member was re-checked before the movement was claimed. If
+     the member left the team after a timed-out attempt, which may have
+     paid, the retry was refused before reaching the stored order. The
+     payout then stayed PROCESSING with the balance taken.
+   - Fix: a payout already PROCESSING resumes without re-checking the
+     member (`payoutDestination`). Operations runs the order it stored
+     under the reference, with the recipient it checked.
+   - Test: `TestCommissionPayoutResumesAfterTheMemberLeaves`.
+2. *A commission could accrue to the wrong team.*
+   - Cause: the serving team was re-resolved on every settlement retry. A
+     client reassigned between a successful ledger posting and a failed
+     accrual sent the balance to the new team, while the payable sat with
+     the old one.
+   - Fix: the accrual uses the `team_id` on the order operations returns
+     for the reference.
+   - Test: `TestCommissionAccruesToTheTeamTheLedgerCredited`.
+3. *Funding failed open without claims.* `callerIsStaff` treated a context
+   without claims as staff; it now denies.
+4. *Withdraw had no ownership check.* `InvestorWithdraw` now applies the
+   same `CheckInvestor` as the read RPCs. This is defence in depth: only
+   staff hold `investor_account_manage`.
+5. *A refused payout pinned its key.* A rail-refused order is closed, so
+   retrying its key is refused again. The payout dialog now mints a new key
+   after a refusal (InvalidArgument, FailedPrecondition, NotFound,
+   PermissionDenied) and keeps the key after any other failure. The dialog
+   also scrolls, so a long error no longer overflows it.
+
+## 46. Addendum 2026-10-26 — KYC document hardening
+
+An automated security review of §44 flagged two points. Neither was
+exploitable as built, but both are hardened:
+
+1. *Document type came from the request alone.*
+   - Before: a document value saved as `"text"` or `" Photo "` could never
+     produce a link and showed only as text.
+   - Now: value types are normalised (trimmed and lower-cased). The client's
+     form template is consulted, so a field it declares a photo, file or
+     signature is refused on `ClientDataSave`, and a field it declares typed
+     refuses `ClientDocumentUpload`.
+   - A field the form declares is uploaded as its declared kind, whatever
+     the request calls it, so a photo field never holds a PDF.
+   - Test: `TestKYCDocumentFollowsTheFormsFieldType`.
+2. *Upload content was trusted.*
+   - Before: the proto already limited content types and size, and frame's
+     validation interceptor enforced that.
+   - Now identity also checks:
+     - the bytes match the declared type (`http.DetectContentType`), so a
+       page sent as an image is refused;
+     - photos and signatures are images only, and only documents may be PDF;
+     - the size is at most 5 MiB.
+
+     Nothing refused is stored.
+   - Test: `TestKYCDocumentContentMustMatchItsKind`.
+
+## 47. Addendum 2026-10-26 — payouts the rail fails after accepting them; savings interest on trustage
+
+**Gaps closed.**
+
+1. *Late payout failures were never seen.*
+   - The payment service's `Send` answers QUEUED, and providers report the
+     outcome later by webhook. Operations completed a payout order on that
+     acceptance and never asked again.
+   - So a disbursement, savings withdrawal, investor withdrawal or commission
+     payout the rail failed afterwards stayed "paid" everywhere, while the
+     money never reached the person.
+   - It was the only open item from §8 that touched money.
+2. *Savings interest ran on an in-process timer* (`runInterestAccrual`).
+   This broke the trustage-only scheduling rule, and on a service that
+   scales to zero it may not run.
+
+**Change.**
+
+- *Operations.*
+  - A payout the rail accepts is `payout_status = pending`; the rail's
+    SUCCESSFUL makes it `confirmed`. New columns: `payout_checked_at` and
+    `originator_notified_at`.
+  - `OperationsJobRun(RECONCILE_PAYOUTS)` runs every 10 minutes on trustage
+    (`operations_reconcile_payouts.json`). For each payout order whose
+    outcome is unknown, oldest checked first:
+    - An order that never completed is resumed (the existing confirm path).
+    - A completed order is looked up at the payment service. SUCCESSFUL
+      becomes confirmed.
+    - FAILED is marked failed and its ledger leg reversed, but only for the
+      order's own payout: its recorded payment id, or, with none recorded,
+      an outbound payment of exactly its amount. Any other answer stays
+      undecided and goes to an operator.
+      (`reverseRejectedPayout`).
+    - Still undecided after a day is logged at error for operators.
+  - Late-failed orders are then reported to their originator by reference
+    prefix, until the originator answers.
+  - A completed order whose payout failed now answers a re-execution with
+    `ErrPayoutFailed`. Before, it reported success, which would have let a
+    retried commission payout count as paid.
+- *Originators.* `PayoutFailedApply` (`payout_outcome_apply`, internal
+  callers only, idempotent):
+  - *Loans, disbursement.* The disbursement becomes FAILED and the loan
+    returns ACTIVE → PENDING_DISBURSEMENT with its disbursement date
+    cleared, so staff can pay it again. A loan already repaid on, or no
+    longer ACTIVE, is logged for an operator rather than undone.
+  - *Loans, team commission.* The payout returns COMPLETED → PENDING with
+    the reason, and its amount goes back to the team's balance.
+  - *Savings.* The withdrawal becomes COMPLETED → REVERSED. The balance is
+    credited back and `total_withdrawals` reduced.
+  - *Funding.* The movement becomes COMPLETED → REVERTED (new status 4), and
+    the investor's available balance is restored.
+- *Savings interest.*
+  - `SavingsJobRun(ACCRUE_INTEREST)` runs hourly
+    (`savings_accrue_interest.json`). The workflow ships in the image and
+    the setup job registers it.
+  - Each account records `interest_accrued_through` (accrued or skipped)
+    and `interest_checked_at`, so the job settles every active account once
+    a day. A failing account waits 10 minutes rather than blocking the batch.
+  - The timer and `SAVINGS_INTEREST_ACCRUAL_*` config are gone.
+- *Grants.* service-authentication `20261026_08`:
+  - operations → `payout_outcome_apply` on loans, savings and funding;
+  - savings → trustage (`workflow_manage`, `workflow_view`) and `/trustage`;
+  - trustage → `savings_job_run` and `/savings`.
+- *SDKs.* Dart loans 0.6.6, funding 0.5.4, savings 0.4.1, operations 0.4.7.
+
+**Verified.**
+- operations: `TestReconcile_LateFailureIsReversedAndTheOriginatorTold`
+  (it also checks a retry is refused), and
+  `TestReconcile_ConfirmsPaidAndKeepsUndecidedPending`.
+- loans: `TestLateFailedDisbursementReturnsTheLoanToPending` and
+  `TestLateFailedCommissionPayoutReturnsToTheBalance`.
+- funding: `TestWithdrawalFailedAtTheRailIsReturnedOnce` (Postgres).
+- savings: `TestWithdrawalFailedAtTheRailIsReversedOnce` and
+  `TestInterestJobAccruesEachDayOnce` (Postgres).
+- trustage workflow validation covers savings.
+
+**Deploy.** Apply auth migration `20261026_08`, and set
+`TRUSTAGE_SERVICE_URI` on savings for its setup job.
+
+## 48. Addendum 2026-10-26 — maker/checker in the UI; phone-width lists
+
+**Gaps closed (from the §8 UI follow-ups).**
+
+1. *Maker/checker was not shown.* The service already refuses a credit
+   decision by whoever submitted a request (`requireSeparationOfDuties`).
+   The console never showed who submitted or decided a request, and still
+   offered the submitter Approve and Reject, which then failed.
+   - Now: the request page shows *Submitted by* and *Decided by*. When the
+     signed-in profile is the submitter (`currentProfileIdProvider`, which
+     Seed supplies from its sign-in), the page says another staff member
+     must decide, and offers no buttons.
+2. *Lists did not fit a phone.* Field agents' lists (Clients, Loan
+   Accounts, Loan Requests) were wide `DataTable`s at every width.
+   - Now: below the mobile breakpoint they are lists of tiles
+     (`CompactEntityList`) with the same search, filters, actions,
+     load-more and add button.
+   - A phone-width test caught the load-more row overflowing a narrow
+     screen; its label now shrinks.
+   - ui_core's `AdminEntityListPage` has no mobile layout. Fixing it at the
+     root means publishing a new ui_core, so this is done in the fintech
+     packages instead.
+
+**Verified.** ui/loans 61 tests (including `the submitter is not offered a
+decision on their request` and `a phone lists loans as tiles with the
+filters`), ui/identity 55 (`a phone lists clients as tiles and keeps
+onboarding`), ui/seed 64.
+
+## 49. Addendum 2026-10-26 — Stawi group product: audit and phase 1
+
+**Audit.** None of Stawi's five workflows (`products/stawi/workflows`) ever
+started an instance:
+
+- No triggers or signals exist, and nothing creates instances.
+- `SyncFromFS` stops at the first invalid file, and Stawi's setup only logs
+  the failure.
+- Their calls could not have worked anyway. `http.request` sends no service
+  credentials, `{{ env.* }}` does not resolve, and `notification.send`
+  expects raw contacts.
+
+So in practice groups have no lifecycle: no tenure, no period, no loan window,
+no offer. Group rail payments stop at "identified" in operations (the settle
+job allocates only `client_loan`, `client_savings` and `investor_account`).
+Group obligations live only in Stawi's private copy of the operations code, on
+its own database. Stawi also carried a private copy of funding allocation
+whose tables it never migrates.
+
+With the user's agreement, the group product is rebuilt in six phases on
+`feat/stawi-groups`:
+
+1. Retire the superseded flows.
+2. Group obligations and allocation in operations.
+3. Accepting an offer originates through loans.
+4. Period and collection cycles as `StawiJobRun` jobs on trustage.
+5. Group lifecycle triggered from identity events.
+6. Deployment wiring.
+
+**Phase 1.**
+
+- Deleted `payment_routing.json` and `loan_origination.json`.
+- Removed the 14 callback routes, handlers, business code and RPCs only those
+  workflows used:
+  - sender identification by raw phone, payment allocation and confirmation;
+  - ledger transfer of caller-named accounts;
+  - suspense deposit;
+  - funding source;
+  - offer generation and expiry;
+  - eligibility, schedule and disbursement.
+- Stawi no longer embeds funding allocation, the transfer-order business, or
+  the limits client. Its manifest drops `stawi_loan_offer_manage`,
+  `stawi_loan_view`, `stawi_loan_fund`, `stawi_loan_disburse` and
+  `stawi_ledger_transfer`.
+- service-authentication `20261026_09` narrows the stored `service_stawi`
+  namespace so the additive-only registration accepts the new manifest. It
+  was exercised against Postgres; a re-run is a no-op.
+- Kept for later phases:
+  - the offer-respond and loan-account routes (phase 3);
+  - Stawi's private copy of operations obligations (phase 2).
+
+## 50. Addendum 2026-10-26 — Stawi phase 2: group money lives in operations
+
+**Change.**
+
+- *Operations owns group obligations.* Stawi owns periods and memberships,
+  so it supplies those facts; operations stores and settles the money.
+  - `GroupObligationsRaise` (`group_obligation_manage`, service accounts
+    only, also refused to non-internal callers in the handler) raises one
+    savings obligation per member and period. It is idempotent on a partial
+    unique index over (membership, period, cause). It then allocates the
+    member's waiting payments and applies their suspense, so money paid
+    early counts.
+  - `GroupPeriodClose` settles members the same way, then raises one flat
+    penalty per member still owing (the group's saving amount ×
+    `STAWI_LATE_FINE_1`, idempotent). It reports each member's paid,
+    outstanding and penalty.
+  - `ObligationBusiness` no longer reads Stawi's periods (`PeriodReader`
+    removed). Loan obligations are unchanged.
+- *Group payments are allocated.*
+  - The settle job now lists `membership`-owned payments, which before
+    stopped at "identified".
+  - Allocating one first funds the member's suspense on the ledger from the
+    product's collection account (`payment:<id>:member:<membership>`). The
+    obligation orders then spend from that suspense. Before, nothing funded
+    member suspense, so those orders would have debited an empty account.
+  - The settle job posts a member's obligation order only once its funding
+    order has completed, posting the funding first if needed.
+  - A membership payment without a product is not allocated: there is no
+    account to move it from.
+- *Bug fixed.* The periodic-saving allocation bucket matched only cause
+  `"saving"`, while group savings are raised as `"periodic_saving"`, so they
+  were never paid.
+- *Stawi stops running its own copy of the operations code.*
+  - It calls operations for raising and closing, and its private operations
+    repositories, events, migrations and `periodAdapter` are gone.
+  - The penalties, outstanding and suspense callbacks and their RPCs are
+    removed. Their permissions (`stawi_obligation_view`,
+    `stawi_payment_view`, `stawi_payment_allocate`) are narrowed by
+    service-authentication `20261026_10`, which also grants Stawi
+    `group_obligation_manage`.
+  - The remaining workflow JSONs are adjusted; phase 4 rewrites them.
+- *SDK.* Dart operations 0.4.8.
+
+**Open.**
+- Obligations and payments must share a partition. Stawi raises them in the
+  group's partition, and rail payments carry the receive route's. These are
+  the same lender partition in the intended setup; this is noted for the
+  deploy check.
+
+**Verified.**
+- operations: raising is idempotent; an early payment held as suspense pays
+  a new obligation; a waiting payment is allocated on raise; close charges
+  exactly one penalty, even when retried, and none to a member who paid.
+- `TestSettleJobAllocatesAMembershipPayment` (funding posts before the
+  obligation) and `TestSettleJobHoldsAnObligationOrderUntilItsSuspenseIsFunded`.
+- The handler refuses non-internal callers.
+- Postgres: the unique index and the settle listings.
+- Stawi: the obligation business against fake operations, identity and
+  period clients.
+- Lint: 0 issues across operations, stawi, loans, savings, funding and pkg.
+
+## 51. Addendum 2026-10-26 — Stawi phase 3: group loan offers originate through loans
+
+**Gap.** Nothing created loan offers once their workflow was retired, and
+nothing disbursed after a loan account was created.
+
+**Change.**
+
+- *Offers.* Opening a loan window makes offers for eligible members; a
+  retried open finishes the offers instead of repeating them. One offer per
+  window and member (unique index `uq_loan_offers_window_member`).
+  Eligibility:
+  - a regular, active member with a client record;
+  - no open loan in loans, and no other open or originating offer.
+
+  The amount is the window's periodic amount × completed periods in the
+  tenure × the window's leverage. The offer expires at the period's end.
+- *Acceptance originates the loan.* Each step is recorded on the offer, so
+  a retry resumes rather than repeats:
+  1. A short claim makes one call the only one working on the offer.
+  2. The loan request id is chosen and recorded first. Loans' save upserts
+     by id and does not de-duplicate on its key, so this is what prevents a
+     second request.
+  3. The request is read back from loans, then submitted and approved as
+     needed.
+  4. The loan account is created.
+  5. The loan is disbursed under the key `stawi:offer:<id>`, to the member's
+     own payout contact, resolved by id.
+- *Failures.* A transient failure leaves the offer pending.
+  `ResumePendingOrigination` and `ExpireStale` are bounded business methods
+  for the phase 4 job. A permanent refusal marks the offer failed, cancels
+  any undisbursed loan so its funding is released, and tells the member.
+- *Messages.* New templates `GroupLoanOffered` and `GroupLoanFailed`, sent by
+  profile id. Loans already sends the disbursed message.
+- *Group check.* `POST /groups/{groupId}/loans` now refuses an offer of
+  another group's member (not found).
+
+**Open (for later phases).**
+- Offers do not yet reflect each member's actual savings paid; operations
+  has no read API for it.
+- A failed loan cancel is not retried yet; the phase 4 sweep should cover
+  it.
+- New templates reach the notification service when the loans setup Job
+  syncs `pkg/messages`.
+
+**Verified.** Stawi tests cover:
+- offers made once per window and member;
+- accept, accept again, then create and resume pays exactly once;
+- a transient payout failure resumes without a second loan;
+- a lost approval reply is read back, not repeated;
+- a permanent refusal fails the offer and cancels its loan;
+- a member without a payout contact;
+- a claim held by another call, and one that lapsed;
+- expiry and decline;
+- an offer reached through another group is refused.
+
+Lint: 0 issues.
+
+## 52. Addendum 2026-10-26 — Stawi phases 4–5: group cycles run on trustage
+
+**Change.**
+
+- *Jobs replace workflows.* Stawi's three remaining workflows (group
+  lifecycle, period lifecycle, savings collection) never ran and are
+  deleted, together with every callback route that only they reached.
+- *Connect API.* Stawi now serves `stawi.v1.StawiService` over Connect, with
+  two RPCs:
+  - `StawiJobRun` (`stawi_job_run`, service accounts only, also refused in
+    the business layer);
+  - `LoanOfferRespond`. The JSON route stays.
+- *The jobs.* Each is bounded and idempotent, reads across tenants, and acts
+  in each item's partition. An item that fails waits 10 minutes before a
+  retry.
+  - `GROUP_LIFECYCLE`, every 15 minutes:
+    - A group identity holds active gets a tenure, ledger accounts, a single
+      lender registration, its first period and that period's obligations.
+      Each member and leader gets one welcome.
+    - A deactivated or deleted group opens no new period; its current period
+      still closes on time.
+  - `CLOSE_DUE_PERIODS`, hourly:
+    - Charges late fines once in operations.
+    - Opens exactly one next period and raises its obligations.
+    - Opens the loan window when due, which makes offers.
+    - Sends each member their statement once, and closes the old period
+      last.
+  - `SEND_REMINDERS`, daily at 06:00 UTC: reminds members still owing at 72 h
+    and 24 h before the end, once per offset, and sends leaders who is
+    behind.
+  - `LOAN_OFFERS`, every 10 minutes: resumes pending originations, expires
+    stale offers, and retries failed loan cancels.
+- *Notices.* Notifications go by profile id and are recorded under a unique
+  notice key before sending, so none repeats. If a send fails, the record
+  is removed so a later run retries.
+- *Closing a period* is refused while it is still running (not frozen and
+  before its end date), so no late fine is charged early.
+- *Group and membership states.* Identity stores the platform `STATE` enum
+  and starts every record at CREATED; nothing moves a membership to ACTIVE.
+  - Phase 2 compared against fintech's internal constants (5 and 6), which
+    never match, so deleted or deactivated groups and members were not
+    excluded.
+  - Phase 3 required an ACTIVE membership, so in practice no member would
+    ever be offered a loan.
+  - Both now use one rule (`liveState`): out only when INACTIVE or DELETED.
+- *Other fixes.*
+  - The loan window counted existing windows instead of completed periods,
+    so it never opened.
+  - Closing a period reset its end date to "now".
+  - A tenure could be left open under its last closed period.
+- *Configuration.* Stawi's setup requires the trustage sync when running
+  securely.
+- *Grants and namespace.* service-authentication `20261026_11`:
+  - trustage gets the `/stawi` audience and `stawi_job_run`;
+  - `service_stawi` is narrowed by the seven retired permissions.
+
+**Deploy.**
+- `TRUSTAGE_SERVICE_URI` on stawi's setup Job.
+- A trustage connect route for `stawi.v1.` to the Stawi service.
+- Apply auth migrations `20261026_09`, `_10` and `_11`.
+
+**Open.**
+- Identity cannot list groups across tenants or filter them by state, so
+  each lifecycle run reads the tenant's whole group list. A state filter in
+  identity would fix this.
+- The Stawi group types the jobs run (`STAWI_GROUP_TYPES`, default 2, 5, 6)
+  need confirming against how groups are created.
+- If the service crashes between recording a notice and sending it, that one
+  notice is lost. Duplicates were judged the worse risk.
+
+**Verified.** Stawi tests:
+- each job refuses non-internal callers;
+- group setup is idempotent;
+- a due period closes once, opens one next period and notifies once;
+- a period not yet ended is untouched;
+- reminders go once per offset;
+- the loan offer sweep resumes, expires and retries cancels.
+
+New queries run on Postgres. Trustage validation passes for the four Stawi
+workflows. Lint: 0 issues.
+
+## 53. Addendum 2026-10-27 — group search filters; offers follow each member's savings
+
+**Group search.** Identity's `ClientGroupSearch` ignored its `state`,
+`group_type`, `parent_id` and `product_id` filters. It now applies them,
+plus new `states` and `group_types` lists. Stawi's lifecycle job asks only
+for ACTIVE groups of `STAWI_GROUP_TYPES` (2, 5, 6, confirmed by the user), so
+a run no longer pages through the whole tenant. Shutdown still looks each
+running tenure's group up by id: listing every deleted group would only grow.
+
+**Offers follow savings.** Operations gains `GroupMemberStanding`
+(`group_obligation_manage`, internal callers only), returning each member's:
+- *saved:* paid against periodic savings obligations, partial payments
+  included;
+- *arrears:* past-due unpaid savings plus unpaid penalties.
+
+Only the group's obligations in the requested currency count.
+
+Stawi's offer rule:
+- A member in arrears gets no offer (`in_arrears`), and neither does one who
+  has saved nothing (`no_savings`).
+- Otherwise the offer is the smaller of saved × leverage and the policy limit.
+- If the standing call fails, no offers are made and the run is retried.
+
+**SDKs.** Dart identity 0.8.3, operations 0.4.9.
+
+**Verified.**
+- identity: Postgres test of each filter and the legacy fields.
+- operations: standing with full, partial and future-due payments,
+  penalties, another group, and currency; the handler is internal-only; the
+  repository query runs on Postgres.
+- stawi: more savings gives a bigger offer; arrears or no savings gives none;
+  the cap holds; a retry offers nobody twice; a failed call makes no offers.
+- Lint: 0 issues.
+
+## 54. Addendum 2026-10-27 — trustage is set up from each service's setup code
+
+**Decision (user).** Trustage must not know about services beyond running
+their workflows. Each service sets it up from its own setup code, as with
+migrations and notification templates. Trustage's operator route config
+(`TRUSTAGE_CONNECT_ROUTES`) is therefore not the way services are reached.
+
+**Change.**
+
+- *service-trustage* (PR #122): a `connect.call` step may carry an optional
+  `endpoint`, the base URL of the service the workflow belongs to.
+  - The call carries trustage's own token, so the endpoint must be a bare
+    `http(s)` base URL on a trusted in-cluster host (default `.svc` and
+    `.svc.cluster.local`).
+  - An operator route still wins over it, so existing routes are unchanged.
+- *Every fintech workflow* (loans, operations, limits, savings, stawi) names
+  its service with `"endpoint": "${SERVICE_ENDPOINT}"`. A test fails any
+  shipped `connect.call` without it.
+- *`pkg/trustage.SyncWorkflows`* fills the placeholder with the service's own
+  address when the setup Job registers its workflows:
+  `http://<service>.<namespace>.svc:80`, with the namespace read from the pod
+  and `TRUSTAGE_CALLBACK_ENDPOINT` as an override (e.g. loans deployed as
+  `service-fintech-loans` under the Stawi product).
+- *Trustage's own address* defaults to
+  `http://service-trustage.trustage.svc:80` for a secure setup. No service
+  needs `TRUSTAGE_SERVICE_URI` set; local development without trustage still
+  skips.
+
+**Deploy.** Release service-trustage #122 before relying on these workflows.
+Limits isn't in the cluster manifests yet; where it runs, its default name is
+`service-limits`.
+
+**Correction 2026-10-27 — production is Cloud Run behind the gateway.** The
+fintech services and trustage run on Cloud Run (`stawi.org/cloud.deployment`)
+and reach each other at `https://api.stawi.org/<path>`, not in-cluster hosts,
+so the defaults above would have pointed every workflow at nothing.
+
+- *service-trustage* (PR #123): `endpoint` may carry a plain path prefix
+  (`https://api.stawi.org/loans`); only unreserved segments are accepted, so
+  nothing decoded from it becomes a query or fragment. Production sets
+  `TRUSTAGE_URL_TRUSTED_HOST_SUFFIXES=.svc,.svc.cluster.local,api.stawi.org`.
+- *`SelfEndpoint`* falls back to the service's `OAUTH2_RESOURCE_AUDIENCE`, which
+  the Cloud Run module sets to the gateway URL the service is served at; the
+  pod namespace is used only when that isn't a URL.
+- *Trustage's address* defaults to `OAUTH2_AUDIENCE_BASE_URL` + `/trustage`
+  when the gateway base is set, else the cluster default.
+- *Audiences*: trustage requests `/operations`, `/savings`, `/limits` and
+  `/stawi`; operations, savings and limits request `/trustage` for their setup
+  Jobs (Hydra already allows them, tenancy migrations `_03`, `_05`, `_08`, `_11`).

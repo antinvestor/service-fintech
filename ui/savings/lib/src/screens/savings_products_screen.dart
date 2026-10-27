@@ -14,7 +14,11 @@ import '../widgets/async_list_view.dart';
 const _searchDebounce = Duration(milliseconds: 350);
 
 class SavingsProductsScreen extends ConsumerStatefulWidget {
-  const SavingsProductsScreen({super.key});
+  const SavingsProductsScreen({super.key, this.canManage = false});
+
+  /// Whether the caller holds savings_product_manage; without it nothing is offered to
+  /// create.
+  final bool canManage;
 
   @override
   ConsumerState<SavingsProductsScreen> createState() =>
@@ -69,7 +73,7 @@ class _SavingsProductsScreenState extends ConsumerState<SavingsProductsScreen> {
       items: products,
       onSearch: _onSearch,
       addLabel: 'New Product',
-      onAdd: () => _showCreateDialog(context),
+      onAdd: widget.canManage ? () => _showCreateDialog(context) : null,
       rowBuilder: (product, selected, onSelect) {
         return DataRow(
           selected: selected,

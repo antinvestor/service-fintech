@@ -6119,6 +6119,8 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     $core.String? productId,
     $core.int? groupType,
     $1.STATE? state,
+    $core.Iterable<$1.STATE>? states,
+    $core.Iterable<$core.int>? groupTypes,
   }) {
     final result = ClientGroupSearchRequest._();
     if (query != null) result.query = query;
@@ -6129,6 +6131,8 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     if (productId != null) result.productId = productId;
     if (groupType != null) result.groupType = groupType;
     if (state != null) result.state = state;
+    if (states != null) result.states.addAll(states);
+    if (groupTypes != null) result.groupTypes.addAll(groupTypes);
     return result;
   }
 
@@ -6155,6 +6159,11 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
     ..aI(7, _omitFieldNames ? '' : 'groupType')
     ..aE<$1.STATE>(8, _omitFieldNames ? '' : 'state',
         enumValues: $1.STATE.values)
+    ..pc<$1.STATE>(9, _omitFieldNames ? '' : 'states', $pb.PbFieldType.KE,
+        valueOf: $1.STATE.valueOf,
+        enumValues: $1.STATE.values,
+        defaultEnumValue: $1.STATE.CREATED)
+    ..p<$core.int>(10, _omitFieldNames ? '' : 'groupTypes', $pb.PbFieldType.K3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -6255,6 +6264,15 @@ class ClientGroupSearchRequest extends $pb.GeneratedMessage {
   $core.bool hasState() => $_has(7);
   @$pb.TagNumber(8)
   void clearState() => $_clearField(8);
+
+  /// Optional: only groups in any of these states. CREATED is the zero
+  /// value of state, so a caller that wants created groups lists it here.
+  @$pb.TagNumber(9)
+  $pb.PbList<$1.STATE> get states => $_getList(8);
+
+  /// Optional: only groups of any of these types.
+  @$pb.TagNumber(10)
+  $pb.PbList<$core.int> get groupTypes => $_getList(9);
 }
 
 class ClientGroupSearchResponse extends $pb.GeneratedMessage {
@@ -8847,6 +8865,352 @@ class ClientDataEntryHistoryObject extends $pb.GeneratedMessage {
   $core.bool hasCreatedAt() => $_has(7);
   @$pb.TagNumber(8)
   void clearCreatedAt() => $_clearField(8);
+}
+
+/// ClientDocumentUploadRequest stores a KYC photo, document or signature for
+/// a client. The service keeps the file privately; nobody else holds a copy
+/// they could swap in.
+class ClientDocumentUploadRequest extends $pb.GeneratedMessage {
+  factory ClientDocumentUploadRequest({
+    $core.String? clientId,
+    $core.String? fieldKey,
+    $core.String? valueType,
+    $core.String? contentType,
+    $core.String? filename,
+    $core.List<$core.int>? content,
+    $core.String? sourceEntityId,
+  }) {
+    final result = ClientDocumentUploadRequest._();
+    if (clientId != null) result.clientId = clientId;
+    if (fieldKey != null) result.fieldKey = fieldKey;
+    if (valueType != null) result.valueType = valueType;
+    if (contentType != null) result.contentType = contentType;
+    if (filename != null) result.filename = filename;
+    if (content != null) result.content = content;
+    if (sourceEntityId != null) result.sourceEntityId = sourceEntityId;
+    return result;
+  }
+
+  ClientDocumentUploadRequest._();
+
+  factory ClientDocumentUploadRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentUploadRequest()..mergeFromBuffer(data, registry);
+  factory ClientDocumentUploadRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentUploadRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDocumentUploadRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientDocumentUploadRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'clientId')
+    ..aOS(2, _omitFieldNames ? '' : 'fieldKey')
+    ..aOS(3, _omitFieldNames ? '' : 'valueType')
+    ..aOS(4, _omitFieldNames ? '' : 'contentType')
+    ..aOS(5, _omitFieldNames ? '' : 'filename')
+    ..a<$core.List<$core.int>>(
+        6, _omitFieldNames ? '' : 'content', $pb.PbFieldType.OY)
+    ..aOS(7, _omitFieldNames ? '' : 'sourceEntityId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentUploadRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentUploadRequest copyWith(
+          void Function(ClientDocumentUploadRequest) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientDocumentUploadRequest))
+          as ClientDocumentUploadRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDocumentUploadRequest() / ClientDocumentUploadRequest.new instead')
+  static ClientDocumentUploadRequest create() =>
+      ClientDocumentUploadRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientDocumentUploadRequest._();
+  @$core.override
+  ClientDocumentUploadRequest createEmptyInstance() =>
+      ClientDocumentUploadRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDocumentUploadRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDocumentUploadRequest>(
+          ClientDocumentUploadRequest.$_createMessage);
+  static ClientDocumentUploadRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get clientId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set clientId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasClientId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearClientId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get fieldKey => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set fieldKey($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasFieldKey() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFieldKey() => $_clearField(2);
+
+  /// "photo", "file" or "signature".
+  @$pb.TagNumber(3)
+  $core.String get valueType => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set valueType($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasValueType() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearValueType() => $_clearField(3);
+
+  /// image/jpeg, image/png, image/webp or application/pdf.
+  @$pb.TagNumber(4)
+  $core.String get contentType => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set contentType($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasContentType() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearContentType() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get filename => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set filename($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasFilename() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearFilename() => $_clearField(5);
+
+  /// At most 5 MiB.
+  @$pb.TagNumber(6)
+  $core.List<$core.int> get content => $_getN(5);
+  @$pb.TagNumber(6)
+  set content($core.List<$core.int> value) => $_setBytes(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasContent() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearContent() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.String get sourceEntityId => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set sourceEntityId($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasSourceEntityId() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSourceEntityId() => $_clearField(7);
+}
+
+class ClientDocumentUploadResponse extends $pb.GeneratedMessage {
+  factory ClientDocumentUploadResponse({
+    ClientDataEntryObject? data,
+  }) {
+    final result = ClientDocumentUploadResponse._();
+    if (data != null) result.data = data;
+    return result;
+  }
+
+  ClientDocumentUploadResponse._();
+
+  factory ClientDocumentUploadResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentUploadResponse()..mergeFromBuffer(data, registry);
+  factory ClientDocumentUploadResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentUploadResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDocumentUploadResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientDocumentUploadResponse.$_createMessage)
+    ..aOM<ClientDataEntryObject>(1, _omitFieldNames ? '' : 'data',
+        subBuilder: ClientDataEntryObject.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentUploadResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentUploadResponse copyWith(
+          void Function(ClientDocumentUploadResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientDocumentUploadResponse))
+          as ClientDocumentUploadResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDocumentUploadResponse() / ClientDocumentUploadResponse.new instead')
+  static ClientDocumentUploadResponse create() =>
+      ClientDocumentUploadResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientDocumentUploadResponse._();
+  @$core.override
+  ClientDocumentUploadResponse createEmptyInstance() =>
+      ClientDocumentUploadResponse._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDocumentUploadResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDocumentUploadResponse>(
+          ClientDocumentUploadResponse.$_createMessage);
+  static ClientDocumentUploadResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  ClientDataEntryObject get data => $_getN(0);
+  @$pb.TagNumber(1)
+  set data(ClientDataEntryObject value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasData() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearData() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ClientDataEntryObject ensureData() => $_ensure(0);
+}
+
+/// ClientDocumentLinkRequest asks for a short-lived link to view a KYC
+/// document entry.
+class ClientDocumentLinkRequest extends $pb.GeneratedMessage {
+  factory ClientDocumentLinkRequest({
+    $core.String? entryId,
+  }) {
+    final result = ClientDocumentLinkRequest._();
+    if (entryId != null) result.entryId = entryId;
+    return result;
+  }
+
+  ClientDocumentLinkRequest._();
+
+  factory ClientDocumentLinkRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentLinkRequest()..mergeFromBuffer(data, registry);
+  factory ClientDocumentLinkRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentLinkRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDocumentLinkRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientDocumentLinkRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'entryId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentLinkRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentLinkRequest copyWith(
+          void Function(ClientDocumentLinkRequest) updates) =>
+      super.copyWith((message) => updates(message as ClientDocumentLinkRequest))
+          as ClientDocumentLinkRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDocumentLinkRequest() / ClientDocumentLinkRequest.new instead')
+  static ClientDocumentLinkRequest create() => ClientDocumentLinkRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientDocumentLinkRequest._();
+  @$core.override
+  ClientDocumentLinkRequest createEmptyInstance() =>
+      ClientDocumentLinkRequest._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDocumentLinkRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDocumentLinkRequest>(
+          ClientDocumentLinkRequest.$_createMessage);
+  static ClientDocumentLinkRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get entryId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set entryId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEntryId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEntryId() => $_clearField(1);
+}
+
+class ClientDocumentLinkResponse extends $pb.GeneratedMessage {
+  factory ClientDocumentLinkResponse({
+    $core.String? url,
+    $core.String? expiresAt,
+  }) {
+    final result = ClientDocumentLinkResponse._();
+    if (url != null) result.url = url;
+    if (expiresAt != null) result.expiresAt = expiresAt;
+    return result;
+  }
+
+  ClientDocumentLinkResponse._();
+
+  factory ClientDocumentLinkResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentLinkResponse()..mergeFromBuffer(data, registry);
+  factory ClientDocumentLinkResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDocumentLinkResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDocumentLinkResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'identity.v1'),
+      createEmptyInstance: ClientDocumentLinkResponse.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'url')
+    ..aOS(2, _omitFieldNames ? '' : 'expiresAt')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentLinkResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDocumentLinkResponse copyWith(
+          void Function(ClientDocumentLinkResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as ClientDocumentLinkResponse))
+          as ClientDocumentLinkResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDocumentLinkResponse() / ClientDocumentLinkResponse.new instead')
+  static ClientDocumentLinkResponse create() => ClientDocumentLinkResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientDocumentLinkResponse._();
+  @$core.override
+  ClientDocumentLinkResponse createEmptyInstance() =>
+      ClientDocumentLinkResponse._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDocumentLinkResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDocumentLinkResponse>(
+          ClientDocumentLinkResponse.$_createMessage);
+  static ClientDocumentLinkResponse? _defaultInstance;
+
+  /// A signed link that stops working at expires_at.
+  @$pb.TagNumber(1)
+  $core.String get url => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set url($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasUrl() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUrl() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get expiresAt => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set expiresAt($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasExpiresAt() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearExpiresAt() => $_clearField(2);
 }
 
 /// Save/update client data (agent submitting)
@@ -11442,6 +11806,21 @@ class IdentityServiceApi {
           $pb.ClientContext? ctx, ClientDataSaveRequest request) =>
       _client.invoke<ClientDataSaveResponse>(ctx, 'IdentityService',
           'ClientDataSave', request, ClientDataSaveResponse());
+
+  /// ClientDocumentUpload stores a KYC photo, document or signature and
+  /// records it as the client's entry for the field, as ClientDataSave does
+  /// for typed values.
+  $async.Future<ClientDocumentUploadResponse> clientDocumentUpload(
+          $pb.ClientContext? ctx, ClientDocumentUploadRequest request) =>
+      _client.invoke<ClientDocumentUploadResponse>(ctx, 'IdentityService',
+          'ClientDocumentUpload', request, ClientDocumentUploadResponse());
+
+  /// ClientDocumentLink gives a short-lived link to view a KYC document to a
+  /// caller who may see the client.
+  $async.Future<ClientDocumentLinkResponse> clientDocumentLink(
+          $pb.ClientContext? ctx, ClientDocumentLinkRequest request) =>
+      _client.invoke<ClientDocumentLinkResponse>(ctx, 'IdentityService',
+          'ClientDocumentLink', request, ClientDocumentLinkResponse());
 
   /// ClientDataGet retrieves a single data entry by client_id and field_key.
   $async.Future<ClientDataGetResponse> clientDataGet(

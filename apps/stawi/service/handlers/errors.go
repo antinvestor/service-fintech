@@ -26,7 +26,7 @@ import (
 )
 
 // Stable, machine-readable error codes returned beside the HTTP status. The
-// workflow engine and operators key on these rather than on message text.
+// callers and operators key on these rather than on message text.
 const (
 	errorCodeInvalidRequest  = "invalid_request"
 	errorCodeUnauthenticated = "unauthenticated"

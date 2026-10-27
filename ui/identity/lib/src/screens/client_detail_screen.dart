@@ -15,6 +15,7 @@ import '../providers/client_providers.dart';
 import '../providers/kyc_requirements_providers.dart';
 import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
+import '../widgets/kyc_document.dart';
 import '../widgets/load_more_action.dart';
 import 'client_form_dialog.dart';
 import 'client_relationships_tab.dart';
@@ -36,10 +37,15 @@ class ClientDetailScreen extends ConsumerWidget {
     this.canManage = false,
     this.backRoute = '/clients',
     this.canAssignStaff = false,
+    this.canVerifyData = false,
     this.extraTabs = const [],
   });
 
   final String clientId;
+
+  /// Whether the caller may verify or reject collected KYC entries
+  /// (`client_data_verify`). Collecting them needs [canManage].
+  final bool canVerifyData;
 
   /// Whether the caller may assign staff to the client
   /// (`client_relationship_manage`). Transferring the client to another team
@@ -49,8 +55,8 @@ class ClientDetailScreen extends ConsumerWidget {
   /// Product tabs the host adds (e.g. a lender's credit profile and loans).
   final List<ClientDetailTab> extraTabs;
 
-  /// Whether the caller may edit the client, add KYC data and decide on
-  /// collected entries (`client_manage`).
+  /// Whether the caller may edit the client and add KYC data
+  /// (`client_manage`).
   final bool canManage;
 
   final String backRoute;
@@ -71,6 +77,7 @@ class ClientDetailScreen extends ConsumerWidget {
         canManage: canManage,
         backRoute: backRoute,
         canAssignStaff: canAssignStaff,
+        canVerifyData: canVerifyData,
         extraTabs: extraTabs,
       ),
     );
@@ -83,6 +90,7 @@ class _ClientDetailContent extends ConsumerStatefulWidget {
     required this.canManage,
     required this.backRoute,
     required this.canAssignStaff,
+    required this.canVerifyData,
     required this.extraTabs,
   });
 
@@ -90,6 +98,7 @@ class _ClientDetailContent extends ConsumerStatefulWidget {
   final bool canManage;
   final String backRoute;
   final bool canAssignStaff;
+  final bool canVerifyData;
   final List<ClientDetailTab> extraTabs;
 
   @override
@@ -195,7 +204,11 @@ class _ClientDetailContentState extends ConsumerState<_ClientDetailContent>
             controller: _tabs,
             children: [
               _ProfileTab(client: _client),
-              _KycTab(clientId: _client.id, canManage: widget.canManage),
+              _KycTab(
+                clientId: _client.id,
+                canManage: widget.canManage,
+                canVerify: widget.canVerifyData,
+              ),
               ClientRelationshipsTab(
                 client: _client,
                 canTransfer: widget.canManage,
@@ -453,10 +466,15 @@ class _RequirementsChecklist extends ConsumerWidget {
 }
 
 class _KycTab extends ConsumerWidget {
-  const _KycTab({required this.clientId, required this.canManage});
+  const _KycTab({
+    required this.clientId,
+    required this.canManage,
+    required this.canVerify,
+  });
 
   final String clientId;
   final bool canManage;
+  final bool canVerify;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -481,6 +499,13 @@ class _KycTab extends ConsumerWidget {
                   onLoadMore: () => ref.read(provider.notifier).loadMore(),
                 ),
               if (canManage) ...[
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  key: const Key('kyc-upload'),
+                  onPressed: () => _uploadDocument(context, ref),
+                  icon: const Icon(Icons.upload_file_outlined, size: 18),
+                  label: const Text('Upload document'),
+                ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   key: const Key('kyc-add'),
@@ -517,13 +542,35 @@ class _KycTab extends ConsumerWidget {
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) => _KycEntryCard(
                   entry: page.items[index],
-                  canManage: canManage,
+                  canVerify: canVerify,
                 ),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _uploadDocument(BuildContext context, WidgetRef ref) async {
+    final upload = await showDialog<DocumentUpload>(
+      context: context,
+      builder: (_) => const KycDocumentDialog(),
+    );
+    if (upload == null || !context.mounted) return;
+    await _run(
+      context,
+      () => ref
+          .read(clientDataNotifierProvider.notifier)
+          .uploadDocument(
+            clientId: clientId,
+            fieldKey: upload.fieldKey,
+            valueType: upload.valueType,
+            contentType: upload.document.contentType,
+            filename: upload.document.filename,
+            content: upload.document.bytes,
+          ),
+      'Document uploaded',
     );
   }
 
@@ -564,16 +611,16 @@ Future<void> _run(
 }
 
 class _KycEntryCard extends ConsumerWidget {
-  const _KycEntryCard({required this.entry, required this.canManage});
+  const _KycEntryCard({required this.entry, required this.canVerify});
 
   final ClientDataEntryObject entry;
-  final bool canManage;
+  final bool canVerify;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final color = verificationStatusColor(entry.verificationStatus);
-    final open = canManage && verificationIsOpen(entry.verificationStatus);
+    final open = canVerify && verificationIsOpen(entry.verificationStatus);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -615,7 +662,18 @@ class _KycEntryCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            SelectableText(entry.value, style: theme.textTheme.bodyMedium),
+            if (isKycDocument(entry.valueType))
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: Key('kyc-view-${entry.id}'),
+                  onPressed: () => _viewDocument(context, ref),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('View document'),
+                ),
+              )
+            else
+              SelectableText(entry.value, style: theme.textTheme.bodyMedium),
             if (entry.reviewerComment.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
@@ -695,6 +753,27 @@ class _KycEntryCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _viewDocument(BuildContext context, WidgetRef ref) async {
+    try {
+      final url = await ref
+          .read(clientDataNotifierProvider.notifier)
+          .documentLink(entry.id);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => KycDocumentViewer(url: url, title: entry.fieldKey),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyError(e)),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   Future<void> _withReason(

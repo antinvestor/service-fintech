@@ -19,10 +19,15 @@ import 'package:antinvestor_ui_limits/antinvestor_ui_limits.dart'
     show LimitsCapabilities, limitsCapabilitiesProvider;
 import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
     show currentAgentIdProvider, loansTransportProvider;
+import 'package:antinvestor_ui_loans/antinvestor_ui_loans.dart'
+    as loans
+    show currentProfileIdProvider;
 import 'package:antinvestor_ui_funding/antinvestor_ui_funding.dart'
     show fundingTransportProvider;
 import 'package:antinvestor_ui_operations/antinvestor_ui_operations.dart'
     show operationsTransportProvider;
+import 'package:antinvestor_ui_savings/antinvestor_ui_savings.dart'
+    show savingsTransportProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -120,6 +125,12 @@ void main() {
           return (memberId == null || memberId.isEmpty) ? null : memberId;
         }),
 
+        // The signed-in profile, so the loan request screen does not offer
+        // its submitter a decision the service would refuse.
+        loans.currentProfileIdProvider.overrideWith(
+          (ref) => ref.watch(currentProfileIdProvider).value,
+        ),
+
         // Registrations captured offline are kept on the device.
         registrationOutboxStoreProvider.overrideWithValue(
           const SecureOutboxStore(
@@ -148,6 +159,11 @@ void main() {
         fundingTransportProvider.overrideWith((ref) {
           final auth = ref.watch(authTokenProviderProvider);
           return createTransport(auth, baseUrl: AppConfig.fundingBaseUrl);
+        }),
+
+        savingsTransportProvider.overrideWith((ref) {
+          final auth = ref.watch(authTokenProviderProvider);
+          return createTransport(auth, baseUrl: AppConfig.savingsBaseUrl);
         }),
 
         operationsTransportProvider.overrideWith((ref) {

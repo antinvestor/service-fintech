@@ -62,7 +62,7 @@ packages:
       path: "../../sdk/dart/funding"
       relative: true
     source: path
-    version: "0.5.0"
+    version: "0.5.3"
   antinvestor_api_geolocation:
     dependency: transitive
     description:
@@ -77,28 +77,28 @@ packages:
       path: "../../sdk/dart/identity"
       relative: true
     source: path
-    version: "0.8.1"
+    version: "0.8.2"
   antinvestor_api_limits:
     dependency: "direct overridden"
     description:
       path: "../../sdk/dart/limits"
       relative: true
     source: path
-    version: "0.3.0"
+    version: "0.3.1"
   antinvestor_api_loans:
     dependency: "direct dev"
     description:
       path: "../../sdk/dart/loans"
       relative: true
     source: path
-    version: "0.6.1"
+    version: "0.6.5"
   antinvestor_api_operations:
     dependency: "direct overridden"
     description:
       path: "../../sdk/dart/operations"
       relative: true
     source: path
-    version: "0.4.1"
+    version: "0.4.6"
   antinvestor_api_profile:
     dependency: transitive
     description:
@@ -144,7 +144,7 @@ packages:
       path: "../funding"
       relative: true
     source: path
-    version: "0.4.0"
+    version: "0.5.0"
   antinvestor_ui_geolocation:
     dependency: "direct main"
     description:
@@ -159,7 +159,7 @@ packages:
       path: "../identity"
       relative: true
     source: path
-    version: "0.5.2"
+    version: "0.6.0"
   antinvestor_ui_limits:
     dependency: "direct main"
     description:
@@ -173,14 +173,14 @@ packages:
       path: "../loans"
       relative: true
     source: path
-    version: "0.3.0"
+    version: "0.4.0"
   antinvestor_ui_operations:
     dependency: "direct main"
     description:
       path: "../operations"
       relative: true
     source: path
-    version: "0.3.0"
+    version: "0.3.1"
   antinvestor_ui_profile:
     dependency: "direct main"
     description:
@@ -188,6 +188,13 @@ packages:
       sha256: a9e1a5052706c1b57b5c6a28e82477cc28dcea82e132d9fedefefe55118f5cf2
       url: "https://pub.dev"
     source: hosted
+    version: "0.3.0"
+  antinvestor_ui_savings:
+    dependency: "direct main"
+    description:
+      path: "../savings"
+      relative: true
+    source: path
     version: "0.3.0"
   app_links:
     dependency: "direct main"

@@ -191,6 +191,18 @@ var (
 		apperrors.Unprocessable,
 		"the loan has nothing outstanding to collect",
 	)
+	ErrLoanCancelDisbursed = apperrors.NewError(
+		apperrors.Unprocessable,
+		"only a loan that was never disbursed can be cancelled",
+	)
+	ErrCollectionPromptUnavailable = apperrors.NewError(
+		apperrors.ServiceUnavailable,
+		"payment prompts are not configured; the borrower cannot be asked to pay",
+	)
+	ErrCollectionNoPayingContact = apperrors.NewError(
+		apperrors.Unprocessable,
+		"the borrower has no verified mobile number to be asked to pay from",
+	)
 	ErrDataVerificationRequired = apperrors.NewError(
 		apperrors.Unprocessable,
 		"loan product requires data verification; set data_verification_confirmed on the loan request after verifying all required forms",

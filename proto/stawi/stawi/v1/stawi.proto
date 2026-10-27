@@ -18,21 +18,18 @@ package stawi.v1;
 
 // -----------------------------------------------------
 // Core notes (normative):
-// - Stawi is the group-lending product. Its runtime surface is the set of
-//   workflow callbacks the Trustage engine invokes over plain JSON/HTTP; the
-//   service serves them from an http.ServeMux rather than Connect.
-// - This file is the permission manifest for that surface. Every HTTP route
-//   the mux serves is modelled as an RPC whose google.api.http binding
-//   carries the exact method and path, and whose method_permissions names the
-//   functional permission the caller must hold in the service_stawi namespace.
-// - The Go service registers this descriptor with frame at setup time and
-//   enforces the route → permission map on the mux at runtime, so a route
-//   that is not in this file fails closed.
-// - The RPCs are not served over Connect today; the request/response
-//   messages describe the JSON bodies loosely and exist to satisfy the
-//   descriptor.
+// - Stawi is the group (SACCO/chama) savings and lending product. Its
+//   periodic work - setting up groups, closing due periods, reminding
+//   members, finishing loan offers - runs only when the platform scheduler
+//   (trustage) calls StawiJobRun; nothing in the service runs on a timer.
+// - StawiService is served over Connect. LoanOfferRespond is also served as
+//   a plain JSON route for members' apps; its google.api.http binding names
+//   that route, and the service enforces the route -> permission map from
+//   this file, so a route that is not here fails closed.
+// - Every permission lives in the service_stawi namespace.
 // -----------------------------------------------------
 
+import "buf/validate/validate.proto";
 import "common/v1/permissions.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/struct.proto";
@@ -41,439 +38,100 @@ option go_package = "github.com/antinvestor/service-fintech/gen/go/stawi/protoco
 option java_multiple_files = true;
 option java_package = "stawiv1";
 
-// GroupRequest addresses a single group.
-message GroupRequest {
-  string group_id = 1;
+// StawiJob is a periodic job the platform scheduler runs.
+enum StawiJob {
+  STAWI_JOB_UNSPECIFIED = 0;
+  // Sets up groups identity holds active (ledger accounts, lender
+  // registration, tenure, first period, its obligations, a welcome), and
+  // stops new periods for groups identity shut down or deactivated.
+  STAWI_JOB_GROUP_LIFECYCLE = 1;
+  // Closes periods whose end date has passed: late fines in operations,
+  // the next period and its obligations, the loan window, and each
+  // member's period summary.
+  STAWI_JOB_CLOSE_DUE_PERIODS = 2;
+  // Reminds members still owing a period's savings at fixed offsets before
+  // it ends, once per offset, and tells the group's leaders who is behind.
+  STAWI_JOB_SEND_REMINDERS = 3;
+  // Finishes accepted offers whose loan is not paid yet, closes offers
+  // nobody answered in time, and retries cancelling the loans of offers
+  // that could not be paid.
+  STAWI_JOB_LOAN_OFFERS = 4;
 }
 
-// GroupTransitionRequest moves a group to a new state.
-message GroupTransitionRequest {
-  string group_id = 1;
-  int32 state = 2;
-  string reason = 3;
+message StawiJobRunRequest {
+  StawiJob job = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // Most items to process in this run. 0 uses the service default.
+  int32 batch_size = 2 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 5000
+  ];
 }
 
-// GroupPeriodRequest addresses a period within a group.
-message GroupPeriodRequest {
-  string group_id = 1;
-  string period_id = 2;
+message StawiJobRunResponse {
+  int32 processed = 1;
+  // True when the batch was full and more work may be waiting.
+  bool more = 2;
 }
 
-// GroupMemberRequest addresses a member within a group.
-message GroupMemberRequest {
-  string group_id = 1;
-  string member_id = 2;
-}
-
-// GroupMemberLoanOffersRequest generates offers for a member.
-message GroupMemberLoanOffersRequest {
-  string group_id = 1;
-  string member_id = 2;
-  string loan_window_id = 3;
-}
-
-// GroupLoanOfferRequest acts on an accepted loan offer.
 // LoanOfferRespondRequest answers a loan offer. response is 1 accept,
 // 2 reject; other answers are recorded as given and close the offer.
 message LoanOfferRespondRequest {
-  string group_id = 1;
-  string offer_id = 2;
-  int32 response = 3;
+  string group_id = 1 [(buf.validate.field).string.min_len = 1];
+  string offer_id = 2 [(buf.validate.field).string.min_len = 1];
+  int32 response = 3 [(buf.validate.field).int32 = {
+    gte: 1
+    lte: 5
+  }];
 }
 
-message GroupLoanOfferRequest {
-  string group_id = 1;
-  string offer_id = 2;
-}
-
-// GroupLoanRequest addresses a loan account within a group.
-message GroupLoanRequest {
-  string group_id = 1;
-  string loan_id = 2;
-}
-
-// PaymentIdentifySenderRequest resolves the payer of an inbound payment.
-message PaymentIdentifySenderRequest {
-  string sender_identifier = 1;
-  string group_id = 2;
-  string reference = 3;
-}
-
-// GroupPaymentAllocateRequest allocates an identified payment.
-message GroupPaymentAllocateRequest {
-  string group_id = 1;
-  string transaction_id = 2;
-}
-
-// GroupPaymentConfirmRequest confirms a payment by transaction.
-message GroupPaymentConfirmRequest {
-  string group_id = 1;
-  string transaction_id = 2;
-}
-
-// GroupSuspenseDepositRequest records a deposit into suspense.
-message GroupSuspenseDepositRequest {
-  string group_id = 1;
-  string membership_id = 2;
-  string transaction_id = 3;
-  int64 amount = 4;
-  string currency = 5;
-  string reference = 6;
-}
-
-// GroupMemberApplySuspenseRequest applies suspense funds to obligations.
-message GroupMemberApplySuspenseRequest {
-  string group_id = 1;
-  string member_id = 2;
-  int64 max_amount = 3;
-}
-
-// GroupLedgerTransferRequest moves money between ledger accounts.
-message GroupLedgerTransferRequest {
-  string group_id = 1;
-  string from_account = 2;
-  string to_account = 3;
-  int64 amount = 4;
-  string currency = 5;
-  int32 type = 6;
-  string reference = 7;
-}
-
-// GroupLedgerTransferFailureRequest records a failed transfer.
-message GroupLedgerTransferFailureRequest {
-  string group_id = 1;
-  string reference = 2;
-  string reason = 3;
-}
-
-// ObligationRequest addresses a single obligation.
-message ObligationRequest {
-  string obligation_id = 1;
-}
-
-// CallbackResponse is the loosely typed JSON body every callback returns.
-message CallbackResponse {
+// LoanOfferRespondResponse reports the offer after the answer: an accepted
+// offer whose loan is still being made reads origination_status "pending".
+message LoanOfferRespondResponse {
   google.protobuf.Struct data = 1;
 }
 
-// StawiWorkflowService is the permission manifest for stawi's workflow
-// callback routes. It is registered with frame for OPL generation and
-// permission publishing; the routes themselves are served by an
-// http.ServeMux in apps/stawi.
-service StawiWorkflowService {
+// StawiService is stawi's API and the permission manifest of the
+// service_stawi namespace.
+service StawiService {
   option (common.v1.service_permissions) = {
     namespace: "service_stawi"
     permissions: [
-      "stawi_group_view",
-      "stawi_group_manage",
-      "stawi_tenure_manage",
-      "stawi_period_manage",
-      "stawi_obligation_view",
-      "stawi_obligation_manage",
-      "stawi_loan_window_manage",
-      "stawi_loan_offer_manage",
       "stawi_loan_offer_respond",
-      "stawi_loan_view",
-      "stawi_loan_fund",
-      "stawi_loan_create",
-      "stawi_loan_disburse",
-      "stawi_payment_view",
-      "stawi_payment_allocate",
-      "stawi_ledger_transfer"
+      "stawi_job_run"
     ]
     role_bindings: [
       {
         role: ROLE_OWNER
-        permissions: [
-          "stawi_group_view",
-          "stawi_group_manage",
-          "stawi_tenure_manage",
-          "stawi_period_manage",
-          "stawi_obligation_view",
-          "stawi_obligation_manage",
-          "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
-          "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
-          "stawi_loan_create",
-          "stawi_loan_disburse",
-          "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
-        ]
+        permissions: ["stawi_loan_offer_respond"]
       },
       {
         role: ROLE_ADMIN
-        permissions: [
-          "stawi_group_view",
-          "stawi_group_manage",
-          "stawi_tenure_manage",
-          "stawi_period_manage",
-          "stawi_obligation_view",
-          "stawi_obligation_manage",
-          "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
-          "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
-          "stawi_loan_create",
-          "stawi_loan_disburse",
-          "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
-        ]
+        permissions: ["stawi_loan_offer_respond"]
       },
       {
         role: ROLE_OPERATOR
-        permissions: [
-          "stawi_group_view",
-          "stawi_group_manage",
-          "stawi_tenure_manage",
-          "stawi_period_manage",
-          "stawi_obligation_view",
-          "stawi_obligation_manage",
-          "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
-          "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
-          "stawi_loan_create",
-          "stawi_loan_disburse",
-          "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
-        ]
-      },
-      {
-        role: ROLE_VIEWER
-        permissions: [
-          "stawi_group_view",
-          "stawi_obligation_view",
-          "stawi_loan_view",
-          "stawi_payment_view"
-        ]
+        permissions: ["stawi_loan_offer_respond"]
       },
       {
         role: ROLE_MEMBER
-        permissions: [
-          "stawi_loan_offer_respond",
-          "stawi_group_view",
-          "stawi_obligation_view",
-          "stawi_loan_view",
-          "stawi_payment_view"
-        ]
+        permissions: ["stawi_loan_offer_respond"]
       },
       {
         role: ROLE_SERVICE
         permissions: [
-          "stawi_group_view",
-          "stawi_group_manage",
-          "stawi_tenure_manage",
-          "stawi_period_manage",
-          "stawi_obligation_view",
-          "stawi_obligation_manage",
-          "stawi_loan_window_manage",
-          "stawi_loan_offer_manage",
           "stawi_loan_offer_respond",
-          "stawi_loan_view",
-          "stawi_loan_fund",
-          "stawi_loan_create",
-          "stawi_loan_disburse",
-          "stawi_payment_view",
-          "stawi_payment_allocate",
-          "stawi_ledger_transfer"
+          "stawi_job_run"
         ]
       }
     ]
   };
 
-  // --- Group lifecycle ---
-
-  rpc GroupCheckFormation(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_group_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/check-formation"
-      body: "*"
-    };
-  }
-  rpc GroupSetupLedger(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_group_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/setup-ledger"
-      body: "*"
-    };
-  }
-  rpc GroupRegisterLender(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_group_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/register-lender"
-      body: "*"
-    };
-  }
-  rpc GroupWelcome(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_group_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/welcome"
-      body: "*"
-    };
-  }
-  rpc GroupTransition(GroupTransitionRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_group_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/transition"
-      body: "*"
-    };
-  }
-  rpc GroupMembersList(GroupRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_group_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/members"};
-  }
-
-  // --- Tenure and period lifecycle ---
-
-  rpc TenureOpen(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_tenure_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/create-tenure"
-      body: "*"
-    };
-  }
-  rpc PeriodOpen(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_period_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/open-period"
-      body: "*"
-    };
-  }
-  rpc PeriodClose(GroupPeriodRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_period_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/periods/{period_id}/close"
-      body: "*"
-    };
-  }
-  rpc PeriodFreeze(GroupPeriodRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_period_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/periods/{period_id}/freeze"
-      body: "*"
-    };
-  }
-  rpc PeriodExtend(GroupPeriodRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_period_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/periods/{period_id}/extend"
-      body: "*"
-    };
-  }
-
-  // --- Obligations ---
-
-  rpc ObligationCalculate(GroupPeriodRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/periods/{period_id}/calculate-obligations"
-      body: "*"
-    };
-  }
-  rpc ObligationCalculatePenalties(GroupPeriodRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/periods/{period_id}/calculate-penalties"
-      body: "*"
-    };
-  }
-  rpc ObligationReconcilePeriod(GroupPeriodRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/periods/{period_id}/reconcile"
-      body: "*"
-    };
-  }
-  rpc ObligationOutstandingForPeriod(GroupPeriodRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/periods/{period_id}/outstanding-obligations"};
-  }
-  rpc ObligationCheckMember(GroupMemberRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/members/{member_id}/check-obligations"};
-  }
-  rpc ObligationStatus(ObligationRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_obligation_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/obligations/{obligation_id}/status"};
-  }
-
-  // --- Loan windows and offers ---
-
-  rpc LoanWindowEvaluate(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_window_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/evaluate-loan-window"
-      body: "*"
-    };
-  }
-  rpc LoanWindowOpen(GroupRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_window_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loan-window/open"
-      body: "*"
-    };
-  }
-  rpc LoanOffersGenerate(GroupMemberLoanOffersRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_offer_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/members/{member_id}/generate-loan-offers"
-      body: "*"
-    };
-  }
   // LoanOfferRespond records a member's answer to a loan offer. A member
   // answers only their own offers; staff and services may answer any.
-  rpc LoanOfferRespond(LoanOfferRespondRequest) returns (CallbackResponse) {
+  rpc LoanOfferRespond(LoanOfferRespondRequest) returns (LoanOfferRespondResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["stawi_loan_offer_respond"]
     };
@@ -482,135 +140,12 @@ service StawiWorkflowService {
       body: "*"
     };
   }
-  rpc LoanOffersExpire(GroupMemberRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_offer_manage"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/members/{member_id}/expire-loan-offers"
-      body: "*"
-    };
-  }
 
-  // --- Loan lifecycle ---
-
-  rpc LoanEligibilityCheck(GroupMemberRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
+  // StawiJobRun runs one batch of a periodic job. Called by the platform
+  // scheduler (trustage); nothing in the service runs on a timer.
+  rpc StawiJobRun(StawiJobRunRequest) returns (StawiJobRunResponse) {
     option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/members/{member_id}/loan-eligibility"};
-  }
-  rpc LoanFundingSource(GroupLoanOfferRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_fund"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loans/source-funding"
-      body: "*"
-    };
-  }
-  rpc LoanAccountCreate(GroupLoanOfferRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_create"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loans"
-      body: "*"
-    };
-  }
-  rpc LoanScheduleGenerate(GroupLoanRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_create"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loans/{loan_id}/generate-schedule"
-      body: "*"
-    };
-  }
-  rpc LoanDisburse(GroupLoanRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_loan_disburse"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/loans/{loan_id}/disburse"
-      body: "*"
-    };
-  }
-
-  // --- Payments and suspense ---
-
-  rpc PaymentIdentifySender(PaymentIdentifySenderRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/payments/identify-sender"
-      body: "*"
-    };
-  }
-  rpc PaymentAllocate(GroupPaymentAllocateRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/payments/allocate"
-      body: "*"
-    };
-  }
-  rpc PaymentConfirm(GroupPaymentConfirmRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/payments/{transaction_id}/confirm"
-      body: "*"
-    };
-  }
-  rpc SuspenseDeposit(GroupSuspenseDepositRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/suspense/deposit"
-      body: "*"
-    };
-  }
-  rpc SuspenseBalance(GroupMemberRequest) returns (CallbackResponse) {
-    option idempotency_level = NO_SIDE_EFFECTS;
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_view"]
-    };
-    option (google.api.http) = {get: "/api/v1/groups/{group_id}/members/{member_id}/suspense-balance"};
-  }
-  rpc SuspenseApply(GroupMemberApplySuspenseRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_payment_allocate"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/members/{member_id}/apply-suspense"
-      body: "*"
-    };
-  }
-
-  // --- Ledger ---
-
-  rpc LedgerTransfer(GroupLedgerTransferRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_ledger_transfer"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/ledger/transfer"
-      body: "*"
-    };
-  }
-  rpc LedgerTransferFailure(GroupLedgerTransferFailureRequest) returns (CallbackResponse) {
-    option (common.v1.method_permissions) = {
-      permissions: ["stawi_ledger_transfer"]
-    };
-    option (google.api.http) = {
-      post: "/api/v1/groups/{group_id}/ledger/transfer-failure"
-      body: "*"
+      permissions: ["stawi_job_run"]
     };
   }
 }

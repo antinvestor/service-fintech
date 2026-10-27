@@ -1,3 +1,31 @@
+## 0.6.6
+
+- `PayoutFailedApply` (`payout_outcome_apply`, operations only): undoes this
+  service's record of a payout the payment rail failed after accepting it.
+
+## 0.6.5
+
+- Team commission: `TeamCommissionSearch` and `TeamCommissionPayoutSearch`
+  (`commission_view`), and `TeamCommissionPayout` (`commission_payout`),
+  which pays part of a team's balance to an active member's own verified
+  mobile money.
+
+## 0.6.4
+
+- `LoanProductObject.agent_commission_percent`: the share of each
+  repayment's interest credited to the field team serving the borrower.
+
+## 0.6.3
+
+- `LoanManagementService.LoanAccountCancel`: closes a loan that was never
+  disbursed and releases its funding (`loan_manage`).
+- ROLE_OPERATOR holds `collection_manage`.
+
+## 0.6.2
+
+- `LoanJob.LOAN_JOB_PAID_OFF_NOTICES`: the scheduler retries pay-off notices
+  that did not reach downstream products.
+
 ## 0.6.1
 
 - `RepaymentObject.collected_by` and `RepaymentSearchRequest.collected_by`

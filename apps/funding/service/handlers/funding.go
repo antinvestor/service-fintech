@@ -16,6 +16,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/funding/connectrpc/go/v2/funding/v1/fundingv1connect"
@@ -41,6 +42,8 @@ type FundingServer struct {
 	iaBusiness business.InvestorAccountBusiness
 	faBusiness business.FundingAllocationBusiness
 	rdBusiness business.RepaymentDistributionBusiness
+	rcBusiness *business.LossRecoveryBusiness
+	reads      *business.InvestorReads
 
 	fundingv1connect.UnimplementedFundingServiceHandler
 }
@@ -49,12 +52,50 @@ func NewFundingServer(
 	iaBusiness business.InvestorAccountBusiness,
 	faBusiness business.FundingAllocationBusiness,
 	rdBusiness business.RepaymentDistributionBusiness,
+	rcBusiness *business.LossRecoveryBusiness,
+	reads *business.InvestorReads,
 ) fundingv1connect.FundingServiceHandler {
 	return &FundingServer{
 		iaBusiness: iaBusiness,
 		faBusiness: faBusiness,
 		rdBusiness: rdBusiness,
+		rcBusiness: rcBusiness,
+		reads:      reads,
 	}
+}
+
+// LoanRecoveryApply returns principal recovered from a written-off loan to
+// its funders. Only the loans service records recoveries.
+func (s *FundingServer) LoanRecoveryApply(
+	ctx context.Context,
+	req *fundingv1.LoanRecoveryApplyRequest,
+) (*fundingv1.LoanRecoveryApplyResponse, error) {
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	if s.rcBusiness == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "loss recovery is not configured")
+	}
+	currency := req.GetPrincipal().GetCurrencyCode()
+	result, err := s.rcBusiness.Apply(ctx, business.Recovery{
+		LoanRequestID: req.GetLoanRequestId(),
+		ProductID:     req.GetProductId(),
+		Reference:     req.GetRecoveryReference(),
+		Principal:     moneyx.ToSmallestUnit(req.GetPrincipal(), moneyx.Decimals(currency)),
+		Currency:      currency,
+	})
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	if result.Currency == "" {
+		result.Currency = currency
+	}
+	audit.WithResource(ctx, audit.ResourceFundingAllocation, req.GetLoanRequestId())
+	audit.WithAction(ctx, "recover_loss")
+	return &fundingv1.LoanRecoveryApplyResponse{
+		Recovered: moneyx.FromMinorUnitsByCurrency(result.Currency, result.Recovered),
+		Settled:   result.Settled,
+	}, nil
 }
 
 // --- InvestorAccount RPCs ---
@@ -89,6 +130,10 @@ func (s *FundingServer) InvestorAccountGet(
 	if err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
+	// An investor reads only their own account.
+	if checkErr := s.reads.CheckInvestor(ctx, result.InvestorID); checkErr != nil {
+		return nil, apperrors.CleanErr(checkErr)
+	}
 
 	return &fundingv1.InvestorAccountGetResponse{
 		Data: investorAccountToAPI(result),
@@ -100,6 +145,9 @@ func (s *FundingServer) InvestorAccountSearch(
 	req *fundingv1.InvestorAccountSearchRequest,
 	stream fundingv1connect.FundingServiceInvestorAccountSearchServerStream,
 ) error {
+	if checkErr := s.reads.CheckSearch(ctx, req.GetInvestorId()); checkErr != nil {
+		return apperrors.CleanErr(checkErr)
+	}
 	accounts, err := s.iaBusiness.Search(ctx, req)
 	if err != nil {
 		return apperrors.CleanErr(err)
@@ -113,14 +161,39 @@ func (s *FundingServer) InvestorAccountSearch(
 	return stream.Send(&fundingv1.InvestorAccountSearchResponse{Data: apiResults})
 }
 
+// InvestorStatement reports what moved an investor account's capital over a
+// period.
+func (s *FundingServer) InvestorStatement(
+	ctx context.Context,
+	req *fundingv1.InvestorStatementRequest,
+) (*fundingv1.InvestorStatementResponse, error) {
+	result, err := s.reads.Statement(ctx, req)
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	return &fundingv1.InvestorStatementResponse{
+		Account:   investorAccountToAPI(result.Account),
+		From:      result.From.Format(time.RFC3339),
+		To:        result.To.Format(time.RFC3339),
+		Entries:   result.Entries,
+		Totals:    result.Totals,
+		Truncated: result.Truncated,
+	}, nil
+}
+
 // --- Deposit / Withdraw RPCs ---
 
 func (s *FundingServer) InvestorDeposit(
 	ctx context.Context,
 	req *fundingv1.InvestorDepositRequest,
 ) (*fundingv1.InvestorDepositResponse, error) {
-	info, _ := connect.CallInfoForServerContext(ctx)
-	idemKey := info.RequestHeader().Get(idempotencyHeader)
+	// Capital arrives only from the payment rail: operations matches an
+	// investor's own payment to their account and records it here. A person
+	// recording a deposit would be typing money into the fund.
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	idemKey := requestIdempotencyKey(ctx, req.GetIdempotencyKey())
 	if idemKey == "" {
 		return nil, apperrors.CleanErr(business.ErrIdempotencyKeyRequired)
 	}
@@ -151,7 +224,16 @@ func (s *FundingServer) InvestorWithdraw(
 		return nil, apperrors.CleanErr(business.ErrIdempotencyKeyRequired)
 	}
 
-	if err := s.iaBusiness.Withdraw(ctx, req.GetAccountId(), req.GetAmount(), idemKey); err != nil {
+	// Only the account's own investor, or staff, may withdraw from it.
+	account, err := s.iaBusiness.Get(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	if checkErr := s.reads.CheckInvestor(ctx, account.InvestorID); checkErr != nil {
+		return nil, apperrors.CleanErr(checkErr)
+	}
+
+	if err = s.iaBusiness.Withdraw(ctx, req.GetAccountId(), req.GetAmount(), idemKey); err != nil {
 		return nil, apperrors.CleanErr(err)
 	}
 
@@ -222,6 +304,27 @@ func (s *FundingServer) AbsorbLoss(
 	}, nil
 }
 
+// FundingRelease gives back the capital reserved for a loan cancelled before
+// disbursement. Only the loans service cancels loans, so only an internal
+// caller may release their funding.
+func (s *FundingServer) FundingRelease(
+	ctx context.Context,
+	req *fundingv1.FundingReleaseRequest,
+) (*fundingv1.FundingReleaseResponse, error) {
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	released, currency, err := s.faBusiness.ReleaseForRequest(ctx, req.GetLoanRequestId())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceFundingAllocation, req.GetLoanRequestId())
+	audit.WithAction(ctx, "release")
+	return &fundingv1.FundingReleaseResponse{
+		Released: moneyx.FromMinorUnitsByCurrency(currency, released),
+	}, nil
+}
+
 // LoanRepaymentApply shares a loan repayment out to the loan's funders.
 func (s *FundingServer) LoanRepaymentApply(
 	ctx context.Context,
@@ -273,6 +376,24 @@ func (s *FundingServer) LoanRepaymentApply(
 // platform's own services may call.
 var errInternalOnly = apperrors.NewError(apperrors.Forbidden,
 	"this operation is performed by the lending services, not by a person")
+
+// PayoutFailedApply returns the funds of an investor withdrawal the payment
+// rail failed after it completed. Only operations calls it.
+func (s *FundingServer) PayoutFailedApply(
+	ctx context.Context,
+	req *fundingv1.PayoutFailedApplyRequest,
+) (*fundingv1.PayoutFailedApplyResponse, error) {
+	if err := requireInternalCaller(ctx); err != nil {
+		return nil, err
+	}
+	applied, err := s.iaBusiness.WithdrawalFailed(ctx, req.GetReference())
+	if err != nil {
+		return nil, apperrors.CleanErr(err)
+	}
+	audit.WithResource(ctx, audit.ResourceInvestorAccount, req.GetReference())
+	audit.WithAction(ctx, "withdrawal_failed")
+	return &fundingv1.PayoutFailedApplyResponse{Applied: applied}, nil
+}
 
 // requireInternalCaller admits only internal service accounts. The RPC
 // permission alone is not enough: operators hold fund_manage too.
@@ -381,4 +502,15 @@ func fundLoanResultToAPI(result *business.AllocationResult) *fundingv1.FundLoanR
 	}
 
 	return resp
+}
+
+// requestIdempotencyKey is the Idempotency-Key header when present,
+// otherwise the key the request body carries.
+func requestIdempotencyKey(ctx context.Context, bodyKey string) string {
+	if info, ok := connect.CallInfoForServerContext(ctx); ok {
+		if key := info.RequestHeader().Get(idempotencyHeader); key != "" {
+			return key
+		}
+	}
+	return bodyKey
 }

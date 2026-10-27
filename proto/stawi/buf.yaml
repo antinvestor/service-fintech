@@ -19,9 +19,6 @@ lint:
     - PACKAGE_NO_IMPORT_CYCLE
     - RPC_REQUEST_STANDARD_NAME
     - RPC_RESPONSE_STANDARD_NAME
-    # A permission manifest over an HTTP mux, not a served Connect API: many
-    # routes legitimately share the same loosely typed request/response shapes.
-    - RPC_REQUEST_RESPONSE_UNIQUE
 breaking:
   use:
     - FILE

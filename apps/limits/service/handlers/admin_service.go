@@ -36,6 +36,7 @@ type AdminService struct {
 	approval business.ApprovalBusiness
 	ledger   business.LedgerSearchBusiness
 	audit    business.AuditSearchBusiness
+	jobs     *business.LimitsJobs
 }
 
 // NewAdminService constructs a Connect handler.
@@ -48,6 +49,27 @@ func NewAdminService(
 	audit business.AuditSearchBusiness,
 ) *AdminService {
 	return &AdminService{policy: policy, approval: approval, ledger: ledger, audit: audit}
+}
+
+// WithJobs installs the periodic jobs the scheduler runs through
+// LimitsJobRun.
+func (s *AdminService) WithJobs(jobs *business.LimitsJobs) *AdminService {
+	s.jobs = jobs
+	return s
+}
+
+// LimitsJobRun runs one pass of a periodic job for the platform scheduler.
+func (s *AdminService) LimitsJobRun(
+	ctx context.Context,
+	req *limitsv1.LimitsJobRunRequest,
+) (*limitsv1.LimitsJobRunResponse, error) {
+	if s.jobs == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, "limits jobs are not configured")
+	}
+	if err := s.jobs.Run(ctx, req.GetJob()); err != nil {
+		return nil, mapBusinessErr(err)
+	}
+	return &limitsv1.LimitsJobRunResponse{}, nil
 }
 
 // PolicySave creates or updates a policy.
@@ -177,8 +199,11 @@ func mapBusinessErr(err error) error {
 		return connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	case errors.Is(err, business.ErrPolicyVersionConflict):
 		return connect.NewError(connect.CodeAborted, err.Error()).WithCause(err)
-	case errors.Is(err, business.ErrPolicyScopeForbidden):
+	case errors.Is(err, business.ErrPolicyScopeForbidden),
+		errors.Is(err, business.ErrJobCallerNotInternal):
 		return connect.NewError(connect.CodePermissionDenied, err.Error()).WithCause(err)
+	case errors.Is(err, business.ErrUnknownJob):
+		return connect.NewError(connect.CodeInvalidArgument, err.Error()).WithCause(err)
 	default:
 		return connect.NewError(connect.CodeInternal, err.Error()).WithCause(err)
 	}

@@ -140,6 +140,25 @@ void main() {
     expect(find.byKey(const Key('list-error-view')), findsNothing);
   });
 
+  // On a phone the table's columns do not fit: clients are tappable tiles,
+  // and onboarding stays one tap away.
+  testWidgets('a phone lists clients as tiles and keeps onboarding', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_host(calls: [], saved: [], canManage: true));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DataTable), findsNothing);
+    expect(find.text('Client 0'), findsOneWidget);
+    expect(find.byKey(const Key('compact-list-add')), findsOneWidget);
+    expect(find.byKey(const Key('load-more-action')), findsOneWidget);
+  });
+
   testWidgets('onboarding is hidden without client_manage', (tester) async {
     _wide(tester);
     await tester.pumpWidget(_host(calls: [], saved: []));

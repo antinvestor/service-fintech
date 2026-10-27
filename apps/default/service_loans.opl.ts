@@ -55,6 +55,9 @@ class service_loans implements Namespace {
     granted_portfolio_export: (profile_user | service_loans)[]
     granted_loan_view_own: (profile_user | service_loans)[]
     granted_loan_job_run: (profile_user | service_loans)[]
+    granted_commission_view: (profile_user | service_loans)[]
+    granted_commission_payout: (profile_user | service_loans)[]
+    granted_payout_outcome_apply: (profile_user | service_loans)[]
   }
 
   permits = {
@@ -194,6 +197,7 @@ class service_loans implements Namespace {
     collection_manage: (ctx: Context): boolean =>
       this.related.admin.includes(ctx.subject) ||
       this.related.member.includes(ctx.subject) ||
+      this.related.operator.includes(ctx.subject) ||
       this.related.owner.includes(ctx.subject) ||
       this.related.service.includes(ctx.subject) ||
       this.related.granted_collection_manage.includes(ctx.subject),
@@ -219,5 +223,21 @@ class service_loans implements Namespace {
     loan_job_run: (ctx: Context): boolean =>
       this.related.service.includes(ctx.subject) ||
       this.related.granted_loan_job_run.includes(ctx.subject),
+
+    commission_view: (ctx: Context): boolean =>
+      this.related.admin.includes(ctx.subject) ||
+      this.related.operator.includes(ctx.subject) ||
+      this.related.owner.includes(ctx.subject) ||
+      this.related.viewer.includes(ctx.subject) ||
+      this.related.granted_commission_view.includes(ctx.subject),
+
+    commission_payout: (ctx: Context): boolean =>
+      this.related.admin.includes(ctx.subject) ||
+      this.related.owner.includes(ctx.subject) ||
+      this.related.granted_commission_payout.includes(ctx.subject),
+
+    payout_outcome_apply: (ctx: Context): boolean =>
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_payout_outcome_apply.includes(ctx.subject),
   }
 }

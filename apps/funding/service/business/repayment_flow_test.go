@@ -190,3 +190,84 @@ func (s *fundingSuite) TestLossIsAbsorbedOnceAgainstWhatIsStillLent() {
 	}
 	s.EqualValues(4_500, toCapital)
 }
+
+// A loan cancelled before disbursement gives its funders back exactly what
+// was reserved for it, once, however often the release is asked for.
+func (s *fundingSuite) TestReleaseGivesBackReservedCapitalOnce() {
+	e := s.newEnv()
+	investor, _ := e.fundLoan(s, "lr-cancel")
+	fa := business.NewFundingAllocationBusiness(e.ctx, nil,
+		repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan),
+		repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan),
+		repository.NewLossAbsorptionRepository(e.ctx, e.dbPool, e.workMan),
+		nil, e.iaRepo,
+		repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan),
+		nil, &recordingPoster{})
+
+	released, currency, err := fa.ReleaseForRequest(e.ctx, "lr-cancel")
+	s.Require().NoError(err)
+	s.EqualValues(10_000, released, "the platform's 1 000 and the investor's 9 000")
+	s.Equal("KES", currency)
+
+	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Zero(acct.ReservedBalance, "nothing stays reserved for a loan that will not be disbursed")
+	s.EqualValues(50_000, acct.AvailableBalance)
+
+	again, _, err := fa.ReleaseForRequest(e.ctx, "lr-cancel")
+	s.Require().NoError(err)
+	s.Zero(again)
+	acct2, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Equal(acct.AvailableBalance, acct2.AvailableBalance, "a repeat gives back nothing more")
+}
+
+// Principal recovered after a write-off goes back to the funders who
+// absorbed the loss, most senior first; what exceeds the loss they carry is
+// the lender's, and a repeated recovery gives back nothing more.
+func (s *fundingSuite) TestRecoveryReturnsTheLossSeniorFirstOnce() {
+	e := s.newEnv()
+	investor, _ := e.fundLoan(s, "lr-recover")
+	poster := &recordingPoster{}
+	lossRepo := repository.NewLossAbsorptionRepository(e.ctx, e.dbPool, e.workMan)
+	ftRepo := repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan)
+	fa := business.NewFundingAllocationBusiness(e.ctx, nil,
+		repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan),
+		repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan),
+		lossRepo, nil, e.iaRepo, ftRepo, nil, poster)
+	_, err := fa.AbsorbLoss(e.ctx, business.LossApplication{
+		LoanRequestID: "lr-recover", ProductID: "prod", Amount: 10_000, Currency: "KES"})
+	s.Require().NoError(err)
+	lost, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(9_000), lost.TotalLost)
+
+	rc := business.NewLossRecoveryBusiness(lossRepo,
+		repository.NewLossRecoveryRepository(e.ctx, e.dbPool, e.workMan), ftRepo, poster)
+
+	first, err := rc.Apply(e.ctx, business.Recovery{LoanRequestID: "lr-recover", ProductID: "prod",
+		Reference: "recovery:r1", Principal: 4_000, Currency: "KES"})
+	s.Require().NoError(err)
+	s.EqualValues(4_000, first.Recovered, "the senior investor tranche is repaid first")
+	s.True(first.Settled)
+	after, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.EqualValues(5_000, after.TotalLost)
+	s.Equal(lost.AvailableBalance+4_000, after.AvailableBalance)
+
+	again, err := rc.Apply(e.ctx, business.Recovery{LoanRequestID: "lr-recover", ProductID: "prod",
+		Reference: "recovery:r1", Principal: 4_000, Currency: "KES"})
+	s.Require().NoError(err)
+	s.Equal(first.Recovered, again.Recovered)
+	same, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Equal(after.AvailableBalance, same.AvailableBalance, "a repeat gives back nothing more")
+
+	rest, err := rc.Apply(e.ctx, business.Recovery{LoanRequestID: "lr-recover", ProductID: "prod",
+		Reference: "recovery:r2", Principal: 7_000, Currency: "KES"})
+	s.Require().NoError(err)
+	s.EqualValues(6_000, rest.Recovered, "investor's last 5 000, then the platform's first-loss 1 000")
+	final, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Zero(final.TotalLost)
+}

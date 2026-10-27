@@ -31,6 +31,16 @@ abstract final class FundingService {
     fundingv1funding.InvestorAccountSearchResponse.new,
   );
 
+  /// InvestorStatement reports what moved an investor account's capital over
+  /// a period. Staff read any account; an investor reads only their own.
+  static const investorStatement = connect.Spec(
+    '/$name/InvestorStatement',
+    connect.StreamType.unary,
+    fundingv1funding.InvestorStatementRequest.new,
+    fundingv1funding.InvestorStatementResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
   static const investorDeposit = connect.Spec(
     '/$name/InvestorDeposit',
     connect.StreamType.unary,
@@ -59,6 +69,16 @@ abstract final class FundingService {
     fundingv1funding.AbsorbLossResponse.new,
   );
 
+  /// FundingRelease returns the capital reserved for a loan request whose
+  /// loan was cancelled before disbursement. Repeating it releases nothing
+  /// more.
+  static const fundingRelease = connect.Spec(
+    '/$name/FundingRelease',
+    connect.StreamType.unary,
+    fundingv1funding.FundingReleaseRequest.new,
+    fundingv1funding.FundingReleaseResponse.new,
+  );
+
   /// LoanRepaymentApply shares a loan repayment out to the loan's funders:
   /// principal back to their capital, interest net of fee and tax as income.
   static const loanRepaymentApply = connect.Spec(
@@ -66,5 +86,23 @@ abstract final class FundingService {
     connect.StreamType.unary,
     fundingv1funding.LoanRepaymentApplyRequest.new,
     fundingv1funding.LoanRepaymentApplyResponse.new,
+  );
+
+  /// LoanRecoveryApply returns principal recovered from a written-off loan to
+  /// the funders who absorbed its loss, most senior tranche first.
+  static const loanRecoveryApply = connect.Spec(
+    '/$name/LoanRecoveryApply',
+    connect.StreamType.unary,
+    fundingv1funding.LoanRecoveryApplyRequest.new,
+    fundingv1funding.LoanRecoveryApplyResponse.new,
+  );
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  static const payoutFailedApply = connect.Spec(
+    '/$name/PayoutFailedApply',
+    connect.StreamType.unary,
+    fundingv1funding.PayoutFailedApplyRequest.new,
+    fundingv1funding.PayoutFailedApplyResponse.new,
   );
 }

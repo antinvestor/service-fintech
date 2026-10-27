@@ -16,9 +16,17 @@ package business
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"strings"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	paymentv1 "buf.build/gen/go/antinvestor/payment/protocolbuffers/go/v1"
+
 	loansv1 "buf.build/gen/go/antinvestor/loans/protocolbuffers/go/loans/v1"
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
+	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/util"
 
 	"github.com/antinvestor/service-fintech/apps/loans/service/models"
@@ -27,11 +35,13 @@ import (
 
 // collectionPromptStatus is the state a freshly raised prompt is in: the
 // borrower has been asked, and nothing has been collected yet. The repayment
-// arrives later through RepaymentRecord, on its own idempotency key.
+// arrives later from the payment rail, which matches the prompt's money to
+// the loan the prompt names.
 const collectionPromptStatus = "PENDING"
 
-// CollectionBusiness asks a borrower to pay. It raises the prompt; it does not
-// move money — the payment that answers a prompt lands as a repayment.
+// CollectionBusiness asks a borrower to pay. It raises a payment prompt on the
+// borrower's own mobile number; it does not move money — the payment that
+// answers a prompt reaches the loan through the payment rail.
 type CollectionBusiness interface {
 	Initiate(ctx context.Context, req *loansv1.InitiateCollectionRequest) (*loansv1.InitiateCollectionResponse, error)
 }
@@ -42,6 +52,7 @@ type collectionBusiness struct {
 	notifier        *LoanNotifier
 	scope           *ReadScope
 	contacts        PayoutDestinationChecker
+	payments        paymentv1connect.PaymentServiceClient
 }
 
 func NewCollectionBusiness(
@@ -55,6 +66,7 @@ func NewCollectionBusiness(
 	return &collectionBusiness{
 		scope:           o.scope,
 		contacts:        o.payoutChecker,
+		payments:        o.payments,
 		loanAccountRepo: loanAccountRepo,
 		loanBalanceRepo: loanBalanceRepo,
 		notifier:        notifier,
@@ -89,14 +101,17 @@ func (b *collectionBusiness) Initiate(
 	if !isRepayableStatus(la.Status) {
 		return nil, ErrLoanNotRepayable
 	}
-	contactID := strings.TrimSpace(req.GetContactId())
-	if contactID != "" {
-		if b.contacts == nil {
-			return nil, ErrPayoutDestinationUnverifiable
-		}
-		if err = b.contacts.ContactOfClient(ctx, la.ClientID, contactID); err != nil {
-			return nil, err
-		}
+	if b.payments == nil {
+		return nil, ErrCollectionPromptUnavailable
+	}
+	if b.contacts == nil {
+		return nil, ErrPayoutDestinationUnverifiable
+	}
+	// The prompt goes to the borrower's own verified mobile number: the one
+	// named, or their first when none is.
+	profileID, contactID, err := b.contacts.CollectionContact(ctx, la.ClientID, strings.TrimSpace(req.GetContactId()))
+	if err != nil {
+		return nil, err
 	}
 
 	amount, err := collectionAmount(req, la.CurrencyCode)
@@ -117,18 +132,48 @@ func (b *collectionBusiness) Initiate(
 	}
 
 	// The prompt id is derived from the caller's idempotency key, so repeating
-	// the request identifies the same prompt instead of raising a second one.
-	promptID := "collection:" + la.GetID() + ":" + req.GetIdempotencyKey()
+	// the request names the same prompt and the payment service does not
+	// push the borrower a second time.
+	promptID := collectionPromptID(la.GetID(), req.GetIdempotencyKey())
+
+	// The extras travel with the money: the rail matches the payment that
+	// answers this prompt to the loan and product named here.
+	extra := data.JSONMap{
+		"product_id":      la.ProductID,
+		"loan_account_id": la.GetID(),
+		"reference_id":    la.GetID(),
+		"purpose":         "loan_collection",
+	}
+	if _, err = b.payments.InitiatePrompt(ctx, &paymentv1.InitiatePromptRequest{
+		Id:     promptID,
+		Source: &commonv1.ContactLink{ProfileId: profileID, ContactId: contactID},
+		Amount: models.MinorUnitsToMoney(amount, la.CurrencyCode),
+		Extra:  extra.ToProtoStruct(),
+	}); err != nil {
+		logger.WithError(err).WithField("loan_id", la.GetID()).Error("payment prompt could not be raised")
+		return nil, fmt.Errorf("raise payment prompt: %w", err)
+	}
 
 	b.notifier.NotifyCollectionRequested(ctx, la, amount, contactID, promptID)
 
-	logger.WithField("loan_id", la.GetID()).Info("collection prompt raised")
+	logger.WithField("loan_id", la.GetID()).WithField("prompt_id", promptID).Info("collection prompt raised")
 
 	return &loansv1.InitiateCollectionResponse{
 		PaymentPromptId: promptID,
 		Status:          collectionPromptStatus,
 	}, nil
 }
+
+// collectionPromptID is the payment prompt id for one collection request:
+// stable for a loan and idempotency key, and short enough for the payment
+// service's ids.
+func collectionPromptID(loanID, idempotencyKey string) string {
+	sum := sha256.Sum256([]byte(loanID + ":" + idempotencyKey))
+	return "col" + hex.EncodeToString(sum[:])[:collectionPromptIDHexLen]
+}
+
+// collectionPromptIDHexLen keeps prompt ids within 40 characters.
+const collectionPromptIDHexLen = 32
 
 // collectionAmount reads the amount to collect: collection_amount when set
 // (it must be in the loan's currency), otherwise the deprecated bare decimal.

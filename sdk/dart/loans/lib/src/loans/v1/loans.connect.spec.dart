@@ -124,6 +124,15 @@ abstract final class LoanManagementService {
     loansv1loans.LoanAccountCreateResponse.new,
   );
 
+  /// LoanAccountCancel closes a loan that was opened but never disbursed and
+  /// gives its funders back the capital reserved for it.
+  static const loanAccountCancel = connect.Spec(
+    '/$name/LoanAccountCancel',
+    connect.StreamType.unary,
+    loansv1loans.LoanAccountCancelRequest.new,
+    loansv1loans.LoanAccountCancelResponse.new,
+  );
+
   /// LoanAccountGet retrieves a loan account by its ID.
   static const loanAccountGet = connect.Spec(
     '/$name/LoanAccountGet',
@@ -306,6 +315,33 @@ abstract final class LoanManagementService {
     loansv1loans.InitiateCollectionResponse.new,
   );
 
+  /// TeamCommissionSearch lists teams' commission balances.
+  static const teamCommissionSearch = connect.Spec(
+    '/$name/TeamCommissionSearch',
+    connect.StreamType.server,
+    loansv1loans.TeamCommissionSearchRequest.new,
+    loansv1loans.TeamCommissionSearchResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
+  /// TeamCommissionPayout pays a team's accrued commission to one of its
+  /// members' own verified mobile money.
+  static const teamCommissionPayout = connect.Spec(
+    '/$name/TeamCommissionPayout',
+    connect.StreamType.unary,
+    loansv1loans.TeamCommissionPayoutRequest.new,
+    loansv1loans.TeamCommissionPayoutResponse.new,
+  );
+
+  /// TeamCommissionPayoutSearch lists a team's commission payouts.
+  static const teamCommissionPayoutSearch = connect.Spec(
+    '/$name/TeamCommissionPayoutSearch',
+    connect.StreamType.server,
+    loansv1loans.TeamCommissionPayoutSearchRequest.new,
+    loansv1loans.TeamCommissionPayoutSearchResponse.new,
+    idempotency: connect.Idempotency.noSideEffects,
+  );
+
   /// LoanJobRun runs one batch of a periodic job. Called by the platform
   /// scheduler (trustage); only service accounts hold the permission.
   static const loanJobRun = connect.Spec(
@@ -313,6 +349,15 @@ abstract final class LoanManagementService {
     connect.StreamType.unary,
     loansv1loans.LoanJobRunRequest.new,
     loansv1loans.LoanJobRunResponse.new,
+  );
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  static const payoutFailedApply = connect.Spec(
+    '/$name/PayoutFailedApply',
+    connect.StreamType.unary,
+    loansv1loans.PayoutFailedApplyRequest.new,
+    loansv1loans.PayoutFailedApplyResponse.new,
   );
 
   /// LoanStatusChangeSearch retrieves status change audit trail for a loan.

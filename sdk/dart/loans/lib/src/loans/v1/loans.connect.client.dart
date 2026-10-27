@@ -246,6 +246,25 @@ extension type LoanManagementServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// LoanAccountCancel closes a loan that was opened but never disbursed and
+  /// gives its funders back the capital reserved for it.
+  Future<loansv1loans.LoanAccountCancelResponse> loanAccountCancel(
+    loansv1loans.LoanAccountCancelRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LoanManagementService.loanAccountCancel,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// LoanAccountGet retrieves a loan account by its ID.
   Future<loansv1loans.LoanAccountGetResponse> loanAccountGet(
     loansv1loans.LoanAccountGetRequest input, {
@@ -626,6 +645,61 @@ extension type LoanManagementServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// TeamCommissionSearch lists teams' commission balances.
+  Stream<loansv1loans.TeamCommissionSearchResponse> teamCommissionSearch(
+    loansv1loans.TeamCommissionSearchRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).server(
+      specs.LoanManagementService.teamCommissionSearch,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// TeamCommissionPayout pays a team's accrued commission to one of its
+  /// members' own verified mobile money.
+  Future<loansv1loans.TeamCommissionPayoutResponse> teamCommissionPayout(
+    loansv1loans.TeamCommissionPayoutRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LoanManagementService.teamCommissionPayout,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// TeamCommissionPayoutSearch lists a team's commission payouts.
+  Stream<loansv1loans.TeamCommissionPayoutSearchResponse> teamCommissionPayoutSearch(
+    loansv1loans.TeamCommissionPayoutSearchRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).server(
+      specs.LoanManagementService.teamCommissionPayoutSearch,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// LoanJobRun runs one batch of a periodic job. Called by the platform
   /// scheduler (trustage); only service accounts hold the permission.
   Future<loansv1loans.LoanJobRunResponse> loanJobRun(
@@ -637,6 +711,25 @@ extension type LoanManagementServiceClient (connect.Transport _transport) {
   }) {
     return connect.Client(_transport).unary(
       specs.LoanManagementService.loanJobRun,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  Future<loansv1loans.PayoutFailedApplyResponse> payoutFailedApply(
+    loansv1loans.PayoutFailedApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.LoanManagementService.payoutFailedApply,
       input,
       signal: signal,
       headers: headers,

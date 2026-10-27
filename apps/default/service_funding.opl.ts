@@ -35,6 +35,7 @@ class service_funding implements Namespace {
     granted_investor_account_view: (profile_user | service_funding)[]
     granted_investor_account_manage: (profile_user | service_funding)[]
     granted_fund_manage: (profile_user | service_funding)[]
+    granted_payout_outcome_apply: (profile_user | service_funding)[]
   }
 
   permits = {
@@ -59,5 +60,9 @@ class service_funding implements Namespace {
       this.related.owner.includes(ctx.subject) ||
       this.related.service.includes(ctx.subject) ||
       this.related.granted_fund_manage.includes(ctx.subject),
+
+    payout_outcome_apply: (ctx: Context): boolean =>
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_payout_outcome_apply.includes(ctx.subject),
   }
 }

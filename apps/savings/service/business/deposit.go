@@ -15,17 +15,19 @@
 package business
 
 import (
+	"strings"
+
 	"context"
 	"errors"
 	"fmt"
 	"strconv"
 
+	"github.com/pitabwire/frame/v3/security"
+
 	"github.com/antinvestor/service-fintech/pkg/transferorder"
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
-	limitsv1 "buf.build/gen/go/antinvestor/limits/protocolbuffers/go/limits/v1"
 	"buf.build/gen/go/antinvestor/operations/connectrpc/go/v2/operations/v1/operationsv1connect"
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	savingsv1 "buf.build/gen/go/antinvestor/savings/protocolbuffers/go/savings/v1"
@@ -37,7 +39,6 @@ import (
 	"github.com/antinvestor/service-fintech/apps/savings/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/constants"
-	"github.com/antinvestor/service-fintech/pkg/limits"
 )
 
 type DepositBusiness interface {
@@ -51,13 +52,10 @@ type DepositBusiness interface {
 }
 
 type depositBusiness struct {
-	depRepo           repository.DepositRepository
-	saRepo            repository.SavingsAccountRepository
-	operationsCli     operationsv1connect.OperationsServiceClient
-	auditWriter       *audit.Writer
-	limitsCli         limitsv1connect.LimitsServiceClient
-	limitsGateEnabled bool
-	limitsGateMode    string
+	depRepo       repository.DepositRepository
+	saRepo        repository.SavingsAccountRepository
+	operationsCli operationsv1connect.OperationsServiceClient
+	auditWriter   *audit.Writer
 }
 
 func NewDepositBusiness(
@@ -66,18 +64,12 @@ func NewDepositBusiness(
 	saRepo repository.SavingsAccountRepository,
 	operationsCli operationsv1connect.OperationsServiceClient,
 	auditWriter *audit.Writer,
-	limitsCli limitsv1connect.LimitsServiceClient,
-	limitsGateEnabled bool,
-	limitsGateMode string,
 ) DepositBusiness {
 	return &depositBusiness{
-		depRepo:           depRepo,
-		saRepo:            saRepo,
-		operationsCli:     operationsCli,
-		auditWriter:       auditWriter,
-		limitsCli:         limitsCli,
-		limitsGateEnabled: limitsGateEnabled,
-		limitsGateMode:    limitsGateMode,
+		depRepo:       depRepo,
+		saRepo:        saRepo,
+		operationsCli: operationsCli,
+		auditWriter:   auditWriter,
 	}
 }
 
@@ -94,6 +86,16 @@ func (b *depositBusiness) Record(
 	ctx context.Context,
 	req *savingsv1.DepositRecordRequest,
 ) (*savingsv1.DepositObject, error) {
+	// A deposit is the saver's own payment, recorded by the payment rail
+	// (operations matches it to their account). Nobody records one by hand,
+	// and no one takes cash on a saver's behalf.
+	if claims := security.ClaimsFromContext(ctx); claims == nil || !claims.IsInternalSystem() {
+		return nil, ErrDepositRecordInternalOnly
+	}
+	if strings.EqualFold(strings.TrimSpace(req.GetChannel()), depositChannelCash) {
+		return nil, ErrCashDepositRefused
+	}
+
 	idempotencyKey := req.GetIdempotencyKey()
 	if idempotencyKey == "" {
 		return nil, ErrIdempotencyKeyRequired
@@ -109,50 +111,13 @@ func (b *depositBusiness) Record(
 		return existing.ToAPI(), nil
 	}
 
-	if !b.limitsGateEnabled || b.limitsCli == nil || b.limitsGateMode == "off" {
-		return b.recordInner(ctx, req)
-	}
-
-	sa, err := b.saRepo.GetByID(ctx, req.GetSavingsAccountId())
-	if err != nil {
-		return nil, ErrSavingsAccountNotFound
-	}
-	amountMinor, amountErr := amountInAccountCurrency(req.GetAmount(), sa.CurrencyCode)
-	if amountErr != nil {
-		return nil, amountErr
-	}
-
-	intent := &limitsv1.LimitIntent{
-		Action:   limitsv1.LimitAction_LIMIT_ACTION_SAVINGS_DEPOSIT,
-		TenantId: sa.BankID,
-		Amount:   moneyx.FromMinorUnitsByCurrency(sa.CurrencyCode, amountMinor),
-		// The limits service requires the client for savings actions: the
-		// account owner. A group owner is not a field client, so an enforce
-		// policy that filters on client attributes fails closed for it; keep
-		// client-tier filters off savings actions that group accounts use.
-		Subjects: []*limitsv1.SubjectRef{
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_CLIENT, Id: sa.OwnerID},
-			{Type: limitsv1.SubjectType_SUBJECT_TYPE_ACCOUNT, Id: sa.GetID()},
-		},
-	}
-
-	var result *savingsv1.DepositObject
-	gateErr := limits.Gate(ctx, b.limitsCli, intent, idempotencyKey, limits.ParseMode(b.limitsGateMode),
-		func(innerCtx context.Context, reservationID string) error {
-			util.Log(innerCtx).With("limits_reservation_id", reservationID).Info("deposit gated by limits")
-			inner, innerErr := b.recordInner(innerCtx, req)
-			if innerErr != nil {
-				return innerErr
-			}
-			result = inner
-			return nil
-		},
-		limits.InPartition(sa.TenantID, sa.PartitionID),
-	)
-	return result, gateErr
+	// No transaction limit applies here: the money has already arrived on
+	// the rail, so refusing to apply it would only strand the saver's
+	// payment. Limits gate money leaving, not money received.
+	return b.recordInner(ctx, req)
 }
 
-// recordInner is the pre-Gate body of Record: validation, the synchronous
+// recordInner is the body of Record: validation, the synchronous
 // idempotency claim, the ledger posting, and settlement.
 func (b *depositBusiness) recordInner(
 	ctx context.Context,

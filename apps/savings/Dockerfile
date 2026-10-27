@@ -14,6 +14,7 @@ RUN go mod download
 
 COPY ./apps/savings ./apps/savings
 COPY ./pkg ./pkg
+COPY ./products/savings/workflows ./products/savings/workflows
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -trimpath \
@@ -32,4 +33,6 @@ COPY --from=builder /app/binary /service
 # SQL migrations run from the setup job; the image must carry them.
 COPY --from=builder /app/apps/savings/migrations /migrations
 ENV MIGRATION_PATH=/migrations
+# Trustage workflow definitions the setup job registers.
+COPY --from=builder /app/products/savings/workflows /workflows
 ENTRYPOINT ["/service"]

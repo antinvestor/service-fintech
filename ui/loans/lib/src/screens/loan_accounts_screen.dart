@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:antinvestor_api_loans/antinvestor_api_loans.dart';
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import '../utils/money_compat.dart';
+import 'package:antinvestor_ui_core/responsive/breakpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/current_agent_provider.dart';
 import '../providers/loan_account_providers.dart';
+import '../widgets/compact_entity_list.dart';
 import '../widgets/list_state_view.dart';
 import '../widgets/load_more_action.dart';
 import '../widgets/loan_status_badge.dart';
@@ -90,128 +92,150 @@ class _LoanAccountsScreenState extends ConsumerState<LoanAccountsScreen> {
         final loans = _delinquentOnly
             ? sortByDaysPastDue(page.items)
             : page.items;
-        return AdminEntityListPage<LoanAccountObject>(
-          title: 'Loan Accounts',
-          breadcrumbs: const ['Loans', 'Accounts'],
-          columns: [
-            const DataColumn(label: Text('CLIENT')),
-            const DataColumn(label: Text('PRINCIPAL')),
-            const DataColumn(label: Text('TERM')),
-            const DataColumn(label: Text('STATUS')),
-            if (_delinquentOnly)
-              const DataColumn(label: Text('DAYS PAST DUE'), numeric: true),
-          ],
-          items: loans,
-          onSearch: _onSearch,
-          actions: [
-            Tooltip(
-              message: agentId.isEmpty
-                  ? 'Your agent id is not known in this session'
-                  : 'Only loans you originated',
-              child: FilterChip(
-                key: const Key('my-portfolio-filter'),
-                label: const Text('My portfolio'),
-                selected: filterMine,
-                onSelected: agentId.isEmpty
-                    ? null
-                    : (v) => setState(() {
-                        _myPortfolio = v;
-                        _limit = kLoanListPageSize;
-                      }),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: 'Delinquent loans, most overdue first',
-              child: FilterChip(
-                key: const Key('delinquent-filter'),
-                label: const Text('Delinquent'),
-                selected: _delinquentOnly,
-                onSelected: (v) => setState(() {
-                  _delinquentOnly = v;
-                  _limit = kLoanListPageSize;
-                }),
-              ),
-            ),
-            const SizedBox(width: 8),
-            DropdownButton<LoanStatus?>(
-              value: _delinquentOnly
-                  ? LoanStatus.LOAN_STATUS_DELINQUENT
-                  : _statusFilter,
-              hint: const Text('All Statuses'),
-              underline: const SizedBox.shrink(),
-              items: [
-                const DropdownMenuItem<LoanStatus?>(
-                  value: null,
-                  child: Text('All Statuses'),
-                ),
-                ..._filterableStatuses.map(
-                  (s) => DropdownMenuItem(
-                    value: s,
-                    child: Text(loanStatusLabel(s)),
-                  ),
-                ),
-              ],
-              onChanged: _delinquentOnly
+        final actions = <Widget>[
+          Tooltip(
+            message: agentId.isEmpty
+                ? 'Your agent id is not known in this session'
+                : 'Only loans you originated',
+            child: FilterChip(
+              key: const Key('my-portfolio-filter'),
+              label: const Text('My portfolio'),
+              selected: filterMine,
+              onSelected: agentId.isEmpty
                   ? null
-                  : (value) => setState(() {
-                      _statusFilter = value;
+                  : (v) => setState(() {
+                      _myPortfolio = v;
                       _limit = kLoanListPageSize;
                     }),
             ),
-            LoadMoreAction(
-              loadedCount: loans.length,
-              hasMore: page.hasMore,
-              isLoading: loansAsync.isLoading,
-              onLoadMore: () => setState(() => _limit += kLoanListPageSize),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Delinquent loans, most overdue first',
+            child: FilterChip(
+              key: const Key('delinquent-filter'),
+              label: const Text('Delinquent'),
+              selected: _delinquentOnly,
+              onSelected: (v) => setState(() {
+                _delinquentOnly = v;
+                _limit = kLoanListPageSize;
+              }),
             ),
-          ],
-          rowBuilder: (loan, selected, onSelect) {
-            return DataRow(
-              selected: selected,
-              onSelectChanged: (_) => onSelect(),
-              cells: [
-                DataCell(
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer,
-                        child: Icon(
-                          Icons.account_balance_wallet_outlined,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(loan.clientId),
-                    ],
+          ),
+          const SizedBox(width: 8),
+          DropdownButton<LoanStatus?>(
+            value: _delinquentOnly
+                ? LoanStatus.LOAN_STATUS_DELINQUENT
+                : _statusFilter,
+            hint: const Text('All Statuses'),
+            underline: const SizedBox.shrink(),
+            items: [
+              const DropdownMenuItem<LoanStatus?>(
+                value: null,
+                child: Text('All Statuses'),
+              ),
+              ..._filterableStatuses.map(
+                (s) =>
+                    DropdownMenuItem(value: s, child: Text(loanStatusLabel(s))),
+              ),
+            ],
+            onChanged: _delinquentOnly
+                ? null
+                : (value) => setState(() {
+                    _statusFilter = value;
+                    _limit = kLoanListPageSize;
+                  }),
+          ),
+          LoadMoreAction(
+            loadedCount: loans.length,
+            hasMore: page.hasMore,
+            isLoading: loansAsync.isLoading,
+            onLoadMore: () => setState(() => _limit += kLoanListPageSize),
+          ),
+        ];
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (AppBreakpoints.isMobile(constraints.maxWidth)) {
+              return CompactEntityList<LoanAccountObject>(
+                title: 'Loan Accounts',
+                items: loans,
+                onSearch: _onSearch,
+                searchHint: 'Search loans',
+                actions: actions,
+                tileBuilder: (loan) => ListTile(
+                  key: Key('loan-tile-${loan.id}'),
+                  title: Text(loan.clientId),
+                  subtitle: Text(
+                    '${formatLoanMoney(loan.principalAmount)} · '
+                    '${loan.termDays} days',
                   ),
+                  trailing: LoanStatusBadge(status: loan.status),
                 ),
-                DataCell(Text(formatLoanMoney(loan.principalAmount))),
-                DataCell(Text('${loan.termDays} days')),
-                DataCell(LoanStatusBadge(status: loan.status)),
+                onTap: (loan) => context.go('/loans/${loan.id}'),
+              );
+            }
+            return AdminEntityListPage<LoanAccountObject>(
+              title: 'Loan Accounts',
+              breadcrumbs: const ['Loans', 'Accounts'],
+              columns: [
+                const DataColumn(label: Text('CLIENT')),
+                const DataColumn(label: Text('PRINCIPAL')),
+                const DataColumn(label: Text('TERM')),
+                const DataColumn(label: Text('STATUS')),
                 if (_delinquentOnly)
-                  DataCell(
-                    Text('${loan.daysPastDue}', key: Key('dpd-${loan.id}')),
-                  ),
+                  const DataColumn(label: Text('DAYS PAST DUE'), numeric: true),
+              ],
+              items: loans,
+              onSearch: _onSearch,
+              actions: actions,
+              rowBuilder: (loan, selected, onSelect) {
+                return DataRow(
+                  selected: selected,
+                  onSelectChanged: (_) => onSelect(),
+                  cells: [
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.account_balance_wallet_outlined,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(loan.clientId),
+                        ],
+                      ),
+                    ),
+                    DataCell(Text(formatLoanMoney(loan.principalAmount))),
+                    DataCell(Text('${loan.termDays} days')),
+                    DataCell(LoanStatusBadge(status: loan.status)),
+                    if (_delinquentOnly)
+                      DataCell(
+                        Text('${loan.daysPastDue}', key: Key('dpd-${loan.id}')),
+                      ),
+                  ],
+                );
+              },
+              onRowNavigate: (loan) {
+                context.go('/loans/${loan.id}');
+              },
+              detailBuilder: (loan) => _LoanAccountDetail(loan: loan),
+              exportRow: (loan) => [
+                loan.clientId,
+                formatLoanMoney(loan.principalAmount),
+                '${loan.termDays}',
+                loanStatusLabel(loan.status),
+                loan.id,
               ],
             );
           },
-          onRowNavigate: (loan) {
-            context.go('/loans/${loan.id}');
-          },
-          detailBuilder: (loan) => _LoanAccountDetail(loan: loan),
-          exportRow: (loan) => [
-            loan.clientId,
-            formatLoanMoney(loan.principalAmount),
-            '${loan.termDays}',
-            loanStatusLabel(loan.status),
-            loan.id,
-          ],
         );
       },
     );

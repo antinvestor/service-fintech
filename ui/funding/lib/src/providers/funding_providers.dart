@@ -87,33 +87,9 @@ class InvestorAccountNotifier extends Notifier<AsyncValue<void>> {
     }
   }
 
-  /// Deposits investor capital. [idempotencyKey] must be generated once per
-  /// user intent: the server keys the movement on it, and a fresh key on a
-  /// retry is a second deposit.
-  Future<InvestorAccountObject> deposit({
-    required String accountId,
-    required String amount,
-    required String currencyCode,
-    required String idempotencyKey,
-  }) async {
-    state = const AsyncValue.loading();
-    try {
-      final req = InvestorDepositRequest(accountId: accountId);
-      setMoneyFields(req.ensureAmount(), amount, currencyCode);
-      final response = await _client.investorDeposit(
-        req,
-        headers: _idempotencyHeaders(idempotencyKey),
-      );
-      state = const AsyncValue.data(null);
-      _invalidate(accountId);
-      return response.data;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      rethrow;
-    }
-  }
-
-  /// Withdraws investor capital. See [deposit] for the idempotency contract.
+  /// Withdraws investor capital. [idempotencyKey] must be generated once
+  /// per user intent: the server keys the movement on it, and a fresh key on
+  /// a retry is a second withdrawal.
   Future<InvestorAccountObject> withdraw({
     required String accountId,
     required String amount,
@@ -137,28 +113,6 @@ class InvestorAccountNotifier extends Notifier<AsyncValue<void>> {
     }
   }
 
-  Future<FundLoanResponse> fundLoan({
-    required String loanRequestId,
-    String? accountId,
-  }) async {
-    state = const AsyncValue.loading();
-    try {
-      final response = await _client.fundLoan(
-        FundLoanRequest(loanRequestId: loanRequestId),
-      );
-      state = const AsyncValue.data(null);
-      if (accountId != null) {
-        _invalidate(accountId);
-      } else {
-        ref.invalidate(investorAccountListProvider);
-      }
-      return response;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      rethrow;
-    }
-  }
-
   void _invalidate(String accountId) {
     ref.invalidate(investorAccountDetailProvider(accountId));
     ref.invalidate(investorAccountListProvider);
@@ -169,3 +123,22 @@ final investorAccountNotifierProvider =
     NotifierProvider<InvestorAccountNotifier, AsyncValue<void>>(
       InvestorAccountNotifier.new,
     );
+
+/// A statement period: from inclusive, to exclusive.
+typedef StatementPeriod = ({String accountId, DateTime from, DateTime to});
+
+/// What moved an investor account's capital over a period.
+final investorStatementProvider =
+    FutureProvider.family<InvestorStatementResponse, StatementPeriod>((
+      ref,
+      period,
+    ) async {
+      final client = ref.watch(fundingServiceClientProvider);
+      return client.investorStatement(
+        InvestorStatementRequest(
+          investorAccountId: period.accountId,
+          from: period.from.toUtc().toIso8601String(),
+          to: period.to.toUtc().toIso8601String(),
+        ),
+      );
+    });

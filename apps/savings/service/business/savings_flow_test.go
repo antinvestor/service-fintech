@@ -112,6 +112,34 @@ func (c *recordingOperationsClient) IncomingPaymentAssign(
 	panic("stub: IncomingPaymentAssign not expected")
 }
 
+func (c *recordingOperationsClient) OperationsJobRun(
+	_ context.Context,
+	_ *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	panic("stub: OperationsJobRun not expected")
+}
+
+func (c *recordingOperationsClient) GroupObligationsRaise(
+	_ context.Context,
+	_ *operationsv1.GroupObligationsRaiseRequest,
+) (*operationsv1.GroupObligationsRaiseResponse, error) {
+	panic("stub: GroupObligationsRaise not expected")
+}
+
+func (c *recordingOperationsClient) GroupPeriodClose(
+	_ context.Context,
+	_ *operationsv1.GroupPeriodCloseRequest,
+) (*operationsv1.GroupPeriodCloseResponse, error) {
+	panic("stub: GroupPeriodClose not expected")
+}
+
+func (c *recordingOperationsClient) GroupMemberStanding(
+	_ context.Context,
+	_ *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	panic("stub: GroupMemberStanding not expected")
+}
+
 func (c *recordingOperationsClient) count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -162,6 +190,17 @@ type savingsEnv struct {
 	wdrRepo repository.WithdrawalRepository
 	sbRepo  repository.SavingsBalanceRepository
 	iaRepo  repository.InterestAccrualRepository
+}
+
+// railCtx is the payment rail (operations' service account) acting in the
+// env's partition: the only caller that may record a deposit.
+func (e *savingsEnv) railCtx() context.Context {
+	return (&security.AuthenticationClaims{
+		TenantID:         "tenant-savings",
+		PartitionID:      "partition-savings",
+		Roles:            []string{security.ConstantSystemInternalRole},
+		RegisteredClaims: jwt.RegisteredClaims{Subject: "service_operations"},
+	}).ClaimsToContext(e.ctx, security.WithoutInternalTenancySkip())
 }
 
 func (s *savingsSuite) newEnv() *savingsEnv {
@@ -223,7 +262,7 @@ func (s *savingsSuite) newEnv() *savingsEnv {
 	return &savingsEnv{
 		ctx:     ctx,
 		ops:     ops,
-		deposit: business.NewDepositBusiness(ctx, depRepo, saRepo, ops, writer, nil, false, "off"),
+		deposit: business.NewDepositBusiness(ctx, depRepo, saRepo, ops, writer),
 		wdr:     business.NewWithdrawalBusiness(ctx, wdrRepo, saRepo, ops, writer, nil, false, "off"),
 		account: business.NewSavingsAccountBusiness(
 			ctx, svc.EventsManager(), saRepo, spRepo, depRepo, wdrRepo, iaRepo, sbRepo),
@@ -288,7 +327,7 @@ func (s *savingsSuite) TestDepositCreditsBalanceAndCompletesRow() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	result, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	result, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("KES", "500"),
 		IdempotencyKey:   "dep-1",
@@ -319,9 +358,9 @@ func (s *savingsSuite) TestDepositIsIdempotentOnTheKey() {
 		IdempotencyKey:   "dep-retry",
 	}
 
-	first, err := e.deposit.Record(e.ctx, req)
+	first, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().NoError(err)
-	second, err := e.deposit.Record(e.ctx, req)
+	second, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().NoError(err)
 
 	s.Equal(first.GetId(), second.GetId(), "a retry must resolve to the original deposit")
@@ -346,7 +385,7 @@ func (s *savingsSuite) TestDepositRetryFinishesAnUnsettledClaim() {
 	}
 
 	e.ops.fail = errOperationsDown
-	_, err := e.deposit.Record(e.ctx, req)
+	_, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().Error(err)
 
 	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())
@@ -354,7 +393,7 @@ func (s *savingsSuite) TestDepositRetryFinishesAnUnsettledClaim() {
 	s.Zero(balance.Balance, "a failed posting must credit nothing")
 
 	e.ops.fail = nil
-	result, err := e.deposit.Record(e.ctx, req)
+	result, err := e.deposit.Record(e.railCtx(), req)
 	s.Require().NoError(err)
 	s.Equal(savingsv1.DepositStatus_DEPOSIT_STATUS_COMPLETED, result.GetStatus())
 
@@ -368,7 +407,7 @@ func (s *savingsSuite) TestDepositRequiresIdempotencyKeyWithTheGateOff() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("KES", "500"),
 	})
@@ -380,7 +419,7 @@ func (s *savingsSuite) TestDepositRejectsAForeignCurrency() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("USD", "100"),
 		IdempotencyKey:   "dep-usd",
@@ -399,7 +438,7 @@ func (s *savingsSuite) TestDepositPostsZeroDecimalCurrencyAtFaceValue() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "JPY")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("JPY", "100000"),
 		IdempotencyKey:   "dep-jpy",
@@ -422,7 +461,7 @@ func (s *savingsSuite) TestDepositRoutesThroughServerDerivedLedgerRefs() {
 	e := s.newEnv()
 	account := e.seedAccount(s, "KES")
 
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money("KES", "100"),
 		IdempotencyKey:   "dep-route",
@@ -642,7 +681,7 @@ func (s *savingsSuite) TestStatementDefaultsOrdersAndCarriesARunningBalance() {
 // fund puts settled money into an account through the real deposit path.
 func (s *savingsSuite) fund(e *savingsEnv, account *models.SavingsAccount, units, key string) {
 	s.T().Helper()
-	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+	_, err := e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
 		SavingsAccountId: account.GetID(),
 		Amount:           money(account.CurrencyCode, units),
 		IdempotencyKey:   key,
@@ -753,4 +792,85 @@ func balanceIDFor(s *savingsSuite, e *savingsEnv, accountID string) string {
 	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, accountID)
 	s.Require().NoError(err)
 	return balance.GetID()
+}
+
+func (s *savingsSuite) TestDepositsComeOnlyFromThePaymentRail() {
+	e := s.newEnv()
+	account := e.seedAccount(s, "KES")
+
+	_, err := e.deposit.Record(e.ctx, &savingsv1.DepositRecordRequest{
+		SavingsAccountId: account.GetID(),
+		Amount:           models.MinorUnitsToMoney(10_000, "KES"),
+		Channel:          "mobile_money",
+		IdempotencyKey:   "by-hand",
+	})
+	s.Require().ErrorIs(err, business.ErrDepositRecordInternalOnly, "a person never types a deposit")
+
+	_, err = e.deposit.Record(e.railCtx(), &savingsv1.DepositRecordRequest{
+		SavingsAccountId: account.GetID(),
+		Amount:           models.MinorUnitsToMoney(10_000, "KES"),
+		Channel:          "cash",
+		IdempotencyKey:   "cash",
+	})
+	s.Require().ErrorIs(err, business.ErrCashDepositRefused)
+}
+
+// A withdrawal the rail fails after it completed gives the member their
+// money back, once, and only the payment rail can say so.
+func (s *savingsSuite) TestWithdrawalFailedAtTheRailIsReversedOnce() {
+	e := s.newEnv()
+	account := e.seedAccount(s, "KES")
+	s.fund(e, account, "1000", "dep-late")
+	requested, err := e.wdr.Request(e.ctx, &savingsv1.WithdrawalRequestRequest{
+		SavingsAccountId: account.GetID(), Amount: money("KES", "400"), IdempotencyKey: "wdr-late",
+	})
+	s.Require().NoError(err)
+	_, err = e.wdr.Approve(e.ctx, requested.GetId())
+	s.Require().NoError(err)
+
+	_, err = e.wdr.PayoutFailed(e.ctx, "withdrawal:"+requested.GetId(), "rail failed")
+	s.Require().ErrorIs(err, business.ErrPayoutOutcomeInternalOnly)
+
+	reversed, err := e.wdr.PayoutFailed(e.railCtx(), "withdrawal:"+requested.GetId(), "rail failed")
+	s.Require().NoError(err)
+	s.True(reversed)
+	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, account.GetID())
+	s.Require().NoError(err)
+	s.Equal(int64(100000), balance.Balance, "the member's money is back")
+	s.Zero(balance.TotalWithdrawals)
+	got, err := e.wdr.Get(e.ctx, requested.GetId())
+	s.Require().NoError(err)
+	s.Equal(savingsv1.WithdrawalStatus_WITHDRAWAL_STATUS_REVERSED, got.GetStatus())
+
+	again, err := e.wdr.PayoutFailed(e.railCtx(), "withdrawal:"+requested.GetId(), "rail failed")
+	s.Require().NoError(err)
+	s.False(again, "never reversed twice")
+}
+
+// The scheduled job accrues the last closed day once per account, and an
+// account with nothing to accrue is settled too rather than retried forever.
+func (s *savingsSuite) TestInterestJobAccruesEachDayOnce() {
+	e := s.newEnv()
+	funded := e.seedAccount(s, "KES")
+	s.fund(e, funded, "1000", "dep-interest")
+	e.seedAccount(s, "KES") // nothing to accrue
+	jobs := business.NewSavingsJobs(e.saRepo, e.accrual, "service_savings")
+
+	_, _, err := jobs.Run(e.ctx, savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().ErrorIs(err, business.ErrJobCallerNotInternal)
+
+	processed, more, err := jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+	s.Equal(2, processed)
+	s.False(more)
+	balance, err := e.sbRepo.GetBySavingsAccountID(e.ctx, funded.GetID())
+	s.Require().NoError(err)
+	s.Positive(balance.TotalInterest, "a day's interest is credited")
+
+	again, _, err := jobs.Run(e.railCtx(), savingsv1.SavingsJob_SAVINGS_JOB_ACCRUE_INTEREST, 10)
+	s.Require().NoError(err)
+	s.Zero(again, "both accounts are settled for the day, the empty one included")
+	still, err := e.sbRepo.GetBySavingsAccountID(e.ctx, funded.GetID())
+	s.Require().NoError(err)
+	s.Equal(balance.TotalInterest, still.TotalInterest)
 }

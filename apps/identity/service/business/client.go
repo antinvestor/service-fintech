@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"time"
 
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/v2/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
@@ -332,10 +333,14 @@ func (b *clientBusiness) saveExisting(
 	consent := takeConsentProperties(client.Properties)
 	activating := existing.State == int32(commonv1.STATE_CREATED) &&
 		client.State == int32(commonv1.STATE_ACTIVE)
+	// Acceptance of the terms is recorded by activation alone.
+	delete(client.Properties, termsAcceptedAtKey)
+	delete(client.Properties, termsKey)
 	if activating {
 		if pending, err := b.activate(ctx, existing, scope, consent); err != nil || pending != nil {
 			return pending, err
 		}
+		b.recordTermsAccepted(client)
 	} else if scope != nil {
 		// A field agent changes a client's state only by activating it.
 		client.State = existing.State
@@ -376,8 +381,8 @@ func (b *clientBusiness) saveExisting(
 }
 
 // activate gates moving a CREATED client to ACTIVE: every KYC field the
-// client's organization requires must be verified, and a field agent must
-// also have the person's consent code (confirmActivation). It returns a
+// client's organization requires must be verified, and whoever activates
+// must have the person's consent code (confirmActivation). It returns a
 // pending response while a code is awaited.
 func (b *clientBusiness) activate(
 	ctx context.Context,
@@ -395,9 +400,8 @@ func (b *clientBusiness) activate(
 	if !reqs.Complete {
 		return nil, ErrClientKYCIncomplete
 	}
-	if scope == nil {
-		return nil, nil //nolint:nilnil // staff activate without a code
-	}
+	// Everyone activates with the person's code: giving it is how they
+	// accept the lending terms, once, for every loan after.
 	return b.confirmActivation(ctx, client, scope, consent)
 }
 
@@ -873,4 +877,14 @@ func (b *clientBusiness) GetEffectiveCreditLimit(ctx context.Context, clientID s
 		return 0, "", ErrClientNotFound
 	}
 	return client.EffectiveCreditLimit(), client.CurrencyCode, nil
+}
+
+// recordTermsAccepted notes on the client that the person accepted the
+// lending terms by giving their activation code: once, for every loan after.
+func (b *clientBusiness) recordTermsAccepted(client *models.Client) {
+	if client.Properties == nil {
+		client.Properties = data.JSONMap{}
+	}
+	client.Properties[termsAcceptedAtKey] = time.Now().UTC().Format(time.RFC3339)
+	client.Properties[termsKey] = b.notifier.TermsReference()
 }

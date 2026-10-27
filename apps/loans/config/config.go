@@ -51,8 +51,6 @@ type LoanManagementConfig struct {
 	LimitsGateModeLoanDisbursement           string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_DISBURSEMENT"`
 	LimitsGateEnabledLoanRequestApproval     bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_REQUEST_APPROVAL"`
 	LimitsGateModeLoanRequestApproval        string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REQUEST_APPROVAL"`
-	LimitsGateEnabledLoanRepayment           bool   `envDefault:"true"                                     env:"LIMITS_GATE_ENABLED_LOAN_REPAYMENT"`
-	LimitsGateModeLoanRepayment              string `envDefault:"enforce"                                  env:"LIMITS_GATE_MODE_LOAN_REPAYMENT"`
 
 	// LenderDisplayName opens every borrower-facing message ("<lender>: your
 	// loan ... "). Set it to the trading name borrowers know.

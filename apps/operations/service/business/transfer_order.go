@@ -144,6 +144,12 @@ func (b *transferOrderBusiness) Execute(ctx context.Context, orderID string) err
 	if err != nil {
 		return fmt.Errorf("transfer order not found: %w", err)
 	}
+	// An order allocating a payment the rail received moves money that has
+	// already arrived; a limit refusing it would only strand the payer's
+	// money. Limits gate money leaving, not money received.
+	if extraDataString(order, extraKeySource) == allocationSourceMarker {
+		return b.executeInner(ctx, orderID)
+	}
 
 	intent := &limitsv1.LimitIntent{
 		Action:   limitsv1.LimitAction_LIMIT_ACTION_TRANSFER_ORDER_EXECUTE,
@@ -453,6 +459,11 @@ func (b *transferOrderBusiness) executeInner(ctx context.Context, orderID string
 	typeName := constants.TransferTypeName(orderType)
 	logger = logger.WithField("order_type", typeName)
 
+	// A payout the rail failed, even after the order completed, was never
+	// paid: no retry of it may be told it succeeded.
+	if order.PayoutFailed() && order.State == int32(constants.StateInactive) {
+		return ErrPayoutFailed
+	}
 	switch order.State {
 	case int32(constants.StateInactive), int32(constants.StateDeleted):
 		logger.Info("transfer order already completed, skipping")
@@ -599,9 +610,12 @@ func (b *transferOrderBusiness) sideEffectHandlers() map[int]transferHandler {
 		constants.TransferTypeLoanInterestIncomeDistribution:            noErr(b.handleLoanInterestIncomeDistribution),
 		constants.TransferTypeInvestorDeployment:                        noErr(b.handleInvestorDeployment),
 		constants.TransferTypeInvestorPrincipalReturn:                   noErr(b.handleInvestorPrincipalReturn),
+		constants.TransferTypeInvestorWithdrawal:                        b.handleInvestorWithdrawal,
 		constants.TransferTypeInvestorIncomeDistribution:                noErr(b.handleInvestorIncomeDistribution),
 		constants.TransferTypePlatformFirstLossAbsorption:               noErr(b.handlePlatformFirstLossAbsorption),
 		constants.TransferTypeInvestorLossAbsorption:                    noErr(b.handleInvestorLossAbsorption),
+		constants.TransferTypeAgentCommission:                           noErr(b.handleAgentCommission),
+		constants.TransferTypeTeamCommissionPayout:                      b.handleTeamCommissionPayout,
 	}
 }
 
@@ -893,7 +907,22 @@ func (b *transferOrderBusiness) sendPayoutNow(ctx context.Context, order *models
 				Warn("could not record payment id on transfer order")
 		}
 	}
+	b.recordPayoutOutcome(ctx, order.GetID(), status.GetStatus())
 	return nil
+}
+
+// recordPayoutOutcome notes whether the rail has settled a payout it took.
+// Accepted is not paid: until the rail says the money arrived the payout is
+// pending, and the reconcile job keeps asking.
+func (b *transferOrderBusiness) recordPayoutOutcome(ctx context.Context, orderID string, status commonv1.STATUS) {
+	outcome := models.PayoutStatusPending
+	if status == commonv1.STATUS_SUCCESSFUL {
+		outcome = models.PayoutStatusConfirmed
+	}
+	if err := b.toRepo.SetPayoutOutcome(ctx, orderID, outcome); err != nil {
+		util.Log(ctx).WithError(err).WithField("order_id", orderID).
+			Warn("could not record payout outcome; the reconcile job finds it anyway")
+	}
 }
 
 var errPaymentClientUnavailable = errors.New("payment client is not configured; refusing to execute a payout order")
@@ -996,6 +1025,7 @@ func (b *transferOrderBusiness) settleFoundPayout(
 			logger.WithError(recErr).Warn("could not record confirmed payment id")
 		}
 	}
+	b.recordPayoutOutcome(ctx, order.GetID(), payment.GetStatus())
 	logger.WithField("payment_id", payment.GetId()).Info("earlier payout confirmed by the payment service")
 	return nil
 }
@@ -1626,6 +1656,45 @@ func (b *transferOrderBusiness) handleInvestorPrincipalReturn(
 	logger.WithField("investor_account_id", investorAccountID).
 		WithField("amount", order.Amount).
 		Info("principal returned to investor")
+}
+
+// handleAgentCommission records a product's commission accrued to the field
+// team serving the borrower. It is a ledger accrual only: the team's
+// payable is settled separately, never from the borrower's money.
+func (b *transferOrderBusiness) handleAgentCommission(ctx context.Context, order *models.TransferOrder) {
+	util.Log(ctx).WithField("handler", "handleAgentCommission").
+		WithField("order_id", order.GetID()).
+		WithField("team_id", extraDataString(order, "team_id")).
+		WithField("amount", order.Amount).
+		Info("commission accrued to the serving team")
+}
+
+// handleInvestorWithdrawal pays investor capital out to the investor's own
+// verified mobile-money contact. The recipient and destination are checked
+// before the ledger leg posts, and a payout the rail rejects is reversed, as
+// for a loan disbursement.
+func (b *transferOrderBusiness) handleInvestorWithdrawal(ctx context.Context, order *models.TransferOrder) error {
+	route := extraDataString(order, "payment_channel")
+	if route == "" {
+		route = "investor_withdrawal"
+	}
+	if err := b.sendPayment(ctx, order, "", route); err != nil {
+		return fmt.Errorf("investor withdrawal payout: %w", err)
+	}
+	return nil
+}
+
+// handleTeamCommissionPayout pays a team's commission out to one of its
+// members' own verified mobile-money contact, checked like any payout.
+func (b *transferOrderBusiness) handleTeamCommissionPayout(ctx context.Context, order *models.TransferOrder) error {
+	route := extraDataString(order, "payment_channel")
+	if route == "" {
+		route = "team_commission_payout"
+	}
+	if err := b.sendPayment(ctx, order, "", route); err != nil {
+		return fmt.Errorf("team commission payout: %w", err)
+	}
+	return nil
 }
 
 // handleInvestorIncomeDistribution processes interest/income distribution to an investor.

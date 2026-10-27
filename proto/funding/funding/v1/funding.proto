@@ -92,6 +92,100 @@ message InvestorAccountGetRequest {
 message InvestorAccountGetResponse {
   InvestorAccountObject data = 1;
 }
+// InvestorStatementEntryType is what moved an investor's capital.
+enum InvestorStatementEntryType {
+  INVESTOR_STATEMENT_ENTRY_TYPE_UNSPECIFIED = 0;
+  // Capital the investor paid in.
+  INVESTOR_STATEMENT_ENTRY_TYPE_DEPOSIT = 1;
+  // Capital paid out to the investor. A withdrawal whose payout is not yet
+  // confirmed is reported with pending = true.
+  INVESTOR_STATEMENT_ENTRY_TYPE_WITHDRAWAL = 2;
+  // Capital committed to a loan.
+  INVESTOR_STATEMENT_ENTRY_TYPE_DEPLOYMENT = 3;
+  // A commitment released because the loan was never disbursed.
+  INVESTOR_STATEMENT_ENTRY_TYPE_RELEASE = 4;
+  // Principal a borrower repaid, back to the investor.
+  INVESTOR_STATEMENT_ENTRY_TYPE_PRINCIPAL_RETURNED = 5;
+  // Interest a borrower paid, net of the platform fee and withholding tax.
+  INVESTOR_STATEMENT_ENTRY_TYPE_INTEREST_EARNED = 6;
+  // Capital lost when a loan was written off.
+  INVESTOR_STATEMENT_ENTRY_TYPE_LOSS = 7;
+  // Lost capital recovered from a written-off loan.
+  INVESTOR_STATEMENT_ENTRY_TYPE_RECOVERY = 8;
+}
+
+// InvestorStatementEntry is one movement of an investor's capital.
+message InvestorStatementEntry {
+  string occurred_at = 1; // RFC 3339
+  InvestorStatementEntryType type = 2;
+  common.v1.Money amount = 3; // always positive; the type gives its direction
+  // The loan request it concerns, for loan movements.
+  string loan_request_id = 4;
+  // For interest: the gross interest, the platform's fee and the tax
+  // withheld, of which amount is what remained.
+  common.v1.Money interest_gross = 5;
+  common.v1.Money platform_fee = 6;
+  common.v1.Money withholding_tax = 7;
+  bool pending = 8;
+  string reference = 9;
+}
+
+// InvestorStatementTotals sums a statement's entries by type.
+message InvestorStatementTotals {
+  common.v1.Money deposits = 1;
+  common.v1.Money withdrawals = 2;
+  common.v1.Money deployed = 3;
+  common.v1.Money released = 4;
+  common.v1.Money principal_returned = 5;
+  common.v1.Money interest_earned = 6;
+  common.v1.Money platform_fees = 7;
+  common.v1.Money withholding_tax = 8;
+  common.v1.Money losses = 9;
+  common.v1.Money recoveries = 10;
+}
+
+message InvestorStatementRequest {
+  string investor_account_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // The period, as RFC 3339 instants: from inclusive, to exclusive. An
+  // empty to is now; the period may span at most 366 days.
+  string from = 2 [(buf.validate.field).string.min_len = 1];
+  string to = 3;
+}
+
+message InvestorStatementResponse {
+  // The account as it stands now.
+  InvestorAccountObject account = 1;
+  string from = 2;
+  string to = 3;
+  // Oldest first.
+  repeated InvestorStatementEntry entries = 4;
+  InvestorStatementTotals totals = 5;
+  // True when the period held more entries than a statement carries; the
+  // caller narrows the period.
+  bool truncated = 6;
+}
+// PayoutFailedApplyRequest tells the service that originated a payout that
+// the payment rail failed it after accepting it. Operations has already
+// reversed the ledger leg; the originator undoes its own record. Applying
+// it again changes nothing.
+message PayoutFailedApplyRequest {
+  // The transfer order reference the originator gave the payout.
+  string reference = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 255
+  ];
+  string reason = 2 [(buf.validate.field).string.max_len = 500];
+}
+
+message PayoutFailedApplyResponse {
+  // True when this call undid the record; false when it was already undone
+  // or the reference is not this service's.
+  bool applied = 1;
+}
+
 message InvestorAccountSearchRequest {
   string investor_id = 1 [
     (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
@@ -160,6 +254,20 @@ message FundLoanResponse {
   bool fully_funded = 4;
 }
 
+// FundingReleaseRequest gives back the capital reserved for a loan that was
+// never disbursed.
+message FundingReleaseRequest {
+  string loan_request_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+}
+
+message FundingReleaseResponse {
+  // Capital this call returned to the funders' available balances.
+  common.v1.Money released = 1;
+}
+
 message AbsorbLossRequest {
   string loan_request_id = 1 [
     (buf.validate.field).string.min_len = 3,
@@ -221,6 +329,36 @@ message LoanRepaymentApplyRequest {
   common.v1.Money interest = 6 [(buf.validate.field).required = true];
 }
 
+// Principal recovered from a written-off loan, to be returned to the funders
+// who absorbed its loss, most senior tranche first.
+message LoanRecoveryApplyRequest {
+  string loan_request_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // Product whose bad-debt expense the loss was charged against.
+  string product_id = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40
+  ];
+  // Identifies the recovery. A repeated call with the same reference applies
+  // once and finishes any ledger posting an earlier call left undone.
+  string recovery_reference = 3 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 128
+  ];
+  // Principal the borrower paid back after the write-off.
+  common.v1.Money principal = 4 [(buf.validate.field).required = true];
+}
+
+message LoanRecoveryApplyResponse {
+  // Returned to funders. What exceeds the loss they still carry is the
+  // lender's recovery income.
+  common.v1.Money recovered = 1;
+  // True once every ledger posting for this recovery is done.
+  bool settled = 2;
+}
+
 // One funding source's share of a repayment.
 message RepaymentShareObject {
   string source_id = 1;
@@ -246,7 +384,8 @@ service FundingService {
     permissions: [
       "investor_account_view",
       "investor_account_manage",
-      "fund_manage"
+      "fund_manage",
+      "payout_outcome_apply"
     ]
     role_bindings: [
       {
@@ -285,7 +424,8 @@ service FundingService {
         permissions: [
           "investor_account_view",
           "investor_account_manage",
-          "fund_manage"
+          "fund_manage",
+          "payout_outcome_apply"
         ]
       }
     ]
@@ -302,6 +442,14 @@ service FundingService {
     };
   }
   rpc InvestorAccountSearch(InvestorAccountSearchRequest) returns (stream InvestorAccountSearchResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["investor_account_view"]
+    };
+  }
+  // InvestorStatement reports what moved an investor account's capital over
+  // a period. Staff read any account; an investor reads only their own.
+  rpc InvestorStatement(InvestorStatementRequest) returns (InvestorStatementResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
     option (common.v1.method_permissions) = {
       permissions: ["investor_account_view"]
     };
@@ -326,11 +474,33 @@ service FundingService {
       permissions: ["fund_manage"]
     };
   }
+  // FundingRelease returns the capital reserved for a loan request whose
+  // loan was cancelled before disbursement. Repeating it releases nothing
+  // more.
+  rpc FundingRelease(FundingReleaseRequest) returns (FundingReleaseResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["fund_manage"]
+    };
+  }
   // LoanRepaymentApply shares a loan repayment out to the loan's funders:
   // principal back to their capital, interest net of fee and tax as income.
   rpc LoanRepaymentApply(LoanRepaymentApplyRequest) returns (LoanRepaymentApplyResponse) {
     option (common.v1.method_permissions) = {
       permissions: ["fund_manage"]
+    };
+  }
+  // LoanRecoveryApply returns principal recovered from a written-off loan to
+  // the funders who absorbed its loss, most senior tranche first.
+  rpc LoanRecoveryApply(LoanRecoveryApplyRequest) returns (LoanRecoveryApplyResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["fund_manage"]
+    };
+  }
+  // PayoutFailedApply undoes this service's record of a payout the payment
+  // rail failed after accepting it. Only operations calls it.
+  rpc PayoutFailedApply(PayoutFailedApplyRequest) returns (PayoutFailedApplyResponse) {
+    option (common.v1.method_permissions) = {
+      permissions: ["payout_outcome_apply"]
     };
   }
 }

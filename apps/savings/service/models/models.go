@@ -113,6 +113,12 @@ type SavingsAccount struct {
 	LedgerAccountID   string `gorm:"type:varchar(50)"`
 	PaymentAccountRef string `gorm:"type:varchar(255)"`
 	Properties        data.JSONMap
+	// InterestAccruedThrough is the end of the last day whose interest the
+	// scheduled job settled for this account, accrued or skipped.
+	InterestAccruedThrough *time.Time `gorm:"index:idx_sa_interest_through"`
+	// InterestCheckedAt is when the job last tried the account, so one that
+	// failed waits before it is tried again.
+	InterestCheckedAt *time.Time
 }
 
 func (m *SavingsAccount) TableName() string { return "savings_accounts" }

@@ -46,6 +46,11 @@ type FundingAllocationBusiness interface {
 	// they actually covered. It is idempotent on the loss reference: a repeat
 	// returns the first call's split rather than eating further tranches.
 	AbsorbLoss(ctx context.Context, loss LossApplication) (*LossResult, error)
+
+	// ReleaseForRequest gives back the capital reserved for a loan request
+	// whose loan was cancelled before disbursement, and returns how much.
+	// Each funding record is released once, however often it is called.
+	ReleaseForRequest(ctx context.Context, loanRequestID string) (int64, string, error)
 }
 
 // LossApplication is a loss on a loan to charge to its funders.
@@ -98,6 +103,9 @@ type InvestorAccountBusiness interface {
 	Get(ctx context.Context, accountID string) (*models.InvestorAccount, error)
 	Search(ctx context.Context, req *fundingv1.InvestorAccountSearchRequest) ([]*models.InvestorAccount, error)
 	Deposit(ctx context.Context, accountID string, amount *commonv1.Money, idempotencyKey string) error
+	// WithdrawalFailed returns the funds of a withdrawal the payment rail
+	// failed after it completed, named by its transfer order reference.
+	WithdrawalFailed(ctx context.Context, reference string) (bool, error)
 	Withdraw(ctx context.Context, accountID string, amount *commonv1.Money, idempotencyKey string) error
 	GetAvailable(ctx context.Context, accountID string) (int64, error)
 	ReserveBalance(ctx context.Context, accountID string, amount int64) error

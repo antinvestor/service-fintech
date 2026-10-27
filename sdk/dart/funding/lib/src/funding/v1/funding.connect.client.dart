@@ -59,6 +59,25 @@ extension type FundingServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// InvestorStatement reports what moved an investor account's capital over
+  /// a period. Staff read any account; an investor reads only their own.
+  Future<fundingv1funding.InvestorStatementResponse> investorStatement(
+    fundingv1funding.InvestorStatementRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.investorStatement,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   Future<fundingv1funding.InvestorDepositResponse> investorDeposit(
     fundingv1funding.InvestorDepositRequest input, {
     connect.Headers? headers,
@@ -127,6 +146,26 @@ extension type FundingServiceClient (connect.Transport _transport) {
     );
   }
 
+  /// FundingRelease returns the capital reserved for a loan request whose
+  /// loan was cancelled before disbursement. Repeating it releases nothing
+  /// more.
+  Future<fundingv1funding.FundingReleaseResponse> fundingRelease(
+    fundingv1funding.FundingReleaseRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.fundingRelease,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
   /// LoanRepaymentApply shares a loan repayment out to the loan's funders:
   /// principal back to their capital, interest net of fee and tax as income.
   Future<fundingv1funding.LoanRepaymentApplyResponse> loanRepaymentApply(
@@ -138,6 +177,44 @@ extension type FundingServiceClient (connect.Transport _transport) {
   }) {
     return connect.Client(_transport).unary(
       specs.FundingService.loanRepaymentApply,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// LoanRecoveryApply returns principal recovered from a written-off loan to
+  /// the funders who absorbed its loss, most senior tranche first.
+  Future<fundingv1funding.LoanRecoveryApplyResponse> loanRecoveryApply(
+    fundingv1funding.LoanRecoveryApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.loanRecoveryApply,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  Future<fundingv1funding.PayoutFailedApplyResponse> payoutFailedApply(
+    fundingv1funding.PayoutFailedApplyRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.FundingService.payoutFailedApply,
       input,
       signal: signal,
       headers: headers,

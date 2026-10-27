@@ -170,6 +170,21 @@ final $typed_data.Uint8List approvalStatusDescriptor = $convert.base64Decode(
     'GEFQUFJPVkFMX1NUQVRVU19SRUpFQ1RFRBADEhsKF0FQUFJPVkFMX1NUQVRVU19FWFBJUkVEEA'
     'QSLAooQVBQUk9WQUxfU1RBVFVTX0FVVE9fUkVKRUNURURfT05fUkVDSEVDSxAF');
 
+@$core.Deprecated('Use limitsJobDescriptor instead')
+const LimitsJob$json = {
+  '1': 'LimitsJob',
+  '2': [
+    {'1': 'LIMITS_JOB_UNSPECIFIED', '2': 0},
+    {'1': 'LIMITS_JOB_RESERVATION_EXPIRY', '2': 1},
+    {'1': 'LIMITS_JOB_APPROVAL_EXPIRY', '2': 2},
+  ],
+};
+
+/// Descriptor for `LimitsJob`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List limitsJobDescriptor = $convert.base64Decode(
+    'CglMaW1pdHNKb2ISGgoWTElNSVRTX0pPQl9VTlNQRUNJRklFRBAAEiEKHUxJTUlUU19KT0JfUk'
+    'VTRVJWQVRJT05fRVhQSVJZEAESHgoaTElNSVRTX0pPQl9BUFBST1ZBTF9FWFBJUlkQAg==');
+
 @$core.Deprecated('Use subjectRefDescriptor instead')
 const SubjectRef$json = {
   '1': 'SubjectRef',
@@ -1626,6 +1641,35 @@ final $typed_data.Uint8List reverseResponseDescriptor = $convert.base64Decode(
     'cmVzZXJ2YXRpb24YAiABKAsyHC5saW1pdHMudjEuUmVzZXJ2YXRpb25PYmplY3RSE3JldmVyc2'
     'FsUmVzZXJ2YXRpb24=');
 
+@$core.Deprecated('Use limitsJobRunRequestDescriptor instead')
+const LimitsJobRunRequest$json = {
+  '1': 'LimitsJobRunRequest',
+  '2': [
+    {
+      '1': 'job',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.limits.v1.LimitsJob',
+      '10': 'job'
+    },
+  ],
+};
+
+/// Descriptor for `LimitsJobRunRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List limitsJobRunRequestDescriptor = $convert.base64Decode(
+    'ChNMaW1pdHNKb2JSdW5SZXF1ZXN0EiYKA2pvYhgBIAEoDjIULmxpbWl0cy52MS5MaW1pdHNKb2'
+    'JSA2pvYg==');
+
+@$core.Deprecated('Use limitsJobRunResponseDescriptor instead')
+const LimitsJobRunResponse$json = {
+  '1': 'LimitsJobRunResponse',
+};
+
+/// Descriptor for `LimitsJobRunResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List limitsJobRunResponseDescriptor =
+    $convert.base64Decode('ChRMaW1pdHNKb2JSdW5SZXNwb25zZQ==');
+
 const $core.Map<$core.String, $core.dynamic> LimitsServiceBase$json = {
   '1': 'LimitsService',
   '2': [
@@ -1762,6 +1806,12 @@ const $core.Map<$core.String, $core.dynamic> LimitsAdminServiceBase$json = {
       '4': {},
       '6': true
     },
+    {
+      '1': 'LimitsJobRun',
+      '2': '.limits.v1.LimitsJobRunRequest',
+      '3': '.limits.v1.LimitsJobRunResponse',
+      '4': {}
+    },
   ],
   '3': {},
 };
@@ -1805,6 +1855,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.limits.v1.LimitsAuditSearchRequest': LimitsAuditSearchRequest$json,
   '.limits.v1.LimitsAuditSearchResponse': LimitsAuditSearchResponse$json,
   '.limits.v1.LimitsAuditEventObject': LimitsAuditEventObject$json,
+  '.limits.v1.LimitsJobRunRequest': LimitsJobRunRequest$json,
+  '.limits.v1.LimitsJobRunResponse': LimitsJobRunResponse$json,
 };
 
 /// Descriptor for `LimitsAdminService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -1830,19 +1882,21 @@ final $typed_data.Uint8List limitsAdminServiceDescriptor = $convert.base64Decode
     'aXRzLnYxLkxlZGdlclNlYXJjaFJlc3BvbnNlIhiCtRgUChJsaW1pdHNfbGVkZ2VyX3ZpZXcwAR'
     'J5ChFMaW1pdHNBdWRpdFNlYXJjaBIjLmxpbWl0cy52MS5MaW1pdHNBdWRpdFNlYXJjaFJlcXVl'
     'c3QaJC5saW1pdHMudjEuTGltaXRzQXVkaXRTZWFyY2hSZXNwb25zZSIXgrUYEwoRbGltaXRzX2'
-    'F1ZGl0X3ZpZXcwARq5BoK1GLQGCg5zZXJ2aWNlX2xpbWl0cxIKbGltaXRzX3VzZRIUbGltaXRz'
-    'X3BvbGljeV9tYW5hZ2USEmxpbWl0c19wb2xpY3lfdmlldxIUbGltaXRzX2FwcHJvdmFsX3ZpZX'
-    'cSE2xpbWl0c19hcHByb3ZhbF9hY3QSGGxpbWl0c19hcHByb3ZhbF9vdmVycmlkZRISbGltaXRz'
-    'X2xlZGdlcl92aWV3EhFsaW1pdHNfYXVkaXRfdmlldxIObGltaXRzX2FyY2hpdmUapAEIARIKbG'
-    'ltaXRzX3VzZRIUbGltaXRzX3BvbGljeV9tYW5hZ2USEmxpbWl0c19wb2xpY3lfdmlldxIUbGlt'
-    'aXRzX2FwcHJvdmFsX3ZpZXcSE2xpbWl0c19hcHByb3ZhbF9hY3QSGGxpbWl0c19hcHByb3ZhbF'
-    '9vdmVycmlkZRISbGltaXRzX2xlZGdlcl92aWV3EhFsaW1pdHNfYXVkaXRfdmlldxqkAQgCEgps'
-    'aW1pdHNfdXNlEhRsaW1pdHNfcG9saWN5X21hbmFnZRISbGltaXRzX3BvbGljeV92aWV3EhRsaW'
-    '1pdHNfYXBwcm92YWxfdmlldxITbGltaXRzX2FwcHJvdmFsX2FjdBIYbGltaXRzX2FwcHJvdmFs'
-    'X292ZXJyaWRlEhJsaW1pdHNfbGVkZ2VyX3ZpZXcSEWxpbWl0c19hdWRpdF92aWV3GmgIAxISbG'
-    'ltaXRzX3BvbGljeV92aWV3EhRsaW1pdHNfYXBwcm92YWxfdmlldxITbGltaXRzX2FwcHJvdmFs'
-    'X2FjdBISbGltaXRzX2xlZGdlcl92aWV3EhFsaW1pdHNfYXVkaXRfdmlldxpTCAQSEmxpbWl0c1'
-    '9wb2xpY3lfdmlldxIUbGltaXRzX2FwcHJvdmFsX3ZpZXcSEmxpbWl0c19sZWRnZXJfdmlldxIR'
-    'bGltaXRzX2F1ZGl0X3ZpZXcaUwgFEhJsaW1pdHNfcG9saWN5X3ZpZXcSFGxpbWl0c19hcHByb3'
-    'ZhbF92aWV3EhJsaW1pdHNfbGVkZ2VyX3ZpZXcSEWxpbWl0c19hdWRpdF92aWV3Gg4IBhIKbGlt'
-    'aXRzX3VzZQ==');
+    'F1ZGl0X3ZpZXcwARJlCgxMaW1pdHNKb2JSdW4SHi5saW1pdHMudjEuTGltaXRzSm9iUnVuUmVx'
+    'dWVzdBofLmxpbWl0cy52MS5MaW1pdHNKb2JSdW5SZXNwb25zZSIUgrUYEAoObGltaXRzX2pvYl'
+    '9ydW4ayQaCtRjEBgoOc2VydmljZV9saW1pdHMSCmxpbWl0c191c2USFGxpbWl0c19wb2xpY3lf'
+    'bWFuYWdlEhJsaW1pdHNfcG9saWN5X3ZpZXcSFGxpbWl0c19hcHByb3ZhbF92aWV3EhNsaW1pdH'
+    'NfYXBwcm92YWxfYWN0EhhsaW1pdHNfYXBwcm92YWxfb3ZlcnJpZGUSEmxpbWl0c19sZWRnZXJf'
+    'dmlldxIRbGltaXRzX2F1ZGl0X3ZpZXcSDmxpbWl0c19hcmNoaXZlEg5saW1pdHNfam9iX3J1bh'
+    'qkAQgBEgpsaW1pdHNfdXNlEhRsaW1pdHNfcG9saWN5X21hbmFnZRISbGltaXRzX3BvbGljeV92'
+    'aWV3EhRsaW1pdHNfYXBwcm92YWxfdmlldxITbGltaXRzX2FwcHJvdmFsX2FjdBIYbGltaXRzX2'
+    'FwcHJvdmFsX292ZXJyaWRlEhJsaW1pdHNfbGVkZ2VyX3ZpZXcSEWxpbWl0c19hdWRpdF92aWV3'
+    'GqQBCAISCmxpbWl0c191c2USFGxpbWl0c19wb2xpY3lfbWFuYWdlEhJsaW1pdHNfcG9saWN5X3'
+    'ZpZXcSFGxpbWl0c19hcHByb3ZhbF92aWV3EhNsaW1pdHNfYXBwcm92YWxfYWN0EhhsaW1pdHNf'
+    'YXBwcm92YWxfb3ZlcnJpZGUSEmxpbWl0c19sZWRnZXJfdmlldxIRbGltaXRzX2F1ZGl0X3ZpZX'
+    'caaAgDEhJsaW1pdHNfcG9saWN5X3ZpZXcSFGxpbWl0c19hcHByb3ZhbF92aWV3EhNsaW1pdHNf'
+    'YXBwcm92YWxfYWN0EhJsaW1pdHNfbGVkZ2VyX3ZpZXcSEWxpbWl0c19hdWRpdF92aWV3GlMIBB'
+    'ISbGltaXRzX3BvbGljeV92aWV3EhRsaW1pdHNfYXBwcm92YWxfdmlldxISbGltaXRzX2xlZGdl'
+    'cl92aWV3EhFsaW1pdHNfYXVkaXRfdmlldxpTCAUSEmxpbWl0c19wb2xpY3lfdmlldxIUbGltaX'
+    'RzX2FwcHJvdmFsX3ZpZXcSEmxpbWl0c19sZWRnZXJfdmlldxIRbGltaXRzX2F1ZGl0X3ZpZXca'
+    'DggGEgpsaW1pdHNfdXNl');

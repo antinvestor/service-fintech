@@ -36,6 +36,7 @@ type loanWindowBusiness struct {
 	lwRepo      repository.LoanWindowRepository
 	perRepo     repository.PeriodRepository
 	tenRepo     repository.TenureRepository
+	offers      OfferGenerator
 }
 
 func NewLoanWindowBusiness(
@@ -45,6 +46,7 @@ func NewLoanWindowBusiness(
 	lwRepo repository.LoanWindowRepository,
 	perRepo repository.PeriodRepository,
 	tenRepo repository.TenureRepository,
+	offers OfferGenerator,
 ) LoanWindowBusiness {
 	return &loanWindowBusiness{
 		product:     product,
@@ -52,6 +54,7 @@ func NewLoanWindowBusiness(
 		lwRepo:      lwRepo,
 		perRepo:     perRepo,
 		tenRepo:     tenRepo,
+		offers:      offers,
 	}
 }
 
@@ -66,10 +69,7 @@ func (b *loanWindowBusiness) Evaluate(ctx context.Context, groupID string) (map[
 		return nil, err
 	}
 
-	completedPeriods, err := b.lwRepo.CountByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
+	completedPeriods := b.completedPeriods(ctx, groupID)
 
 	maturityPeriod := groupInt32Property(group, "loan_maturity_periods", b.product.LoanMaturityPeriods)
 	gracePeriod := groupInt32Property(group, "loan_grace_period", b.product.LoanGracePeriod)
@@ -100,6 +100,17 @@ func (b *loanWindowBusiness) Evaluate(ctx context.Context, groupID string) (map[
 	}, nil
 }
 
+// completedPeriods counts the periods of the group's tenure that came before
+// its current one, which is what the loan cycle is measured in. A group with
+// no open period has completed none that count.
+func (b *loanWindowBusiness) completedPeriods(ctx context.Context, groupID string) int32 {
+	period, err := b.perRepo.GetCurrentByGroupID(ctx, groupID)
+	if err != nil || period == nil || period.GetID() == "" || period.State != int32(constants.StateActive) {
+		return 0
+	}
+	return period.Position - 1
+}
+
 // currentPeriodEnd renders the group's current period end date, or an empty
 // string when the group has no open period.
 func (b *loanWindowBusiness) currentPeriodEnd(ctx context.Context, groupID string) string {
@@ -110,9 +121,10 @@ func (b *loanWindowBusiness) currentPeriodEnd(ctx context.Context, groupID strin
 	return period.EndDate.UTC().Format(time.RFC3339)
 }
 
-// Open creates the group-scoped loan window that GenerateForWindow then prices
-// offers against. It is idempotent: an active window for the group's current
-// period is returned as-is rather than duplicated.
+// Open creates the group-scoped loan window and makes its members' offers.
+// It is idempotent: an active window for the group's current period is
+// returned rather than duplicated, and its offers are completed, never
+// repeated, so a retry after a failed offer run finishes the job.
 func (b *loanWindowBusiness) Open(ctx context.Context, groupID string) (*models.LoanWindow, error) {
 	logger := util.Log(ctx).WithField("method", "LoanWindowBusiness.Open").WithField(fieldGroupID, groupID)
 
@@ -136,14 +148,16 @@ func (b *loanWindowBusiness) Open(ctx context.Context, groupID string) (*models.
 	var maxPosition int32
 	for _, w := range existing {
 		if w.PeriodID == period.GetID() && w.State == int32(constants.StateActive) {
-			return w, nil
+			return w, b.makeOffers(ctx, group, w)
 		}
 		if w.Position > maxPosition {
 			maxPosition = w.Position
 		}
 	}
 
-	periodicAmount := groupInt64Property(group, "periodic_amount", 0)
+	// The window lends against the members' periodic savings: a group
+	// property can set it, otherwise it is the group's saving amount.
+	periodicAmount := groupInt64Property(group, "periodic_amount", group.GetSavingAmount())
 	if periodicAmount <= 0 {
 		return nil, apperrors.NewError(apperrors.Unprocessable,
 			"group has no periodic savings amount configured")
@@ -177,7 +191,20 @@ func (b *loanWindowBusiness) Open(ctx context.Context, groupID string) (*models.
 	}
 
 	logger.WithField("window_id", window.GetID()).Info("loan window opened")
-	return window, nil
+	return window, b.makeOffers(ctx, group, window)
+}
+
+// makeOffers offers the window's eligible members a loan.
+func (b *loanWindowBusiness) makeOffers(
+	ctx context.Context,
+	group *identityv1.ClientGroupObject,
+	window *models.LoanWindow,
+) error {
+	if b.offers == nil {
+		return apperrors.NewError(apperrors.ServiceUnavailable, "loan offers cannot be made")
+	}
+	_, err := b.offers.GenerateForWindow(ctx, group, window)
+	return err
 }
 
 func (b *loanWindowBusiness) getGroup(

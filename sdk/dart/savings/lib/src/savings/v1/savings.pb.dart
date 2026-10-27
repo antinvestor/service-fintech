@@ -24,6 +24,290 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 export 'savings.pbenum.dart';
 
+class SavingsJobRunRequest extends $pb.GeneratedMessage {
+  factory SavingsJobRunRequest({
+    SavingsJob? job,
+    $core.int? batchSize,
+  }) {
+    final result = SavingsJobRunRequest._();
+    if (job != null) result.job = job;
+    if (batchSize != null) result.batchSize = batchSize;
+    return result;
+  }
+
+  SavingsJobRunRequest._();
+
+  factory SavingsJobRunRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SavingsJobRunRequest()..mergeFromBuffer(data, registry);
+  factory SavingsJobRunRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SavingsJobRunRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SavingsJobRunRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'savings.v1'),
+      createEmptyInstance: SavingsJobRunRequest.$_createMessage)
+    ..aE<SavingsJob>(1, _omitFieldNames ? '' : 'job',
+        enumValues: SavingsJob.values)
+    ..aI(2, _omitFieldNames ? '' : 'batchSize')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SavingsJobRunRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SavingsJobRunRequest copyWith(void Function(SavingsJobRunRequest) updates) =>
+      super.copyWith((message) => updates(message as SavingsJobRunRequest))
+          as SavingsJobRunRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SavingsJobRunRequest() / SavingsJobRunRequest.new instead')
+  static SavingsJobRunRequest create() => SavingsJobRunRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SavingsJobRunRequest._();
+  @$core.override
+  SavingsJobRunRequest createEmptyInstance() => SavingsJobRunRequest._();
+  @$core.pragma('dart2js:noInline')
+  static SavingsJobRunRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SavingsJobRunRequest>(
+          SavingsJobRunRequest.$_createMessage);
+  static SavingsJobRunRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  SavingsJob get job => $_getN(0);
+  @$pb.TagNumber(1)
+  set job(SavingsJob value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasJob() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearJob() => $_clearField(1);
+
+  /// Most items to process in this run. 0 uses the service default.
+  @$pb.TagNumber(2)
+  $core.int get batchSize => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set batchSize($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBatchSize() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBatchSize() => $_clearField(2);
+}
+
+class SavingsJobRunResponse extends $pb.GeneratedMessage {
+  factory SavingsJobRunResponse({
+    $core.int? processed,
+    $core.bool? more,
+  }) {
+    final result = SavingsJobRunResponse._();
+    if (processed != null) result.processed = processed;
+    if (more != null) result.more = more;
+    return result;
+  }
+
+  SavingsJobRunResponse._();
+
+  factory SavingsJobRunResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SavingsJobRunResponse()..mergeFromBuffer(data, registry);
+  factory SavingsJobRunResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SavingsJobRunResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SavingsJobRunResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'savings.v1'),
+      createEmptyInstance: SavingsJobRunResponse.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'processed')
+    ..aOB(2, _omitFieldNames ? '' : 'more')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SavingsJobRunResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SavingsJobRunResponse copyWith(
+          void Function(SavingsJobRunResponse) updates) =>
+      super.copyWith((message) => updates(message as SavingsJobRunResponse))
+          as SavingsJobRunResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SavingsJobRunResponse() / SavingsJobRunResponse.new instead')
+  static SavingsJobRunResponse create() => SavingsJobRunResponse._();
+  static $pb.GeneratedMessage $_createMessage() => SavingsJobRunResponse._();
+  @$core.override
+  SavingsJobRunResponse createEmptyInstance() => SavingsJobRunResponse._();
+  @$core.pragma('dart2js:noInline')
+  static SavingsJobRunResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SavingsJobRunResponse>(
+          SavingsJobRunResponse.$_createMessage);
+  static SavingsJobRunResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get processed => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set processed($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProcessed() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProcessed() => $_clearField(1);
+
+  /// True when the batch was full and more work may be waiting.
+  @$pb.TagNumber(2)
+  $core.bool get more => $_getBF(1);
+  @$pb.TagNumber(2)
+  set more($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMore() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMore() => $_clearField(2);
+}
+
+/// PayoutFailedApplyRequest tells the service that originated a payout that
+/// the payment rail failed it after accepting it. Operations has already
+/// reversed the ledger leg; the originator undoes its own record. Applying
+/// it again changes nothing.
+class PayoutFailedApplyRequest extends $pb.GeneratedMessage {
+  factory PayoutFailedApplyRequest({
+    $core.String? reference,
+    $core.String? reason,
+  }) {
+    final result = PayoutFailedApplyRequest._();
+    if (reference != null) result.reference = reference;
+    if (reason != null) result.reason = reason;
+    return result;
+  }
+
+  PayoutFailedApplyRequest._();
+
+  factory PayoutFailedApplyRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyRequest()..mergeFromBuffer(data, registry);
+  factory PayoutFailedApplyRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PayoutFailedApplyRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'savings.v1'),
+      createEmptyInstance: PayoutFailedApplyRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'reference')
+    ..aOS(2, _omitFieldNames ? '' : 'reason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyRequest copyWith(
+          void Function(PayoutFailedApplyRequest) updates) =>
+      super.copyWith((message) => updates(message as PayoutFailedApplyRequest))
+          as PayoutFailedApplyRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PayoutFailedApplyRequest() / PayoutFailedApplyRequest.new instead')
+  static PayoutFailedApplyRequest create() => PayoutFailedApplyRequest._();
+  static $pb.GeneratedMessage $_createMessage() => PayoutFailedApplyRequest._();
+  @$core.override
+  PayoutFailedApplyRequest createEmptyInstance() =>
+      PayoutFailedApplyRequest._();
+  @$core.pragma('dart2js:noInline')
+  static PayoutFailedApplyRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PayoutFailedApplyRequest>(
+          PayoutFailedApplyRequest.$_createMessage);
+  static PayoutFailedApplyRequest? _defaultInstance;
+
+  /// The transfer order reference the originator gave the payout.
+  @$pb.TagNumber(1)
+  $core.String get reference => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set reference($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReference() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReference() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get reason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set reason($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => $_clearField(2);
+}
+
+class PayoutFailedApplyResponse extends $pb.GeneratedMessage {
+  factory PayoutFailedApplyResponse({
+    $core.bool? applied,
+  }) {
+    final result = PayoutFailedApplyResponse._();
+    if (applied != null) result.applied = applied;
+    return result;
+  }
+
+  PayoutFailedApplyResponse._();
+
+  factory PayoutFailedApplyResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyResponse()..mergeFromBuffer(data, registry);
+  factory PayoutFailedApplyResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PayoutFailedApplyResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PayoutFailedApplyResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'savings.v1'),
+      createEmptyInstance: PayoutFailedApplyResponse.$_createMessage)
+    ..aOB(1, _omitFieldNames ? '' : 'applied')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PayoutFailedApplyResponse copyWith(
+          void Function(PayoutFailedApplyResponse) updates) =>
+      super.copyWith((message) => updates(message as PayoutFailedApplyResponse))
+          as PayoutFailedApplyResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PayoutFailedApplyResponse() / PayoutFailedApplyResponse.new instead')
+  static PayoutFailedApplyResponse create() => PayoutFailedApplyResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      PayoutFailedApplyResponse._();
+  @$core.override
+  PayoutFailedApplyResponse createEmptyInstance() =>
+      PayoutFailedApplyResponse._();
+  @$core.pragma('dart2js:noInline')
+  static PayoutFailedApplyResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PayoutFailedApplyResponse>(
+          PayoutFailedApplyResponse.$_createMessage);
+  static PayoutFailedApplyResponse? _defaultInstance;
+
+  /// True when this call undid the record; false when it was already undone
+  /// or the reference is not this service's.
+  @$pb.TagNumber(1)
+  $core.bool get applied => $_getBF(0);
+  @$pb.TagNumber(1)
+  set applied($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasApplied() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearApplied() => $_clearField(1);
+}
+
 /// SavingsProductObject defines savings terms, rates, and rules for a bank.
 class SavingsProductObject extends $pb.GeneratedMessage {
   factory SavingsProductObject({
@@ -4228,6 +4512,20 @@ class SavingsServiceApi {
           $pb.ClientContext? ctx, SavingsStatementRequest request) =>
       _client.invoke<SavingsStatementResponse>(ctx, 'SavingsService',
           'SavingsStatement', request, SavingsStatementResponse());
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  $async.Future<PayoutFailedApplyResponse> payoutFailedApply(
+          $pb.ClientContext? ctx, PayoutFailedApplyRequest request) =>
+      _client.invoke<PayoutFailedApplyResponse>(ctx, 'SavingsService',
+          'PayoutFailedApply', request, PayoutFailedApplyResponse());
+
+  /// SavingsJobRun runs one batch of a periodic job. Called by the platform
+  /// scheduler (trustage); nothing in the service runs on a timer.
+  $async.Future<SavingsJobRunResponse> savingsJobRun(
+          $pb.ClientContext? ctx, SavingsJobRunRequest request) =>
+      _client.invoke<SavingsJobRunResponse>(ctx, 'SavingsService',
+          'SavingsJobRun', request, SavingsJobRunResponse());
 }
 
 const $core.bool _omitFieldNames =

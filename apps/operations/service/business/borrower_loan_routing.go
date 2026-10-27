@@ -89,19 +89,25 @@ func (b *paymentRoutingBusiness) borrowerLoanResult(
 	ctx context.Context,
 	loan *loansv1.LoanAccountObject,
 ) (*identificationResult, error) {
-	result := &identificationResult{
+	return &identificationResult{
 		Strategy:  strategyBorrowerLoan,
 		ClientID:  loan.GetClientId(),
 		LoanID:    loan.GetId(),
 		ProductID: loan.GetProductId(),
+		ProfileID: b.profileOfClient(ctx, loan.GetClientId()),
+	}, nil
+}
+
+// profileOfClient is the client's profile id, or "" when it cannot be read.
+func (b *paymentRoutingBusiness) profileOfClient(ctx context.Context, clientID string) string {
+	if b.clients == nil || b.clients.LenderIdentity == nil {
+		return ""
 	}
-	if b.clients.LenderIdentity != nil {
-		if resp, err := b.clients.LenderIdentity.ClientGet(ctx,
-			&fieldv1.ClientGetRequest{Id: loan.GetClientId()}); err == nil {
-			result.ProfileID = resp.GetData().GetProfileId()
-		}
+	resp, err := b.clients.LenderIdentity.ClientGet(ctx, &fieldv1.ClientGetRequest{Id: clientID})
+	if err != nil {
+		return ""
 	}
-	return result, nil
+	return resp.GetData().GetProfileId()
 }
 
 // repayableLoan loads a loan by id and returns it when it can take money.
@@ -202,7 +208,8 @@ func (b *paymentRoutingBusiness) repayableLoansOf(
 func loanTakesRepayments(loan *loansv1.LoanAccountObject) bool {
 	switch loan.GetStatus() { //nolint:exhaustive // only repayable statuses matter
 	case loansv1.LoanStatus_LOAN_STATUS_ACTIVE, loansv1.LoanStatus_LOAN_STATUS_DELINQUENT,
-		loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED:
+		loansv1.LoanStatus_LOAN_STATUS_DEFAULT, loansv1.LoanStatus_LOAN_STATUS_RESTRUCTURED,
+		loansv1.LoanStatus_LOAN_STATUS_WRITTEN_OFF:
 		return true
 	default:
 		return false
@@ -242,7 +249,7 @@ func (b *paymentRoutingBusiness) allocateToBorrowerLoan(
 		State:            int32(constants.StateJustCreated),
 		ExtraData: data.JSONMap{
 			extraKeySource:        allocationSourceMarker,
-			"payment_id":          paymentID,
+			fieldPaymentID:        paymentID,
 			fieldLoanID:           loanID,
 			fieldClientID:         clientID,
 			extraRepaymentChannel: channelMobileMoney,
@@ -262,14 +269,15 @@ func (b *paymentRoutingBusiness) allocateToBorrowerLoan(
 	}
 	logger.WithField(fieldLoanID, loanID).WithField("transfer_order_id", to.GetID()).
 		Info("payment allocated to borrower loan")
+	execution := b.executeRepayment(ctx, logger, to.GetID())
 
 	return map[string]interface{}{
 		fieldPaymentID:       paymentID,
 		fieldCurrency:        payment.Currency,
 		fieldClientID:        clientID,
 		fieldLoanID:          loanID,
-		"total_amount":       payment.Amount,
-		"allocated_amount":   payment.Amount,
+		fieldTotalAmount:     payment.Amount,
+		fieldAllocatedAmount: payment.Amount,
 		fieldRemainingAmount: int64(0),
 		fieldTransferOrders: []map[string]interface{}{{
 			"bucket":             strategyBorrowerLoan,
@@ -281,8 +289,35 @@ func (b *paymentRoutingBusiness) allocateToBorrowerLoan(
 			"type":               to.OrderType,
 			fieldReference:       to.Reference,
 		}},
-		"payment_state": paymentState,
+		fieldPaymentState: paymentState,
+		fieldExecution:    execution,
 	}, nil
+}
+
+// Execution outcomes of a borrower repayment order, as allocation reports
+// them.
+const (
+	executionPosted  = "posted"
+	executionPending = "pending"
+)
+
+// executeRepayment posts the repayment order at once, so the loan shows the
+// payment while the borrower waits. The allocation already stands: if the
+// post fails the order stays raised and the settle job posts it later.
+func (b *paymentRoutingBusiness) executeRepayment(
+	ctx context.Context,
+	logger *util.LogEntry,
+	orderID string,
+) string {
+	if b.executor == nil {
+		return executionPending
+	}
+	if err := b.executor.Execute(ctx, orderID); err != nil {
+		logger.WithError(err).WithField("transfer_order_id", orderID).
+			Warn("borrower repayment not posted yet; the settle job retries")
+		return executionPending
+	}
+	return executionPosted
 }
 
 // isBorrowerLoanPayment reports whether a payment was matched to a loan.

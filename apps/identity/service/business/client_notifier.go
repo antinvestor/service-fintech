@@ -49,6 +49,7 @@ type options struct {
 	teamMembershipRepo repository.TeamMembershipRepository
 	kycPolicy          *KYCPolicy
 	clientGuard        *clientGuard
+	documents          DocumentStore
 }
 
 // WithProfiles lets client registration find or create the borrower's
@@ -66,6 +67,11 @@ func WithConsentChallenges(repo repository.ClientConsentChallengeRepository) Opt
 // checks them and the KYC flow reports them.
 func WithKYCPolicy(p *KYCPolicy) Option {
 	return func(o *options) { o.kycPolicy = p }
+}
+
+// WithDocumentStore keeps KYC photos, documents and signatures.
+func WithDocumentStore(store DocumentStore) Option {
+	return func(o *options) { o.documents = store }
 }
 
 // WithClientGuard limits KYC data to staff and the agents serving the
@@ -143,6 +149,7 @@ func applyOptions(opts []Option) options {
 type ClientNotifier struct {
 	notifier   *notify.Notifier
 	lenderName string
+	termsURL   string
 }
 
 // NewClientNotifier builds a ClientNotifier. lenderName opens every message.
@@ -153,8 +160,37 @@ func NewClientNotifier(notifier *notify.Notifier, lenderName string) *ClientNoti
 	return &ClientNotifier{notifier: notifier, lenderName: lenderName}
 }
 
+// WithTerms sets where the lender's lending terms are published. A borrower
+// accepts them once, when their account is opened.
+func (n *ClientNotifier) WithTerms(termsURL string) *ClientNotifier {
+	n.termsURL = strings.TrimSpace(termsURL)
+	return n
+}
+
+// TermsReference names the terms a borrower accepts at activation.
+func (n *ClientNotifier) TermsReference() string {
+	if n == nil || n.termsURL == "" {
+		return defaultTermsReference
+	}
+	return n.termsURL
+}
+
+// defaultTermsReference stands for the terms when none are published.
+const defaultTermsReference = "the lending terms your field officer explained"
+
 // Enabled reports whether messages can reach a notification service.
 func (n *ClientNotifier) Enabled() bool { return n != nil && n.notifier.Enabled() }
+
+// NotifyTermsOffered tells the borrower that the code which follows opens
+// their account and accepts the lending terms, once for every loan after.
+func (n *ClientNotifier) NotifyTermsOffered(ctx context.Context, client *models.Client) {
+	if !n.Enabled() || client == nil {
+		return
+	}
+	vars := n.clientVars(client)
+	vars[messages.VarTermsURL] = n.TermsReference()
+	n.send(ctx, client, messages.ClientTermsOffered, vars, notificationv1.PRIORITY_HIGH)
+}
 
 // NotifyClientOnboarded welcomes a newly registered borrower.
 func (n *ClientNotifier) NotifyClientOnboarded(ctx context.Context, client *models.Client, agentName string) {

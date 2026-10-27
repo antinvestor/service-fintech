@@ -37,6 +37,7 @@ class service_seed implements Namespace {
     granted_seed_credit_profile_admin: (profile_user | service_seed)[]
     granted_seed_loan_paid_off_notify: (profile_user | service_seed)[]
     granted_seed_ussd_state: (profile_user | service_seed)[]
+    granted_seed_credit_profile_cap: (profile_user | service_seed)[]
   }
 
   permits = {
@@ -73,5 +74,13 @@ class service_seed implements Namespace {
     seed_ussd_state: (ctx: Context): boolean =>
       this.related.service.includes(ctx.subject) ||
       this.related.granted_seed_ussd_state.includes(ctx.subject),
+
+    seed_credit_profile_cap: (ctx: Context): boolean =>
+      this.related.admin.includes(ctx.subject) ||
+      this.related.member.includes(ctx.subject) ||
+      this.related.operator.includes(ctx.subject) ||
+      this.related.owner.includes(ctx.subject) ||
+      this.related.service.includes(ctx.subject) ||
+      this.related.granted_seed_credit_profile_cap.includes(ctx.subject),
   }
 }

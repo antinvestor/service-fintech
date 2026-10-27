@@ -158,7 +158,8 @@ func validateLoanProduct(lp *models.LoanProduct) error {
 		(lp.MaxTermDays > 0 && lp.MinTermDays > lp.MaxTermDays):
 		return ErrLoanProductTermRangeInvalid
 	case lp.AnnualInterestRate < 0 || lp.ProcessingFeePercent < 0 ||
-		lp.InsuranceFeePercent < 0 || lp.LatePenaltyRate < 0:
+		lp.InsuranceFeePercent < 0 || lp.LatePenaltyRate < 0 ||
+		lp.AgentCommissionPercent < 0 || lp.AgentCommissionPercent > maxCommissionBasisPoints:
 		return ErrLoanProductRatesInvalid
 	case lp.GracePeriodDays < 0 || lp.GracePeriodDays > maxGracePeriodDays:
 		return ErrLoanProductGracePeriodInvalid
@@ -166,6 +167,9 @@ func validateLoanProduct(lp *models.LoanProduct) error {
 		return nil
 	}
 }
+
+// maxCommissionBasisPoints caps agent commission at all of the interest.
+const maxCommissionBasisPoints = 10_000
 
 // maxGracePeriodDays bounds how long a late installment can go unpenalised.
 const maxGracePeriodDays = 365

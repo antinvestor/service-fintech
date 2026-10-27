@@ -1,3 +1,20 @@
+## 0.8.3
+
+- `ClientGroupSearchRequest.states` and `.group_types`: search only groups in
+  any of the listed states and of any of the listed types.
+- **Behaviour:** `ClientGroupSearch` now applies its `state`, `group_type`,
+  `parent_id` and `product_id` filters, which it used to ignore.
+
+## 0.8.2
+
+- `IdentityService.ClientDocumentUpload` (`client_data_manage`): stores a
+  KYC photo, document or signature (JPEG, PNG, WebP or PDF, up to 5 MiB)
+  privately and records it as the client's entry for the field.
+- `IdentityService.ClientDocumentLink` (`client_data_view`): a signed link,
+  valid for five minutes, to view a document entry.
+- **Behaviour:** `ClientDataSave` refuses `photo`, `file` and `signature`
+  values; they are recorded only by uploading.
+
 ## 0.8.1
 
 - `IdentityService.ClientDataStartReview`: a reviewer takes a client data

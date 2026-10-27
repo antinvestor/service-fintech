@@ -46,3 +46,6 @@ const (
 	// statementMaxEntries bounds a single statement response.
 	statementMaxEntries = 500
 )
+
+// depositChannelCash is refused: savers pay from their own contact.
+const depositChannelCash = "cash"

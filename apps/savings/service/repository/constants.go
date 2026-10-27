@@ -19,6 +19,7 @@ package repository
 const (
 	colBalance         = "balance"
 	colModifiedAt      = "modified_at"
+	colStatus          = "status"
 	colReservedBalance = "reserved_balance"
 	colVersion         = "version"
 	colLedgerTxnID     = "ledger_transaction_id"

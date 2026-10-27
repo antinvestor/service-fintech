@@ -45,6 +45,14 @@ const reviewClaimTTL = 24 * time.Hour
 // ClientDataBusiness defines the operations for managing client KYC data entries.
 type ClientDataBusiness interface {
 	Save(ctx context.Context, entry *models.ClientDataEntry) (*models.ClientDataEntry, error)
+	// UploadDocument stores a KYC photo, document or signature and records
+	// it as the client's entry for the field.
+	UploadDocument(
+		ctx context.Context,
+		req *identityv1.ClientDocumentUploadRequest,
+	) (*models.ClientDataEntry, error)
+	// DocumentLink returns a short-lived link to a document entry.
+	DocumentLink(ctx context.Context, entryID string) (string, time.Time, error)
 	Get(ctx context.Context, clientID, fieldKey string) (*models.ClientDataEntry, error)
 	List(ctx context.Context, clientID string, status int32, offset, limit int) ([]*models.ClientDataEntry, error)
 	Verify(ctx context.Context, entryID, comment string) (*models.ClientDataEntry, error)
@@ -66,6 +74,7 @@ type clientDataBusiness struct {
 	clients     clientLookup
 	guard       *clientGuard
 	kycPolicy   *KYCPolicy
+	documents   DocumentStore
 }
 
 func NewClientDataBusiness(
@@ -84,15 +93,30 @@ func NewClientDataBusiness(
 		clients:     o.clientLookup,
 		guard:       o.clientGuard,
 		kycPolicy:   o.kycPolicy,
+		documents:   o.documents,
 	}
 }
 
 func (b *clientDataBusiness) Save(ctx context.Context, entry *models.ClientDataEntry) (*models.ClientDataEntry, error) {
-	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.Save")
-
-	if _, err := b.guard.authorize(ctx, entry.ClientID); err != nil {
+	client, err := b.guard.authorize(ctx, entry.ClientID)
+	if err != nil {
 		return nil, err
 	}
+	entry.ValueType = normalizeValueType(entry.ValueType)
+	// A document is recognised by what is sent and by what the client's
+	// form declares the field to be, so neither can be used to slip a value
+	// past the upload.
+	if isDocumentValueType(entry.ValueType) || b.fieldIsDocument(ctx, client, entry.FieldKey) == fieldDocument {
+		return nil, ErrDocumentNeedsUpload
+	}
+	return b.save(ctx, entry)
+}
+
+// save records a new revision of the entry for a caller already authorized
+// to capture the client's data.
+func (b *clientDataBusiness) save(ctx context.Context, entry *models.ClientDataEntry) (*models.ClientDataEntry, error) {
+	logger := util.Log(ctx).WithField("method", "ClientDataBusiness.Save")
+
 	if entry.GetID() == "" {
 		entry.GenID(ctx)
 	}

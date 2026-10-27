@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"buf.build/gen/go/antinvestor/payment/connectrpc/go/v2/v1/paymentv1connect"
+
 	"buf.build/gen/go/antinvestor/field/connectrpc/go/v2/field/v1/fieldv1connect"
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
 	"github.com/hashicorp/golang-lru/v2/expirable"
@@ -80,7 +82,7 @@ type AccessResolver interface {
 // borrower or a field agent and is scoped through the AccessResolver.
 //
 //nolint:gochecknoglobals // immutable default, overridable through NewReadScope
-var defaultStaffRoles = []string{"admin", "operator", "viewer"}
+var defaultStaffRoles = []string{"owner", "admin", "operator", "viewer"}
 
 // ReadScope decides, per request, whether the caller may act on a record
 // owned by a given client. Staff and internal-system callers may act on any
@@ -254,6 +256,7 @@ type options struct {
 	notifier          *LoanNotifier
 	auditWriter       *audit.Writer
 	payoutChecker     PayoutDestinationChecker
+	payments          paymentv1connect.PaymentServiceClient
 	clientStanding    ClientStandingChecker
 	fundingSettlement *FundingSettlement
 	repaymentApplier  repository.RepaymentApplier
@@ -287,6 +290,12 @@ func WithAuditWriter(w *audit.Writer) Option {
 // destination belongs to the borrower.
 func WithPayoutDestinationChecker(c PayoutDestinationChecker) Option {
 	return func(o *options) { o.payoutChecker = c }
+}
+
+// WithPaymentClient installs the payment service, through which a borrower
+// is asked to pay. Without it collection prompts are refused.
+func WithPaymentClient(c paymentv1connect.PaymentServiceClient) Option {
+	return func(o *options) { o.payments = c }
 }
 
 // WithNotifier installs the borrower/agent notifier. Without it the business

@@ -1,7 +1,10 @@
 import 'package:antinvestor_api_field/antinvestor_api_field.dart';
+import 'package:antinvestor_api_identity/antinvestor_api_identity.dart'
+    show InternalTeamObject;
 import 'package:antinvestor_ui_core/widgets/admin_entity_list_page.dart';
 import 'package:antinvestor_ui_core/widgets/error_helpers.dart';
 import 'package:antinvestor_ui_core/widgets/state_badge.dart';
+import 'package:antinvestor_ui_core/responsive/breakpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +13,8 @@ import '../providers/client_providers.dart';
 import '../providers/kyc_requirements_providers.dart';
 import '../providers/paged_list.dart';
 import '../providers/registration_outbox.dart';
+import '../providers/team_providers.dart';
+import '../widgets/compact_entity_list.dart';
 import '../widgets/async_state_views.dart';
 import '../widgets/client_helpers.dart';
 import '../widgets/load_more_action.dart';
@@ -66,98 +71,128 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
     final clients = page.items;
     final loadError = clientsAsync.hasError ? clientsAsync.error : null;
 
-    return AdminEntityListPage<ClientObject>(
-      title: _title,
-      breadcrumbs: _breadcrumbs,
-      columns: const [
-        DataColumn(label: Text('NAME')),
-        DataColumn(label: Text('TEAM')),
-        DataColumn(label: Text('STATE')),
-      ],
-      items: clients,
-      onSearch: (value) => setState(() => _searchQuery = value.trim()),
-      searchHint: 'Search by name or phone',
-      filters: widget.canManage
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (loadError != null)
-                  ListTile(
-                    key: const Key('clients-offline'),
-                    leading: const Icon(Icons.cloud_off_outlined),
-                    title: Text(friendlyError(loadError)),
-                    subtitle: const Text(
-                      'You can still onboard clients; they are sent when '
-                      'you are back online.',
-                    ),
-                    trailing: TextButton(
-                      onPressed: () => ref.invalidate(provider),
-                      child: const Text('Retry'),
-                    ),
+    final filters = widget.canManage
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (loadError != null)
+                ListTile(
+                  key: const Key('clients-offline'),
+                  leading: const Icon(Icons.cloud_off_outlined),
+                  title: Text(friendlyError(loadError)),
+                  subtitle: const Text(
+                    'You can still onboard clients; they are sent when '
+                    'you are back online.',
                   ),
-                const PendingRegistrationsPanel(),
+                  trailing: TextButton(
+                    onPressed: () => ref.invalidate(provider),
+                    child: const Text('Retry'),
+                  ),
+                ),
+              const PendingRegistrationsPanel(),
+            ],
+          )
+        : null;
+    final actions = <Widget>[
+      LoadMoreAction(
+        loadedCount: clients.length,
+        hasMore: page.hasMore,
+        isLoading: page.isLoadingMore,
+        errorMessage: page.loadMoreError == null
+            ? null
+            : friendlyError(page.loadMoreError!),
+        onLoadMore: () => ref.read(provider.notifier).loadMore(),
+      ),
+    ];
+    void open(ClientObject client) {
+      if (widget.onNavigateToDetail != null) {
+        widget.onNavigateToDetail!(client.id);
+      } else {
+        context.go('/clients/${client.id}');
+      }
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (AppBreakpoints.isMobile(constraints.maxWidth)) {
+          return CompactEntityList<ClientObject>(
+            title: _title,
+            items: clients,
+            onSearch: (value) => setState(() => _searchQuery = value.trim()),
+            searchHint: 'Search by name or phone',
+            actions: actions,
+            filters: filters,
+            addLabel: widget.canManage ? 'Onboard client' : null,
+            onAdd: widget.canManage ? () => _onboard(context) : null,
+            emptyText: 'No clients yet',
+            tileBuilder: (client) => ListTile(
+              key: Key('client-tile-${client.id}'),
+              leading: const Icon(Icons.person_outline),
+              title: Text(client.name.isNotEmpty ? client.name : client.id),
+              trailing: StateBadge(state: fieldStateToCommon(client.state)),
+            ),
+            onTap: open,
+          );
+        }
+        return AdminEntityListPage<ClientObject>(
+          title: _title,
+          breadcrumbs: _breadcrumbs,
+          columns: const [
+            DataColumn(label: Text('NAME')),
+            DataColumn(label: Text('TEAM')),
+            DataColumn(label: Text('STATE')),
+          ],
+          items: clients,
+          onSearch: (value) => setState(() => _searchQuery = value.trim()),
+          searchHint: 'Search by name or phone',
+          filters: filters,
+          addLabel: widget.canManage ? 'Onboard client' : null,
+          onAdd: widget.canManage ? () => _onboard(context) : null,
+          actions: actions,
+          rowBuilder: (client, selected, onSelect) {
+            return DataRow(
+              selected: selected,
+              onSelectChanged: (_) => onSelect(),
+              cells: [
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
+                        child: Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(client.name.isNotEmpty ? client.name : client.id),
+                    ],
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    client.owningTeamId.isNotEmpty ? client.owningTeamId : '-',
+                  ),
+                ),
+                DataCell(StateBadge(state: fieldStateToCommon(client.state))),
               ],
-            )
-          : null,
-      addLabel: widget.canManage ? 'Onboard client' : null,
-      onAdd: widget.canManage ? () => _onboard(context) : null,
-      actions: [
-        LoadMoreAction(
-          loadedCount: clients.length,
-          hasMore: page.hasMore,
-          isLoading: page.isLoadingMore,
-          errorMessage: page.loadMoreError == null
-              ? null
-              : friendlyError(page.loadMoreError!),
-          onLoadMore: () => ref.read(provider.notifier).loadMore(),
-        ),
-      ],
-      rowBuilder: (client, selected, onSelect) {
-        return DataRow(
-          selected: selected,
-          onSelectChanged: (_) => onSelect(),
-          cells: [
-            DataCell(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.person_outline,
-                      size: 14,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(client.name.isNotEmpty ? client.name : client.id),
-                ],
-              ),
-            ),
-            DataCell(
-              Text(client.owningTeamId.isNotEmpty ? client.owningTeamId : '-'),
-            ),
-            DataCell(StateBadge(state: fieldStateToCommon(client.state))),
+            );
+          },
+          onRowNavigate: open,
+          exportRow: (client) => [
+            client.name,
+            clientNationalId(client),
+            client.owningTeamId,
+            client.state.name,
+            client.id,
           ],
         );
       },
-      onRowNavigate: (client) {
-        if (widget.onNavigateToDetail != null) {
-          widget.onNavigateToDetail!(client.id);
-        } else {
-          context.go('/clients/${client.id}');
-        }
-      },
-      exportRow: (client) => [
-        client.name,
-        clientNationalId(client),
-        client.owningTeamId,
-        client.state.name,
-        client.id,
-      ],
     );
   }
 
@@ -165,11 +200,20 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
     // The organization's client form, fresh when online and the cached copy
     // otherwise; the provider never fails.
     final template = await ref.refresh(onboardingTemplateProvider.future);
+    // The teams a client may be placed in; offline, the agent's own team.
+    List<InternalTeamObject> teams;
+    try {
+      teams = await ref.read(
+        internalTeamListProvider((query: '', organizationId: '')).future,
+      );
+    } catch (_) {
+      teams = const [];
+    }
     if (!context.mounted) return;
     final draft = await showDialog<ClientRegistrationDraft>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => ClientFormDialog(template: template),
+      builder: (_) => ClientFormDialog(template: template, teams: teams),
     );
     if (draft == null || !context.mounted) return;
 
@@ -181,6 +225,7 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
       phone: draft.phone,
       nationalId: draft.nationalId,
       details: draft.details,
+      owningTeamId: draft.owningTeamId,
     );
     if (!context.mounted) return;
     await _send(context, draft.name, outbox.submit(id));

@@ -11,8 +11,21 @@ import '../widgets/money_amount_dialog.dart';
 import 'savings_accounts_screen.dart' show statusInfo;
 
 class SavingsAccountDetailScreen extends ConsumerStatefulWidget {
-  const SavingsAccountDetailScreen({super.key, required this.accountId});
+  const SavingsAccountDetailScreen({
+    super.key,
+    required this.accountId,
+    this.canManageAccount = false,
+    this.canWithdraw = false,
+  });
   final String accountId;
+
+  /// savings_account_manage: freeze and close.
+  final bool canManageAccount;
+
+  /// withdrawal_manage: request a withdrawal, paid to the saver's own
+  /// profile. Deposits are never recorded here: they come from the saver's
+  /// own payment, matched by the payment rail.
+  final bool canWithdraw;
 
   @override
   ConsumerState<SavingsAccountDetailScreen> createState() =>
@@ -120,7 +133,8 @@ class _SavingsAccountDetailScreenState
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
           child: _AccountActions(
             account: account,
-            onDeposit: () => _showDepositDialog(account),
+            canManageAccount: widget.canManageAccount,
+            canWithdraw: widget.canWithdraw,
             onWithdraw: () => _showWithdrawalDialog(account),
             onFreeze: () => _confirmLifecycle(
               account,
@@ -167,30 +181,6 @@ class _SavingsAccountDetailScreenState
         ),
       ],
     );
-  }
-
-  Future<void> _showDepositDialog(SavingsAccountObject account) async {
-    final done = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => MoneyAmountDialog(
-        title: 'Record Deposit',
-        confirmLabel: 'Record',
-        currencyCode: account.currencyCode,
-        description: 'The amount to deposit into this savings account.',
-        referenceLabel: 'Payment Reference',
-        referenceHint: 'e.g. TXN-12345',
-        onSubmit: (amount, reference, idempotencyKey) => ref
-            .read(depositNotifierProvider.notifier)
-            .record(
-              savingsAccountId: account.id,
-              amount: amount,
-              currencyCode: account.currencyCode,
-              idempotencyKey: idempotencyKey,
-              paymentReference: reference,
-            ),
-      ),
-    );
-    _notify(done, 'Deposit recorded');
   }
 
   Future<void> _showWithdrawalDialog(SavingsAccountObject account) async {
@@ -392,14 +382,16 @@ class _BalanceFigure extends StatelessWidget {
 class _AccountActions extends StatelessWidget {
   const _AccountActions({
     required this.account,
-    required this.onDeposit,
+    required this.canManageAccount,
+    required this.canWithdraw,
     required this.onWithdraw,
     required this.onFreeze,
     required this.onClose,
   });
 
   final SavingsAccountObject account;
-  final VoidCallback onDeposit;
+  final bool canManageAccount;
+  final bool canWithdraw;
   final VoidCallback onWithdraw;
   final VoidCallback onFreeze;
   final VoidCallback onClose;
@@ -415,27 +407,21 @@ class _AccountActions extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        if (isActive) ...[
-          FilledButton.icon(
-            key: const Key('action-deposit'),
-            onPressed: onDeposit,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Record Deposit'),
-          ),
+        if (isActive && canWithdraw)
           OutlinedButton.icon(
             key: const Key('action-withdraw'),
             onPressed: onWithdraw,
             icon: const Icon(Icons.remove, size: 18),
             label: const Text('Request Withdrawal'),
           ),
+        if (isActive && canManageAccount)
           OutlinedButton.icon(
             key: const Key('action-freeze'),
             onPressed: onFreeze,
             icon: const Icon(Icons.ac_unit, size: 18),
             label: const Text('Freeze'),
           ),
-        ],
-        if (!isClosed)
+        if (!isClosed && canManageAccount)
           OutlinedButton.icon(
             key: const Key('action-close'),
             onPressed: onClose,

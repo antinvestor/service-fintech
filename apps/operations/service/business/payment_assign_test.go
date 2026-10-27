@@ -61,6 +61,7 @@ func TestAssignPaymentTiesUnmatchedPaymentToTheLoanAndAllocatesIt(t *testing.T) 
 		staffContext(),
 		paymentID,
 		"loan-1",
+		"",
 		"payer confirmed by phone call",
 	)
 	require.NoError(t, err)
@@ -110,7 +111,7 @@ func TestAssignPaymentRefusals(t *testing.T) {
 			routing, _, orders := newBorrowerRouting(t, loans)
 			paymentID := unmatchedPayment(t, routing, "txn-r"+string(rune('a'+i)), tc.product)
 
-			_, _, err := routing.AssignPayment(staffContext(), paymentID, tc.loanID, tc.note)
+			_, _, err := routing.AssignPayment(staffContext(), paymentID, tc.loanID, "", tc.note)
 			require.ErrorIs(t, err, tc.want)
 			assert.Empty(t, orders.byReference)
 		})
@@ -124,10 +125,10 @@ func TestAssignPaymentOnlyOnce(t *testing.T) {
 	)
 	paymentID := unmatchedPayment(t, routing, "txn-o1", "prod-1")
 
-	_, _, err := routing.AssignPayment(staffContext(), paymentID, "loan-1", "first")
+	_, _, err := routing.AssignPayment(staffContext(), paymentID, "loan-1", "", "first")
 	require.NoError(t, err)
 
-	_, _, err = routing.AssignPayment(staffContext(), paymentID, "loan-2", "second")
+	_, _, err = routing.AssignPayment(staffContext(), paymentID, "loan-2", "", "second")
 	require.ErrorIs(t, err, ErrPaymentAlreadyMatched)
 	assert.Len(t, orders.byReference, 1)
 }
@@ -145,6 +146,6 @@ func TestAssignPaymentRefusesAMatchedPayment(t *testing.T) {
 	require.NoError(t, err)
 	paymentID, _ := result["payment_id"].(string)
 
-	_, _, err = routing.AssignPayment(staffContext(), paymentID, "loan-1", "n")
+	_, _, err = routing.AssignPayment(staffContext(), paymentID, "loan-1", "", "n")
 	require.ErrorIs(t, err, ErrPaymentAlreadyMatched)
 }

@@ -49,7 +49,7 @@ func asCaller(t *testing.T, profileID string, roles ...string) context.Context {
 // A member answers only their own offer, in its own group; staff and
 // services answer any.
 func TestAuthorizeOfferResponse(t *testing.T) {
-	b := &loanOfferBusiness{identityCli: membershipIdentity{
+	b := &loanOfferBusiness{identity: membershipIdentity{
 		membership: &identityv1.MembershipObject{Id: "m-1", GroupId: "g-1", ProfileId: "profile-member"},
 	}}
 	offer := &models.LoanOffer{MembershipID: "m-1"}

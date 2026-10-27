@@ -184,4 +184,22 @@ abstract final class SavingsService {
     savingsv1savings.SavingsStatementResponse.new,
     idempotency: connect.Idempotency.noSideEffects,
   );
+
+  /// PayoutFailedApply undoes this service's record of a payout the payment
+  /// rail failed after accepting it. Only operations calls it.
+  static const payoutFailedApply = connect.Spec(
+    '/$name/PayoutFailedApply',
+    connect.StreamType.unary,
+    savingsv1savings.PayoutFailedApplyRequest.new,
+    savingsv1savings.PayoutFailedApplyResponse.new,
+  );
+
+  /// SavingsJobRun runs one batch of a periodic job. Called by the platform
+  /// scheduler (trustage); nothing in the service runs on a timer.
+  static const savingsJobRun = connect.Spec(
+    '/$name/SavingsJobRun',
+    connect.StreamType.unary,
+    savingsv1savings.SavingsJobRunRequest.new,
+    savingsv1savings.SavingsJobRunResponse.new,
+  );
 }

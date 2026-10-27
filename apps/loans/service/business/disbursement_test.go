@@ -163,6 +163,15 @@ func (r *stubDisbursementRepo) ListByLoanAccountID(
 	return r.stored, nil
 }
 
+func (r *stubDisbursementRepo) HasUnfailed(_ context.Context, _ string) (bool, error) {
+	for _, d := range r.stored {
+		if d.Status != int32(loansv1.DisbursementStatus_DISBURSEMENT_STATUS_FAILED) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *stubDisbursementRepo) GetLiveByLoanAccountID(
 	_ context.Context,
 	_ string,
@@ -287,6 +296,10 @@ func (s *stubLoanAccountBusiness) TransitionStatus(
 	return &loansv1.LoanAccountObject{}, nil
 }
 
+func (s *stubLoanAccountBusiness) Cancel(_ context.Context, _, _ string) (*loansv1.LoanAccountObject, error) {
+	return &loansv1.LoanAccountObject{}, nil
+}
+
 // Compile-time check.
 var _ LoanAccountBusiness = (*stubLoanAccountBusiness)(nil)
 
@@ -340,6 +353,34 @@ func (s *stubOperationsClient) IncomingPaymentAssign(
 	_ *operationsv1.IncomingPaymentAssignRequest,
 ) (*operationsv1.IncomingPaymentAssignResponse, error) {
 	panic("stub: IncomingPaymentAssign not expected")
+}
+
+func (s *stubOperationsClient) OperationsJobRun(
+	_ context.Context,
+	_ *operationsv1.OperationsJobRunRequest,
+) (*operationsv1.OperationsJobRunResponse, error) {
+	panic("stub: OperationsJobRun not expected")
+}
+
+func (s *stubOperationsClient) GroupObligationsRaise(
+	_ context.Context,
+	_ *operationsv1.GroupObligationsRaiseRequest,
+) (*operationsv1.GroupObligationsRaiseResponse, error) {
+	panic("stub: GroupObligationsRaise not expected")
+}
+
+func (s *stubOperationsClient) GroupPeriodClose(
+	_ context.Context,
+	_ *operationsv1.GroupPeriodCloseRequest,
+) (*operationsv1.GroupPeriodCloseResponse, error) {
+	panic("stub: GroupPeriodClose not expected")
+}
+
+func (s *stubOperationsClient) GroupMemberStanding(
+	_ context.Context,
+	_ *operationsv1.GroupMemberStandingRequest,
+) (*operationsv1.GroupMemberStandingResponse, error) {
+	panic("stub: GroupMemberStanding not expected")
 }
 
 // Compile-time check.
@@ -759,3 +800,8 @@ func (r *stubLoanAccountRepo) ClaimRepaymentLock(context.Context, string) (bool,
 }
 
 func (r *stubLoanAccountRepo) ReleaseRepaymentLock(context.Context, string) error { return nil }
+
+func (r *stubLoanAccountRepo) ClaimPaidOffUnnoticed(context.Context, int) ([]*loansmodels.LoanAccount, error) {
+	return nil, nil
+}
+func (r *stubLoanAccountRepo) MarkPaidOffNoticed(context.Context, string) error { return nil }

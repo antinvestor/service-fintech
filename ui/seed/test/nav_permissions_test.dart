@@ -126,6 +126,17 @@ void main() {
       );
     });
 
+    test('gates savings routes on their permits', () {
+      expect(
+        requiredPermissionsForRoute('/savings/acc-1'),
+        equals({'savings_account_view'}),
+      );
+      expect(
+        requiredPermissionsForRoute('/savings/withdrawals/pending'),
+        equals({'withdrawal_view'}),
+      );
+    });
+
     test('gates funding and payment routes on their permits', () {
       expect(
         requiredPermissionsForRoute('/funding/accounts/acc-1'),

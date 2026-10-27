@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	fieldv1 "buf.build/gen/go/antinvestor/field/protocolbuffers/go/field/v1"
@@ -84,15 +85,7 @@ func IsReservedReference(reference string) bool {
 // isPayoutOrderType reports whether an order type's side effect sends money
 // out through the payment rail.
 func isPayoutOrderType(orderType int) bool {
-	switch orderType {
-	case constants.TransferTypeDisbursement,
-		constants.TransferTypeDisbursementReversalReroute,
-		constants.TransferTypeLoan,
-		constants.TransferTypeTerminalDisbursement:
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(payoutOrderTypes(), orderType)
 }
 
 // legacyPayoutRecipient is the recipient key older callers set per type.

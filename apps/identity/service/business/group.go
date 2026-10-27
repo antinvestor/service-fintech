@@ -18,6 +18,7 @@ import (
 	"context"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	identityv1 "buf.build/gen/go/antinvestor/identity/protocolbuffers/go/identity/v1"
 	"github.com/pitabwire/frame/v3/data"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/util"
@@ -32,10 +33,43 @@ type ClientGroupBusiness interface {
 	Get(ctx context.Context, id string) (*models.ClientGroup, error)
 	Search(
 		ctx context.Context,
-		query, ownerMemberID, orgUnitID string,
+		filter ClientGroupFilter,
 		cursor *commonv1.PageCursor,
 		consumer func(ctx context.Context, batch []*models.ClientGroup) error,
 	) error
+}
+
+// ClientGroupFilter narrows a group search. Empty fields match any group.
+type ClientGroupFilter struct {
+	Query         string
+	OwnerMemberID string
+	OrgUnitID     string
+	ParentID      string
+	ProductID     string
+	GroupTypes    []int32
+	States        []commonv1.STATE
+}
+
+// ClientGroupFilterFromAPI reads a search request's filters. The single
+// state and group type fields predate the lists and join them; their zero
+// values mean any.
+func ClientGroupFilterFromAPI(req *identityv1.ClientGroupSearchRequest) ClientGroupFilter {
+	filter := ClientGroupFilter{
+		Query:         req.GetQuery(),
+		OwnerMemberID: req.GetAgentId(),
+		OrgUnitID:     req.GetBranchId(),
+		ParentID:      req.GetParentId(),
+		ProductID:     req.GetProductId(),
+		GroupTypes:    append([]int32(nil), req.GetGroupTypes()...),
+		States:        append([]commonv1.STATE(nil), req.GetStates()...),
+	}
+	if req.GetGroupType() != 0 {
+		filter.GroupTypes = append(filter.GroupTypes, req.GetGroupType())
+	}
+	if req.GetState() != commonv1.STATE_CREATED {
+		filter.States = append(filter.States, req.GetState())
+	}
+	return filter
 }
 
 type clientGroupBusiness struct {
@@ -114,10 +148,9 @@ func (b *clientGroupBusiness) Get(ctx context.Context, id string) (*models.Clien
 	return group, nil
 }
 
-//nolint:dupl // client group and membership search share a filter shape
 func (b *clientGroupBusiness) Search(
 	ctx context.Context,
-	query, ownerMemberID, orgUnitID string,
+	filter ClientGroupFilter,
 	cursor *commonv1.PageCursor,
 	consumer func(ctx context.Context, batch []*models.ClientGroup) error,
 ) error {
@@ -129,21 +162,37 @@ func (b *clientGroupBusiness) Search(
 	}
 
 	andQueryVal := map[string]any{}
-	if ownerMemberID != "" {
-		andQueryVal["agent_id = ?"] = ownerMemberID
+	if filter.OwnerMemberID != "" {
+		andQueryVal["agent_id = ?"] = filter.OwnerMemberID
 	}
-	if orgUnitID != "" {
-		andQueryVal["branch_id = ?"] = orgUnitID
+	if filter.OrgUnitID != "" {
+		andQueryVal["branch_id = ?"] = filter.OrgUnitID
+	}
+	if filter.ParentID != "" {
+		andQueryVal["parent_id = ?"] = filter.ParentID
+	}
+	if filter.ProductID != "" {
+		andQueryVal["product_id = ?"] = filter.ProductID
+	}
+	if len(filter.GroupTypes) > 0 {
+		andQueryVal["group_type IN ?"] = filter.GroupTypes
+	}
+	if len(filter.States) > 0 {
+		states := make([]int32, 0, len(filter.States))
+		for _, state := range filter.States {
+			states = append(states, int32(state))
+		}
+		andQueryVal["state IN ?"] = states
 	}
 
 	if len(andQueryVal) > 0 {
 		searchOpts = append(searchOpts, data.WithSearchFiltersAndByValue(andQueryVal))
 	}
 
-	if query != "" {
+	if filter.Query != "" {
 		searchOpts = append(searchOpts,
 			data.WithSearchFiltersOrByValue(
-				map[string]any{searchableTSQuery: query},
+				map[string]any{searchableTSQuery: filter.Query},
 			),
 		)
 	}

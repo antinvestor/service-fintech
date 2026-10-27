@@ -53,6 +53,12 @@ const (
 	// SeedServiceCreditProfileReinstateProcedure is the procedure name of the SeedService's
 	// CreditProfileReinstate RPC.
 	SeedServiceCreditProfileReinstateProcedure = "/seed.v1.SeedService/CreditProfileReinstate"
+	// SeedServiceCreditProfileCapSetProcedure is the procedure name of the SeedService's
+	// CreditProfileCapSet RPC.
+	SeedServiceCreditProfileCapSetProcedure = "/seed.v1.SeedService/CreditProfileCapSet"
+	// SeedServiceCreditProfileCapClearProcedure is the procedure name of the SeedService's
+	// CreditProfileCapClear RPC.
+	SeedServiceCreditProfileCapClearProcedure = "/seed.v1.SeedService/CreditProfileCapClear"
 	// SeedServiceUssdStateProcedure is the procedure name of the SeedService's UssdState RPC.
 	SeedServiceUssdStateProcedure = "/seed.v1.SeedService/UssdState"
 	// SeedServiceLoanPaidOffNotifyProcedure is the procedure name of the SeedService's
@@ -97,6 +103,20 @@ var (
 			Procedure:  SeedServiceCreditProfileReinstateProcedure,
 		}
 	})
+	seedServiceCreditProfileCapSetSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("CreditProfileCapSet"),
+			Procedure:  SeedServiceCreditProfileCapSetProcedure,
+		}
+	})
+	seedServiceCreditProfileCapClearSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_seed_v1_seed_proto.Services().ByName("SeedService").Methods().ByName("CreditProfileCapClear"),
+			Procedure:  SeedServiceCreditProfileCapClearProcedure,
+		}
+	})
 	seedServiceUssdStateSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -125,6 +145,11 @@ type SeedServiceClient interface {
 	CreditProfileBlock(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileReinstate returns a suspended or blocked profile to active.
 	CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
+	// CreditProfileCapSet sets a temporary lower cap on a client's borrowing.
+	// A field agent may cap only the clients they serve.
+	CreditProfileCapSet(context.Context, *v1.CreditProfileCapRequest) (*v1.JSONResponse, error)
+	// CreditProfileCapClear lifts a temporary cap before it expires.
+	CreditProfileCapClear(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// UssdState is the USSD engine's session-start call: the borrower's
 	// current rows for the Seed menu (loan, borrowing room, PIN status).
 	UssdState(context.Context, *v1.UssdStateRequest) (*v1.JSONResponse, error)
@@ -151,6 +176,11 @@ type SeedServiceHandler interface {
 	CreditProfileBlock(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// CreditProfileReinstate returns a suspended or blocked profile to active.
 	CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
+	// CreditProfileCapSet sets a temporary lower cap on a client's borrowing.
+	// A field agent may cap only the clients they serve.
+	CreditProfileCapSet(context.Context, *v1.CreditProfileCapRequest) (*v1.JSONResponse, error)
+	// CreditProfileCapClear lifts a temporary cap before it expires.
+	CreditProfileCapClear(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error)
 	// UssdState is the USSD engine's session-start call: the borrower's
 	// current rows for the Seed menu (loan, borrowing room, PIN status).
 	UssdState(context.Context, *v1.UssdStateRequest) (*v1.JSONResponse, error)
@@ -168,6 +198,8 @@ func RegisterSeedServiceHandler(server *connect.Server, svc SeedServiceHandler) 
 		connect.Method{Spec: seedServiceCreditProfileSuspendSpec(), Handler: adapter.creditProfileSuspend},
 		connect.Method{Spec: seedServiceCreditProfileBlockSpec(), Handler: adapter.creditProfileBlock},
 		connect.Method{Spec: seedServiceCreditProfileReinstateSpec(), Handler: adapter.creditProfileReinstate},
+		connect.Method{Spec: seedServiceCreditProfileCapSetSpec(), Handler: adapter.creditProfileCapSet},
+		connect.Method{Spec: seedServiceCreditProfileCapClearSpec(), Handler: adapter.creditProfileCapClear},
 		connect.Method{Spec: seedServiceUssdStateSpec(), Handler: adapter.ussdState},
 		connect.Method{Spec: seedServiceLoanPaidOffNotifySpec(), Handler: adapter.loanPaidOffNotify},
 	)
@@ -194,6 +226,14 @@ func (UnimplementedSeedServiceHandler) CreditProfileBlock(context.Context, *v1.C
 
 func (UnimplementedSeedServiceHandler) CreditProfileReinstate(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileReinstate is not implemented")
+}
+
+func (UnimplementedSeedServiceHandler) CreditProfileCapSet(context.Context, *v1.CreditProfileCapRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileCapSet is not implemented")
+}
+
+func (UnimplementedSeedServiceHandler) CreditProfileCapClear(context.Context, *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "seed.v1.SeedService.CreditProfileCapClear is not implemented")
 }
 
 func (UnimplementedSeedServiceHandler) UssdState(context.Context, *v1.UssdStateRequest) (*v1.JSONResponse, error) {
@@ -243,6 +283,22 @@ func (c *seedServiceClient) CreditProfileBlock(ctx context.Context, req *v1.Cred
 func (c *seedServiceClient) CreditProfileReinstate(ctx context.Context, req *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
 	var res v1.JSONResponse
 	if err := c.client.CallUnary(ctx, seedServiceCreditProfileReinstateSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) CreditProfileCapSet(ctx context.Context, req *v1.CreditProfileCapRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceCreditProfileCapSetSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *seedServiceClient) CreditProfileCapClear(ctx context.Context, req *v1.CreditProfileStatusRequest) (*v1.JSONResponse, error) {
+	var res v1.JSONResponse
+	if err := c.client.CallUnary(ctx, seedServiceCreditProfileCapClearSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -320,6 +376,30 @@ func (h seedServiceHandler) creditProfileReinstate(ctx context.Context, _ connec
 		return err
 	}
 	res, err := h.svc.CreditProfileReinstate(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) creditProfileCapSet(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CreditProfileCapRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CreditProfileCapSet(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h seedServiceHandler) creditProfileCapClear(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.CreditProfileStatusRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CreditProfileCapClear(ctx, &req)
 	if err != nil {
 		return err
 	}

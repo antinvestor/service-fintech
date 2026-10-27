@@ -32,3 +32,10 @@ type ClientResolver interface {
 	// ErrNoClientForProfile when the profile owns no client.
 	ResolveByProfileID(ctx context.Context, profileID string) (clientID string, err error)
 }
+
+// AgentScope answers whether a field agent serves a client.
+type AgentScope interface {
+	// ServesClient reports whether the person with profileID serves
+	// clientID as a field agent.
+	ServesClient(ctx context.Context, profileID, clientID string) (bool, error)
+}

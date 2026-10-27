@@ -301,7 +301,7 @@ func (r *investorAccountRepository) AtomicAbsorbLoss(
 		Updates(map[string]any{
 			colReservedBalance:  gorm.Expr("GREATEST(reserved_balance - ?, 0)", lossAmount),
 			colAvailableBalance: gorm.Expr("GREATEST(available_balance - ?, 0)", lossAmount),
-			"total_lost":        gorm.Expr("total_lost + ?", lossAmount),
+			colTotalLost:        gorm.Expr("total_lost + ?", lossAmount),
 			colModifiedAt:       now,
 			colVersion:          gorm.Expr("version + 1"),
 		})

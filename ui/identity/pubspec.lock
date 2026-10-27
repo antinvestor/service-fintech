@@ -46,7 +46,7 @@ packages:
       path: "../../sdk/dart/funding"
       relative: true
     source: path
-    version: "0.5.0"
+    version: "0.5.4"
   antinvestor_api_geolocation:
     dependency: transitive
     description:
@@ -61,28 +61,28 @@ packages:
       path: "../../sdk/dart/identity"
       relative: true
     source: path
-    version: "0.8.1"
+    version: "0.8.2"
   antinvestor_api_limits:
     dependency: "direct overridden"
     description:
       path: "../../sdk/dart/limits"
       relative: true
     source: path
-    version: "0.3.0"
+    version: "0.3.1"
   antinvestor_api_loans:
     dependency: "direct overridden"
     description:
       path: "../../sdk/dart/loans"
       relative: true
     source: path
-    version: "0.6.1"
+    version: "0.6.6"
   antinvestor_api_operations:
     dependency: "direct overridden"
     description:
       path: "../../sdk/dart/operations"
       relative: true
     source: path
-    version: "0.4.1"
+    version: "0.4.7"
   antinvestor_api_profile:
     dependency: "direct main"
     description:
@@ -97,7 +97,7 @@ packages:
       path: "../../sdk/dart/savings"
       relative: true
     source: path
-    version: "0.4.0"
+    version: "0.4.1"
   antinvestor_api_tenancy:
     dependency: "direct main"
     description:

@@ -1,3 +1,9 @@
+## 0.3.1
+
+- `LimitsAdminService.LimitsJobRun` (`LimitsJob`, permission
+  `limits_job_run`): the scheduler's reservation and approval expiry passes.
+  Service accounts only.
+
 ## 0.3.0
 
 - **Breaking:** regenerated with protoc_plugin 25.1 (`buf.build/protocolbuffers/dart:v25.1.0`)

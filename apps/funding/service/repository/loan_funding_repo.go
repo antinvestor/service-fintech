@@ -16,18 +16,24 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/frame/v3/workerpool"
+	"gorm.io/gorm"
 
 	"github.com/antinvestor/service-fintech/apps/funding/service/models"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 // LoanFundingRepository provides data access for loan fundings.
 type LoanFundingRepository interface {
 	datastore.BaseRepository[*models.LoanFunding]
 	GetByLoanRequestID(ctx context.Context, loanRequestID string) ([]*models.LoanFunding, error)
+	// VoidIfActive marks an active funding record inactive and reports
+	// whether this call did it, so only one caller acts on its release.
+	VoidIfActive(ctx context.Context, fundingID string) (bool, error)
 }
 
 // NewLoanFundingRepository creates a new LoanFundingRepository.
@@ -50,4 +56,19 @@ func (r *loanFundingRepository) GetByLoanRequestID(
 	var fundings []*models.LoanFunding
 	err := r.Pool().DB(ctx, true).Where("loan_request_id = ?", loanRequestID).Find(&fundings).Error
 	return fundings, err
+}
+
+func (r *loanFundingRepository) VoidIfActive(ctx context.Context, fundingID string) (bool, error) {
+	result := r.Pool().DB(ctx, false).
+		Table("loan_fundings").
+		Where("id = ? AND state = ? AND deleted_at IS NULL", fundingID, int32(constants.StateActive)).
+		Updates(map[string]any{
+			"state":       int32(constants.StateInactive),
+			"modified_at": time.Now().UTC(),
+			"version":     gorm.Expr("version + 1"),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }

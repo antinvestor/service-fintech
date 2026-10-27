@@ -17,7 +17,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"buf.build/gen/go/antinvestor/audit/connectrpc/go/v2/audit/v1/auditv1connect"
 	"buf.build/gen/go/antinvestor/limits/connectrpc/go/v2/limits/v1/limitsv1connect"
@@ -50,13 +49,11 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/clients"
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 	"github.com/antinvestor/service-fintech/pkg/tenantassert"
+	"github.com/antinvestor/service-fintech/pkg/trustage"
 
 	"github.com/antinvestor/service-fintech/pkg/audit"
 	"github.com/antinvestor/service-fintech/pkg/limits/consumer"
 )
-
-// accrualPeriod is the closing period the accrual engine settles: one UTC day.
-const accrualPeriod = 24 * time.Hour
 
 //nolint:funlen // linear service wiring; splitting hurts readability
 func main() {
@@ -90,6 +87,12 @@ func main() {
 		return dbmigrate.Locked(ctx, svc.DatastoreManager(), cfg.Name(), func(ctx context.Context) error {
 			return repository.Migrate(ctx, svc.DatastoreManager(), cfg.GetDatabaseMigrationPath())
 		})
+	})
+	// Interest accrual runs only when trustage fires its schedule, so a
+	// deploy that cannot register it fails rather than ship savings that
+	// never earn.
+	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
+		return trustage.SyncWorkflows(ctx, &cfg, "service-savings", cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)
@@ -144,11 +147,10 @@ func main() {
 	}
 
 	// Limits client. Optional — when LimitsServiceURI is empty, SetupClient
-	// returns nil and both gates are disabled at runtime regardless of the
+	// returns nil and the withdrawal gate is disabled at runtime regardless of the
 	// config flags.
 	limitsCli, limitsErr := setupLimitsClient(ctx, cfg)
 	if gateErr := consumer.RequireForGates(limitsCli, limitsErr, map[string]bool{
-		"savings_deposit":    cfg.LimitsGateEnabledSavingsDeposit,
 		"savings_withdrawal": cfg.LimitsGateEnabledSavingsWithdrawal,
 	}); gateErr != nil {
 		log.WithError(gateErr).Fatal("main -- transaction limits cannot be enforced")
@@ -159,7 +161,6 @@ func main() {
 	saBusiness := business.NewSavingsAccountBusiness(ctx, evtsMan, saRepo, spRepo, depRepo, wdRepo, iaRepo, sbRepo)
 	depBusiness := business.NewDepositBusiness(
 		ctx, depRepo, saRepo, operationsCli, auditWriter,
-		limitsCli, cfg.LimitsGateEnabledSavingsDeposit, cfg.LimitsGateModeSavingsDeposit,
 	)
 	wdBusiness := business.NewWithdrawalBusiness(
 		ctx,
@@ -183,8 +184,11 @@ func main() {
 	)
 
 	// Setup Connect RPC servers
+	// Interest accrues only when the platform scheduler (trustage) runs the
+	// job; nothing in the service runs on a timer.
+	jobs := business.NewSavingsJobs(saRepo, iaBusiness, cfg.Name())
 	connectHandler := setupConnectServer(ctx, sm, dbPool,
-		spBusiness, saBusiness, depBusiness, wdBusiness, iaBusiness, auditCli)
+		spBusiness, saBusiness, depBusiness, wdBusiness, iaBusiness, jobs, auditCli)
 
 	// Runtime: HTTP + queue handlers only. Permissions/migrate are setup-only.
 	serviceOptions := []frame.Option{
@@ -201,41 +205,9 @@ func main() {
 
 	svc.Init(ctx, serviceOptions...)
 
-	if cfg.InterestAccrualEnabled {
-		go runInterestAccrual(ctx, iaBusiness, cfg.InterestAccrualInterval)
-	}
-
 	err = svc.Run(ctx, "")
 	if err != nil {
 		log.WithError(err).Fatal("could not run Server")
-	}
-}
-
-// runInterestAccrual drives the accrual engine until ctx is cancelled. Each
-// pass accrues the most recently closed UTC day; Accrue is idempotent on
-// (savings_account_id, period_end), so overlapping passes and restarts post
-// interest exactly once per account per day.
-func runInterestAccrual(ctx context.Context, iaBusiness business.InterestAccrualBusiness, interval time.Duration) {
-	if interval <= 0 {
-		interval = time.Hour
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			periodEnd := time.Now().UTC().Truncate(accrualPeriod)
-			periodStart := periodEnd.Add(-accrualPeriod)
-			processed, errs := iaBusiness.AccrueAllActive(ctx, periodStart, periodEnd)
-			util.Log(ctx).
-				WithField("processed", processed).
-				WithField("errors", len(errs)).
-				WithField("period_end", periodEnd.Format(time.RFC3339)).
-				Info("interest accrual pass complete")
-		}
 	}
 }
 
@@ -274,6 +246,7 @@ func setupConnectServer(
 	depBusiness business.DepositBusiness,
 	wdBusiness business.WithdrawalBusiness,
 	iaBusiness business.InterestAccrualBusiness,
+	jobs *business.SavingsJobs,
 	auditCli auditv1connect.AuditServiceClient,
 ) http.Handler {
 	// Create handler with injected dependencies
@@ -283,6 +256,7 @@ func setupConnectServer(
 		depBusiness,
 		wdBusiness,
 		iaBusiness,
+		jobs,
 	)
 
 	auth := sm.GetAuthorizer(ctx)

@@ -210,5 +210,28 @@ class WithdrawalStatus extends $pb.ProtobufEnum {
   const WithdrawalStatus._(super.value, super.name);
 }
 
+/// SavingsJob is a periodic job the platform scheduler runs.
+class SavingsJob extends $pb.ProtobufEnum {
+  static const SavingsJob SAVINGS_JOB_UNSPECIFIED =
+      SavingsJob._(0, _omitEnumNames ? '' : 'SAVINGS_JOB_UNSPECIFIED');
+
+  /// Accrues the most recently closed day's interest on active accounts not
+  /// yet accrued for it.
+  static const SavingsJob SAVINGS_JOB_ACCRUE_INTEREST =
+      SavingsJob._(1, _omitEnumNames ? '' : 'SAVINGS_JOB_ACCRUE_INTEREST');
+
+  static const $core.List<SavingsJob> values = <SavingsJob>[
+    SAVINGS_JOB_UNSPECIFIED,
+    SAVINGS_JOB_ACCRUE_INTEREST,
+  ];
+
+  static final $core.List<SavingsJob?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 1);
+  static SavingsJob? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const SavingsJob._(super.value, super.name);
+}
+
 const $core.bool _omitEnumNames =
     $core.bool.fromEnvironment('protobuf.omit_enum_names');

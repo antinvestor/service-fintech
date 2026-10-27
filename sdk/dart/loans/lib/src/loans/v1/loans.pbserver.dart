@@ -47,6 +47,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.ClientProductAccessSearchRequest request);
   $async.Future<$3.LoanAccountCreateResponse> loanAccountCreate(
       $pb.ServerContext ctx, $3.LoanAccountCreateRequest request);
+  $async.Future<$3.LoanAccountCancelResponse> loanAccountCancel(
+      $pb.ServerContext ctx, $3.LoanAccountCancelRequest request);
   $async.Future<$3.LoanAccountGetResponse> loanAccountGet(
       $pb.ServerContext ctx, $3.LoanAccountGetRequest request);
   $async.Future<$3.LoanAccountSearchResponse> loanAccountSearch(
@@ -89,8 +91,17 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.ReconciliationSearchRequest request);
   $async.Future<$3.InitiateCollectionResponse> initiateCollection(
       $pb.ServerContext ctx, $3.InitiateCollectionRequest request);
+  $async.Future<$3.TeamCommissionSearchResponse> teamCommissionSearch(
+      $pb.ServerContext ctx, $3.TeamCommissionSearchRequest request);
+  $async.Future<$3.TeamCommissionPayoutResponse> teamCommissionPayout(
+      $pb.ServerContext ctx, $3.TeamCommissionPayoutRequest request);
+  $async.Future<$3.TeamCommissionPayoutSearchResponse>
+      teamCommissionPayoutSearch(
+          $pb.ServerContext ctx, $3.TeamCommissionPayoutSearchRequest request);
   $async.Future<$3.LoanJobRunResponse> loanJobRun(
       $pb.ServerContext ctx, $3.LoanJobRunRequest request);
+  $async.Future<$3.PayoutFailedApplyResponse> payoutFailedApply(
+      $pb.ServerContext ctx, $3.PayoutFailedApplyRequest request);
   $async.Future<$3.LoanStatusChangeSearchResponse> loanStatusChangeSearch(
       $pb.ServerContext ctx, $3.LoanStatusChangeSearchRequest request);
   $async.Future<$3.PortfolioSummaryResponse> portfolioSummary(
@@ -126,6 +137,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
         return $3.ClientProductAccessSearchRequest();
       case 'LoanAccountCreate':
         return $3.LoanAccountCreateRequest();
+      case 'LoanAccountCancel':
+        return $3.LoanAccountCancelRequest();
       case 'LoanAccountGet':
         return $3.LoanAccountGetRequest();
       case 'LoanAccountSearch':
@@ -168,8 +181,16 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
         return $3.ReconciliationSearchRequest();
       case 'InitiateCollection':
         return $3.InitiateCollectionRequest();
+      case 'TeamCommissionSearch':
+        return $3.TeamCommissionSearchRequest();
+      case 'TeamCommissionPayout':
+        return $3.TeamCommissionPayoutRequest();
+      case 'TeamCommissionPayoutSearch':
+        return $3.TeamCommissionPayoutSearchRequest();
       case 'LoanJobRun':
         return $3.LoanJobRunRequest();
+      case 'PayoutFailedApply':
+        return $3.PayoutFailedApplyRequest();
       case 'LoanStatusChangeSearch':
         return $3.LoanStatusChangeSearchRequest();
       case 'PortfolioSummary':
@@ -213,6 +234,8 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
             ctx, request as $3.ClientProductAccessSearchRequest);
       case 'LoanAccountCreate':
         return loanAccountCreate(ctx, request as $3.LoanAccountCreateRequest);
+      case 'LoanAccountCancel':
+        return loanAccountCancel(ctx, request as $3.LoanAccountCancelRequest);
       case 'LoanAccountGet':
         return loanAccountGet(ctx, request as $3.LoanAccountGetRequest);
       case 'LoanAccountSearch':
@@ -261,8 +284,19 @@ abstract class LoanManagementServiceBase extends $pb.GeneratedService {
             ctx, request as $3.ReconciliationSearchRequest);
       case 'InitiateCollection':
         return initiateCollection(ctx, request as $3.InitiateCollectionRequest);
+      case 'TeamCommissionSearch':
+        return teamCommissionSearch(
+            ctx, request as $3.TeamCommissionSearchRequest);
+      case 'TeamCommissionPayout':
+        return teamCommissionPayout(
+            ctx, request as $3.TeamCommissionPayoutRequest);
+      case 'TeamCommissionPayoutSearch':
+        return teamCommissionPayoutSearch(
+            ctx, request as $3.TeamCommissionPayoutSearchRequest);
       case 'LoanJobRun':
         return loanJobRun(ctx, request as $3.LoanJobRunRequest);
+      case 'PayoutFailedApply':
+        return payoutFailedApply(ctx, request as $3.PayoutFailedApplyRequest);
       case 'LoanStatusChangeSearch':
         return loanStatusChangeSearch(
             ctx, request as $3.LoanStatusChangeSearchRequest);

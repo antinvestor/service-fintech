@@ -136,11 +136,33 @@ type CreditProfile struct {
 	LastBorrowedAt  *time.Time
 	LastRepaidAt    *time.Time
 
+	// TempCapAmount, when positive and not yet past TempCapExpiresAt, caps
+	// what the client may borrow below their tier limit. The serving agent
+	// or staff set it; TempCapSetBy and TempCapReason record who and why.
+	TempCapAmount    int64
+	TempCapExpiresAt *time.Time
+	TempCapSetBy     string `gorm:"type:varchar(50)"`
+	TempCapReason    string `gorm:"type:varchar(500)"`
+
 	Properties data.JSONMap
 }
 
 // TableName maps the model to seed_credit_profiles.
 func (CreditProfile) TableName() string { return "seed_credit_profiles" }
+
+// TempCapActive reports whether a temporary cap applies at now.
+func (p CreditProfile) TempCapActive(now time.Time) bool {
+	return p.TempCapAmount > 0 && p.TempCapExpiresAt != nil && now.Before(*p.TempCapExpiresAt)
+}
+
+// EffectiveLimit is what the client may borrow at now: their tier limit,
+// lowered by a temporary cap while it lasts.
+func (p CreditProfile) EffectiveLimit(now time.Time) int64 {
+	if p.TempCapActive(now) && p.TempCapAmount < p.MaxLoanAmount {
+		return p.TempCapAmount
+	}
+	return p.MaxLoanAmount
+}
 
 // CreditTierConfig is a single rung on the tier ladder. Rows are ordered
 // by MinSuccessfulRepayments and the seed EvaluateTier function picks
