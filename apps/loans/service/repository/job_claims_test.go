@@ -183,10 +183,10 @@ func (s *migrateSuite) TestRemindersAreClaimedOnce() {
 	e := s.newEnv()
 	la := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_ACTIVE)
 	schedules := repository.NewRepaymentScheduleRepository(e.ctx, e.dbPool, nil)
-	active := &models.RepaymentSchedule{LoanAccountID: la.GetID(), IsActive: true, Version: 2}
+	active := &models.RepaymentSchedule{LoanAccountID: la.GetID(), IsActive: true, ScheduleVersion: 2}
 	active.GenID(e.ctx)
 	s.Require().NoError(schedules.Create(e.ctx, active))
-	old := &models.RepaymentSchedule{LoanAccountID: la.GetID(), IsActive: false, Version: 1}
+	old := &models.RepaymentSchedule{LoanAccountID: la.GetID(), IsActive: false, ScheduleVersion: 1}
 	old.GenID(e.ctx)
 	s.Require().NoError(schedules.Create(e.ctx, old))
 
@@ -206,6 +206,49 @@ func (s *migrateSuite) TestRemindersAreClaimedOnce() {
 	again, err := entries.ClaimReminders(e.ctx, repository.ReminderDue, now, now.Add(48*time.Hour), 10)
 	s.Require().NoError(err)
 	s.Empty(again)
+}
+
+// A loan keeps one active schedule, its newest, whatever order the saves
+// land in; and a schedule can be updated (its version column is the lock
+// counter, not the schedule's number).
+func (s *migrateSuite) TestOnlyTheNewestScheduleStaysActive() {
+	e := s.newEnv()
+	la := s.loan(e, loansv1.LoanStatus_LOAN_STATUS_ACTIVE)
+	schedules := repository.NewRepaymentScheduleRepository(e.ctx, e.dbPool, nil)
+
+	opened := time.Now().Add(-time.Hour)
+	reanchored := time.Now()
+	newest := &models.RepaymentSchedule{
+		LoanAccountID:   la.GetID(),
+		IsActive:        true,
+		ScheduleVersion: 1,
+		GeneratedAt:     &reanchored,
+	}
+	newest.GenID(e.ctx)
+	opening := &models.RepaymentSchedule{
+		LoanAccountID:   la.GetID(),
+		IsActive:        true,
+		ScheduleVersion: 1,
+		GeneratedAt:     &opened,
+	}
+	opening.GenID(e.ctx)
+
+	// The re-anchored schedule lands first, the opening one after it.
+	s.Require().NoError(schedules.Create(e.ctx, newest))
+	s.Require().NoError(schedules.KeepLatestActive(e.ctx, la.GetID()))
+	s.Require().NoError(schedules.Create(e.ctx, opening))
+	s.Require().NoError(schedules.KeepLatestActive(e.ctx, la.GetID()))
+
+	active, err := schedules.GetActivByLoanAccountID(e.ctx, la.GetID())
+	s.Require().NoError(err)
+	s.Equal(newest.GetID(), active.GetID())
+	stale, err := schedules.GetByID(e.ctx, opening.GetID())
+	s.Require().NoError(err)
+	s.False(stale.IsActive, "the older schedule is deactivated")
+
+	active.Properties = map[string]any{"note": "updated"}
+	_, err = schedules.Update(e.ctx, active, "properties")
+	s.Require().NoError(err, "a schedule is updatable under its lock counter")
 }
 
 // One decision per restructure; an approval left half applied can be resumed

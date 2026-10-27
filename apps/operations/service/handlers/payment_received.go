@@ -129,6 +129,12 @@ func railReference(p railPayment) string {
 // topic carries only the payment service's messages, and every lookup that
 // follows runs in this partition: a payment whose partition does not hold
 // the loan or account it names matches nothing and waits for staff.
+//
+// The partition is also set as the context's tenancy. An internal
+// principal's claims are read through it, so without it whatever tenancy the
+// queue message carried would override the payment's; and the peer clients
+// name the tenant they act in (X-Tenant-Id) only from it, so without it every
+// lookup in the loans service is refused for naming no tenant.
 func (h *PaymentReceived) actIn(ctx context.Context, p railPayment) context.Context {
 	claims := &security.AuthenticationClaims{
 		TenantID:    p.TenantID,
@@ -136,5 +142,5 @@ func (h *PaymentReceived) actIn(ctx context.Context, p railPayment) context.Cont
 		Roles:       []string{security.ConstantSystemInternalRole},
 	}
 	claims.Subject = h.subject
-	return claims.ClaimsToContext(ctx, security.WithoutInternalTenancySkip())
+	return util.SetTenancy(claims.ClaimsToContext(ctx, security.WithoutInternalTenancySkip()), claims)
 }

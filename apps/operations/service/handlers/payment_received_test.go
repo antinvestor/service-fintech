@@ -24,6 +24,7 @@ import (
 
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,9 +35,10 @@ import (
 type identifyRecorder struct {
 	business.PaymentRoutingBusiness
 
-	got    map[string]interface{}
-	claims *security.AuthenticationClaims
-	err    error
+	got     map[string]interface{}
+	claims  *security.AuthenticationClaims
+	tenancy util.TenancyInfo
+	err     error
 }
 
 func (r *identifyRecorder) IdentifyPayment(
@@ -45,6 +47,7 @@ func (r *identifyRecorder) IdentifyPayment(
 ) (map[string]interface{}, error) {
 	r.got = paymentData
 	r.claims = security.ClaimsFromContext(ctx)
+	r.tenancy = util.GetTenancy(ctx)
 	return map[string]interface{}{}, r.err
 }
 
@@ -90,6 +93,32 @@ func TestReceivedPaymentIsBookedInItsPartitionByProfile(t *testing.T) {
 	assert.True(t, rec.claims.IsInternalSystem())
 	assert.Equal(t, "tenant-1", rec.claims.GetTenantID())
 	assert.Equal(t, "partition-1", rec.claims.GetPartitionID())
+}
+
+// The payment is booked in its own partition whatever tenancy the queue
+// message carried, and the lookups it makes in the loans service name that
+// partition: the payment's claims are read through the context's tenancy,
+// and the peer clients send X-Tenant-Id from it.
+func TestReceivedPaymentIsBookedInItsPartitionWhateverTheMessageCarried(t *testing.T) {
+	for name, queued := range map[string]context.Context{
+		"no tenancy": context.Background(),
+		"another partition": util.SetTenancy(context.Background(), &security.AuthenticationClaims{
+			TenantID: "tenant-publisher", PartitionID: "partition-publisher",
+		}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := &identifyRecorder{}
+			h := NewPaymentReceived(rec, "service_operations")
+			require.NoError(t, h.Handle(queued, nil, []byte(railPaymentJSON)))
+
+			require.NotNil(t, rec.claims)
+			assert.Equal(t, "tenant-1", rec.claims.GetTenantID())
+			assert.Equal(t, "partition-1", rec.claims.GetPartitionID())
+			require.NotNil(t, rec.tenancy, "peer calls name the payment's tenant")
+			assert.Equal(t, "tenant-1", rec.tenancy.GetTenantID())
+			assert.Equal(t, "partition-1", rec.tenancy.GetPartitionID())
+		})
+	}
 }
 
 func TestReceivedPaymentMessagesThatAreNotInboundAreDropped(t *testing.T) {

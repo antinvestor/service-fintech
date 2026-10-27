@@ -23,6 +23,7 @@ import (
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
 	"github.com/pitabwire/frame/v3/data"
 	"github.com/pitabwire/frame/v3/security"
+	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -135,4 +136,26 @@ func TestSettleJobIsRunOnlyByInternalServices(t *testing.T) {
 
 	_, _, err = jobs.Run(internalContext(), operationsv1.OperationsJob_OPERATIONS_JOB_UNSPECIFIED, 10)
 	require.ErrorIs(t, err, ErrUnknownJob)
+}
+
+// Each item a job takes up is worked in its own partition, not in the one the
+// scheduler named on its request: an internal principal's claims are read
+// through the context's tenancy, and peer calls name the tenant from it.
+func TestJobsActInTheItemsPartition(t *testing.T) {
+	jobs := NewOperationsJobs(nil, nil, nil, nil, "service_operations")
+	scheduler := util.SetTenancy(internalContext(), &security.AuthenticationClaims{
+		TenantID: "tenant-scheduler", PartitionID: "partition-scheduler",
+	})
+
+	ctx := jobs.actIn(scheduler, &data.BaseModel{TenantID: "tenant-a", PartitionID: "partition-a"})
+
+	claims := security.ClaimsFromContext(ctx)
+	require.NotNil(t, claims)
+	assert.True(t, claims.IsInternalSystem())
+	assert.Equal(t, "tenant-a", claims.GetTenantID())
+	assert.Equal(t, "partition-a", claims.GetPartitionID())
+	tenancy := util.GetTenancy(ctx)
+	require.NotNil(t, tenancy, "peer calls name the item's tenant")
+	assert.Equal(t, "tenant-a", tenancy.GetTenantID())
+	assert.Equal(t, "partition-a", tenancy.GetPartitionID())
 }

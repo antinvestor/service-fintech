@@ -176,6 +176,8 @@ func (r *stubRepaymentScheduleRepo) FieldsAllowed() map[string]struct{} { return
 func (r *stubRepaymentScheduleRepo) ExtendFieldsAllowed(_ ...string)    {}
 func (r *stubRepaymentScheduleRepo) IsFieldAllowed(_ string) error      { return nil }
 
+func (r *stubRepaymentScheduleRepo) KeepLatestActive(context.Context, string) error { return nil }
+
 func (r *stubRepaymentScheduleRepo) GetActivByLoanAccountID(
 	_ context.Context,
 	_ string,

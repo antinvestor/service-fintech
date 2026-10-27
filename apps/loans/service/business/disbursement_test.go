@@ -36,7 +36,9 @@ import (
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	fevents "github.com/pitabwire/frame/v3/events"
 	"github.com/pitabwire/frame/v3/queue"
+	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/frame/v3/workerpool"
+	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -308,12 +310,16 @@ var _ LoanAccountBusiness = (*stubLoanAccountBusiness)(nil)
 type stubOperationsClient struct {
 	transferResp *operationsv1.TransferOrderExecuteResponse
 	transferErr  error
+	// tenancy is what the last TransferOrderExecute call would send as
+	// X-Tenant-Id / X-Partition-Id.
+	tenancy util.TenancyInfo
 }
 
 func (s *stubOperationsClient) TransferOrderExecute(
-	_ context.Context,
+	ctx context.Context,
 	_ *operationsv1.TransferOrderExecuteRequest,
 ) (*operationsv1.TransferOrderExecuteResponse, error) {
+	s.tenancy = util.GetTenancy(ctx)
 	if s.transferErr != nil {
 		return nil, s.transferErr
 	}
@@ -548,6 +554,36 @@ func TestCreate_GateDisabled_BehavesAsBefore(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, result)
+}
+
+// Loans calls operations under its own service account, which carries no
+// tenant; operations learns the tenancy only from the headers the client sets
+// from the context. A disbursement a person started has none, so the call
+// must name the loan's own tenancy or operations refuses it.
+func TestCreate_NamesTheLoansTenancyToOperations(t *testing.T) {
+	la := pendingDisbursementLA()
+	la.TenantID = "tenant-loan"
+	la.PartitionID = "partition-loan"
+	opsCli := &stubOperationsClient{
+		transferResp: &operationsv1.TransferOrderExecuteResponse{
+			Data: &operationsv1.TransferOrderObject{Id: "txn-1", State: commonv1.STATE_INACTIVE},
+		},
+	}
+	b := buildDisbBusiness(&stubDisbursementRepo{findErr: errors.New("not found")},
+		&stubLoanAccountRepo{account: la}, opsCli, nil, false)
+
+	staff := (&security.AuthenticationClaims{
+		TenantID: "tenant-loan", PartitionID: "partition-staff", Roles: []string{"operator"},
+	}).ClaimsToContext(context.Background())
+	_, err := b.Create(staff, &loansv1.DisbursementCreateRequest{
+		LoanAccountId:  la.GetID(),
+		IdempotencyKey: "idem-tenancy",
+		Channel:        "mobile_money",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, opsCli.tenancy, "the transfer order call names a tenancy")
+	assert.Equal(t, "tenant-loan", opsCli.tenancy.GetTenantID())
+	assert.Equal(t, "partition-loan", opsCli.tenancy.GetPartitionID(), "the loan's partition, not the caller's")
 }
 
 // TestCreate_GateAllowed verifies that when the limits stub returns ACTIVE,

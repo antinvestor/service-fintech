@@ -209,6 +209,12 @@ func (j *OperationsJobs) memberSuspenseFunded(ctx context.Context, order *models
 }
 
 // actIn is ctx as this service acting inside the item's partition.
+//
+// The partition is also set as the context's tenancy. The scheduler's
+// request carries the tenancy it named, and an internal principal's claims
+// are read through it, so without this every item would run in the
+// scheduler's partition rather than its own; peer calls (the loans service
+// told of a failed payout) name the tenant from it too.
 func (j *OperationsJobs) actIn(ctx context.Context, item *data.BaseModel) context.Context {
 	claims := &security.AuthenticationClaims{
 		TenantID:    item.TenantID,
@@ -216,5 +222,5 @@ func (j *OperationsJobs) actIn(ctx context.Context, item *data.BaseModel) contex
 		Roles:       []string{security.ConstantSystemInternalRole},
 	}
 	claims.Subject = j.subject
-	return claims.ClaimsToContext(ctx, security.WithoutInternalTenancySkip())
+	return util.SetTenancy(claims.ClaimsToContext(ctx, security.WithoutInternalTenancySkip()), claims)
 }

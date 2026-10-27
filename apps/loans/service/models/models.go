@@ -154,10 +154,12 @@ func LoanAccountFromAPI(ctx context.Context, obj *loansv1.LoanAccountObject) *Lo
 type RepaymentSchedule struct {
 	data.BaseModel
 	LoanAccountID string `gorm:"type:varchar(50);index:idx_rs_loan"`
-	Version       int32
-	IsActive      bool
-	GeneratedAt   *time.Time
-	Properties    data.JSONMap
+	// ScheduleVersion numbers a loan's schedules. It has its own column: the
+	// base model's version column is the optimistic-lock counter.
+	ScheduleVersion int32 `gorm:"column:schedule_version"`
+	IsActive        bool
+	GeneratedAt     *time.Time
+	Properties      data.JSONMap
 }
 
 func (m *RepaymentSchedule) TableName() string { return "repayment_schedules" }
@@ -170,7 +172,7 @@ func (m *RepaymentSchedule) ToAPI(entries []*ScheduleEntry) *loansv1.RepaymentSc
 	return &loansv1.RepaymentScheduleObject{
 		Id:            m.GetID(),
 		LoanAccountId: m.LoanAccountID,
-		Version:       m.Version,
+		Version:       m.ScheduleVersion,
 		IsActive:      m.IsActive,
 		GeneratedAt:   TimeToString(m.GeneratedAt),
 		Entries:       apiEntries,
@@ -184,10 +186,10 @@ func RepaymentScheduleFromAPI(ctx context.Context, obj *loansv1.RepaymentSchedul
 	}
 
 	model := &RepaymentSchedule{
-		LoanAccountID: obj.GetLoanAccountId(),
-		Version:       obj.GetVersion(),
-		IsActive:      obj.GetIsActive(),
-		GeneratedAt:   StringToTime(obj.GetGeneratedAt()),
+		LoanAccountID:   obj.GetLoanAccountId(),
+		ScheduleVersion: obj.GetVersion(),
+		IsActive:        obj.GetIsActive(),
+		GeneratedAt:     StringToTime(obj.GetGeneratedAt()),
 	}
 
 	if obj.GetProperties() != nil {

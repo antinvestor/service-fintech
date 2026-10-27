@@ -27,6 +27,7 @@ import (
 type RepaymentScheduleRepository interface {
 	datastore.BaseRepository[*models.RepaymentSchedule]
 	GetActivByLoanAccountID(ctx context.Context, loanAccountID string) (*models.RepaymentSchedule, error)
+	KeepLatestActive(ctx context.Context, loanAccountID string) error
 }
 
 type repaymentScheduleRepository struct {
@@ -52,9 +53,28 @@ func (repo *repaymentScheduleRepository) GetActivByLoanAccountID(
 	schedule := models.RepaymentSchedule{}
 	err := repo.Pool().DB(ctx, true).
 		Where("loan_account_id = ? AND is_active = ?", loanAccountID, true).
+		Order("generated_at DESC NULLS LAST, schedule_version DESC, id DESC").
 		First(&schedule).Error
 	if err != nil {
 		return nil, err
 	}
 	return &schedule, nil
+}
+
+// KeepLatestActive leaves only the loan's newest schedule active. Schedules
+// are written through events whose order is not guaranteed, so the opening
+// schedule may land after the one re-anchored at disbursement; whichever
+// arrives last, the newest by generation wins.
+func (repo *repaymentScheduleRepository) KeepLatestActive(ctx context.Context, loanAccountID string) error {
+	return repo.Pool().DB(ctx, false).Exec(`
+UPDATE repayment_schedules rs
+SET is_active = (rs.id = latest.id), modified_at = CURRENT_TIMESTAMP, version = rs.version + 1
+FROM (
+    SELECT id FROM repayment_schedules
+    WHERE loan_account_id = ? AND deleted_at IS NULL
+    ORDER BY generated_at DESC NULLS LAST, schedule_version DESC, id DESC
+    LIMIT 1
+) latest
+WHERE rs.loan_account_id = ? AND rs.deleted_at IS NULL AND rs.is_active IS DISTINCT FROM (rs.id = latest.id)`,
+		loanAccountID, loanAccountID).Error
 }

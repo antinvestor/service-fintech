@@ -1764,3 +1764,47 @@ forms. This should not be scattered in other services."
 **Production.** A partition's mobile payouts need one `tx` route row
 (`route_type` `msisdn` or `any`, `uri` the integration's payments topic) and
 the provider's credentials; neither exists yet.
+
+## 56. Addendum 2026-10-27 — end-to-end lending suite and the bugs it found
+
+`tests/e2e` runs the real loans and operations services across their Connect
+seam on Postgres (testcontainers), with in-memory stand-ins for the platform
+peers, and drives one loan through approval, disbursement, a partial
+repayment from the rail, a redelivered payment, full repayment and a payout
+the rail fails after accepting it. Run:
+`go test -p 1 -count=1 -run TestLending -timeout 15m ./tests/e2e/` (skipped
+under `-short`).
+
+Bugs it found, all fixed:
+
+- *Transfer order state crossed the wire as a raw number* between two
+  different enums (operations handlers): a disbursement sent as STATE_ACTIVE
+  landed as "executing" and failed until a stale window passed; an executed
+  order went back to loans as STATE_DELETED. New orders now always start
+  created, and stored states map onto proto STATE.
+- *Staff-initiated disbursements named no tenant* to operations (loans calls
+  under its own tenant-less service account): the call now runs in the loan's
+  tenancy.
+- *The payment-received consumer and operations jobs* did not set the item's
+  tenancy on the context, so a payment could be looked up in the wrong
+  tenancy or none.
+- *Every loan kept two active repayment schedules*: `RepaymentSchedule.Version`
+  shadowed the base model's optimistic-lock column, so deactivating the old
+  schedule never matched a row, and schedules saved through async events
+  could land out of order. The number moved to `schedule_version`
+  (migration 0010 copies it and deactivates duplicates), and saving a
+  schedule leaves only the loan's newest one active.
+
+Open: other peer calls loans makes while serving a person's request (field,
+profile, funding, payment lookups; penalties, write-off, team commission
+payout, cancellation) have the same tenant-less-header exposure; the clean
+fix is in the shared client's partition interceptor in `common`.
+
+**Follow-up (same day).** The tenant-less peer calls are closed for every
+service at once in `pkg/tenantassert`, which each service chains after
+authentication: a person's tenancy is now set as the request context's
+tenancy (tenant only: their own partition is not the record's), so every peer
+call made while serving them names their tenant and
+partition. Internal callers are unchanged (the platform already binds the
+tenancy they name). The per-call fix in loans' disbursement stays, since it
+names the loan's own tenancy.
