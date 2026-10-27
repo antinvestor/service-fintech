@@ -61,9 +61,11 @@ type drainingTranches struct {
 	repository.FundingTrancheRepository
 	ia      repository.InvestorAccountRepository
 	drained string
+	calls   int
 }
 
 func (d *drainingTranches) ReserveAndActivate(ctx context.Context, t *models.FundingTranche) error {
+	d.calls++
 	if d.drained == "" {
 		d.drained = t.InvestorAccountID
 		acct, err := d.ia.GetByID(ctx, t.InvestorAccountID)
@@ -110,4 +112,38 @@ func (s *fundingSuite) TestReserveConflictFallsThroughToTheNextInvestor() {
 	funder, err := e.iaRepo.GetByID(e.ctx, other)
 	s.Require().NoError(err)
 	s.EqualValues(10_000, funder.ReservedBalance, "the loan fell through to the investor with capital")
+}
+
+// When the attempt that lost a reservation race cannot be given back, the
+// allocation stops with an error instead of reserving again on top of it.
+func (s *fundingSuite) TestReserveConflictIsNotRetriedOverAFailedVoid() {
+	e := s.newEnv()
+	first := e.seedInvestor(s, "KES", 50_000)
+	second := e.seedInvestor(s, "KES", 50_000)
+	tranches := &drainingTranches{
+		FundingTrancheRepository: repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan),
+		ia:                       e.iaRepo,
+	}
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_lfclaim_request ON loan_funding_claims (loan_request_id)
+		 WHERE deleted_at IS NULL`).Error)
+	fa := business.NewFundingAllocationBusiness(e.ctx, nil,
+		voidFails{repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan)},
+		repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan),
+		repository.NewLossAbsorptionRepository(e.ctx, e.dbPool, e.workMan),
+		fixedLoanRequests{amount: 10_000, currency: "KES"}, e.iaRepo, tranches, noReserve{}, nil)
+
+	_, err := fa.SourceForRequest(e.ctx, "lr-no-retry")
+	s.Require().Error(err)
+	s.Equal(1, tranches.calls, "no second attempt over an attempt that was not given back")
+
+	var reserved int64
+	for _, id := range []string{first.GetID(), second.GetID()} {
+		acct, getErr := e.iaRepo.GetByID(e.ctx, id)
+		s.Require().NoError(getErr)
+		if id != tranches.drained {
+			reserved += acct.ReservedBalance
+		}
+	}
+	s.Zero(reserved, "nothing reserved for this loan")
 }

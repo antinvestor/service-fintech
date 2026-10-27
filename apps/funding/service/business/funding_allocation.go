@@ -456,6 +456,9 @@ func (b *fundingAllocationBusiness) persistAllocations(
 		if _, _, voidErr := b.voidActiveFundings(cleanupCtx, run.fundings); voidErr != nil {
 			util.Log(ctx).WithError(voidErr).
 				Error("could not give back a failed allocation; capital stays reserved until reviewed")
+			// The original error is kept as text only: a run that could not
+			// be given back is not a reserve conflict to retry on top of.
+			return nil, allocationRun{}, fmt.Errorf("give back a failed allocation (%w): %w", err, voidErr)
 		}
 		return nil, allocationRun{}, err
 	}
