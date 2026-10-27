@@ -118,13 +118,15 @@ func (b *collectionBusiness) Initiate(
 	if err != nil {
 		return nil, err
 	}
-	if amount <= 0 {
-		// An unspecified amount means "whatever is still owed", which is the
-		// natural ask when a collections officer prompts a delinquent loan.
-		balance, balErr := b.loanBalanceRepo.GetByLoanAccountID(ctx, la.GetID())
-		if balErr != nil || balance == nil {
-			return nil, ErrBalanceNotFound
-		}
+	// An unspecified amount means "whatever is still owed", which is the
+	// natural ask when a collections officer prompts a delinquent loan; a
+	// stated one is never more than that, so a prompt cannot ask a borrower
+	// to pay more than they owe.
+	balance, balErr := b.loanBalanceRepo.GetByLoanAccountID(ctx, la.GetID())
+	if balErr != nil || balance == nil {
+		return nil, ErrBalanceNotFound
+	}
+	if amount <= 0 || amount > balance.TotalOutstanding {
 		amount = balance.TotalOutstanding
 	}
 	if amount <= 0 {
@@ -186,5 +188,13 @@ func collectionAmount(req *loansv1.InitiateCollectionRequest, loanCurrency strin
 		}
 		return amount, nil
 	}
-	return models.StringToMinorUnits(req.GetAmount()), nil //nolint:staticcheck // legacy callers still send amount
+	legacy := strings.TrimSpace(req.GetAmount()) //nolint:staticcheck // legacy callers still send amount
+	if legacy == "" {
+		return 0, nil
+	}
+	amount, err := models.StringToMinorUnits(legacy, loanCurrency)
+	if err != nil || amount < 0 {
+		return 0, ErrRepaymentAmountInvalid
+	}
+	return amount, nil
 }
