@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -145,6 +146,14 @@ func (j *SavingsJobs) accrueMissedDays(
 			return through, true
 		}
 		_, accrueErr := j.interest.Accrue(ctx, sa.GetID(), dayStart, dayEnd)
+		if errors.Is(accrueErr, ErrBalanceHistoryUnreliable) {
+			// Not settled: the account stops here, its cursor unmoved, for
+			// an operator to reconcile; later runs try the day again.
+			util.Log(ctx).WithError(accrueErr).WithField(fieldSavingsAccountID, sa.GetID()).
+				WithField("period_end", dayEnd).
+				Error("interest for the day not accrued: its closing balance cannot be reconstructed")
+			return through, false
+		}
 		if accrueErr != nil && !isAccrualSkip(accrueErr) {
 			util.Log(ctx).WithError(accrueErr).WithField(fieldSavingsAccountID, sa.GetID()).
 				WithField("period_end", dayEnd).Warn("interest accrual failed; a later run retries")
