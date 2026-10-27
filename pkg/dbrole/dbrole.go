@@ -33,6 +33,8 @@ import (
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
 	"github.com/pitabwire/util"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/antinvestor/service-fintech/pkg/dbmigrate"
 )
@@ -97,16 +99,19 @@ func ensure(ctx context.Context, dbPool pool.Pool, role, password string) error 
 		verb = "CREATE"
 	}
 	// Postgres quotes the name and the password itself: neither is ever
-	// spliced into SQL text here.
+	// spliced into SQL text here. The statement carries the password, so it
+	// runs on a session that never logs SQL, and its errors never echo it.
+	quiet := db.Session(&gorm.Session{Logger: gormlogger.Discard})
 	var stmt string
-	if err := db.Raw(`SELECT format('`+verb+` ROLE %I WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD %L', ?::text, ?::text)`,
+	if err := quiet.Raw(`SELECT format('`+verb+` ROLE %I WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD %L', ?::text, ?::text)`,
 		role, password).
 		Scan(&stmt).
 		Error; err != nil {
-		return fmt.Errorf("prepare runtime role: %w", err)
+		return errors.New("prepare runtime role statement failed")
 	}
-	if err := db.Exec(stmt).Error; err != nil {
-		return fmt.Errorf("%s runtime role: %w", strings.ToLower(verb), err)
+	if err := quiet.Exec(stmt).Error; err != nil {
+		return fmt.Errorf("%s runtime role %s failed (statement withheld: it carries the password)",
+			strings.ToLower(verb), role)
 	}
 
 	var grants []string
