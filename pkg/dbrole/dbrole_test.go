@@ -17,6 +17,7 @@ package dbrole
 import (
 	"context"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/pitabwire/frame/v3"
@@ -126,5 +127,20 @@ func TestValidate(t *testing.T) {
 	}
 	if err := validate("finance_loans_rt", "pw"); err != nil {
 		t.Error(err)
+	}
+}
+
+// The verifier is what Postgres stores, never the password itself.
+func TestScramVerifierCarriesNoPassword(t *testing.T) {
+	v, err := scramVerifier("hunter2-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(v, "SCRAM-SHA-256$4096:") || strings.Contains(v, "hunter2") {
+		t.Fatalf("unexpected verifier %q", v)
+	}
+	again, _ := scramVerifier("hunter2-secret")
+	if again == v {
+		t.Fatal("verifiers must be salted")
 	}
 }

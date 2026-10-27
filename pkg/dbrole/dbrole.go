@@ -24,6 +24,11 @@ package dbrole
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/pbkdf2"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -98,24 +103,29 @@ func ensure(ctx context.Context, dbPool pool.Pool, role, password string) error 
 	if !exists {
 		verb = "CREATE"
 	}
-	// Postgres quotes the name and the password itself: neither is ever
-	// spliced into SQL text here. The statement carries the password, so it
-	// runs on a session that never logs SQL, and its errors never echo it.
+	// Postgres is sent a SCRAM-SHA-256 verifier, never the password: a role
+	// statement is recorded where others may read it (pg_stat_statements).
+	// Postgres quotes the name and the verifier itself, and the statement
+	// runs on a session that never logs SQL.
+	verifier, err := scramVerifier(password)
+	if err != nil {
+		return err
+	}
 	quiet := db.Session(&gorm.Session{Logger: gormlogger.Discard})
 	var stmt string
-	if err := quiet.Raw(`SELECT format('`+verb+` ROLE %I WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD %L', ?::text, ?::text)`,
-		role, password).
+	if err = quiet.Raw(`SELECT format('`+verb+` ROLE %I WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD %L', ?::text, ?::text)`,
+		role, verifier).
 		Scan(&stmt).
 		Error; err != nil {
 		return errors.New("prepare runtime role statement failed")
 	}
-	if err := quiet.Exec(stmt).Error; err != nil {
+	if err = quiet.Exec(stmt).Error; err != nil {
 		return fmt.Errorf("%s runtime role %s failed (statement withheld: it carries the password)",
 			strings.ToLower(verb), role)
 	}
 
 	var grants []string
-	if err := db.Raw(`SELECT unnest(ARRAY[
+	if err = db.Raw(`SELECT unnest(ARRAY[
 		format('GRANT USAGE ON SCHEMA public TO %I', ?::text),
 		format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO %I', ?::text),
 		format('GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO %I', ?::text),
@@ -127,7 +137,7 @@ func ensure(ctx context.Context, dbPool pool.Pool, role, password string) error 
 		return fmt.Errorf("prepare runtime role grants: %w", err)
 	}
 	for _, g := range grants {
-		if err := db.Exec(g).Error; err != nil {
+		if err = db.Exec(g).Error; err != nil {
 			return fmt.Errorf("grant runtime role: %w", err)
 		}
 	}
@@ -182,4 +192,37 @@ func verify(ctx context.Context, dbPool pool.Pool) error {
 		return fmt.Errorf("%w: %s", ErrRoleBypassesRLS, flags.Role)
 	}
 	return nil
+}
+
+// SCRAM-SHA-256 verifier parameters, as Postgres itself computes them.
+const (
+	scramIterations = 4096
+	scramSaltLen    = 16
+	scramKeyLen     = 32
+)
+
+// scramVerifier is the SCRAM-SHA-256 verifier Postgres stores for password
+// (RFC 5802/7677): Postgres accepts it in place of the password and the
+// password itself never reaches the server.
+func scramVerifier(password string) (string, error) {
+	salt := make([]byte, scramSaltLen)
+	if _, err := rand.Read(salt); err != nil {
+		return "", fmt.Errorf("runtime role salt: %w", err)
+	}
+	salted, err := pbkdf2.Key(sha256.New, password, salt, scramIterations, scramKeyLen)
+	if err != nil {
+		return "", fmt.Errorf("runtime role key: %w", err)
+	}
+	clientKey := hmacSHA256(salted, "Client Key")
+	storedKey := sha256.Sum256(clientKey)
+	serverKey := hmacSHA256(salted, "Server Key")
+	enc := base64.StdEncoding
+	return fmt.Sprintf("SCRAM-SHA-256$%d:%s$%s:%s", scramIterations,
+		enc.EncodeToString(salt), enc.EncodeToString(storedKey[:]), enc.EncodeToString(serverKey)), nil
+}
+
+func hmacSHA256(key []byte, msg string) []byte {
+	m := hmac.New(sha256.New, key)
+	m.Write([]byte(msg))
+	return m.Sum(nil)
 }
