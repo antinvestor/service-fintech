@@ -325,10 +325,10 @@ func setupServiceOptions(
 		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
 		business.WithScannerSubject(serviceName),
 	)
-	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, dueReminderDays)
+	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, dueReminderDays).WithSubject(serviceName)
 	paidOffNotices := business.NewPaidOffNotices(laRepo, lbRepo, paidOffHook, serviceName)
 	loanJobs := business.NewLoanJobs(scanner, reminders, fundingSettlement, loanRequestRepo, loanNotifier,
-		paidOffNotices)
+		paidOffNotices).WithSubject(serviceName)
 
 	connectHandler := setupConnectServer(ctx, sm,
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,

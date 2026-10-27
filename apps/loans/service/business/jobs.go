@@ -60,6 +60,15 @@ type LoanJobs struct {
 	requestRepo repository.LoanRequestRepository
 	notifier    *LoanNotifier
 	paidOff     *PaidOffNotices
+	// subject is this service's own identity, under which each expired
+	// request's borrower is told inside the request's tenancy.
+	subject string
+}
+
+// WithSubject names this service's identity for the work it does per item.
+func (j *LoanJobs) WithSubject(subject string) *LoanJobs {
+	j.subject = subject
+	return j
 }
 
 // NewLoanJobs wires the jobs.
@@ -121,7 +130,7 @@ func (j *LoanJobs) expireRequests(ctx context.Context, batch int) (int, bool, er
 		return 0, false, fmt.Errorf("expire lapsed offers: %w", err)
 	}
 	for _, lr := range expired {
-		j.notifier.NotifyApplicationExpired(ctx, lr)
+		j.notifier.NotifyApplicationExpired(actInTenancy(ctx, j.subject, lr.TenantID, lr.PartitionID), lr)
 	}
 	if len(expired) > 0 {
 		util.Log(ctx).WithField("expired", len(expired)).Info("lapsed loan offers expired")

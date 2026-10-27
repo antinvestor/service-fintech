@@ -102,11 +102,19 @@ func (n *PaidOffNotices) RunBatch(ctx context.Context, batch int) (int, bool, er
 // a commission movement) carry the loan's partition and the peer calls made
 // for it name the loan's tenant, not the scheduler's.
 func actInLoan(ctx context.Context, subject string, la *models.LoanAccount) context.Context {
+	return actInTenancy(ctx, subject, la.TenantID, la.PartitionID)
+}
+
+// actInTenancy is ctx as this service acting inside one record's tenant and
+// partition. The tenancy is also set as the context's tenancy: the peer
+// clients name the tenant they act in (X-Tenant-Id) only from it, so without
+// it a job's peer calls (notifications, funding, operations) name no tenant.
+func actInTenancy(ctx context.Context, subject, tenantID, partitionID string) context.Context {
 	claims := &security.AuthenticationClaims{
-		TenantID:    la.TenantID,
-		PartitionID: la.PartitionID,
+		TenantID:    tenantID,
+		PartitionID: partitionID,
 		Roles:       []string{security.ConstantSystemInternalRole},
 	}
 	claims.Subject = subject
-	return claims.ClaimsToContext(ctx, security.WithoutInternalTenancySkip())
+	return util.SetTenancy(claims.ClaimsToContext(ctx, security.WithoutInternalTenancySkip()), claims)
 }

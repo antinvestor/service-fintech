@@ -182,10 +182,10 @@ func loansOptions(
 		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
 		business.WithScannerSubject(cfg.Name()),
 	)
-	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, cfg.DueReminderDays)
+	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, cfg.DueReminderDays).WithSubject(cfg.Name())
 	paidOffNotices := business.NewPaidOffNotices(laRepo, lbRepo, paidOffHook, cfg.Name())
 	loanJobs := business.NewLoanJobs(scanner, reminders, fundingSettlement, loanRequestRepo, loanNotifier,
-		paidOffNotices)
+		paidOffNotices).WithSubject(cfg.Name())
 
 	lmHandler := handlers.NewLoanManagementServer(
 		lpBusiness, lrBusiness, laBusiness, repBusiness, scheduleBusiness,
