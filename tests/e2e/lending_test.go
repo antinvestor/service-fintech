@@ -101,10 +101,11 @@ type lendingSuite struct {
 	router   *hostRouter
 	tokens   *tokens
 
-	opsDB  *gorm.DB
-	opsSvc *frame.Service
-	stops  []func()
-	ops    *operationsService
+	opsDB   *gorm.DB
+	loansDB *gorm.DB
+	opsSvc  *frame.Service
+	stops   []func()
+	ops     *operationsService
 
 	// What the people and the scheduler hold: each a client of the real
 	// servers, under its own token.
@@ -222,6 +223,7 @@ func (s *lendingSuite) startLoans() {
 	s.Require().NoError(loansrepo.Migrate(ctx, svc.DatastoreManager(), loansMigrations))
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 	s.Require().NotNil(dbPool)
+	s.loansDB = dbPool.DB(ctx, false)
 
 	svc.Init(ctx, loansOptions(ctx, &cfg, svc.EventsManager(), dbPool, svc.WorkManager(),
 		newLoansPeers(s.router, s.fakes, loansToken), s.tokens, permissive())...)
@@ -493,6 +495,19 @@ func (s *lendingSuite) TestLoanLifecycle() {
 	}, settleWait, settleTick, "the opening balance is written")
 	owed := minor(s.balance(la.GetId()).GetTotalOutstanding())
 	s.Require().Greater(owed, principal, "principal plus interest is owed")
+
+	// The schedule re-anchored at disbursement replaces the opening one:
+	// one active schedule, whatever order the two saves landed in.
+	s.Require().Eventually(func() bool {
+		var schedules int64
+		s.Require().NoError(s.loansDB.Table("repayment_schedules").
+			Where("loan_account_id = ? AND deleted_at IS NULL", la.GetId()).Count(&schedules).Error)
+		return schedules >= 2
+	}, settleWait, settleTick, "the opening and re-anchored schedules are written")
+	var activeSchedules int64
+	s.Require().NoError(s.loansDB.Table("repayment_schedules").
+		Where("loan_account_id = ? AND is_active AND deleted_at IS NULL", la.GetId()).Count(&activeSchedules).Error)
+	s.Equal(int64(1), activeSchedules, "a loan has one active repayment schedule")
 
 	// 2. A partial repayment from the borrower's own number.
 	const partial = int64(2_500_50)

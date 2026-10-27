@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package events //nolint:dupl // similar event handlers for different entity types
+package events
 
 import (
 	"context"
@@ -63,6 +63,11 @@ func (e *RepaymentScheduleSave) Execute(ctx context.Context, payload any) error 
 
 	if err := upsert.ByID(ctx, e.repaymentScheduleRepo, rs); err != nil {
 		logger.WithError(err).Error("could not persist repayment schedule")
+		return err
+	}
+	// A loan has one active schedule, the newest, whichever save landed last.
+	if err := e.repaymentScheduleRepo.KeepLatestActive(ctx, rs.LoanAccountID); err != nil {
+		logger.WithError(err).Error("could not settle the loan's active schedule")
 		return err
 	}
 

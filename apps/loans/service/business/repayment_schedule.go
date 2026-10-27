@@ -138,15 +138,15 @@ func (b *repaymentScheduleBusiness) GenerateFor(
 
 	now := time.Now().UTC()
 	schedule := &models.RepaymentSchedule{
-		LoanAccountID: la.GetID(),
-		Version:       1,
-		IsActive:      true,
-		GeneratedAt:   &now,
+		LoanAccountID:   la.GetID(),
+		ScheduleVersion: 1,
+		IsActive:        true,
+		GeneratedAt:     &now,
 	}
 
 	existingSchedule, existErr := b.scheduleRepo.GetActivByLoanAccountID(ctx, la.GetID())
 	if existErr == nil && existingSchedule != nil {
-		schedule.Version = existingSchedule.Version + 1
+		schedule.ScheduleVersion = existingSchedule.ScheduleVersion + 1
 	}
 	schedule.GenID(ctx)
 
