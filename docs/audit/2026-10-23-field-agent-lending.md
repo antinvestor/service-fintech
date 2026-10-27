@@ -1799,3 +1799,11 @@ Open: other peer calls loans makes while serving a person's request (field,
 profile, funding, payment lookups; penalties, write-off, team commission
 payout, cancellation) have the same tenant-less-header exposure; the clean
 fix is in the shared client's partition interceptor in `common`.
+
+**Follow-up (same day).** The tenant-less peer calls are closed for every
+service at once in `pkg/tenantassert`, which each service chains after
+authentication: a person's tenancy is now set as the request context's
+tenancy, so every peer call made while serving them names their tenant and
+partition. Internal callers are unchanged (the platform already binds the
+tenancy they name). The per-call fix in loans' disbursement stays, since it
+names the loan's own tenancy.
