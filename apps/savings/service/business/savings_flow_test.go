@@ -190,6 +190,7 @@ type savingsEnv struct {
 	wdrRepo repository.WithdrawalRepository
 	sbRepo  repository.SavingsBalanceRepository
 	iaRepo  repository.InterestAccrualRepository
+	dbPool  pool.Pool
 }
 
 // railCtx is the payment rail (operations' service account) acting in the
@@ -274,6 +275,7 @@ func (s *savingsSuite) newEnv() *savingsEnv {
 		wdrRepo: wdrRepo,
 		sbRepo:  sbRepo,
 		iaRepo:  iaRepo,
+		dbPool:  dbPool,
 	}
 }
 
