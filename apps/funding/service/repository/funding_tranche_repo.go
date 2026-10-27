@@ -84,6 +84,17 @@ func (r *fundingTrancheRepository) GetByLoanRequestID(
 
 func (r *fundingTrancheRepository) ReserveAndActivate(ctx context.Context, tranche *models.FundingTranche) error {
 	return r.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		// Lock the parent funding: a concurrent VoidAndRelease either voided
+		// it first, and nothing is reserved here, or waits for this
+		// reservation and gives it back.
+		var live []struct{ ID string }
+		if err := tx.Raw(`SELECT id FROM loan_fundings WHERE id = ? AND state = ? AND deleted_at IS NULL FOR UPDATE`,
+			tranche.LoanFundingID, int32(constants.StateActive)).Scan(&live).Error; err != nil {
+			return err
+		}
+		if len(live) == 0 {
+			return fmt.Errorf("funding %s of tranche %s is no longer active", tranche.LoanFundingID, tranche.GetID())
+		}
 		activated := tx.Exec(`UPDATE funding_tranches SET state = ?, modified_at = now(), version = version + 1
 WHERE id = ? AND state = ? AND deleted_at IS NULL`,
 			int32(constants.StateActive), tranche.GetID(), int32(constants.StateJustCreated))

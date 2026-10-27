@@ -152,11 +152,17 @@ func (s *fundingSuite) TestLiveAllocationClaimIsRetryable() {
 // lease lost, after the allocation was reserved.
 type completeFails struct {
 	repository.LoanFundingClaimRepository
-	err  error
-	lost bool
+	err    error
+	lost   bool
+	landed bool
 }
 
 func (c completeFails) Complete(ctx context.Context, id string, lease time.Time) (bool, error) {
+	if c.landed {
+		// The write lands but the caller never hears so.
+		_, _ = c.LoanFundingClaimRepository.Complete(ctx, id, lease)
+		return false, errors.New("connection reset after commit")
+	}
 	if c.err != nil {
 		return false, c.err
 	}
@@ -196,42 +202,139 @@ func (s *fundingSuite) TestAllocationThatCannotCompleteGivesCapitalBack() {
 	}
 }
 
-// Voiding a funding gives back its reservations in the same transaction:
-// when one cannot be given back, nothing changes, rather than the funding
-// being voided with capital still reserved.
-func (s *fundingSuite) TestVoidAndReleaseIsAllOrNothing() {
+// A completion that landed although the caller heard an error is read back
+// and kept: the allocation is complete and nothing is given back.
+func (s *fundingSuite) TestCompletionThatLandedDespiteAnErrorIsKept() {
+	e := s.newEnv()
+	investor := e.seedInvestor(s, "KES", 50_000)
+	claims := completeFails{landed: true,
+		LoanFundingClaimRepository: repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan)}
+	fa := e.allocationBusinessWithClaims(s, 10_000, claims)
+
+	result, err := fa.SourceForRequest(e.ctx, "lr-landed")
+	s.Require().NoError(err)
+	s.True(result.FullyFunded)
+	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.EqualValues(10_000, acct.ReservedBalance, "a completed allocation keeps its capital")
+
+	// ReleaseHeld never drops a completed claim.
+	var claim models.LoanFundingClaim
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).First(&claim, "loan_request_id = ?", "lr-landed").Error)
+	s.Equal(models.LoanFundingClaimComplete, claim.Status)
+	released, err := claims.ReleaseHeld(e.ctx, "lr-landed", *claim.ClaimedAt)
+	s.Require().NoError(err)
+	s.False(released)
+}
+
+// A takeover whose predecessor left a tranche the investor account no
+// longer holds the reservation for still funds the loan: that tranche is
+// voided and flagged for reconciliation instead of failing every retry.
+func (s *fundingSuite) TestTakeoverIsNotBlockedByAnUnreleasableTranche() {
+	e := s.newEnv()
+	investor := e.seedInvestor(s, "KES", 50_000)
+	fa := e.allocationBusiness(s, 10_000)
+	e.leaveClaim(s, "lr-stuck", time.Now().Add(-time.Hour))
+	funding, bad := e.fundingWithTranche(s, "lr-stuck", investor, 4_000)
+	e.markActive(s, bad) // recorded as reserved, never held by the account
+
+	result, err := fa.SourceForRequest(e.ctx, "lr-stuck")
+	s.Require().NoError(err)
+	s.True(result.FullyFunded)
+
+	stored := e.tranche(s, bad.GetID())
+	s.Equal(int32(constants.StateInactive), stored.State)
+	s.Equal(repository.TrancheReconcileReservationMissing, stored.Properties["reconcile"])
+	lf, err := repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan).GetByID(e.ctx, funding.GetID())
+	s.Require().NoError(err)
+	s.Equal(int32(constants.StateInactive), lf.State)
+}
+
+func (e *fundingEnv) fundingWithTranche(
+	s *fundingSuite,
+	loanRequestID string,
+	investor *models.InvestorAccount,
+	amount int64,
+) (*models.LoanFunding, *models.FundingTranche) {
+	s.T().Helper()
+	funding := &models.LoanFunding{LoanRequestID: loanRequestID, Amount: amount, Currency: "KES",
+		State: int32(constants.StateActive)}
+	funding.GenID(e.ctx)
+	s.Require().NoError(repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan).Create(e.ctx, funding))
+	return funding, e.pendingTranche(s, funding, investor, amount)
+}
+
+func (e *fundingEnv) pendingTranche(
+	s *fundingSuite,
+	funding *models.LoanFunding,
+	investor *models.InvestorAccount,
+	amount int64,
+) *models.FundingTranche {
+	s.T().Helper()
+	tranche := &models.FundingTranche{LoanFundingID: funding.GetID(), InvestorAccountID: investor.GetID(),
+		Amount: amount, Currency: "KES", State: int32(constants.StateJustCreated)}
+	tranche.GenID(e.ctx)
+	s.Require().NoError(repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan).Create(e.ctx, tranche))
+	return tranche
+}
+
+func (e *fundingEnv) markActive(s *fundingSuite, t *models.FundingTranche) {
+	s.T().Helper()
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE funding_tranches SET state = ? WHERE id = ?`, int32(constants.StateActive), t.GetID()).Error)
+}
+
+func (e *fundingEnv) tranche(s *fundingSuite, id string) *models.FundingTranche {
+	s.T().Helper()
+	t, err := repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan).GetByID(e.ctx, id)
+	s.Require().NoError(err)
+	return t
+}
+
+// Voiding a funding gives back its reservations in the same transaction. A
+// tranche whose reservation the account no longer holds is voided and
+// flagged, not given back, and does not stop the others.
+func (s *fundingSuite) TestVoidAndReleaseIsolatesAnUnreleasableTranche() {
 	e := s.newEnv()
 	investor := e.seedInvestor(s, "KES", 50_000)
 	lfRepo := repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan)
 	ftRepo := repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan)
-	funding := &models.LoanFunding{LoanRequestID: "lr-void", Amount: 4_000, Currency: "KES",
-		State: int32(constants.StateActive)}
-	funding.GenID(e.ctx)
-	s.Require().NoError(lfRepo.Create(e.ctx, funding))
-	tranche := &models.FundingTranche{LoanFundingID: funding.GetID(), InvestorAccountID: investor.GetID(),
-		Amount: 4_000, Currency: "KES", State: int32(constants.StateJustCreated)}
-	tranche.GenID(e.ctx)
-	s.Require().NoError(ftRepo.Create(e.ctx, tranche))
+	funding, bad := e.fundingWithTranche(s, "lr-void", investor, 4_000)
+	good := e.pendingTranche(s, funding, investor, 3_000)
+	pending := e.pendingTranche(s, funding, investor, 1_000)
+	e.markActive(s, bad)
+	s.Require().NoError(ftRepo.ReserveAndActivate(e.ctx, good))
 
-	// Recorded as reserved without the account holding it.
-	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
-		`UPDATE funding_tranches SET state = ? WHERE id = ?`, int32(constants.StateActive), tranche.GetID()).Error)
-	_, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
-	s.Require().ErrorIs(err, repository.ErrReservationMissing)
-	stored, err := lfRepo.GetByID(e.ctx, funding.GetID())
-	s.Require().NoError(err)
-	s.Equal(int32(constants.StateActive), stored.State, "the void rolled back with the failed release")
-
-	// Reserved and activated together, it is voided and given back once.
-	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
-		`UPDATE funding_tranches SET state = ? WHERE id = ?`, int32(constants.StateJustCreated), tranche.GetID()).Error)
-	s.Require().NoError(ftRepo.ReserveAndActivate(e.ctx, tranche))
-	won, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
+	won, unreleased, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
 	s.Require().NoError(err)
 	s.True(won)
-	again, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
+	s.Equal([]string{bad.GetID()}, unreleased)
+
+	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
 	s.Require().NoError(err)
-	s.False(again)
+	s.Zero(acct.ReservedBalance, "the reserved tranche is given back; the others held nothing")
+	for _, id := range []string{bad.GetID(), good.GetID(), pending.GetID()} {
+		s.Equal(int32(constants.StateInactive), e.tranche(s, id).State)
+	}
+	s.Equal(repository.TrancheReconcileReservationMissing, e.tranche(s, bad.GetID()).Properties["reconcile"])
+	s.Nil(e.tranche(s, good.GetID()).Properties["reconcile"])
+
+	again, _, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
+	s.Require().NoError(err)
+	s.False(again, "voided once")
+}
+
+// A tranche whose funding was voided first reserves nothing: the reservation
+// and the void serialise on the funding row.
+func (s *fundingSuite) TestReserveAfterVoidReservesNothing() {
+	e := s.newEnv()
+	investor := e.seedInvestor(s, "KES", 50_000)
+	funding, tranche := e.fundingWithTranche(s, "lr-race", investor, 4_000)
+	_, _, err := repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan).VoidAndRelease(e.ctx, funding.GetID())
+	s.Require().NoError(err)
+
+	s.Require().Error(repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan).
+		ReserveAndActivate(e.ctx, tranche))
 	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
 	s.Require().NoError(err)
 	s.Zero(acct.ReservedBalance)
@@ -241,14 +344,9 @@ func (s *fundingSuite) TestVoidAndReleaseIsAllOrNothing() {
 func (s *fundingSuite) TestReserveAndActivateChangesNothingWhenShort() {
 	e := s.newEnv()
 	investor := e.seedInvestor(s, "KES", 1_000)
+	_, tranche := e.fundingWithTranche(s, "lr-short", investor, 4_000)
 	ftRepo := repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan)
-	tranche := &models.FundingTranche{LoanFundingID: "lf-short", InvestorAccountID: investor.GetID(),
-		Amount: 4_000, Currency: "KES", State: int32(constants.StateJustCreated)}
-	tranche.GenID(e.ctx)
-	s.Require().NoError(ftRepo.Create(e.ctx, tranche))
 
 	s.Require().ErrorIs(ftRepo.ReserveAndActivate(e.ctx, tranche), repository.ErrInvestorInsufficientFunds)
-	stored, err := ftRepo.GetByID(e.ctx, tranche.GetID())
-	s.Require().NoError(err)
-	s.Equal(int32(constants.StateJustCreated), stored.State)
+	s.Equal(int32(constants.StateJustCreated), e.tranche(s, tranche.GetID()).State)
 }

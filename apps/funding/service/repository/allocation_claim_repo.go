@@ -59,11 +59,15 @@ type LoanFundingClaimRepository interface {
 	// still the claim's: false means another call took the claim over.
 	Complete(ctx context.Context, loanRequestID string, lease time.Time) (bool, error)
 
-	// ReleaseHeld drops the claim this call holds under lease after its
-	// allocation failed or was given back, so the request can be funded on a
-	// later attempt; it removes the claim whether or not it was completed. A
-	// claim another call took over is left alone.
-	ReleaseHeld(ctx context.Context, loanRequestID string, lease time.Time) error
+	// ReleaseHeld drops the allocating claim this call holds under lease
+	// after its allocation failed, so the request can be funded on a later
+	// attempt, and reports whether it did. A completed claim, or one another
+	// call took over, is never dropped.
+	ReleaseHeld(ctx context.Context, loanRequestID string, lease time.Time) (bool, error)
+
+	// HeldBy reports the claim's status and whether lease is still its
+	// lease.
+	HeldBy(ctx context.Context, loanRequestID string, lease time.Time) (status int32, held bool, err error)
 
 	// Release drops the lock whoever holds it, so the request can be funded
 	// afresh.
@@ -146,11 +150,30 @@ func (r *loanFundingClaimRepository) ReleaseHeld(
 	ctx context.Context,
 	loanRequestID string,
 	lease time.Time,
-) error {
-	return r.Pool().DB(ctx, false).
+) (bool, error) {
+	result := r.Pool().DB(ctx, false).
 		Unscoped().
-		Where("loan_request_id = ? AND claimed_at = ?", loanRequestID, lease).
-		Delete(&models.LoanFundingClaim{}).Error
+		Where("loan_request_id = ? AND claimed_at = ? AND status = ?",
+			loanRequestID, lease, models.LoanFundingClaimAllocating).
+		Delete(&models.LoanFundingClaim{})
+	return result.RowsAffected > 0, result.Error
+}
+
+func (r *loanFundingClaimRepository) HeldBy(
+	ctx context.Context,
+	loanRequestID string,
+	lease time.Time,
+) (int32, bool, error) {
+	claim := &models.LoanFundingClaim{}
+	err := r.Pool().DB(ctx, false).First(claim, "loan_request_id = ?", loanRequestID).Error
+	if data.ErrorIsNoRows(err) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	held := claim.ClaimedAt != nil && claim.ClaimedAt.Equal(lease)
+	return claim.Status, held, nil
 }
 
 func (r *loanFundingClaimRepository) Release(ctx context.Context, loanRequestID string) error {
