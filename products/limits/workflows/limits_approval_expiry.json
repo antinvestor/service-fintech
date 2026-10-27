@@ -34,7 +34,8 @@
           "rpc": "LimitsJobRun",
           "request": {
             "job": "LIMITS_JOB_APPROVAL_EXPIRY"
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

@@ -22,13 +22,11 @@ import (
 	"github.com/pitabwire/frame/v3/workerpool"
 
 	"github.com/antinvestor/service-fintech/apps/stawi/service/models"
-	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 // LoanWindowRepository provides data access for loan windows.
 type LoanWindowRepository interface {
 	datastore.BaseRepository[*models.LoanWindow]
-	CountByGroupID(ctx context.Context, groupID string) (int32, error)
 	GetByGroupID(ctx context.Context, groupID string) ([]*models.LoanWindow, error)
 }
 
@@ -43,13 +41,6 @@ func NewLoanWindowRepository(ctx context.Context, dbPool pool.Pool, workMan work
 
 type loanWindowRepository struct {
 	datastore.BaseRepository[*models.LoanWindow]
-}
-
-func (r *loanWindowRepository) CountByGroupID(ctx context.Context, groupID string) (int32, error) {
-	var count int64
-	err := r.Pool().DB(ctx, true).Model(&models.LoanWindow{}).
-		Where("group_id = ?", groupID).Count(&count).Error
-	return constants.SafeInt32FromInt64(count), err
 }
 
 func (r *loanWindowRepository) GetByGroupID(ctx context.Context, groupID string) ([]*models.LoanWindow, error) {

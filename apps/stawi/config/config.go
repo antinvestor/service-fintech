@@ -41,6 +41,11 @@ type StawiConfig struct {
 	SavingsServiceURI                   string `envDefault:"127.0.0.1:7012"                 env:"SAVINGS_SERVICE_URI"`
 	SavingsServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-savings" env:"SAVINGS_SERVICE_WORKLOAD_API_TARGET_PATH"`
 
+	// Operations service: owns members' obligations and the money that
+	// settles them. Stawi raises and closes a period's obligations there.
+	OperationsServiceURI                   string `envDefault:"127.0.0.1:7060"                    env:"OPERATIONS_SERVICE_URI"`
+	OperationsServiceWorkloadAPITargetPath string `envDefault:"/ns/fintech/sa/service-operations" env:"OPERATIONS_SERVICE_WORKLOAD_API_TARGET_PATH"`
+
 	// Ledger service
 	LedgerServiceURI                   string `envDefault:"127.0.0.1:7020"               env:"LEDGER_SERVICE_URI"`
 	LedgerServiceWorkloadAPITargetPath string `envDefault:"/ns/ledger/sa/service-ledger" env:"LEDGER_SERVICE_WORKLOAD_API_TARGET_PATH"`
@@ -64,17 +69,6 @@ type StawiConfig struct {
 	// Tenancy service
 	TenancyServiceURI                   string `envDefault:"127.0.0.1:7003"              env:"TENANCY_SERVICE_URI"`
 	TenancyServiceWorkloadAPITargetPath string `envDefault:"/ns/auth/sa/service-tenancy" env:"TENANCY_SERVICE_WORKLOAD_API_TARGET_PATH"`
-
-	// Limits service: gates stawi loan disbursement through the centralised
-	// caps engine. Both URI fields are optional; when LimitsServiceURI is
-	// empty consumer.SetupClient returns nil and the gate is skipped at runtime.
-	LimitsServiceURI                   string `envDefault:"http://service_limits:80" env:"LIMITS_SERVICE_URI"`
-	LimitsServiceWorkloadAPITargetPath string `envDefault:""                         env:"LIMITS_SERVICE_WORKLOAD_API_TARGET_PATH"`
-	// Stawi runs the operations transfer-order engine in process, so its
-	// transfer orders take the same gate settings as the operations service.
-	// Stawi loans are gated by the loans service at approval and disbursement.
-	LimitsGateEnabledOperationsTransfer bool   `envDefault:"true"    env:"LIMITS_GATE_ENABLED_OPERATIONS_TRANSFER"`
-	LimitsGateModeOperationsTransfer    string `envDefault:"enforce" env:"LIMITS_GATE_MODE_OPERATIONS_TRANSFER"`
 }
 
 // ServiceEndpoints returns a clients.ServiceEndpoints populated from the config.

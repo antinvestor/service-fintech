@@ -35,7 +35,8 @@
           "request": {
             "job": "LOAN_JOB_DUE_REMINDERS",
             "batchSize": 500
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

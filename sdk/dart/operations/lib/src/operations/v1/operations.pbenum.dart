@@ -224,8 +224,9 @@ class OperationsJob extends $pb.ProtobufEnum {
   static const OperationsJob OPERATIONS_JOB_UNSPECIFIED =
       OperationsJob._(0, _omitEnumNames ? '' : 'OPERATIONS_JOB_UNSPECIFIED');
 
-  /// Allocates individuals' matched payments whose allocation did not finish
-  /// and posts borrower repayment orders raised but never executed.
+  /// Allocates matched payments (an individual's loan, savings or investor
+  /// account, or a group member's obligations) whose allocation did not
+  /// finish, and posts the allocation orders raised but never executed.
   static const OperationsJob OPERATIONS_JOB_SETTLE_PAYMENTS = OperationsJob._(
       1, _omitEnumNames ? '' : 'OPERATIONS_JOB_SETTLE_PAYMENTS');
 

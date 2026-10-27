@@ -54,19 +54,24 @@ func RouteKey(method, path string) string {
 }
 
 // BuildRoutePermissions reads the google.api.http binding and the
-// common.v1.method_permissions of every RPC on the manifest service and
-// returns the route → permissions map. It fails when a method has no HTTP
-// binding or names no permission, so a manifest entry can never silently
-// become an open route.
+// common.v1.method_permissions of every RPC on the service that is also
+// served as a plain HTTP route, and returns the route → permissions map.
+// RPCs with no HTTP binding are served over Connect only, where the
+// function access interceptor checks them. It fails when a bound method
+// names no permission, so a route can never silently become open, and when
+// the service binds no route at all, since that is not a route manifest.
 func BuildRoutePermissions(sd protoreflect.ServiceDescriptor) (RoutePermissions, error) {
 	methods := sd.Methods()
 	routes := make(RoutePermissions, methods.Len())
 	for i := range methods.Len() {
 		md := methods.Get(i)
 
-		httpMethod, path, err := httpBinding(md)
+		httpMethod, path, bound, err := httpBinding(md)
 		if err != nil {
 			return nil, err
+		}
+		if !bound {
+			continue
 		}
 		perms := permissions.ForMethod(md).Permissions
 		if len(perms) == 0 {
@@ -79,34 +84,39 @@ func BuildRoutePermissions(sd protoreflect.ServiceDescriptor) (RoutePermissions,
 		}
 		routes[key] = perms
 	}
+	if len(routes) == 0 {
+		return nil, fmt.Errorf("service %s binds no HTTP route", sd.FullName())
+	}
 	return routes, nil
 }
 
-func httpBinding(md protoreflect.MethodDescriptor) (string, string, error) {
+// httpBinding returns the method's google.api.http route, and false when it
+// has none.
+func httpBinding(md protoreflect.MethodDescriptor) (string, string, bool, error) {
 	opts, ok := md.Options().(*descriptorpb.MethodOptions)
-	if !ok || opts == nil {
-		return "", "", fmt.Errorf("manifest method %s has no options", md.FullName())
+	if !ok || opts == nil || !proto.HasExtension(opts, annotations.E_Http) {
+		return "", "", false, nil
 	}
 	rule, ok := proto.GetExtension(opts, annotations.E_Http).(*annotations.HttpRule)
 	if !ok || rule == nil {
-		return "", "", fmt.Errorf("manifest method %s has no google.api.http binding", md.FullName())
+		return "", "", false, nil
 	}
 
 	switch pattern := rule.GetPattern().(type) {
 	case *annotations.HttpRule_Get:
-		return http.MethodGet, pattern.Get, nil
+		return http.MethodGet, pattern.Get, true, nil
 	case *annotations.HttpRule_Post:
-		return http.MethodPost, pattern.Post, nil
+		return http.MethodPost, pattern.Post, true, nil
 	case *annotations.HttpRule_Put:
-		return http.MethodPut, pattern.Put, nil
+		return http.MethodPut, pattern.Put, true, nil
 	case *annotations.HttpRule_Patch:
-		return http.MethodPatch, pattern.Patch, nil
+		return http.MethodPatch, pattern.Patch, true, nil
 	case *annotations.HttpRule_Delete:
-		return http.MethodDelete, pattern.Delete, nil
+		return http.MethodDelete, pattern.Delete, true, nil
 	case *annotations.HttpRule_Custom:
-		return pattern.Custom.GetKind(), pattern.Custom.GetPath(), nil
+		return pattern.Custom.GetKind(), pattern.Custom.GetPath(), true, nil
 	default:
-		return "", "", fmt.Errorf("manifest method %s has an empty google.api.http binding", md.FullName())
+		return "", "", false, fmt.Errorf("manifest method %s has an empty google.api.http binding", md.FullName())
 	}
 }
 

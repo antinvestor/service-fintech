@@ -56,6 +56,7 @@ type OperationsServer struct {
 	toRepo     repository.TransferOrderRepository
 	ipRepo     repository.IncomingPaymentRepository
 	jobs       *business.OperationsJobs
+	obBusiness business.ObligationBusiness
 
 	operationsv1connect.UnimplementedOperationsServiceHandler
 }
@@ -63,6 +64,7 @@ type OperationsServer struct {
 func NewOperationsServer(
 	toBusiness business.TransferOrderBusiness,
 	prBusiness business.PaymentRoutingBusiness,
+	obBusiness business.ObligationBusiness,
 	toRepo repository.TransferOrderRepository,
 	ipRepo repository.IncomingPaymentRepository,
 	jobs *business.OperationsJobs,
@@ -70,6 +72,7 @@ func NewOperationsServer(
 	return &OperationsServer{
 		toBusiness: toBusiness,
 		prBusiness: prBusiness,
+		obBusiness: obBusiness,
 		ipRepo:     ipRepo,
 		toRepo:     toRepo,
 		jobs:       jobs,

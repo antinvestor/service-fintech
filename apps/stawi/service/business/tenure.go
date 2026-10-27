@@ -146,23 +146,13 @@ func (b *tenureBusiness) Close(ctx context.Context, tenureID string) error {
 		return apperrors.NewError(apperrors.Unprocessable, "tenure is already closed")
 	}
 
-	// Close any active period in this tenure
-	currentPeriod, perErr := b.perRepo.GetCurrentByGroupID(ctx, tenure.GroupID)
-	if perErr == nil && currentPeriod != nil && currentPeriod.TenureID == tenureID {
-		if currentPeriod.State == int32(constants.StateActive) {
-			now := time.Now().UTC()
-			currentPeriod.EndDate = &now
-			currentPeriod.State = int32(constants.StateShutdown)
-			if _, perErr = b.perRepo.Update(ctx, currentPeriod); perErr != nil {
-				return fmt.Errorf("could not close active period during tenure close: %w", perErr)
-			}
-		}
-	}
-
 	now := time.Now().UTC()
 	tenure.EndDate = &now
 	tenure.State = int32(constants.StateShutdown)
 
+	// The tenure is closed before its period: a period left open by a
+	// failed write is still due, and closing it again finishes the job,
+	// whereas a closed period under an open tenure would be stranded.
 	rows, err := b.tenRepo.Update(ctx, tenure)
 	if err != nil {
 		logger.WithError(err).Error("could not close tenure")
@@ -170,6 +160,18 @@ func (b *tenureBusiness) Close(ctx context.Context, tenureID string) error {
 	}
 	if rows == 0 {
 		return apperrors.NewError(apperrors.Conflict, "tenure changed while it was being closed")
+	}
+
+	currentPeriod, perErr := b.perRepo.GetCurrentByGroupID(ctx, tenure.GroupID)
+	if perErr == nil && currentPeriod != nil && currentPeriod.TenureID == tenureID &&
+		currentPeriod.State == int32(constants.StateActive) {
+		if currentPeriod.EndDate == nil || currentPeriod.EndDate.After(now) {
+			currentPeriod.EndDate = &now
+		}
+		currentPeriod.State = int32(constants.StateShutdown)
+		if _, perErr = b.perRepo.Update(ctx, currentPeriod); perErr != nil {
+			return fmt.Errorf("could not close active period during tenure close: %w", perErr)
+		}
 	}
 
 	logger.Info("tenure closed")

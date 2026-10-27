@@ -976,6 +976,11 @@ message ClientGroupSearchRequest {
   ]; // Optional filter by product
   int32 group_type = 7; // Optional filter by group type; zero means any
   common.v1.STATE state = 8; // Optional filter by state; unspecified means any
+  // Optional: only groups in any of these states. CREATED is the zero
+  // value of state, so a caller that wants created groups lists it here.
+  repeated common.v1.STATE states = 9 [(buf.validate.field).repeated.max_items = 8];
+  // Optional: only groups of any of these types.
+  repeated int32 group_types = 10 [(buf.validate.field).repeated.max_items = 32];
 }
 
 message ClientGroupSearchResponse {

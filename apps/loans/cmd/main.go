@@ -107,7 +107,7 @@ func main() {
 	// expiry) run only when trustage fires their schedules, so a deploy that
 	// cannot register them fails rather than ship a loan book nothing ages.
 	svc.Setup().RegisterFunc(trustage.StepName, func(ctx context.Context) error {
-		return trustage.SyncWorkflows(ctx, &cfg, cfg.IsRunSecurely())
+		return trustage.SyncWorkflows(ctx, &cfg, "service-loans", cfg.IsRunSecurely())
 	})
 	defer svc.Stop(ctx)
 	log := util.Log(ctx)

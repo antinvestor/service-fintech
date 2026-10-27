@@ -147,15 +147,18 @@ func TestAllocatePaymentUsesPersistedPayment(t *testing.T) {
 		State:         int32(constants.StateJustCreated),
 		Properties: data.JSONMap{
 			"identification_strategy": "persisted",
+			"product_id":              "prod-1",
 		},
 	}
 	payment.GenID(context.Background())
 	paymentRepo.store(payment)
 
+	orders := &allocOrderRepoStub{}
 	business := &paymentRoutingBusiness{
 		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
 		ipRepo:    paymentRepo,
 		obRepo:    &obligationRepoStub{},
+		toRepo:    orders,
 	}
 
 	result, err := business.AllocatePayment(context.Background(), payment.GetID())
@@ -176,6 +179,43 @@ func TestAllocatePaymentUsesPersistedPayment(t *testing.T) {
 	if stored.State != int32(constants.StateCheckCreated) {
 		t.Fatalf("expected payment state %d, got %d", int32(constants.StateCheckCreated), stored.State)
 	}
+
+	// With nothing owed, the whole payment still moves into the member's
+	// suspense, out of the account the rail credited.
+	funding := orders.byReference["payment:"+payment.GetID()+":member:member-1"]
+	if funding == nil {
+		t.Fatal("expected the member suspense order to be raised")
+	}
+	if funding.DebitAccountRef != constants.ProductExternalCashAccount("prod-1") ||
+		funding.CreditAccountRef != constants.MemberSuspenseAccount("member-1") || funding.Amount != 75_000 {
+		t.Fatalf("unexpected member suspense order %+v", funding)
+	}
+}
+
+// A member's payment that does not name the product the rail credited has
+// no account to move out of, so it is not allocated.
+func TestAllocatePayment_MemberPaymentWithoutProductIsRefused(t *testing.T) {
+	t.Parallel()
+
+	paymentRepo := newIncomingPaymentRepoStub()
+	payment := &models.IncomingPayment{
+		TransactionID: "txn-noproduct", Amount: 10_000, Currency: "UGX",
+		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+	}
+	payment.GenID(context.Background())
+	paymentRepo.store(payment)
+	business := &paymentRoutingBusiness{
+		eventsMan: &paymentEventsManagerStub{paymentRepo: paymentRepo},
+		ipRepo:    paymentRepo,
+		obRepo:    &obligationRepoStub{},
+		toRepo:    &allocOrderRepoStub{},
+	}
+
+	_, err := business.AllocatePayment(context.Background(), payment.GetID())
+	require.ErrorIs(t, err, ErrMemberPaymentNoProduct)
+	stored, _ := paymentRepo.GetByID(context.Background(), payment.GetID())
+	assert.Nil(t, stored.AllocatingAt, "the lease is released for a later run")
+	assert.Equal(t, int32(constants.StateJustCreated), stored.State)
 }
 
 // emittedEvent is one recorded Emit call, so a test can assert what a business
@@ -344,6 +384,20 @@ func (r *incomingPaymentRepoStub) GetWithSuspenseByOwnerID(
 	return found, nil
 }
 
+func (r *incomingPaymentRepoStub) GetUnallocatedByOwnerID(
+	_ context.Context,
+	ownerType, ownerID string,
+) ([]*models.IncomingPayment, error) {
+	var found []*models.IncomingPayment
+	for _, payment := range r.byID {
+		if payment.OwnerType == ownerType && payment.OwnerID == ownerID &&
+			payment.State == int32(constants.StateJustCreated) {
+			found = append(found, cloneIncomingPayment(payment))
+		}
+	}
+	return found, nil
+}
+
 func (r *incomingPaymentRepoStub) MarkConfirmed(
 	_ context.Context,
 	paymentID string,
@@ -402,6 +456,16 @@ func (r *obligationRepoStub) GetByPeriodID(context.Context, string) ([]*models.O
 
 func (r *obligationRepoStub) GetByCauseID(context.Context, string) ([]*models.Obligation, error) {
 	return nil, errUnexpectedStubCall
+}
+
+func (r *obligationRepoStub) GetGroupMemberObligations(
+	context.Context, string, []string, []string,
+) ([]*models.Obligation, error) {
+	return nil, errUnexpectedStubCall
+}
+
+func (r *obligationRepoStub) CreateIfAbsent(context.Context, *models.Obligation) (bool, error) {
+	return false, errUnexpectedStubCall
 }
 
 func (r *obligationRepoStub) ConsumeAmount(context.Context, string, int64) (bool, error) {
@@ -545,6 +609,13 @@ func (r *allocOrderRepoStub) CreateIfAbsent(_ context.Context, order *models.Tra
 	return nil
 }
 
+func (r *allocOrderRepoStub) GetByReference(_ context.Context, ref string) (*models.TransferOrder, error) {
+	if o, ok := r.byReference[ref]; ok {
+		return o, nil
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (r *allocOrderRepoStub) MarkFailedIfUnposted(_ context.Context, id string) (bool, error) {
 	r.parked = append(r.parked, id)
 	return true, nil
@@ -570,6 +641,7 @@ func TestAllocatePayment_ReplayNeverReallocatesAndLeaseIsExclusive(t *testing.T)
 	payment := &models.IncomingPayment{
 		TransactionID: "txn-replay", Amount: 75_000, Currency: "UGX",
 		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+		Properties: data.JSONMap{"product_id": "prod-1"},
 	}
 	payment.GenID(context.Background())
 	paymentRepo.store(payment)
@@ -594,7 +666,7 @@ func TestAllocatePayment_ReplayNeverReallocatesAndLeaseIsExclusive(t *testing.T)
 	stored, _ := paymentRepo.GetByID(context.Background(), payment.GetID())
 	assert.Equal(t, int32(constants.StateInactive), stored.State, "fully allocated")
 	assert.Nil(t, stored.AllocatingAt, "lease released with the outcome")
-	assert.Len(t, orders.byReference, 2, "orders are written synchronously")
+	assert.Len(t, orders.byReference, 3, "the suspense order and both obligation orders are written synchronously")
 
 	// Replay: nothing left to allocate, nothing consumed again.
 	second, err := business.AllocatePayment(context.Background(), payment.GetID())
@@ -623,7 +695,7 @@ func TestAllocatePayment_StartsFromThePersistedRemainder(t *testing.T) {
 	payment := &models.IncomingPayment{
 		TransactionID: "txn-remainder", Amount: 75_000, Currency: "UGX",
 		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateActive),
-		Properties: data.JSONMap{"remaining_amount": float64(20_000)},
+		Properties: data.JSONMap{"remaining_amount": float64(20_000), "product_id": "prod-1"},
 	}
 	payment.GenID(context.Background())
 	paymentRepo.store(payment)
@@ -660,6 +732,7 @@ func TestAllocatePayment_ExistingOrderIsNotCountedTwice(t *testing.T) {
 	payment := &models.IncomingPayment{
 		TransactionID: "txn-existing", Amount: 30_000, Currency: "UGX",
 		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+		Properties: data.JSONMap{"product_id": "prod-1"},
 	}
 	payment.GenID(context.Background())
 	paymentRepo.store(payment)
@@ -691,6 +764,7 @@ func TestAllocatePayment_ExistingOrderIsNotCountedTwice(t *testing.T) {
 	payment2 := &models.IncomingPayment{
 		TransactionID: "txn-unfinished", Amount: 30_000, Currency: "UGX",
 		OwnerID: "member-1", OwnerType: "membership", State: int32(constants.StateJustCreated),
+		Properties: data.JSONMap{"product_id": "prod-1"},
 	}
 	payment2.GenID(context.Background())
 	paymentRepo.store(payment2)
@@ -740,24 +814,26 @@ func TestAllocatePayment_UnknownRemainderFailsClosed(t *testing.T) {
 	assert.Empty(t, obligations.consumed)
 }
 
-// ListUnexecutedBorrowerRepayments lists the raised, unposted borrower
-// repayment orders; the stub ignores the age cut-off.
-func (r *allocOrderRepoStub) ListUnexecutedBorrowerRepayments(
+// ListUnexecutedAllocations lists the raised, unposted allocation orders;
+// the stub ignores the age cut-off.
+func (r *allocOrderRepoStub) ListUnexecutedAllocations(
 	_ context.Context,
 	_ time.Time,
 	limit int,
 ) ([]*models.TransferOrder, error) {
 	var out []*models.TransferOrder
 	for _, o := range r.byReference {
-		if o.State == int32(constants.StateJustCreated) && strings.Contains(o.Reference, ":loan:") && len(out) < limit {
+		allocation := strings.Contains(o.Reference, ":loan:") || strings.Contains(o.Reference, ":member:") ||
+			(strings.Contains(o.Reference, ":obligation:") && o.ExtraData[extraKeySuspenseFunded] == true)
+		if o.State == int32(constants.StateJustCreated) && allocation && len(out) < limit {
 			out = append(out, o)
 		}
 	}
 	return out, nil
 }
 
-// ListAwaitingAllocation lists individuals' matched, unallocated payments;
-// the stub ignores the age cut-off.
+// ListAwaitingAllocation lists matched, unallocated payments; the stub
+// ignores the age cut-off.
 func (r *incomingPaymentRepoStub) ListAwaitingAllocation(
 	_ context.Context,
 	_, _ time.Time,
@@ -765,9 +841,9 @@ func (r *incomingPaymentRepoStub) ListAwaitingAllocation(
 ) ([]*models.IncomingPayment, error) {
 	var out []*models.IncomingPayment
 	for _, p := range r.byID {
-		individual := p.OwnerType == ownerTypeClientLoan || p.OwnerType == ownerTypeClientSavings ||
-			p.OwnerType == ownerTypeInvestorAccount
-		if individual && p.OwnerID != "" && p.State == int32(constants.StateJustCreated) &&
+		allocatable := p.OwnerType == ownerTypeClientLoan || p.OwnerType == ownerTypeClientSavings ||
+			p.OwnerType == ownerTypeInvestorAccount || p.OwnerType == ownerTypeMembership
+		if allocatable && p.OwnerID != "" && p.State == int32(constants.StateJustCreated) &&
 			p.AllocatingAt == nil && len(out) < limit {
 			out = append(out, p)
 		}

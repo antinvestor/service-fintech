@@ -16,6 +16,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/pitabwire/frame/v3/data"
@@ -25,6 +26,7 @@ import (
 	"github.com/antinvestor/service-fintech/apps/stawi/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
 	"github.com/antinvestor/service-fintech/pkg/constants"
+	stawiproduct "github.com/antinvestor/service-fintech/products/stawi"
 )
 
 const (
@@ -41,17 +43,23 @@ const (
 	propertyExtensionReason = "extension_reason"
 )
 
+// ErrTenureExhausted is returned when the tenure has run all its periods.
+var ErrTenureExhausted = apperrors.NewError(apperrors.Unprocessable,
+	"tenure duration exhausted, close the tenure and open a new one")
+
 type periodBusiness struct {
-	tenRepo repository.TenureRepository
-	perRepo repository.PeriodRepository
+	tenRepo   repository.TenureRepository
+	perRepo   repository.PeriodRepository
+	reminders []time.Duration
 }
 
 func NewPeriodBusiness(
 	_ context.Context,
+	product stawiproduct.ProductConfig,
 	tenRepo repository.TenureRepository,
 	perRepo repository.PeriodRepository,
 ) PeriodBusiness {
-	return &periodBusiness{tenRepo: tenRepo, perRepo: perRepo}
+	return &periodBusiness{tenRepo: tenRepo, perRepo: perRepo, reminders: product.ReminderOffsets()}
 }
 
 // Open creates a new period within the active tenure for the given group.
@@ -79,24 +87,10 @@ func (b *periodBusiness) Open(ctx context.Context, groupID string) (*models.Peri
 	}
 
 	if nextPosition > tenure.Duration {
-		return nil, apperrors.NewError(apperrors.Unprocessable,
-			"tenure duration exhausted, close the tenure and open a new one")
+		return nil, ErrTenureExhausted
 	}
 
-	endDate := calculatePeriodEndDate(startDate, periodType)
-
-	period := &models.Period{
-		GroupID:        groupID,
-		TenureID:       tenure.GetID(),
-		StartDate:      &startDate,
-		EndDate:        &endDate,
-		PeriodType:     int32(periodType),
-		Position:       nextPosition,
-		ParentPeriodID: parentPeriodID,
-		State:          int32(constants.StateActive),
-	}
-	period.GenID(ctx)
-	period.CopyPartitionInfo(&tenure.BaseModel)
+	period := b.newPeriod(ctx, tenure, periodType, nextPosition, startDate, parentPeriodID)
 
 	// Synchronous insert. The unique index on (tenure_id, position) is what
 	// actually enforces "one period per position"; the read-then-emit version
@@ -113,10 +107,99 @@ func (b *periodBusiness) Open(ctx context.Context, groupID string) (*models.Peri
 	logger.WithField("period_id", period.GetID()).
 		WithField("position", nextPosition).
 		WithField("start_date", startDate.Format(time.RFC3339)).
-		WithField("end_date", endDate.Format(time.RFC3339)).
+		WithField("end_date", period.EndDate.Format(time.RFC3339)).
 		Info("new period opened")
 
 	return period, nil
+}
+
+// OpenNext opens the period that follows previous, starting where previous
+// was scheduled to end. It is idempotent: the period already opened after
+// previous is returned, and the unique index on parent_period_id means two
+// racing calls still open one. previous may still be active, so a period
+// close can open its successor before marking itself closed and resume
+// cleanly when retried. ErrTenureExhausted reports a tenure with no periods
+// left.
+func (b *periodBusiness) OpenNext(ctx context.Context, previous *models.Period) (*models.Period, error) {
+	if next, err := b.perRepo.GetByParentID(ctx, previous.GetID()); err == nil && next.GetID() != "" {
+		return next, nil
+	} else if err != nil && !data.ErrorIsNoRows(err) {
+		return nil, err
+	}
+
+	tenure, err := b.tenRepo.GetByID(ctx, previous.TenureID)
+	if err != nil {
+		return nil, apperrors.ErrDataNotFound.Extend("tenure")
+	}
+	if tenure.State != int32(constants.StateActive) {
+		return nil, apperrors.NewError(apperrors.Unprocessable, "group tenure is not active")
+	}
+	if previous.Position+1 > tenure.Duration {
+		return nil, ErrTenureExhausted
+	}
+
+	// The next period starts where the previous was scheduled to end, so a
+	// close that ran late does not shift the group's calendar. After a gap
+	// longer than a period (a group restored after a pause) it starts now
+	// instead, rather than opening a period that is already over.
+	now := time.Now().UTC()
+	start := now
+	periodType := models.PeriodType(previous.PeriodType)
+	if previous.EndDate != nil && calculatePeriodEndDate(*previous.EndDate, periodType).After(now) {
+		start = *previous.EndDate
+	}
+	next := b.newPeriod(ctx, tenure, periodType, previous.Position+1, start, previous.GetID())
+	if err = b.perRepo.Create(ctx, next); err != nil {
+		if !data.ErrorIsDuplicateKey(err) {
+			return nil, err
+		}
+		// Opened by a concurrent call between the read and the insert.
+		existing, getErr := b.perRepo.GetByParentID(ctx, previous.GetID())
+		if getErr != nil {
+			return nil, errors.Join(err, getErr)
+		}
+		return existing, nil
+	}
+	util.Log(ctx).WithField("period_id", next.GetID()).WithField("position", next.Position).
+		WithField(fieldGroupID, next.GroupID).Info("next period opened")
+	return next, nil
+}
+
+// newPeriod builds an active period of the tenure, with its first reminder
+// scheduled.
+func (b *periodBusiness) newPeriod(
+	ctx context.Context,
+	tenure *models.Tenure,
+	periodType models.PeriodType,
+	position int32,
+	start time.Time,
+	parentID string,
+) *models.Period {
+	end := calculatePeriodEndDate(start, periodType)
+	period := &models.Period{
+		GroupID:        tenure.GroupID,
+		TenureID:       tenure.GetID(),
+		StartDate:      &start,
+		EndDate:        &end,
+		PeriodType:     int32(periodType),
+		Position:       position,
+		ParentPeriodID: parentID,
+		NextReminderAt: firstReminderAt(end, b.reminders),
+		State:          int32(constants.StateActive),
+	}
+	period.GenID(ctx)
+	period.CopyPartitionInfo(&tenure.BaseModel)
+	return period
+}
+
+// firstReminderAt is when a period ending at end first reminds members still
+// owing: the longest offset before the end. No offsets, no reminders.
+func firstReminderAt(end time.Time, offsets []time.Duration) *time.Time {
+	if len(offsets) == 0 {
+		return nil
+	}
+	at := end.Add(-offsets[0])
+	return &at
 }
 
 // tenurePeriodType extracts the period type from tenure properties, defaulting to weekly.
@@ -166,7 +249,8 @@ func (b *periodBusiness) resolveNextPeriod(
 }
 
 // Close marks a period as shutdown, setting its end date to now if it
-// extends beyond the current time.
+// extends beyond the current time. A period closed after its end keeps its
+// scheduled end, so the next period starts on schedule.
 func (b *periodBusiness) Close(ctx context.Context, periodID string) error {
 	logger := util.Log(ctx).WithField("method", "PeriodBusiness.Close").
 		WithField("period_id", periodID)
@@ -181,7 +265,9 @@ func (b *periodBusiness) Close(ctx context.Context, periodID string) error {
 	}
 
 	now := time.Now().UTC()
-	period.EndDate = &now
+	if period.EndDate == nil || period.EndDate.After(now) {
+		period.EndDate = &now
+	}
 	period.State = int32(constants.StateShutdown)
 
 	// Versioned update: a concurrent close matches no row and is reported as a
@@ -250,6 +336,7 @@ func (b *periodBusiness) Extend(ctx context.Context, periodID, reason string) (*
 	}
 	newEnd := calculatePeriodEndDate(base, models.PeriodType(period.PeriodType))
 	period.EndDate = &newEnd
+	period.NextReminderAt = firstReminderAt(newEnd, b.reminders)
 	period.Properties = mergeProperties(period.Properties, map[string]any{
 		propertyExtensionCount:  periodExtensionCount(period) + 1,
 		propertyExtensionReason: reason,

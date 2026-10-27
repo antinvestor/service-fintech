@@ -290,7 +290,7 @@ func (b *paymentRoutingBusiness) allocateToBorrowerLoan(
 			fieldReference:       to.Reference,
 		}},
 		fieldPaymentState: paymentState,
-		"execution":       execution,
+		fieldExecution:    execution,
 	}, nil
 }
 

@@ -35,7 +35,8 @@
           "request": {
             "job": "LOAN_JOB_FUNDING_SETTLEMENT",
             "batchSize": 500
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

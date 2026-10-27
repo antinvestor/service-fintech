@@ -17,6 +17,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	operationsv1 "buf.build/gen/go/antinvestor/operations/protocolbuffers/go/operations/v1"
@@ -24,8 +25,10 @@ import (
 	"github.com/pitabwire/frame/v3/security"
 	"github.com/pitabwire/util"
 
+	"github.com/antinvestor/service-fintech/apps/operations/service/models"
 	"github.com/antinvestor/service-fintech/apps/operations/service/repository"
 	"github.com/antinvestor/service-fintech/pkg/apperrors"
+	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
 const (
@@ -98,11 +101,11 @@ func (j *OperationsJobs) Run(ctx context.Context, job operationsv1.OperationsJob
 	return 0, false, ErrUnknownJob
 }
 
-// settlePayments finishes what an individual's payment left undone: it
-// allocates payments matched to a loan or savings account whose allocation
-// did not complete, then posts borrower repayment orders that were raised
-// but never executed. A failure on one item is logged and left for the next
-// run; the batch goes on.
+// settlePayments finishes what a matched payment left undone: it allocates
+// payments matched to a loan, savings or investor account or a group member
+// whose allocation did not complete, then posts the allocation orders that
+// were raised but never executed. A failure on one item is logged and left
+// for the next run; the batch goes on.
 func (j *OperationsJobs) settlePayments(ctx context.Context, batch int) (int, bool, error) {
 	before := time.Now().UTC().Add(-settleAfter)
 	listCtx := security.SkipTenancyChecksOnClaims(ctx)
@@ -119,21 +122,31 @@ func (j *OperationsJobs) settlePayments(ctx context.Context, batch int) (int, bo
 		}
 	}
 
-	orders, err := j.toRepo.ListUnexecutedBorrowerRepayments(listCtx, before, batch)
+	orders, err := j.toRepo.ListUnexecutedAllocations(listCtx, before, batch)
 	if err != nil {
-		return len(payments), false, fmt.Errorf("borrower repayments awaiting execution: %w", err)
+		return len(payments), false, fmt.Errorf("allocation orders awaiting execution: %w", err)
 	}
 	for _, o := range orders {
-		if execErr := j.executor.Execute(j.actIn(ctx, &o.BaseModel), o.GetID()); execErr != nil {
+		actCtx := j.actIn(ctx, &o.BaseModel)
+		// A member's obligation order spends from their suspense: it posts
+		// only once the order funding that suspense has.
+		if funded, fundErr := j.memberSuspenseFunded(actCtx, o); fundErr != nil || !funded {
+			if fundErr != nil {
+				util.Log(ctx).WithError(fundErr).WithField("transfer_order_id", o.GetID()).
+					Warn("settle: member suspense not yet funded; the obligation order waits")
+			}
+			continue
+		}
+		if execErr := j.executor.Execute(actCtx, o.GetID()); execErr != nil {
 			util.Log(ctx).WithError(execErr).WithField("transfer_order_id", o.GetID()).
-				Warn("settle: repayment order execution failed; next run retries")
+				Warn("settle: allocation order execution failed; next run retries")
 		}
 	}
 
 	processed := len(payments) + len(orders)
 	if processed > 0 {
 		util.Log(ctx).WithField("payments", len(payments)).WithField("orders", len(orders)).
-			Info("settled individual payments")
+			Info("settled matched payments")
 	}
 	return processed, len(payments) == batch || len(orders) == batch, nil
 }
@@ -170,6 +183,29 @@ func (j *OperationsJobs) reconcilePayouts(ctx context.Context, batch int) (int, 
 		}
 	}
 	return len(orders) + len(failed), len(orders) == batch || len(failed) == batch, nil
+}
+
+// memberSuspenseFunded reports whether an allocation order may post: any
+// order but a member's obligation order may; that one only once the order
+// funding the member's suspense from the same payment has completed, which
+// it posts first if it has not.
+func (j *OperationsJobs) memberSuspenseFunded(ctx context.Context, order *models.TransferOrder) (bool, error) {
+	paymentID, _ := order.ExtraData[fieldPaymentID].(string)
+	membershipID, _ := order.ExtraData["membership_id"].(string)
+	if paymentID == "" || membershipID == "" || !strings.Contains(order.Reference, ":obligation:") {
+		return true, nil
+	}
+	funding, err := j.toRepo.GetByReference(ctx, fmt.Sprintf("payment:%s:member:%s", paymentID, membershipID))
+	if err != nil {
+		return false, fmt.Errorf("load member suspense order: %w", err)
+	}
+	if funding.State == int32(constants.StateInactive) {
+		return true, nil
+	}
+	if execErr := j.executor.Execute(ctx, funding.GetID()); execErr != nil {
+		return false, execErr
+	}
+	return true, nil
 }
 
 // actIn is ctx as this service acting inside the item's partition.

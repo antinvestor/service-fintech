@@ -1,3 +1,15 @@
+## 0.4.9
+
+- `GroupMemberStanding` (`group_obligation_manage`): what each member has
+  saved in a group and what they are behind on (overdue savings plus unpaid
+  penalties). Service accounts only.
+
+## 0.4.8
+
+- `GroupObligationsRaise` and `GroupPeriodClose`: the group service raises a
+  period's member savings obligations in operations and closes the period,
+  charging each member still owing a penalty once. Service accounts only.
+
 ## 0.4.7
 
 - `OperationsJob.OPERATIONS_JOB_RECONCILE_PAYOUTS`: asks the payment service

@@ -541,7 +541,7 @@ func (s *IdentityServer) ClientGroupSearch(
 	stream identityv1connect.IdentityServiceClientGroupSearchServerStream,
 ) error {
 	err := s.clientGroupBusiness.Search(ctx,
-		req.GetQuery(), req.GetAgentId(), req.GetBranchId(), req.GetCursor(),
+		business.ClientGroupFilterFromAPI(req), req.GetCursor(),
 		func(_ context.Context, batch []*models.ClientGroup) error {
 			var apiResults []*identityv1.ClientGroupObject
 			for _, g := range batch {

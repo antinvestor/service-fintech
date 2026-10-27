@@ -13,8 +13,8 @@ require (
 	buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2
 	buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261026143140-b460de911c35.1
 	buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261026143140-b460de911c35.2
-	buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261026135017-ed5896b5b4e8.1
-	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261026135017-ed5896b5b4e8.2
+	buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261027060213-ecbd1fe4d3d9.1
+	buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261027060213-ecbd1fe4d3d9.2
 	buf.build/gen/go/antinvestor/ledger/connectrpc/go/v2 v2.0.2-20261011184341-460358e58550.1
 	buf.build/gen/go/antinvestor/ledger/protocolbuffers/go v1.36.12-20261011184341-460358e58550.2
 	buf.build/gen/go/antinvestor/limits/connectrpc/go/v2 v2.0.2-20261026073611-d14ef0efb704.1
@@ -23,8 +23,8 @@ require (
 	buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261026143137-1a5971afd133.2
 	buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1
 	buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.12-20260831182621-e7d71a2bcc5d.2
-	buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261026143146-d684d594dbc9.1
-	buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261026143146-d684d594dbc9.2
+	buf.build/gen/go/antinvestor/operations/connectrpc/go/v2 v2.0.2-20261027060215-22a1f81d241b.1
+	buf.build/gen/go/antinvestor/operations/protocolbuffers/go v1.36.12-20261027060215-22a1f81d241b.2
 	buf.build/gen/go/antinvestor/payment/connectrpc/go/v2 v2.0.2-20260831184824-a4a7e9defafa.1
 	buf.build/gen/go/antinvestor/payment/protocolbuffers/go v1.36.12-20260831184824-a4a7e9defafa.2
 	buf.build/gen/go/antinvestor/profile/connectrpc/go/v2 v2.0.2-20261010180548-eeb7b4541358.1
@@ -33,6 +33,7 @@ require (
 	buf.build/gen/go/antinvestor/savings/protocolbuffers/go v1.36.12-20261026143143-01e0da48f86e.2
 	buf.build/gen/go/antinvestor/tenancy/connectrpc/go/v2 v2.0.2-20260831112830-2b2240b00a45.1
 	buf.build/gen/go/antinvestor/tenancy/protocolbuffers/go v1.36.12-20260831112830-2b2240b00a45.2
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2
 	connectrpc.com/connect/v2 v2.0.2
 	github.com/antinvestor/common/audit v0.1.0
 	github.com/antinvestor/common/notification v0.2.0
@@ -61,7 +62,6 @@ require (
 
 require (
 	buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.12-20260929093104-d5d34f953660.2 // indirect
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2 // indirect
 	buf.build/gen/go/gnostic/gnostic/protocolbuffers/go v1.36.12-20230414000709-087bc8072ce4.2 // indirect
 	buf.build/go/protovalidate v1.4.0 // indirect
 	cel.dev/cel-go v0.32.0 // indirect

@@ -1400,3 +1400,337 @@ exploitable as built, but both are hardened:
 decision on their request` and `a phone lists loans as tiles with the
 filters`), ui/identity 55 (`a phone lists clients as tiles and keeps
 onboarding`), ui/seed 64.
+
+## 49. Addendum 2026-10-26 — Stawi group product: audit and phase 1
+
+**Audit.** None of Stawi's five workflows (`products/stawi/workflows`) ever
+started an instance:
+
+- No triggers or signals exist, and nothing creates instances.
+- `SyncFromFS` stops at the first invalid file, and Stawi's setup only logs
+  the failure.
+- Their calls could not have worked anyway. `http.request` sends no service
+  credentials, `{{ env.* }}` does not resolve, and `notification.send`
+  expects raw contacts.
+
+So in practice groups have no lifecycle: no tenure, no period, no loan window,
+no offer. Group rail payments stop at "identified" in operations (the settle
+job allocates only `client_loan`, `client_savings` and `investor_account`).
+Group obligations live only in Stawi's private copy of the operations code, on
+its own database. Stawi also carried a private copy of funding allocation
+whose tables it never migrates.
+
+With the user's agreement, the group product is rebuilt in six phases on
+`feat/stawi-groups`:
+
+1. Retire the superseded flows.
+2. Group obligations and allocation in operations.
+3. Accepting an offer originates through loans.
+4. Period and collection cycles as `StawiJobRun` jobs on trustage.
+5. Group lifecycle triggered from identity events.
+6. Deployment wiring.
+
+**Phase 1.**
+
+- Deleted `payment_routing.json` and `loan_origination.json`.
+- Removed the 14 callback routes, handlers, business code and RPCs only those
+  workflows used:
+  - sender identification by raw phone, payment allocation and confirmation;
+  - ledger transfer of caller-named accounts;
+  - suspense deposit;
+  - funding source;
+  - offer generation and expiry;
+  - eligibility, schedule and disbursement.
+- Stawi no longer embeds funding allocation, the transfer-order business, or
+  the limits client. Its manifest drops `stawi_loan_offer_manage`,
+  `stawi_loan_view`, `stawi_loan_fund`, `stawi_loan_disburse` and
+  `stawi_ledger_transfer`.
+- service-authentication `20261026_09` narrows the stored `service_stawi`
+  namespace so the additive-only registration accepts the new manifest. It
+  was exercised against Postgres; a re-run is a no-op.
+- Kept for later phases:
+  - the offer-respond and loan-account routes (phase 3);
+  - Stawi's private copy of operations obligations (phase 2).
+
+## 50. Addendum 2026-10-26 — Stawi phase 2: group money lives in operations
+
+**Change.**
+
+- *Operations owns group obligations.* Stawi owns periods and memberships,
+  so it supplies those facts; operations stores and settles the money.
+  - `GroupObligationsRaise` (`group_obligation_manage`, service accounts
+    only, also refused to non-internal callers in the handler) raises one
+    savings obligation per member and period. It is idempotent on a partial
+    unique index over (membership, period, cause). It then allocates the
+    member's waiting payments and applies their suspense, so money paid
+    early counts.
+  - `GroupPeriodClose` settles members the same way, then raises one flat
+    penalty per member still owing (the group's saving amount ×
+    `STAWI_LATE_FINE_1`, idempotent). It reports each member's paid,
+    outstanding and penalty.
+  - `ObligationBusiness` no longer reads Stawi's periods (`PeriodReader`
+    removed). Loan obligations are unchanged.
+- *Group payments are allocated.*
+  - The settle job now lists `membership`-owned payments, which before
+    stopped at "identified".
+  - Allocating one first funds the member's suspense on the ledger from the
+    product's collection account (`payment:<id>:member:<membership>`). The
+    obligation orders then spend from that suspense. Before, nothing funded
+    member suspense, so those orders would have debited an empty account.
+  - The settle job posts a member's obligation order only once its funding
+    order has completed, posting the funding first if needed.
+  - A membership payment without a product is not allocated: there is no
+    account to move it from.
+- *Bug fixed.* The periodic-saving allocation bucket matched only cause
+  `"saving"`, while group savings are raised as `"periodic_saving"`, so they
+  were never paid.
+- *Stawi stops running its own copy of the operations code.*
+  - It calls operations for raising and closing, and its private operations
+    repositories, events, migrations and `periodAdapter` are gone.
+  - The penalties, outstanding and suspense callbacks and their RPCs are
+    removed. Their permissions (`stawi_obligation_view`,
+    `stawi_payment_view`, `stawi_payment_allocate`) are narrowed by
+    service-authentication `20261026_10`, which also grants Stawi
+    `group_obligation_manage`.
+  - The remaining workflow JSONs are adjusted; phase 4 rewrites them.
+- *SDK.* Dart operations 0.4.8.
+
+**Open.**
+- Obligations and payments must share a partition. Stawi raises them in the
+  group's partition, and rail payments carry the receive route's. These are
+  the same lender partition in the intended setup; this is noted for the
+  deploy check.
+
+**Verified.**
+- operations: raising is idempotent; an early payment held as suspense pays
+  a new obligation; a waiting payment is allocated on raise; close charges
+  exactly one penalty, even when retried, and none to a member who paid.
+- `TestSettleJobAllocatesAMembershipPayment` (funding posts before the
+  obligation) and `TestSettleJobHoldsAnObligationOrderUntilItsSuspenseIsFunded`.
+- The handler refuses non-internal callers.
+- Postgres: the unique index and the settle listings.
+- Stawi: the obligation business against fake operations, identity and
+  period clients.
+- Lint: 0 issues across operations, stawi, loans, savings, funding and pkg.
+
+## 51. Addendum 2026-10-26 — Stawi phase 3: group loan offers originate through loans
+
+**Gap.** Nothing created loan offers once their workflow was retired, and
+nothing disbursed after a loan account was created.
+
+**Change.**
+
+- *Offers.* Opening a loan window makes offers for eligible members; a
+  retried open finishes the offers instead of repeating them. One offer per
+  window and member (unique index `uq_loan_offers_window_member`).
+  Eligibility:
+  - a regular, active member with a client record;
+  - no open loan in loans, and no other open or originating offer.
+
+  The amount is the window's periodic amount × completed periods in the
+  tenure × the window's leverage. The offer expires at the period's end.
+- *Acceptance originates the loan.* Each step is recorded on the offer, so
+  a retry resumes rather than repeats:
+  1. A short claim makes one call the only one working on the offer.
+  2. The loan request id is chosen and recorded first. Loans' save upserts
+     by id and does not de-duplicate on its key, so this is what prevents a
+     second request.
+  3. The request is read back from loans, then submitted and approved as
+     needed.
+  4. The loan account is created.
+  5. The loan is disbursed under the key `stawi:offer:<id>`, to the member's
+     own payout contact, resolved by id.
+- *Failures.* A transient failure leaves the offer pending.
+  `ResumePendingOrigination` and `ExpireStale` are bounded business methods
+  for the phase 4 job. A permanent refusal marks the offer failed, cancels
+  any undisbursed loan so its funding is released, and tells the member.
+- *Messages.* New templates `GroupLoanOffered` and `GroupLoanFailed`, sent by
+  profile id. Loans already sends the disbursed message.
+- *Group check.* `POST /groups/{groupId}/loans` now refuses an offer of
+  another group's member (not found).
+
+**Open (for later phases).**
+- Offers do not yet reflect each member's actual savings paid; operations
+  has no read API for it.
+- A failed loan cancel is not retried yet; the phase 4 sweep should cover
+  it.
+- New templates reach the notification service when the loans setup Job
+  syncs `pkg/messages`.
+
+**Verified.** Stawi tests cover:
+- offers made once per window and member;
+- accept, accept again, then create and resume pays exactly once;
+- a transient payout failure resumes without a second loan;
+- a lost approval reply is read back, not repeated;
+- a permanent refusal fails the offer and cancels its loan;
+- a member without a payout contact;
+- a claim held by another call, and one that lapsed;
+- expiry and decline;
+- an offer reached through another group is refused.
+
+Lint: 0 issues.
+
+## 52. Addendum 2026-10-26 — Stawi phases 4–5: group cycles run on trustage
+
+**Change.**
+
+- *Jobs replace workflows.* Stawi's three remaining workflows (group
+  lifecycle, period lifecycle, savings collection) never ran and are
+  deleted, together with every callback route that only they reached.
+- *Connect API.* Stawi now serves `stawi.v1.StawiService` over Connect, with
+  two RPCs:
+  - `StawiJobRun` (`stawi_job_run`, service accounts only, also refused in
+    the business layer);
+  - `LoanOfferRespond`. The JSON route stays.
+- *The jobs.* Each is bounded and idempotent, reads across tenants, and acts
+  in each item's partition. An item that fails waits 10 minutes before a
+  retry.
+  - `GROUP_LIFECYCLE`, every 15 minutes:
+    - A group identity holds active gets a tenure, ledger accounts, a single
+      lender registration, its first period and that period's obligations.
+      Each member and leader gets one welcome.
+    - A deactivated or deleted group opens no new period; its current period
+      still closes on time.
+  - `CLOSE_DUE_PERIODS`, hourly:
+    - Charges late fines once in operations.
+    - Opens exactly one next period and raises its obligations.
+    - Opens the loan window when due, which makes offers.
+    - Sends each member their statement once, and closes the old period
+      last.
+  - `SEND_REMINDERS`, daily at 06:00 UTC: reminds members still owing at 72 h
+    and 24 h before the end, once per offset, and sends leaders who is
+    behind.
+  - `LOAN_OFFERS`, every 10 minutes: resumes pending originations, expires
+    stale offers, and retries failed loan cancels.
+- *Notices.* Notifications go by profile id and are recorded under a unique
+  notice key before sending, so none repeats. If a send fails, the record
+  is removed so a later run retries.
+- *Closing a period* is refused while it is still running (not frozen and
+  before its end date), so no late fine is charged early.
+- *Group and membership states.* Identity stores the platform `STATE` enum
+  and starts every record at CREATED; nothing moves a membership to ACTIVE.
+  - Phase 2 compared against fintech's internal constants (5 and 6), which
+    never match, so deleted or deactivated groups and members were not
+    excluded.
+  - Phase 3 required an ACTIVE membership, so in practice no member would
+    ever be offered a loan.
+  - Both now use one rule (`liveState`): out only when INACTIVE or DELETED.
+- *Other fixes.*
+  - The loan window counted existing windows instead of completed periods,
+    so it never opened.
+  - Closing a period reset its end date to "now".
+  - A tenure could be left open under its last closed period.
+- *Configuration.* Stawi's setup requires the trustage sync when running
+  securely.
+- *Grants and namespace.* service-authentication `20261026_11`:
+  - trustage gets the `/stawi` audience and `stawi_job_run`;
+  - `service_stawi` is narrowed by the seven retired permissions.
+
+**Deploy.**
+- `TRUSTAGE_SERVICE_URI` on stawi's setup Job.
+- A trustage connect route for `stawi.v1.` to the Stawi service.
+- Apply auth migrations `20261026_09`, `_10` and `_11`.
+
+**Open.**
+- Identity cannot list groups across tenants or filter them by state, so
+  each lifecycle run reads the tenant's whole group list. A state filter in
+  identity would fix this.
+- The Stawi group types the jobs run (`STAWI_GROUP_TYPES`, default 2, 5, 6)
+  need confirming against how groups are created.
+- If the service crashes between recording a notice and sending it, that one
+  notice is lost. Duplicates were judged the worse risk.
+
+**Verified.** Stawi tests:
+- each job refuses non-internal callers;
+- group setup is idempotent;
+- a due period closes once, opens one next period and notifies once;
+- a period not yet ended is untouched;
+- reminders go once per offset;
+- the loan offer sweep resumes, expires and retries cancels.
+
+New queries run on Postgres. Trustage validation passes for the four Stawi
+workflows. Lint: 0 issues.
+
+## 53. Addendum 2026-10-27 — group search filters; offers follow each member's savings
+
+**Group search.** Identity's `ClientGroupSearch` ignored its `state`,
+`group_type`, `parent_id` and `product_id` filters. It now applies them,
+plus new `states` and `group_types` lists. Stawi's lifecycle job asks only
+for ACTIVE groups of `STAWI_GROUP_TYPES` (2, 5, 6, confirmed by the user), so
+a run no longer pages through the whole tenant. Shutdown still looks each
+running tenure's group up by id: listing every deleted group would only grow.
+
+**Offers follow savings.** Operations gains `GroupMemberStanding`
+(`group_obligation_manage`, internal callers only), returning each member's:
+- *saved:* paid against periodic savings obligations, partial payments
+  included;
+- *arrears:* past-due unpaid savings plus unpaid penalties.
+
+Only the group's obligations in the requested currency count.
+
+Stawi's offer rule:
+- A member in arrears gets no offer (`in_arrears`), and neither does one who
+  has saved nothing (`no_savings`).
+- Otherwise the offer is the smaller of saved × leverage and the policy limit.
+- If the standing call fails, no offers are made and the run is retried.
+
+**SDKs.** Dart identity 0.8.3, operations 0.4.9.
+
+**Verified.**
+- identity: Postgres test of each filter and the legacy fields.
+- operations: standing with full, partial and future-due payments,
+  penalties, another group, and currency; the handler is internal-only; the
+  repository query runs on Postgres.
+- stawi: more savings gives a bigger offer; arrears or no savings gives none;
+  the cap holds; a retry offers nobody twice; a failed call makes no offers.
+- Lint: 0 issues.
+
+## 54. Addendum 2026-10-27 — trustage is set up from each service's setup code
+
+**Decision (user).** Trustage must not know about services beyond running
+their workflows. Each service sets it up from its own setup code, as with
+migrations and notification templates. Trustage's operator route config
+(`TRUSTAGE_CONNECT_ROUTES`) is therefore not the way services are reached.
+
+**Change.**
+
+- *service-trustage* (PR #122): a `connect.call` step may carry an optional
+  `endpoint`, the base URL of the service the workflow belongs to.
+  - The call carries trustage's own token, so the endpoint must be a bare
+    `http(s)` base URL on a trusted in-cluster host (default `.svc` and
+    `.svc.cluster.local`).
+  - An operator route still wins over it, so existing routes are unchanged.
+- *Every fintech workflow* (loans, operations, limits, savings, stawi) names
+  its service with `"endpoint": "${SERVICE_ENDPOINT}"`. A test fails any
+  shipped `connect.call` without it.
+- *`pkg/trustage.SyncWorkflows`* fills the placeholder with the service's own
+  address when the setup Job registers its workflows:
+  `http://<service>.<namespace>.svc:80`, with the namespace read from the pod
+  and `TRUSTAGE_CALLBACK_ENDPOINT` as an override (e.g. loans deployed as
+  `service-fintech-loans` under the Stawi product).
+- *Trustage's own address* defaults to
+  `http://service-trustage.trustage.svc:80` for a secure setup. No service
+  needs `TRUSTAGE_SERVICE_URI` set; local development without trustage still
+  skips.
+
+**Deploy.** Release service-trustage #122 before relying on these workflows.
+Limits isn't in the cluster manifests yet; where it runs, its default name is
+`service-limits`.
+
+**Correction 2026-10-27 — production is Cloud Run behind the gateway.** The
+fintech services and trustage run on Cloud Run (`stawi.org/cloud.deployment`)
+and reach each other at `https://api.stawi.org/<path>`, not in-cluster hosts,
+so the defaults above would have pointed every workflow at nothing.
+
+- *service-trustage* (PR #123): `endpoint` may carry a plain path prefix
+  (`https://api.stawi.org/loans`); only unreserved segments are accepted, so
+  nothing decoded from it becomes a query or fragment. Production sets
+  `TRUSTAGE_URL_TRUSTED_HOST_SUFFIXES=.svc,.svc.cluster.local,api.stawi.org`.
+- *`SelfEndpoint`* falls back to the service's `OAUTH2_RESOURCE_AUDIENCE`, which
+  the Cloud Run module sets to the gateway URL the service is served at; the
+  pod namespace is used only when that isn't a URL.
+- *Trustage's address* defaults to `OAUTH2_AUDIENCE_BASE_URL` + `/trustage`
+  when the gateway base is set, else the cluster default.
+- *Audiences*: trustage requests `/operations`, `/savings`, `/limits` and
+  `/stawi`; operations, savings and limits request `/trustage` for their setup
+  Jobs (Hydra already allows them, tenancy migrations `_03`, `_05`, `_08`, `_11`).

@@ -35,7 +35,8 @@
           "request": {
             "job": "OPERATIONS_JOB_RECONCILE_PAYOUTS",
             "batchSize": 200
-          }
+          },
+          "endpoint": "${SERVICE_ENDPOINT}"
         },
         "output_var": "batch"
       },

@@ -365,7 +365,7 @@ func TestTransferOrderExecute_GatePending(t *testing.T) {
 	assert.Equal(t, 0, limitsCli.releaseCalls)
 }
 
-func (r *stubTransferOrderRepo) ListUnexecutedBorrowerRepayments(
+func (r *stubTransferOrderRepo) ListUnexecutedAllocations(
 	_ context.Context,
 	_ time.Time,
 	_ int,

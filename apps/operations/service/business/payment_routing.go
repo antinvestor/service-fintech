@@ -233,7 +233,7 @@ func (b *paymentRoutingBusiness) allocateIndividual(
 		return result
 	}
 	// The outcome travels as a flat proto Struct: only its scalars are kept.
-	for _, key := range []string{fieldAllocatedAmount, fieldRemainingAmount, fieldPaymentState, "execution", "deposit_id"} {
+	for _, key := range []string{fieldAllocatedAmount, fieldRemainingAmount, fieldPaymentState, fieldExecution, "deposit_id"} {
 		if v, ok := allocation[key]; ok {
 			result[key] = v
 		}
@@ -746,7 +746,7 @@ func (b *paymentRoutingBusiness) applyIdentificationResult(
 	result *identificationResult,
 ) error {
 	payment.OwnerID = result.MembershipID
-	payment.OwnerType = "membership"
+	payment.OwnerType = ownerTypeMembership
 	if result.GroupID != "" {
 		payment.PayableID = result.GroupID
 		payment.PayableType = "group"
@@ -865,10 +865,32 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 		return b.allocateToInvestor(ctx, logger, payment, lease)
 	}
 
+	return b.allocateToMember(ctx, logger, payment, lease, startAmount)
+}
+
+// allocateToMember allocates a group member's payment to their obligations
+// in priority order. What the obligations do not take stays in the member's
+// suspense for the next obligation raised.
+func (b *paymentRoutingBusiness) allocateToMember(
+	ctx context.Context,
+	logger *util.LogEntry,
+	payment *models.IncomingPayment,
+	lease time.Time,
+	startAmount int64,
+) (map[string]interface{}, error) {
+	paymentID := payment.GetID()
 	membershipID := payment.OwnerID
 	if membershipID == "" {
 		b.releaseAllocationLease(ctx, logger, paymentID, lease)
 		return nil, fmt.Errorf("payment %s has no owner (membership) assigned -- run identification first", paymentID)
+	}
+
+	// The whole payment moves into the member's suspense before any of it
+	// pays an obligation: what the obligations do not take stays there.
+	funding, err := b.fundMemberSuspense(ctx, payment, membershipID)
+	if err != nil {
+		b.releaseAllocationLease(ctx, logger, paymentID, lease)
+		return nil, err
 	}
 
 	// Retrieve all obligations for this member.
@@ -913,6 +935,7 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 	if allocatedAmount > 0 {
 		OpsPaymentsAllocated.Add(ctx, 1, attribute.String("currency", payment.Currency))
 	}
+	execution := b.executeMemberOrders(ctx, logger, funding.GetID(), allocations)
 
 	return map[string]interface{}{
 		fieldPaymentID:       paymentID,
@@ -927,6 +950,8 @@ func (b *paymentRoutingBusiness) AllocatePayment(
 		// key, so a workflow replaying them converges on the same rows.
 		fieldTransferOrders: allocations,
 		fieldPaymentState:   paymentState,
+		"suspense_order_id": funding.GetID(),
+		fieldExecution:      execution,
 	}, nil
 }
 
@@ -953,7 +978,7 @@ func buildAllocationBuckets() []allocationBucket {
 		{name: obligationPeriodicSaving, orderType: constants.TransferTypePeriodicSaving,
 			filter: func(o *models.Obligation) bool {
 				return o.State == active && o.ObligationType == int32(models.ObligationTypePeriodic) &&
-					o.CauseType == obligationSaving
+					(o.CauseType == obligationPeriodicSaving || o.CauseType == obligationSaving)
 			}},
 		{name: obligationRegistrationFee, orderType: constants.TransferTypeRegistrationFee,
 			filter: func(o *models.Obligation) bool {
@@ -1106,11 +1131,12 @@ func (b *paymentRoutingBusiness) allocateObligation(
 	// in the transfer-order side effect trusts the server-set source marker,
 	// never a loan id a caller put on an order.
 	extra := data.JSONMap{
-		extraKeySource:     allocationSourceMarker,
-		fieldPaymentID:     paymentID,
-		"obligation_id":    obl.GetID(),
-		"membership_id":    membershipID,
-		"obligation_cause": obl.CauseType,
+		extraKeySource:         allocationSourceMarker,
+		fieldPaymentID:         paymentID,
+		"obligation_id":        obl.GetID(),
+		"membership_id":        membershipID,
+		"obligation_cause":     obl.CauseType,
+		extraKeySuspenseFunded: true,
 	}
 	// A loan obligation's cause id is the schedule entry, not the loan; the
 	// loan account id was recorded on the obligation when it was raised.

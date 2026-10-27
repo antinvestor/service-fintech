@@ -73,6 +73,10 @@ type IncomingPaymentRepository interface {
 	// unallocated remainder, oldest first.
 	GetWithSuspenseByOwnerID(ctx context.Context, ownerID string) ([]*models.IncomingPayment, error)
 
+	// GetUnallocatedByOwnerID returns the owner's matched payments that no
+	// allocation has run on yet, oldest first.
+	GetUnallocatedByOwnerID(ctx context.Context, ownerType, ownerID string) ([]*models.IncomingPayment, error)
+
 	// MarkConfirmed stamps the confirmation timestamp exactly once, reporting
 	// whether this call was the one that stamped it.
 	MarkConfirmed(ctx context.Context, paymentID string, at time.Time) (bool, error)
@@ -82,8 +86,9 @@ type IncomingPaymentRepository interface {
 	// resolving the same payment cannot both win; it reports whether it did.
 	AssignOwner(ctx context.Context, paymentID string, assignment PaymentAssignment) (bool, error)
 
-	// ListAwaitingAllocation returns up to limit individuals' payments that
-	// were matched to a loan or savings account but never allocated, and
+	// ListAwaitingAllocation returns up to limit payments that were matched
+	// to a loan, savings or investor account or a group member but never
+	// allocated, and
 	// that nobody has touched since before. A lease taken before
 	// leaseStaleBefore is treated as abandoned.
 	ListAwaitingAllocation(
@@ -210,6 +215,19 @@ func (r *incomingPaymentRepository) GetWithSuspenseByOwnerID(
 	return payments, err
 }
 
+func (r *incomingPaymentRepository) GetUnallocatedByOwnerID(
+	ctx context.Context,
+	ownerType, ownerID string,
+) ([]*models.IncomingPayment, error) {
+	var payments []*models.IncomingPayment
+	err := r.Pool().DB(ctx, true).
+		Where("deleted_at IS NULL AND owner_type = ? AND owner_id = ? AND state = ?",
+			ownerType, ownerID, constants.StateJustCreated).
+		Order("created_at ASC").
+		Find(&payments).Error
+	return payments, err
+}
+
 func (r *incomingPaymentRepository) MarkConfirmed(
 	ctx context.Context,
 	paymentID string,
@@ -316,10 +334,11 @@ func (r *incomingPaymentRepository) ReleaseAllocation(ctx context.Context, payme
 		}).Error
 }
 
-// individualOwnerTypes are the owners an individual's payment is matched to:
-// their own loan, savings account or investor account.
-func individualOwnerTypes() []string {
-	return []string{"client_loan", "client_savings", "investor_account"}
+// allocatableOwnerTypes are the owners a matched payment can be allocated
+// for without anyone deciding anything: an individual's own loan, savings
+// or investor account, or a group member's obligations.
+func allocatableOwnerTypes() []string {
+	return []string{"client_loan", "client_savings", "investor_account", "membership"}
 }
 
 func (r *incomingPaymentRepository) ListAwaitingAllocation(
@@ -331,7 +350,7 @@ func (r *incomingPaymentRepository) ListAwaitingAllocation(
 	err := r.Pool().DB(ctx, true).
 		Where("deleted_at IS NULL AND owner_type IN ? AND coalesce(owner_id, '') <> '' AND state = ? "+
 			"AND modified_at < ? AND (allocating_at IS NULL OR allocating_at < ?)",
-			individualOwnerTypes(), constants.StateJustCreated, before.UTC(), leaseStaleBefore.UTC()).
+			allocatableOwnerTypes(), constants.StateJustCreated, before.UTC(), leaseStaleBefore.UTC()).
 		Order("modified_at").
 		Limit(limit).
 		Find(&payments).Error

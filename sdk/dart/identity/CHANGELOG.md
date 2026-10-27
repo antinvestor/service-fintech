@@ -1,3 +1,10 @@
+## 0.8.3
+
+- `ClientGroupSearchRequest.states` and `.group_types`: search only groups in
+  any of the listed states and of any of the listed types.
+- **Behaviour:** `ClientGroupSearch` now applies its `state`, `group_type`,
+  `parent_id` and `product_id` filters, which it used to ignore.
+
 ## 0.8.2
 
 - `IdentityService.ClientDocumentUpload` (`client_data_manage`): stores a
