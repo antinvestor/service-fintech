@@ -182,7 +182,8 @@ func TestUnscheduledRepaymentCapsPrincipalAndRoutesTheExcess(t *testing.T) {
 		TotalOutstanding:     100000,
 	}
 
-	alloc := b.waterfallAllocate(context.Background(), la.GetID(), 150000, balance)
+	alloc, err := b.waterfallAllocate(context.Background(), la.GetID(), 150000, balance)
+	require.NoError(t, err)
 
 	assert.Equal(t, int64(100000), alloc.principalApplied, "principal cannot absorb more than is outstanding")
 	assert.Equal(t, int64(50000), alloc.excessAmount, "the overpayment must survive allocation")
@@ -257,4 +258,32 @@ func TestRepayableStatuses(t *testing.T) {
 	} {
 		assert.Equal(t, want, isRepayableStatus(int32(status)), status.String())
 	}
+}
+
+// failingScheduleRepo cannot read the loan's schedule.
+type failingScheduleRepo struct{ stubRepaymentScheduleRepo }
+
+func (r *failingScheduleRepo) GetActivByLoanAccountID(
+	context.Context,
+	string,
+) (*loansmodels.RepaymentSchedule, error) {
+	return nil, errors.New("connection reset by peer")
+}
+
+// A schedule that cannot be read fails the repayment before anything is
+// recorded, rather than allocating the whole payment to principal as if the
+// loan had no schedule.
+func TestScheduleReadErrorFailsTheRepaymentUnrecorded(t *testing.T) {
+	la := activeLoanAccountForRepayment()
+	repRepo := &memRepaymentRepo{}
+	b := buildRepBusiness(&stubLoanAccountRepo{account: la}, repRepo, &recordingOperationsClient{})
+	b.scheduleRepo = &failingScheduleRepo{}
+
+	_, err := b.Record(paymentRailContext(), &loansv1.RepaymentRecordRequest{
+		LoanAccountId:  la.GetID(),
+		IdempotencyKey: "idem-schedule-down",
+		Amount:         moneyx.FromMinorUnitsByCurrency("KES", 5000),
+	})
+	require.Error(t, err)
+	assert.Empty(t, repRepo.rows, "no allocation is stored from a schedule that could not be read")
 }

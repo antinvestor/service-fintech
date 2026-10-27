@@ -178,7 +178,8 @@ func (b *repaymentBusiness) recordInner(
 		return nil, ErrLoanAccountNotFound
 	}
 
-	lease, locked, lockErr := b.loanAccountRepo.ClaimRepaymentLock(ctx, la.GetID())
+	loanID := la.GetID()
+	lease, locked, lockErr := b.loanAccountRepo.ClaimRepaymentLock(ctx, loanID)
 	if lockErr != nil {
 		return nil, fmt.Errorf("claim the loan for repayment: %w", lockErr)
 	}
@@ -186,7 +187,7 @@ func (b *repaymentBusiness) recordInner(
 		return nil, ErrRepaymentInProgress
 	}
 	defer func() {
-		if relErr := b.loanAccountRepo.ReleaseRepaymentLock(ctx, la.GetID(), lease); relErr != nil {
+		if relErr := b.loanAccountRepo.ReleaseRepaymentLock(ctx, loanID, lease); relErr != nil {
 			logger.WithError(relErr).Warn("could not release the loan's repayment lease; it lapses on its own")
 		}
 	}()
@@ -203,15 +204,8 @@ func (b *repaymentBusiness) recordInner(
 	// paid columns do not show yet. It is finished before a new allocation
 	// is computed, or the new payment would be allocated against the same
 	// installments.
-	finished, pendingErr := b.finishUnappliedRepayments(ctx, logger, la)
-	if pendingErr != nil {
-		return nil, pendingErr
-	}
-	if finished {
-		// Finishing may have moved the loan on, as far as paying it off.
-		if la, err = b.loanAccountRepo.GetByID(ctx, la.GetID()); err != nil {
-			return nil, ErrLoanAccountNotFound
-		}
+	if la, err = b.finishUnappliedRepayments(ctx, logger, la); err != nil {
+		return nil, err
 	}
 
 	if !isRepayableStatus(la.Status) {
@@ -233,7 +227,12 @@ func (b *repaymentBusiness) recordInner(
 		return nil, ErrBalanceNotFound
 	}
 
-	alloc := b.waterfallAllocate(ctx, req.GetLoanAccountId(), amount, balance)
+	alloc, allocErr := b.waterfallAllocate(ctx, req.GetLoanAccountId(), amount, balance)
+	if allocErr != nil {
+		// Nothing is claimed yet: a retry with the same key allocates afresh.
+		logger.WithError(allocErr).Error("could not read the loan's schedule to allocate the repayment")
+		return nil, allocErr
+	}
 
 	channel := NormalizeRepaymentChannel(req.GetChannel())
 
@@ -275,16 +274,19 @@ const maxUnappliedRepayments = 10
 
 // finishUnappliedRepayments finishes, under the loan's repayment lease, every
 // repayment of the loan that was recorded but never applied, in the order
-// they were recorded. It reports whether there was any. One that cannot be
-// finished now leaves the loan refusing new repayments until it is.
+// they were recorded, and returns the loan as they left it. One that cannot
+// be finished now leaves the loan refusing new repayments until it is.
 func (b *repaymentBusiness) finishUnappliedRepayments(
 	ctx context.Context,
 	logger *util.LogEntry,
 	la *models.LoanAccount,
-) (bool, error) {
+) (*models.LoanAccount, error) {
 	pending, err := b.repaymentRepo.ListUnapplied(ctx, la.GetID(), maxUnappliedRepayments)
 	if err != nil {
-		return false, fmt.Errorf("read the loan's unfinished repayments: %w", err)
+		return nil, fmt.Errorf("read the loan's unfinished repayments: %w", err)
+	}
+	if len(pending) == 0 {
+		return la, nil
 	}
 	for _, r := range pending {
 		resume := &loansv1.RepaymentRecordRequest{
@@ -297,10 +299,15 @@ func (b *repaymentBusiness) finishUnappliedRepayments(
 		if _, finErr := b.finishRepayment(ctx, logger, la, r, resume); finErr != nil {
 			logger.WithError(finErr).WithField("repayment_id", r.GetID()).
 				Warn("an earlier repayment on the loan is still unfinished; refusing a new one until it is")
-			return false, ErrRepaymentInProgress
+			return nil, ErrRepaymentInProgress
 		}
 	}
-	return len(pending) > 0, nil
+	// Finishing may have moved the loan on, as far as paying it off.
+	reloaded, err := b.loanAccountRepo.GetByID(ctx, la.GetID())
+	if err != nil {
+		return nil, ErrLoanAccountNotFound
+	}
+	return reloaded, nil
 }
 
 // finishRepayment takes a recorded repayment the rest of the way: the ledger
@@ -775,7 +782,7 @@ func (b *repaymentBusiness) waterfallAllocate(
 	loanAccountID string,
 	amount int64,
 	balance *models.LoanBalance,
-) waterfallResult {
+) (waterfallResult, error) {
 	result := waterfallResult{status: loansv1.RepaymentStatus_REPAYMENT_STATUS_PENDING}
 	remaining := amount
 
@@ -788,7 +795,10 @@ func (b *repaymentBusiness) waterfallAllocate(
 	}
 
 	// 2. Allocate remaining amount to schedule entries: interest -> fees -> principal
-	entries := b.activeScheduleEntries(ctx, loanAccountID)
+	entries, entriesErr := b.activeScheduleEntries(ctx, loanAccountID)
+	if entriesErr != nil {
+		return result, entriesErr
+	}
 	if entries == nil {
 		// With no schedule to allocate against, principal is the only thing
 		// left to reduce, and only down to what is actually outstanding.
@@ -803,7 +813,7 @@ func (b *repaymentBusiness) waterfallAllocate(
 		remaining -= result.principalApplied
 		result.excessAmount = remaining
 		result.status = repaymentStatusFor(amount, remaining, result.amountDue)
-		return result
+		return result, nil
 	}
 
 	for _, entry := range entries {
@@ -821,24 +831,32 @@ func (b *repaymentBusiness) waterfallAllocate(
 	result.excessAmount = remaining
 	result.status = repaymentStatusFor(amount, remaining, result.amountDue)
 
-	return result
+	return result, nil
 }
 
 // activeScheduleEntries loads the installments of the loan's active schedule,
-// or nil when there is no usable schedule.
+// or nil when the loan has no active schedule. A failed read is an error, not
+// an absent schedule: allocating as if there were none would put the whole
+// payment on principal and store that allocation for good.
 func (b *repaymentBusiness) activeScheduleEntries(
 	ctx context.Context,
 	loanAccountID string,
-) []*models.ScheduleEntry {
+) ([]*models.ScheduleEntry, error) {
 	schedule, schedErr := b.scheduleRepo.GetActivByLoanAccountID(ctx, loanAccountID)
-	if schedErr != nil || schedule == nil {
-		return nil
+	if schedErr != nil {
+		if data.ErrorIsNoRows(schedErr) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read the loan's active schedule: %w", schedErr)
+	}
+	if schedule == nil {
+		return nil, nil
 	}
 	entries, entryErr := b.scheduleEntryRepo.GetByScheduleID(ctx, schedule.GetID())
 	if entryErr != nil {
-		return nil
+		return nil, fmt.Errorf("read the loan's installments: %w", entryErr)
 	}
-	return entries
+	return entries, nil
 }
 
 // repaymentStatusFor classifies a payment against what was owed. PARTIAL and
