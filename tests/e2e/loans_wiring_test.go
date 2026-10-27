@@ -143,7 +143,8 @@ func loansOptions(
 	teamCommissions := business.NewTeamCommissions(
 		repository.NewTeamCommissionRepository(dbPool), members, peers.operations, auditWriter)
 	fundingSettlement := business.NewFundingSettlement(repRepo, laRepo, peers.funding).
-		WithCommission(business.NewAgentCommission(lpRepo, teams, peers.operations, teamCommissions))
+		WithCommission(business.NewAgentCommission(lpRepo, teams, peers.operations, teamCommissions)).
+		WithSubject(cfg.Name())
 	repBusiness := business.NewRepaymentBusiness(
 		ctx, evtsMan, laRepo, repRepo, rsRepo, seRepo, lbRepo, loanNotifier, peers.operations, auditWriter,
 		paidOffHook,
@@ -179,6 +180,7 @@ func loansOptions(
 		laRepo, seRepo, penaltyBusiness, laBusiness, lpRepo,
 		cfg.DelinquencyThresholdDays, cfg.DefaultThresholdDays,
 		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
+		business.WithScannerSubject(cfg.Name()),
 	)
 	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, cfg.DueReminderDays)
 	paidOffNotices := business.NewPaidOffNotices(laRepo, lbRepo, paidOffHook, cfg.Name())

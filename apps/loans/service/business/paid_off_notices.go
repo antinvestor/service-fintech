@@ -82,7 +82,7 @@ func (n *PaidOffNotices) RunBatch(ctx context.Context, batch int) (int, bool, er
 		return 0, false, fmt.Errorf("claim unnoticed paid-off loans: %w", err)
 	}
 	for _, la := range loans {
-		loanCtx := n.actIn(ctx, la)
+		loanCtx := actInLoan(ctx, n.subject, la)
 		var totalPaid int64
 		balance, balErr := n.loanBalanceRepo.GetByLoanAccountID(loanCtx, la.GetID())
 		if balErr == nil && balance != nil {
@@ -96,13 +96,17 @@ func (n *PaidOffNotices) RunBatch(ctx context.Context, batch int) (int, bool, er
 	return len(loans), len(loans) == batch, nil
 }
 
-// actIn is ctx as this service acting inside the loan's partition.
-func (n *PaidOffNotices) actIn(ctx context.Context, la *models.LoanAccount) context.Context {
+// actInLoan is ctx as this service, named subject, acting inside the loan's
+// partition. A job claims its work across every tenant; each loan is then
+// worked under the loan's own tenancy, so the rows written for it (a penalty,
+// a commission movement) carry the loan's partition and the peer calls made
+// for it name the loan's tenant, not the scheduler's.
+func actInLoan(ctx context.Context, subject string, la *models.LoanAccount) context.Context {
 	claims := &security.AuthenticationClaims{
 		TenantID:    la.TenantID,
 		PartitionID: la.PartitionID,
 		Roles:       []string{security.ConstantSystemInternalRole},
 	}
-	claims.Subject = n.subject
+	claims.Subject = subject
 	return claims.ClaimsToContext(ctx, security.WithoutInternalTenancySkip())
 }

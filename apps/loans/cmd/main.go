@@ -263,7 +263,8 @@ func setupServiceOptions(
 	teamCommissions := business.NewTeamCommissions(
 		repository.NewTeamCommissionRepository(dbPool), members, operationsCli, auditWriter)
 	fundingSettlement := business.NewFundingSettlement(repRepo, laRepo, fundingCli).
-		WithCommission(business.NewAgentCommission(lpRepo, teams, operationsCli, teamCommissions))
+		WithCommission(business.NewAgentCommission(lpRepo, teams, operationsCli, teamCommissions)).
+		WithSubject(serviceName)
 	repBusiness := business.NewRepaymentBusiness(
 		ctx,
 		evtsMan,
@@ -322,6 +323,7 @@ func setupServiceOptions(
 		laRepo, seRepo, penaltyBusiness, laBusiness, lpRepo,
 		delinquencyThresholdDays, defaultThresholdDays,
 		business.WithScannerNotifications(loanNotifier, agentProfiles, lbRepo),
+		business.WithScannerSubject(serviceName),
 	)
 	reminders := business.NewDueReminderJob(seRepo, laRepo, loanNotifier, dueReminderDays)
 	paidOffNotices := business.NewPaidOffNotices(laRepo, lbRepo, paidOffHook, serviceName)

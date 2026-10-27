@@ -54,6 +54,9 @@ type DelinquencyScanner struct {
 	loanBalanceRepo repository.LoanBalanceRepository
 	notifier        *LoanNotifier
 	agentProfiles   AgentProfileResolver
+	// subject is this service's own identity, under which each loan is
+	// assessed inside its partition.
+	subject string
 
 	delinquencyDays int // days past due to mark delinquent (default 7)
 	defaultDays     int // days past due to mark default (default 90)
@@ -73,6 +76,14 @@ func WithScannerNotifications(
 		s.notifier = notifier
 		s.agentProfiles = agentProfiles
 		s.loanBalanceRepo = loanBalanceRepo
+	}
+}
+
+// WithScannerSubject names this service's identity, under which each loan
+// is assessed inside its own partition.
+func WithScannerSubject(subject string) ScannerOption {
+	return func(s *DelinquencyScanner) {
+		s.subject = subject
 	}
 }
 
@@ -123,7 +134,9 @@ func (s *DelinquencyScanner) RunBatch(ctx context.Context, batch int) (int, bool
 		if ctx.Err() != nil {
 			return 0, true, ctx.Err()
 		}
-		s.assess(ctx, logger, la, now)
+		// Assessed as this service inside the loan's partition: the penalties
+		// and transitions it records belong to the loan's tenancy.
+		s.assess(actInLoan(ctx, s.subject, la), logger, la, now)
 	}
 	return len(loans), len(loans) == batch, nil
 }
