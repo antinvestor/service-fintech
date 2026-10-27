@@ -16,6 +16,7 @@ package business_test
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/pitabwire/frame/v3/data"
@@ -46,13 +47,25 @@ func (noReserve) GroupSavings(context.Context, string, string) (int64, error)   
 func (noReserve) PlatformReserve(context.Context, string, string) (int64, error) { return 0, nil }
 
 func (e *fundingEnv) allocationBusiness(s *fundingSuite, amount int64) business.FundingAllocationBusiness {
+	return e.allocationBusinessWithClaims(
+		s,
+		amount,
+		repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan),
+	)
+}
+
+func (e *fundingEnv) allocationBusinessWithClaims(
+	s *fundingSuite,
+	amount int64,
+	claims repository.LoanFundingClaimRepository,
+) business.FundingAllocationBusiness {
 	s.T().Helper()
 	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_lfclaim_request ON loan_funding_claims (loan_request_id)
 		 WHERE deleted_at IS NULL`).Error)
 	return business.NewFundingAllocationBusiness(e.ctx, nil,
 		repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan),
-		repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan),
+		claims,
 		repository.NewLossAbsorptionRepository(e.ctx, e.dbPool, e.workMan),
 		fixedLoanRequests{amount: amount, currency: "KES"}, e.iaRepo,
 		repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan),
@@ -133,4 +146,109 @@ func (s *fundingSuite) TestLiveAllocationClaimIsRetryable() {
 	result, err := fa.SourceForRequest(e.ctx, "lr-live")
 	s.Require().ErrorIs(err, business.ErrAllocationInProgress)
 	s.Nil(result)
+}
+
+// completeFails is a claim store whose Complete fails, or reports the
+// lease lost, after the allocation was reserved.
+type completeFails struct {
+	repository.LoanFundingClaimRepository
+	err  error
+	lost bool
+}
+
+func (c completeFails) Complete(ctx context.Context, id string, lease time.Time) (bool, error) {
+	if c.err != nil {
+		return false, c.err
+	}
+	if c.lost {
+		return false, nil
+	}
+	return c.LoanFundingClaimRepository.Complete(ctx, id, lease)
+}
+
+// A fully reserved allocation whose claim cannot be completed gives the
+// capital back and drops the claim at once, rather than leaving it reserved
+// for a takeover that may never come.
+func (s *fundingSuite) TestAllocationThatCannotCompleteGivesCapitalBack() {
+	for name, claims := range map[string]completeFails{
+		"complete fails": {err: errors.New("connection reset")},
+		"lease lost":     {lost: true},
+	} {
+		s.Run(name, func() {
+			e := s.newEnv()
+			investor := e.seedInvestor(s, "KES", 50_000)
+			claims.LoanFundingClaimRepository = repository.NewLoanFundingClaimRepository(e.ctx, e.dbPool, e.workMan)
+			fa := e.allocationBusinessWithClaims(s, 10_000, claims)
+
+			_, err := fa.SourceForRequest(e.ctx, "lr-incomplete")
+			s.Require().Error(err)
+
+			acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+			s.Require().NoError(err)
+			s.Zero(acct.ReservedBalance, "nothing stays reserved for an allocation that did not complete")
+
+			var active int64
+			s.Require().NoError(e.dbPool.DB(e.ctx, false).Raw(
+				`SELECT count(*) FROM funding_tranches WHERE state = ?`, int32(constants.StateActive)).
+				Scan(&active).Error)
+			s.Zero(active)
+		})
+	}
+}
+
+// Voiding a funding gives back its reservations in the same transaction:
+// when one cannot be given back, nothing changes, rather than the funding
+// being voided with capital still reserved.
+func (s *fundingSuite) TestVoidAndReleaseIsAllOrNothing() {
+	e := s.newEnv()
+	investor := e.seedInvestor(s, "KES", 50_000)
+	lfRepo := repository.NewLoanFundingRepository(e.ctx, e.dbPool, e.workMan)
+	ftRepo := repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan)
+	funding := &models.LoanFunding{LoanRequestID: "lr-void", Amount: 4_000, Currency: "KES",
+		State: int32(constants.StateActive)}
+	funding.GenID(e.ctx)
+	s.Require().NoError(lfRepo.Create(e.ctx, funding))
+	tranche := &models.FundingTranche{LoanFundingID: funding.GetID(), InvestorAccountID: investor.GetID(),
+		Amount: 4_000, Currency: "KES", State: int32(constants.StateJustCreated)}
+	tranche.GenID(e.ctx)
+	s.Require().NoError(ftRepo.Create(e.ctx, tranche))
+
+	// Recorded as reserved without the account holding it.
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE funding_tranches SET state = ? WHERE id = ?`, int32(constants.StateActive), tranche.GetID()).Error)
+	_, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
+	s.Require().ErrorIs(err, repository.ErrReservationMissing)
+	stored, err := lfRepo.GetByID(e.ctx, funding.GetID())
+	s.Require().NoError(err)
+	s.Equal(int32(constants.StateActive), stored.State, "the void rolled back with the failed release")
+
+	// Reserved and activated together, it is voided and given back once.
+	s.Require().NoError(e.dbPool.DB(e.ctx, false).Exec(
+		`UPDATE funding_tranches SET state = ? WHERE id = ?`, int32(constants.StateJustCreated), tranche.GetID()).Error)
+	s.Require().NoError(ftRepo.ReserveAndActivate(e.ctx, tranche))
+	won, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
+	s.Require().NoError(err)
+	s.True(won)
+	again, err := lfRepo.VoidAndRelease(e.ctx, funding.GetID())
+	s.Require().NoError(err)
+	s.False(again)
+	acct, err := e.iaRepo.GetByID(e.ctx, investor.GetID())
+	s.Require().NoError(err)
+	s.Zero(acct.ReservedBalance)
+}
+
+// A tranche the investor cannot cover is neither reserved nor activated.
+func (s *fundingSuite) TestReserveAndActivateChangesNothingWhenShort() {
+	e := s.newEnv()
+	investor := e.seedInvestor(s, "KES", 1_000)
+	ftRepo := repository.NewFundingTrancheRepository(e.ctx, e.dbPool, e.workMan)
+	tranche := &models.FundingTranche{LoanFundingID: "lf-short", InvestorAccountID: investor.GetID(),
+		Amount: 4_000, Currency: "KES", State: int32(constants.StateJustCreated)}
+	tranche.GenID(e.ctx)
+	s.Require().NoError(ftRepo.Create(e.ctx, tranche))
+
+	s.Require().ErrorIs(ftRepo.ReserveAndActivate(e.ctx, tranche), repository.ErrInvestorInsufficientFunds)
+	stored, err := ftRepo.GetByID(e.ctx, tranche.GetID())
+	s.Require().NoError(err)
+	s.Equal(int32(constants.StateJustCreated), stored.State)
 }

@@ -16,7 +16,8 @@ package repository
 
 import (
 	"context"
-	"time"
+	"errors"
+	"fmt"
 
 	"github.com/pitabwire/frame/v3/datastore"
 	"github.com/pitabwire/frame/v3/datastore/pool"
@@ -27,13 +28,21 @@ import (
 	"github.com/antinvestor/service-fintech/pkg/constants"
 )
 
+// ErrReservationMissing is returned when a funding's tranche records more
+// capital reserved than its investor account holds: giving it back would
+// free capital committed to another loan, so the void is refused for review.
+var ErrReservationMissing = errors.New("investor account holds less reserved capital than the tranche records")
+
 // LoanFundingRepository provides data access for loan fundings.
 type LoanFundingRepository interface {
 	datastore.BaseRepository[*models.LoanFunding]
 	GetByLoanRequestID(ctx context.Context, loanRequestID string) ([]*models.LoanFunding, error)
-	// VoidIfActive marks an active funding record inactive and reports
-	// whether this call did it, so only one caller acts on its release.
-	VoidIfActive(ctx context.Context, fundingID string) (bool, error)
+	// VoidAndRelease voids an active funding record and, in the same
+	// transaction, gives back the capital its reserved tranches hold and
+	// voids the tranches. It reports whether this call voided it: a funding
+	// someone else voided first is left alone, so each reservation is given
+	// back once, and a crash leaves either all of it done or none of it.
+	VoidAndRelease(ctx context.Context, fundingID string) (bool, error)
 }
 
 // NewLoanFundingRepository creates a new LoanFundingRepository.
@@ -58,17 +67,42 @@ func (r *loanFundingRepository) GetByLoanRequestID(
 	return fundings, err
 }
 
-func (r *loanFundingRepository) VoidIfActive(ctx context.Context, fundingID string) (bool, error) {
-	result := r.Pool().DB(ctx, false).
-		Table("loan_fundings").
-		Where("id = ? AND state = ? AND deleted_at IS NULL", fundingID, int32(constants.StateActive)).
-		Updates(map[string]any{
-			"state":       int32(constants.StateInactive),
-			"modified_at": time.Now().UTC(),
-			"version":     gorm.Expr("version + 1"),
-		})
-	if result.Error != nil {
-		return false, result.Error
+func (r *loanFundingRepository) VoidAndRelease(ctx context.Context, fundingID string) (bool, error) {
+	won := false
+	err := r.Pool().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
+		voided := tx.Exec(`UPDATE loan_fundings SET state = ?, modified_at = now(), version = version + 1
+WHERE id = ? AND state = ? AND deleted_at IS NULL`,
+			int32(constants.StateInactive), fundingID, int32(constants.StateActive))
+		if voided.Error != nil || voided.RowsAffected == 0 {
+			return voided.Error
+		}
+		won = true
+
+		// A tranche is active only once its capital is reserved (see
+		// FundingTrancheRepository.ReserveAndActivate), so exactly the
+		// active investor tranches hold a reservation to give back.
+		var reserved []*models.FundingTranche
+		if err := tx.Where("loan_funding_id = ? AND state = ? AND investor_account_id <> ''",
+			fundingID, int32(constants.StateActive)).Find(&reserved).Error; err != nil {
+			return err
+		}
+		for _, t := range reserved {
+			released := tx.Exec(`UPDATE investor_accounts
+SET reserved_balance = reserved_balance - ?, modified_at = now(), version = version + 1
+WHERE id = ? AND deleted_at IS NULL AND reserved_balance >= ?`, t.Amount, t.InvestorAccountID, t.Amount)
+			if released.Error != nil {
+				return released.Error
+			}
+			if released.RowsAffected == 0 {
+				return fmt.Errorf("release %d reserved on investor account %s: %w",
+					t.Amount, t.InvestorAccountID, ErrReservationMissing)
+			}
+		}
+		return tx.Exec(`UPDATE funding_tranches SET state = ?, modified_at = now(), version = version + 1
+WHERE loan_funding_id = ? AND deleted_at IS NULL`, int32(constants.StateInactive), fundingID).Error
+	})
+	if err != nil {
+		return false, err
 	}
-	return result.RowsAffected > 0, nil
+	return won, nil
 }

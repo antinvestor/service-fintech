@@ -60,7 +60,8 @@ type LoanFundingClaimRepository interface {
 	Complete(ctx context.Context, loanRequestID string, lease time.Time) (bool, error)
 
 	// ReleaseHeld drops the claim this call holds under lease after its
-	// allocation failed, so the request can be funded on a later attempt. A
+	// allocation failed or was given back, so the request can be funded on a
+	// later attempt; it removes the claim whether or not it was completed. A
 	// claim another call took over is left alone.
 	ReleaseHeld(ctx context.Context, loanRequestID string, lease time.Time) error
 
@@ -148,8 +149,7 @@ func (r *loanFundingClaimRepository) ReleaseHeld(
 ) error {
 	return r.Pool().DB(ctx, false).
 		Unscoped().
-		Where("loan_request_id = ? AND claimed_at = ? AND status = ?",
-			loanRequestID, lease, models.LoanFundingClaimAllocating).
+		Where("loan_request_id = ? AND claimed_at = ?", loanRequestID, lease).
 		Delete(&models.LoanFundingClaim{}).Error
 }
 
