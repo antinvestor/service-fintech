@@ -36,7 +36,8 @@ type FundingTrancheRepository interface {
 	// account and marks the tranche active, in one transaction: an active
 	// investor tranche always holds its reservation and a pending one never
 	// does. It returns ErrInvestorInsufficientFunds when the account cannot
-	// cover the amount, and changes nothing then.
+	// cover the amount, or ErrInvestorExposureExceeded when it would pass
+	// the account's exposure limit, and changes nothing then.
 	ReserveAndActivate(ctx context.Context, tranche *models.FundingTranche) error
 }
 
@@ -107,13 +108,17 @@ WHERE id = ? AND state = ? AND deleted_at IS NULL`,
 		reserved := tx.Exec(`UPDATE investor_accounts
 SET reserved_balance = reserved_balance + ?, total_deployed = total_deployed + ?,
     last_deployed_at = now(), modified_at = now(), version = version + 1
-WHERE id = ? AND deleted_at IS NULL AND (available_balance - reserved_balance) >= ?`,
-			tranche.Amount, tranche.Amount, tranche.InvestorAccountID, tranche.Amount)
+WHERE id = ? AND deleted_at IS NULL AND `+reserveWithinLimits,
+			tranche.Amount, tranche.Amount, tranche.InvestorAccountID, tranche.Amount, tranche.Amount)
 		if reserved.Error != nil {
 			return reserved.Error
 		}
 		if reserved.RowsAffected == 0 {
-			return ErrInvestorInsufficientFunds
+			account := &models.InvestorAccount{}
+			if err := tx.First(account, "id = ?", tranche.InvestorAccountID).Error; err != nil {
+				return err
+			}
+			return reserveRefusal(account, tranche.Amount)
 		}
 		tranche.State = int32(constants.StateActive)
 		return nil

@@ -361,21 +361,36 @@ func (b *fundingAllocationBusiness) allocate(
 	loanAmountDec := decimalx.FromMinorUnits(loanAmount, precision)
 	request := buildFundingRequest(requestInfo, loanAmountDec)
 
-	sources, err := b.gatherFundingSources(ctx, request, precision)
-	if err != nil {
-		return nil, allocationRun{}, err
-	}
-	calcResult := calculation.AllocateLoanFunding(request, sources)
+	var (
+		calcResult  calculation.FundingResult
+		allocations []Allocation
+		run         allocationRun
+	)
+	// A reservation refused because another loan took the investor's capital
+	// (or headroom) since the sources were read voids this attempt and
+	// allocates again from fresh balances, so the share falls through to the
+	// next investor instead of failing the loan.
+	for attempt := 1; ; attempt++ {
+		sources, err := b.gatherFundingSources(ctx, request, precision)
+		if err != nil {
+			return nil, allocationRun{}, err
+		}
+		calcResult = calculation.AllocateLoanFunding(request, sources)
 
-	if !calculation.VerifyTrancheAllocationInvariant(loanAmountDec, calcResult) {
-		logger.WithField("total_allocated", calcResult.TotalAllocated).
-			WithField("deficit", calcResult.Deficit).
-			Warn("loan request not fully funded")
-	}
+		if !calculation.VerifyTrancheAllocationInvariant(loanAmountDec, calcResult) {
+			logger.WithField("total_allocated", calcResult.TotalAllocated).
+				WithField("deficit", calcResult.Deficit).
+				Warn("loan request not fully funded")
+		}
 
-	allocations, run, err := b.persistAllocations(ctx, loanRequestID, requestInfo.Currency, precision, calcResult)
-	if err != nil {
-		return nil, allocationRun{}, err
+		allocations, run, err = b.persistAllocations(ctx, loanRequestID, requestInfo.Currency, precision, calcResult)
+		if err == nil {
+			break
+		}
+		if !isReserveConflict(err) || attempt >= maxReserveAttempts {
+			return nil, allocationRun{}, err
+		}
+		logger.WithError(err).Info("an investor's capital was taken meanwhile; allocating again from fresh balances")
 	}
 
 	logger.WithField("loan_request_id", loanRequestID).
@@ -400,6 +415,17 @@ func (b *fundingAllocationBusiness) allocate(
 		IsGroupLoan:    request.IsGroupLoan,
 		Allocations:    allocations,
 	}, run, nil
+}
+
+// maxReserveAttempts bounds how often an allocation is rebuilt after a
+// reservation lost a race for an investor's capital.
+const maxReserveAttempts = 3
+
+// isReserveConflict reports whether a reservation was refused because the
+// investor no longer has the capital or headroom it was read with.
+func isReserveConflict(err error) bool {
+	return errors.Is(err, repository.ErrInvestorInsufficientFunds) ||
+		errors.Is(err, repository.ErrInvestorExposureExceeded)
 }
 
 // allocationRun is the funding records one allocation attempt wrote. Voiding
