@@ -135,6 +135,8 @@ func (s *fundingSuite) TestReserveConflictIsNotRetriedOverAFailedVoid() {
 
 	_, err := fa.SourceForRequest(e.ctx, "lr-no-retry")
 	s.Require().Error(err)
+	s.Require().NotErrorIs(err, repository.ErrInvestorInsufficientFunds,
+		"a failed give-back is not reported as a reserve conflict")
 	s.Equal(1, tranches.calls, "no second attempt over an attempt that was not given back")
 
 	var reserved int64

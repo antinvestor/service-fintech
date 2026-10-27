@@ -387,7 +387,7 @@ func (b *fundingAllocationBusiness) allocate(
 		if err == nil {
 			break
 		}
-		if !isReserveConflict(err) || attempt >= maxReserveAttempts {
+		if errors.Is(err, errAllocationNotGivenBack) || !isReserveConflict(err) || attempt >= maxReserveAttempts {
 			return nil, allocationRun{}, err
 		}
 		logger.WithError(err).Info("an investor's capital was taken meanwhile; allocating again from fresh balances")
@@ -416,6 +416,11 @@ func (b *fundingAllocationBusiness) allocate(
 		Allocations:    allocations,
 	}, run, nil
 }
+
+// errAllocationNotGivenBack marks a failed allocation attempt whose partial
+// fundings and reservations could not be given back: nothing may be
+// allocated again on top of it.
+var errAllocationNotGivenBack = errors.New("a failed allocation could not be given back")
 
 // maxReserveAttempts bounds how often an allocation is rebuilt after a
 // reservation lost a race for an investor's capital.
@@ -456,9 +461,11 @@ func (b *fundingAllocationBusiness) persistAllocations(
 		if _, _, voidErr := b.voidActiveFundings(cleanupCtx, run.fundings); voidErr != nil {
 			util.Log(ctx).WithError(voidErr).
 				Error("could not give back a failed allocation; capital stays reserved until reviewed")
-			// The original error is kept as text only: a run that could not
-			// be given back is not a reserve conflict to retry on top of.
-			return nil, allocationRun{}, fmt.Errorf("give back a failed allocation (%w): %w", err, voidErr)
+			// The original error is kept as text only (never wrapped): a run
+			// that could not be given back is not a reserve conflict to
+			// retry on top of.
+			return nil, allocationRun{}, fmt.Errorf("%w: %s (give back: %w)",
+				errAllocationNotGivenBack, err.Error(), voidErr)
 		}
 		return nil, allocationRun{}, err
 	}
