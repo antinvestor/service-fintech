@@ -94,9 +94,12 @@ func ensure(ctx context.Context, dbPool pool.Pool, role, password string) error 
 	if err := db.Raw(`SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ?)`, role).Scan(&exists).Error; err != nil {
 		return fmt.Errorf("look up runtime role: %w", err)
 	}
-	verb := "ALTER"
+	// Only a superuser may name SUPERUSER in ALTER ROLE, even to deny it, so
+	// it is set when the role is created; a non-superuser owner can never
+	// grant it afterwards.
+	verb, attrs := "ALTER", "LOGIN NOBYPASSRLS NOCREATEDB NOCREATEROLE"
 	if !exists {
-		verb = "CREATE"
+		verb, attrs = "CREATE", "LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE"
 	}
 	// Postgres quotes the name and the password itself, and the statement
 	// runs on a session that never logs SQL. Neon accepts only plaintext
@@ -104,7 +107,7 @@ func ensure(ctx context.Context, dbPool pool.Pool, role, password string) error 
 	// statement pg_stat_statements records is removed right after.
 	quiet := db.Session(&gorm.Session{Logger: gormlogger.Discard})
 	var stmt string
-	if err := quiet.Raw(`SELECT format('`+verb+` ROLE %I WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD %L', ?::text, ?::text)`,
+	if err := quiet.Raw(`SELECT format('`+verb+` ROLE %I WITH `+attrs+` PASSWORD %L', ?::text, ?::text)`,
 		role, password).
 		Scan(&stmt).
 		Error; err != nil {
