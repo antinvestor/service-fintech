@@ -4,10 +4,10 @@ buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.12-20260929093104-d5
 buf.build/gen/go/antinvestor/audit/protocolbuffers/go v1.36.12-20260929093104-d5d34f953660.2/go.mod h1:2M48o5NSbpBfSLoYKEq1ClTK5BNYBI294fRWfPGq7vI=
 buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.12-20260509050709-3f270876dbf3.2 h1:Rzgdz5lQyym2xREfmEpybYF3U7W29Rhr64YBRv1GTTQ=
 buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.12-20260509050709-3f270876dbf3.2/go.mod h1:lW0aq7sAW/QoJH7VBLMaadXYY6xFyIVW7dy4olw654M=
-buf.build/gen/go/antinvestor/field/connectrpc/go/v2 v2.0.2-20261026032826-8d13ffc64bc8.1 h1:hff2qJOJCcOU4cvw7nu3+Zf4Qdu7G6ZYyInszgpx184=
-buf.build/gen/go/antinvestor/field/connectrpc/go/v2 v2.0.2-20261026032826-8d13ffc64bc8.1/go.mod h1:cSH7ibcBZ6/fYEIQJtG7HBlF+ljkq1RZiZ+IhQz04p4=
-buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261026055618-4db5113dd5f4.2 h1:aBaVmzHN2EnXtQAEitm3amFiZM1wptxTYdafYVn502s=
-buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261026055618-4db5113dd5f4.2/go.mod h1:RpPY59kuJhGJ7Xe4VQ/nbDm9+ku0ndEicE/NXpgrB3Y=
+buf.build/gen/go/antinvestor/field/connectrpc/go/v2 v2.0.2-20261027085923-0714fc3269b1.1 h1:HE5ABh8FurzTK9sNGS5HlVl63rF8K9MJrkXVT61JqxQ=
+buf.build/gen/go/antinvestor/field/connectrpc/go/v2 v2.0.2-20261027085923-0714fc3269b1.1/go.mod h1:MAAX+INyBrV1AQE0aeC93CJ6DsscWU6+NM5jRvrUdqc=
+buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261027085923-0714fc3269b1.2 h1:z8EoSw8ucKHcJ0UmaIj9FsnnqYg5MZYeCXcQWKHsy5E=
+buf.build/gen/go/antinvestor/field/protocolbuffers/go v1.36.12-20261027085923-0714fc3269b1.2/go.mod h1:2eRrwcfksO+azO0PzpHugV9Q0SFAmaQUl3Gh8pCX+yA=
 buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac946cc1ed.1 h1:x8bH8W4HREqcFzXlvQb6iSQmfQdzRTY3nmG+vXle4oA=
 buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac946cc1ed.1/go.mod h1:gZYz5af+z2i3QpFZkOCYbo3LmK8Sdj79CVc7eclWdk4=
 buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2 h1:qi0gxAqjoJ/uNQh/V1sGenoKTpzlgZv6KRNSR6aJMHc=
