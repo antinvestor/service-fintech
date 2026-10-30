@@ -15,7 +15,7 @@ packages:
       path: "../../sdk/dart/limits"
       relative: true
     source: path
-    version: "0.3.0"
+    version: "0.3.1"
   antinvestor_ui_core:
     dependency: "direct main"
     description:
