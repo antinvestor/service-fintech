@@ -12,10 +12,10 @@ buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac94
 buf.build/gen/go/antinvestor/files/connectrpc/go/v2 v2.0.2-20260831171628-44ac946cc1ed.1/go.mod h1:gZYz5af+z2i3QpFZkOCYbo3LmK8Sdj79CVc7eclWdk4=
 buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2 h1:qi0gxAqjoJ/uNQh/V1sGenoKTpzlgZv6KRNSR6aJMHc=
 buf.build/gen/go/antinvestor/files/protocolbuffers/go v1.36.12-20260831171628-44ac946cc1ed.2/go.mod h1:SBTRWEDRNjIEtp73vkstgPAngZ2ReBAgV1eUbsaF6ok=
-buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261026143140-b460de911c35.1 h1:6jmu4I4W8Tb2u5meMO7BViXJclE2ERGLbS0hEk1mM6c=
-buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261026143140-b460de911c35.1/go.mod h1:1/BXgYRUQ7MFZ4RbBsrTGnIkC/G9fLZdXuj4fBHU5Io=
-buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261026143140-b460de911c35.2 h1:u4EGFwd4G7MJFIsmmAWCwCl+fF6I2L/LSm/EW5rFN5s=
-buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261026143140-b460de911c35.2/go.mod h1:VtaQ6lVFcehjTnmNUvQmCbBstXbHV0I39QCdwGv3d+I=
+buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261027105418-8e1a2568b1f8.1 h1:4I2lx4wM1K1iTTzZK+cpiEAC+eEO8E1NbfeFsLqn/hg=
+buf.build/gen/go/antinvestor/funding/connectrpc/go/v2 v2.0.2-20261027105418-8e1a2568b1f8.1/go.mod h1:NrjS6vJ/+dvEjmm2aDq/iBFdrBxNLr84+Ezv1E7Ra1Q=
+buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261027105418-8e1a2568b1f8.2 h1:QMQxzTzCxR8Lfg9kpGECZ4o6hPtKitpfFJORUD2kiME=
+buf.build/gen/go/antinvestor/funding/protocolbuffers/go v1.36.12-20261027105418-8e1a2568b1f8.2/go.mod h1:lJ6IGYsxqM1hru2Hg4fUxSCFPCoSKgnQcN2QCXcMDOE=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261027105418-079b97d42bd8.1 h1:cIgYk2EEu0l6HwFc2aogT2FmQqZ/8VrgHQNIsRg6tWI=
 buf.build/gen/go/antinvestor/identity/connectrpc/go/v2 v2.0.2-20261027105418-079b97d42bd8.1/go.mod h1:I3Y75fCCsf0QMKPsUbEO07FYo0y75MNOjyVBEdlnx1I=
 buf.build/gen/go/antinvestor/identity/protocolbuffers/go v1.36.12-20261027105418-079b97d42bd8.2 h1:CffJqxcZNcecv/AH863LDi/b3b3S4i/BHfxiczqeP+Y=
