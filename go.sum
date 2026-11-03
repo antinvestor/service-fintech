@@ -28,10 +28,10 @@ buf.build/gen/go/antinvestor/limits/connectrpc/go/v2 v2.0.2-20261027105418-b556d
 buf.build/gen/go/antinvestor/limits/connectrpc/go/v2 v2.0.2-20261027105418-b556d13db99e.1/go.mod h1:BGCcVNOVVsbF/rXD/JHAll/Anh7ZTz5irgaq6MMnDZQ=
 buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.12-20261027105418-b556d13db99e.2 h1:rqNDd1i88QUr/pC7X63hk10oIhFCP10QoUWOqkE+76I=
 buf.build/gen/go/antinvestor/limits/protocolbuffers/go v1.36.12-20261027105418-b556d13db99e.2/go.mod h1:X0MNKkJMpjMGIxcjHzASn3s4KD/6nBc8XKm8LhhcqGc=
-buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261026143137-1a5971afd133.1 h1:17d9Rh0PIRaUsTMeaA4JJsYfeBnqoSd9SOD3khGpdIA=
-buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261026143137-1a5971afd133.1/go.mod h1:jjzi54q4AduYlWsuGXeTGBq9X+Co7v/UZ83c6smZDsc=
-buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261026143137-1a5971afd133.2 h1:zbHN8izmgEwbT/xblAVGdVS6N2FGVm2qBWCLIkNqEoY=
-buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261026143137-1a5971afd133.2/go.mod h1:S0ESWwia6HXIhZFWOBFGyuP3nj9fJcA7uJ2K1h8/wiQ=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261027105418-c6657b5a5f5e.1 h1:2e/sy8Woou4Zy91FrY5rNO7lBDTXXj2wNxKniaLKPYo=
+buf.build/gen/go/antinvestor/loans/connectrpc/go/v2 v2.0.2-20261027105418-c6657b5a5f5e.1/go.mod h1:++5ykY4Kx236N6acP/yPV1JWuXmKOXV2Luvcp5lgbSc=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261027105418-c6657b5a5f5e.2 h1:bzol5M9z6sLm3U9oouXuYZKuCuEJk+wKhrKSO1r7LyI=
+buf.build/gen/go/antinvestor/loans/protocolbuffers/go v1.36.12-20261027105418-c6657b5a5f5e.2/go.mod h1:bhGpFUFMwZ5k2gBzFe7XIpPdBLGucAGLKuxHJlxs/HU=
 buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1 h1:rv4s5SZd4NT02LcoqbqgQgmqnNgaxMCxVSc9HkmHOoE=
 buf.build/gen/go/antinvestor/notification/connectrpc/go/v2 v2.0.2-20260831182621-e7d71a2bcc5d.1/go.mod h1:nDN9duwYKB0jZw4HZMQFgRFY5RIy3YiiA6ULdT2vJKk=
 buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.12-20260831182621-e7d71a2bcc5d.2 h1:a5U+LKghcVsN0YdHmbh3S6h2PRyUclqW6V/30nY0ijw=
