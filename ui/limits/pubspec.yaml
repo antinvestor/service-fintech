@@ -27,7 +27,7 @@ dependencies:
     version: 0.3.1
   antinvestor_api_common: ^2.0.0
   connectrpc: ^2.0.0
-  flutter_riverpod: ^3.4.3
+  flutter_riverpod: ^3.5.0
   go_router: ^17.5.0
   protobuf: ^6.1.0
   fixnum: ^1.1.1
