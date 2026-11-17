@@ -36,7 +36,7 @@ jobs:
   opl-push:
     permissions:
       contents: read
-    uses: antinvestor/common/.github/workflows/opl-push.yml@0b3d2df096df7fb7bff3e91a8dcb12e0094b1a04 # antinvestor/common main
+    uses: antinvestor/common/.github/workflows/opl-push.yml@f333212e1c0a8d02ceb14ad26d658f150ce19e9a # antinvestor/common main
     with:
       opl_source: apps/default
     secrets:
